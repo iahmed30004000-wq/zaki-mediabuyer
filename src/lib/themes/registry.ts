@@ -1,19 +1,19 @@
 /**
- * The four themes of the app. A pure module (no React, no server imports, no `@/` imports — the
+ * The four themes of the Media Buyer (its own designs; the engine came from Zaki Workspace). A pure module (no React, no server imports, no `@/` imports — the
  * Tailwind config reaches it through palettes.ts): the root layout, the client provider, the
  * decoration engine and the tests all read the theme list from here.
  *
  * A theme is the `data-theme` attribute on <html>; the dark ones also carry the `dark` class so
- * Tailwind's `dark:` variants keep working. The chosen key lives in the cookie `zaki_theme` (so the
+ * Tailwind's `dark:` variants keep working. The chosen key lives in the cookie `mb_theme` (so the
  * server paints the right theme with no flash) and in `User.theme` (so it follows the person).
  * The colours are in palettes.ts; the stylesheet they become is src/app/themes.css (generated).
  */
 
-export const THEME_KEYS = ["islamic-calm", "islamic-epic", "neon-coast", "day"] as const;
+export const THEME_KEYS = ["iznik", "observatory", "sunset-city", "wudooh"] as const;
 export type ThemeKey = (typeof THEME_KEYS)[number];
 
-/** Calm Islamic: the default for everybody who has not chosen. */
-export const DEFAULT_THEME: ThemeKey = "islamic-calm";
+/** «إزنيق» (Iznik tiles): the default for everybody who has not chosen. */
+export const DEFAULT_THEME: ThemeKey = "iznik";
 
 export interface ThemeInfo {
   key: ThemeKey;
@@ -24,10 +24,10 @@ export interface ThemeInfo {
 }
 
 export const THEMES: Record<ThemeKey, ThemeInfo> = {
-  "islamic-calm": { key: "islamic-calm", dark: false, headingFont: "reem-kufi" },
-  "islamic-epic": { key: "islamic-epic", dark: true, headingFont: "reem-kufi" },
-  "neon-coast": { key: "neon-coast", dark: true, headingFont: "plex" },
-  day: { key: "day", dark: false, headingFont: "plex" },
+  iznik: { key: "iznik", dark: false, headingFont: "reem-kufi" },
+  observatory: { key: "observatory", dark: true, headingFont: "reem-kufi" },
+  "sunset-city": { key: "sunset-city", dark: true, headingFont: "plex" },
+  wudooh: { key: "wudooh", dark: false, headingFont: "plex" },
 };
 
 /** The themes in the order the picker shows them. */
@@ -63,13 +63,13 @@ export function themeMoodKey(key: ThemeKey): string {
  * sets it again from the server (a server-set cookie keeps its full year on Safari, which caps the
  * ones a script writes).
  */
-export const THEME_COOKIE = "zaki_theme";
+export const THEME_COOKIE = "mb_theme";
 
 /** How much decoration is drawn: nothing, a light touch (default) or the full effect with slow motion. */
 export const DECOR_LEVELS = ["off", "light", "full"] as const;
 export type DecorLevel = (typeof DECOR_LEVELS)[number];
 export const DEFAULT_DECOR: DecorLevel = "light";
-export const DECOR_COOKIE = "zk-decor";
+export const DECOR_COOKIE = "mb-decor";
 
 export function isDecorLevel(value: unknown): value is DecorLevel {
   return typeof value === "string" && (DECOR_LEVELS as readonly string[]).includes(value);

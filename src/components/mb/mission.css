@@ -1,0 +1,21 @@
+/* «تمّت المهمة»: a band that slides in, holds, and fades. Theme tokens only. */
+.mb-mission-band {
+  background: linear-gradient(90deg, transparent, rgb(var(--surface-1) / 0.94) 18%, rgb(var(--surface-1) / 0.94) 82%, transparent);
+  border-block: 1px solid rgb(var(--accent) / 0.45);
+}
+.mb-mission-title {
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 0 rgb(var(--scrim) / 0.35);
+}
+.mb-mission {
+  animation: mb-mission 1.9s ease-out both;
+}
+@keyframes mb-mission {
+  0% { opacity: 0; transform: translateX(-12%) scale(0.98); }
+  14% { opacity: 1; transform: none; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mb-mission { animation: none; }
+}

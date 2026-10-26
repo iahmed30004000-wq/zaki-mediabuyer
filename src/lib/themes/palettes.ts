@@ -1,43 +1,11 @@
 /**
- * THE FOUR PALETTES — every colour a screen may use, per theme, by ROLE and never by look.
+ * THE FOUR PALETTES of the Media Buyer — every colour a screen may use, per theme, by ROLE and never by look.
  *
- * Pure data and pure functions (no React, no DOM, no server imports, relative imports only: the
- * Tailwind config loads this file too). `src/app/themes.css` is GENERATED from it by
- * `npx tsx scripts/build-themes-css.mjs`, and tests/themes-css.test.ts fails while the two disagree.
- * tests/themes-palettes.test.ts runs every palette through the contrast gate (contrast.ts).
- *
- * ── Where the colours come from ──
- * The four themes of the OMS (`OMS/src/lib/system-themes.ts`, entries islamic-calm, islamic-epic,
- * neon-coast, day), mapped onto the Workspace's tokens:
- *   surface <- background · surface-1 <- card · surface-2 <- surface · border <- border
- *   fg <- foreground · fg-muted <- muted-foreground · muted <- muted (the dimmer grey, still 4.5:1)
- *   accent <- primary · accent-fg <- primary-foreground · ok <- success · warn <- warning
- *   danger <- destructive · cat-1..6 <- the chart series (re-picked where two were twins, below)
- * and four roles the OMS does not have:
- *   accent-2  the theme's second accent: gold (calm), turquoise (epic), the rose neon (neon-coast),
- *             the cyan of the brand mark (day). A shape colour (3:1), not a text colour.
- *   info      a blue that fits the theme and is clearly not its accent.
- *   *-fg      the label colour ON a solid meaning (a solid danger button): white on the light
- *             themes, the page's own dark on the dark ones.
- *   scrim     a DARK veil, tinted to the theme, in every theme: the dialog / sheet backdrop
- *             (`bg-scrim/60`, SCRIM_BACKDROP_ALPHA) and the panel under a light caption on a photo
- *             (at least SCRIM_PANEL_ALPHA). It dims; it never lightens. (Dark text over a picture on
- *             a light theme sits on a `--surface` panel instead — the decoration layer does that.)
- *
- * ── Where they were moved, and why (each move is the smallest that passes, along the colour's own hue) ──
- * The gate in contrast.ts is stricter than the OMS's on two points the Workspace's code needs:
- *  1. Status colours and categories are drawn as TEXT on their own 10% tint (`bg-ok/10 text-ok`) —
- *     the colour codemod turns every `text-emerald-600` / `text-violet-500` into exactly that. So the
- *     light themes' ok/warn/danger and some categories are a few steps darker than the OMS's, and
- *     the dark themes' danger and some categories a few steps lighter.
- *  2. Six categories must be six different colours: the OMS series had twins (calm chart-1/chart-3
- *     are both purple, 0.044 apart; neon chart-4/chart-6 0.057). The set is now, in every theme, one
- *     colour per family, in this order: 1 violet · 2 fuchsia · 3 rose · 4 teal/cyan · 5 lime/olive ·
- *     6 indigo — the order the colour codemod maps violet, fuchsia, rose (and pink), teal, lime and
- *     purple onto.
- *  Also: «إسلامي ملحمي»'s warning moved from amber toward orange (the OMS amber was 0.058 from the
- *  theme's own gold: a warning that looks like the action colour); the OMS «إسلامي هادي» card shadow
- *  (54% black, copied from a dark theme) became a soft one.
+ * New designs for this system (the token engine came from Zaki Workspace): «إزنيق» (Iznik tiles, the default),
+ * «المرصد» (astrolabe at night), «مدينة الغروب» (a city at golden hour, real photographs) and «وُضوح» (the
+ * spec's own identity, section 18.1). `src/app/themes.css` is GENERATED from this file
+ * (`npm run themes:css`) and tests/themes-palettes.test.ts runs every palette through the contrast gate.
+ * Meanings (ok / warn / danger) keep their roles in every theme; danger is for risk only (spec 18.1).
  */
 import { DEFAULT_THEME, type ThemeKey } from "./registry";
 import { SCRIM_BACKDROP_ALPHA, SCRIM_PANEL_ALPHA, hexToTriplet } from "./contrast";
@@ -97,142 +65,142 @@ const PLEX_STACK = 'var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma
 const KUFI_STACK = `var(--font-reem, "Reem Kufi"), ${PLEX_STACK}`;
 
 export const PALETTES: Record<ThemeKey, Palette> = {
-  /** «إسلامي هادي» — ivory paper, deep emerald, a touch of gold. Light. The default. */
-  "islamic-calm": {
+  /** «إزنيق» — Iznik tiles: ivory glaze, cobalt blue, turquoise. Light. The default. */
+  iznik: {
     colors: {
-      surface: "#F6F1E7",
+      surface: "#F7F4EC",
       "surface-1": "#FFFFFF",
-      "surface-2": "#F2F2F2",
-      border: "#DBDBDB",
-      muted: "#55716E",
-      fg: "#1D2A29",
-      "fg-muted": "#3F635E",
-      accent: "#0E5E55",
+      "surface-2": "#EEF1F5",
+      border: "#D3DAE3",
+      muted: "#56657E",
+      fg: "#14213D",
+      "fg-muted": "#3E4F6B",
+      accent: "#1D4AA0", // cobalt
       "accent-fg": "#FFFFFF",
-      "accent-2": "#A2822A", // gold (new): the ornament's metal, as a shape only
-      ok: "#027539", // OMS #147D40, darker for chips
-      warn: "#895C0A", // OMS #916418, darker for chips
-      danger: "#C12215", // OMS #CC2F21, darker for chips
-      info: "#2863AB", // lapis (new)
+      "accent-2": "#138486", // turquoise glaze, as a shape only
+      ok: "#17703A",
+      warn: "#8E5B06",
+      danger: "#B42318",
+      info: "#0A6C8C",
       "ok-fg": "#FFFFFF",
       "warn-fg": "#FFFFFF",
       "danger-fg": "#FFFFFF",
       "info-fg": "#FFFFFF",
-      scrim: "#0F1A19", // the ink of the text, deepened: a green-black veil
-      "cat-1": "#6029AE", // violet (OMS chart-1)
-      "cat-2": "#AE2997", // fuchsia (OMS chart-4)
-      "cat-3": "#B6285B", // rose (new: the OMS chart-3 was chart-1's twin)
-      "cat-4": "#0A6F81", // teal (OMS chart-5 #2997AE, darker)
-      "cat-5": "#596D08", // olive (new)
-      "cat-6": "#2929AE", // indigo (OMS chart-6)
+      scrim: "#0B1428",
+      "cat-1": "#6A35B0",
+      "cat-2": "#A3288F",
+      "cat-3": "#B02A55",
+      "cat-4": "#0B6F7C",
+      "cat-5": "#5A6B0A",
+      "cat-6": "#3236A8",
     },
     style: {
       "font-display": KUFI_STACK,
-      "radius-card": "0.75rem",
-      "shadow-card": "0 1px 2px rgb(29 42 41 / 0.06), 0 1px 3px rgb(29 42 41 / 0.08)",
+      "radius-card": "0.875rem",
+      "shadow-card": "0 1px 2px rgb(20 33 61 / 0.06), 0 2px 6px rgb(20 33 61 / 0.06)",
     },
   },
 
-  /** «إسلامي ملحمي» — night navy and gold, turquoise as the second accent. Dark. */
-  "islamic-epic": {
+  /** «المرصد» — an astrolabe at night: indigo-black sky and brass. Dark. */
+  observatory: {
     colors: {
-      surface: "#0A1430",
-      "surface-1": "#101C40",
-      "surface-2": "#212C4D",
-      border: "#404966",
-      muted: "#A79F8B",
-      fg: "#EEECE7",
-      "fg-muted": "#C3B9A2",
-      accent: "#D4AF5A",
-      "accent-fg": "#0A0A0A",
-      "accent-2": "#5CC6B9", // turquoise (new): the tile beside the gold
-      ok: "#24DB70",
-      warn: "#E98E3F", // OMS #DB9824 turned toward orange: it was the gold's twin
-      danger: "#F36669", // OMS #E4585D, lighter for chips
-      info: "#62A8DA", // sky (OMS chart-2)
-      "ok-fg": "#0A1430",
-      "warn-fg": "#0A1430",
-      "danger-fg": "#0A1430",
-      "info-fg": "#0A1430",
-      scrim: "#050B1C", // the night under the navy
-      "cat-1": "#AE7CF0", // violet (OMS chart-3's family, lighter)
-      "cat-2": "#DF67CB", // fuchsia (OMS chart-4, a step lighter)
-      "cat-3": "#F486AD", // rose (new)
-      "cat-4": "#62C6DA", // cyan (OMS chart-5)
-      "cat-5": "#AED561", // lime (new)
-      "cat-6": "#758DF8", // indigo (OMS chart-6 #6262DA, lighter)
+      surface: "#0B1022",
+      "surface-1": "#121A33",
+      "surface-2": "#1C2645",
+      border: "#34406A",
+      muted: "#A49C8C",
+      fg: "#EDEAE2",
+      "fg-muted": "#C2B9A6",
+      accent: "#D9A55B", // brass
+      "accent-fg": "#120C04",
+      "accent-2": "#6FC3D6", // lapis-sky
+      ok: "#3FD07F",
+      warn: "#F27A3D",
+      danger: "#F7718A",
+      info: "#7DA9F0",
+      "ok-fg": "#0B1022",
+      "warn-fg": "#0B1022",
+      "danger-fg": "#0B1022",
+      "info-fg": "#0B1022",
+      scrim: "#04070F",
+      "cat-1": "#B592F5",
+      "cat-2": "#E07AD0",
+      "cat-3": "#F38BAF",
+      "cat-4": "#6FD0DD",
+      "cat-5": "#B5DA6A",
+      "cat-6": "#7DA2F2",
     },
     style: {
       "font-display": KUFI_STACK,
-      "radius-card": "0.75rem",
-      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.52), 0 1px 3px rgb(0 0 0 / 0.30)",
+      "radius-card": "0.875rem",
+      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.30)",
     },
   },
 
-  /** «ساحل النيون» — a coast after sunset: teal-black, aqua neon and rose neon. Dark. Original work. */
-  "neon-coast": {
+  /** «مدينة الغروب» — a city at golden hour: dusk purple, sunset orange, magenta. Dark. Original work, no game reference. */
+  "sunset-city": {
     colors: {
-      surface: "#061C28",
-      "surface-1": "#0B2737",
-      "surface-2": "#113447",
-      border: "#20506A",
-      muted: "#7FA7B8",
-      fg: "#EAF7F8",
-      "fg-muted": "#A6C8D4",
-      accent: "#4DD9DB",
-      "accent-fg": "#05222E",
-      "accent-2": "#F067AE", // the rose neon (OMS chart-2 #E75FA6, a step lighter)
-      ok: "#4FC27C",
-      warn: "#EAA23A",
-      danger: "#F96A63", // OMS #F0625C, lighter for chips
-      info: "#6FB0E0", // sky (OMS chart-4)
-      "ok-fg": "#05222E",
-      "warn-fg": "#05222E",
-      "danger-fg": "#05222E",
-      "info-fg": "#05222E",
-      scrim: "#03121A", // the sea at night
-      "cat-1": "#C9A8F0", // lavender-violet (OMS chart-5)
-      "cat-2": "#E27EE8", // fuchsia (new)
-      "cat-3": "#F067AE", // rose: the theme's own rose neon
-      "cat-4": "#4DD9DB", // aqua: the theme's own aqua neon (OMS chart-1)
-      "cat-5": "#B3DC5E", // lime (new)
-      "cat-6": "#8E94F0", // periwinkle-indigo (OMS chart-3)
+      surface: "#160F1E",
+      "surface-1": "#20172B",
+      "surface-2": "#2C2039",
+      border: "#4A3A5E",
+      muted: "#B9A296",
+      fg: "#FBF1E6",
+      "fg-muted": "#DCC5B4",
+      accent: "#FF9A3C", // sunset orange
+      "accent-fg": "#1A0F05",
+      "accent-2": "#FF5FA8", // magenta sky
+      ok: "#5FD38D",
+      warn: "#FFD15C",
+      danger: "#FF6B6B",
+      info: "#7FB8FF",
+      "ok-fg": "#160F1E",
+      "warn-fg": "#160F1E",
+      "danger-fg": "#160F1E",
+      "info-fg": "#160F1E",
+      scrim: "#0A0610",
+      "cat-1": "#C9A0FA",
+      "cat-2": "#F27FE0",
+      "cat-3": "#FF7FA8",
+      "cat-4": "#5FD6D6",
+      "cat-5": "#C3E06A",
+      "cat-6": "#8A9BFF",
     },
     style: {
       "font-display": PLEX_STACK,
-      "radius-card": "0.875rem",
-      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.66), 0 1px 3px rgb(0 0 0 / 0.44)",
+      "radius-card": "1rem",
+      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.6), 0 4px 14px rgb(0 0 0 / 0.35)",
     },
   },
 
-  /** «نهاري» — white and petrol blue, plain. Light. */
-  day: {
+  /** «وُضوح» — the spec's own identity (section 18.1): navy, petrol, cyan on white. Light. */
+  wudooh: {
     colors: {
-      surface: "#FFFFFF",
-      "surface-1": "#F4F8FA",
+      surface: "#F4F8FA",
+      "surface-1": "#FFFFFF",
       "surface-2": "#E9F0F3",
       border: "#D5E1E6",
-      muted: "#5F6C75",
-      fg: "#0C3252",
-      "fg-muted": "#4A6272",
-      accent: "#1A6382",
+      muted: "#5E6B72",
+      fg: "#1F2933",
+      "fg-muted": "#44535C",
+      accent: "#1A6382", // petrol
       "accent-fg": "#FFFFFF",
-      "accent-2": "#2E9AAD", // the brand mark's cyan (OMS chart-1)
-      ok: "#1B7838", // OMS #1E7A3A, a step darker for chips
-      warn: "#985A0F", // OMS #9A5B12, a step darker for chips
-      danger: "#B42318",
-      info: "#0D6ABC", // royal blue (new): brighter and bluer than the petrol accent
+      "accent-2": "#2A98AE", // cyan, a shade darker for 3:1
+      ok: "#1A7043",
+      warn: "#7A6000",
+      danger: "#C00000",
+      info: "#2B57C4",
       "ok-fg": "#FFFFFF",
       "warn-fg": "#FFFFFF",
       "danger-fg": "#FFFFFF",
       "info-fg": "#FFFFFF",
-      scrim: "#071A2B", // the navy of the text, deepened
-      "cat-1": "#705EA2", // violet (OMS chart-3 #8E7CC3, darker)
-      "cat-2": "#9D3D8D", // fuchsia (new)
-      "cat-3": "#9A526B", // rose (OMS chart-6 #C1758E, darker)
-      "cat-4": "#0C7383", // teal (OMS chart-1 #2E9AAD, darker)
-      "cat-5": "#5F7019", // olive (new)
-      "cat-6": "#384DB8", // indigo (new)
+      scrim: "#071A2B",
+      "cat-1": "#705EA2",
+      "cat-2": "#9D3D8D",
+      "cat-3": "#9A526B",
+      "cat-4": "#0C7383",
+      "cat-5": "#5F7019",
+      "cat-6": "#384DB8",
     },
     style: {
       "font-display": PLEX_STACK,
