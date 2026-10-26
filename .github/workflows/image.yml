@@ -38,7 +38,7 @@ jobs:
       - run: node scripts/scan-secrets.mjs
 
       - name: Build the image
-        run: docker build -t mb:test .
+        run: docker build --build-arg APP_VERSION=${GITHUB_SHA::7} -t mb:test .
 
       - name: Prove it starts and answers /api/health
         run: |
@@ -89,13 +89,15 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           if [ -z "${COOLIFY_TOKEN:-}" ]; then echo "COOLIFY_TOKEN not set yet — deploy by hand in Coolify («Pull latest and restart»)"; exit 0; fi
-          curl -fsS -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json"
+          # the call is retried on a dropped connection (the Coolify host can be busy pulling); restarting twice is harmless
+          curl -fsS --retry 4 --retry-all-errors --retry-delay 10 --max-time 120 -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json"             || echo "the deploy call did not get an answer — checking whether the new version came up anyway"
           echo
           app_url="${{ vars.APP_HEALTH_URL || 'https://mediabuyer.zakiai.io/api/health' }}"
+          want="${GITHUB_SHA::7}"
           sleep 30
-          for i in $(seq 1 40); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$app_url" || true)
-            [ "$code" = "200" ] && echo "live and healthy" && exit 0
+          for i in $(seq 1 60); do
+            body=$(curl -s --max-time 15 "$app_url" || true)
+            case "$body" in *"\"version\":\"$want\""*) echo "live and healthy on $want"; exit 0 ;; esac
             sleep 6
           done
-          echo "the site did not answer healthy after the deploy"; exit 1
+          echo "the site is not running $want after the deploy (last answer: ${body:0:200})"; exit 1

@@ -16,6 +16,7 @@ export async function GET() {
   const has = (k: string) => Boolean(process.env[k]?.trim());
   const body = {
     ok: database,
+    version: process.env.APP_VERSION ?? "dev",
     mock: process.env.MOCK_MODE === "1",
     database,
     encryption: encryptionKeyConfigured(),
