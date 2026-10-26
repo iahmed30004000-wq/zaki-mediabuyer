@@ -4,6 +4,7 @@ import { ThemePicker } from "@/components/theme/theme-picker";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
+import { StudioLink } from "@/components/settings/studio-link";
 import { fmt } from "@/lib/format";
 import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ export default function SettingsPage() {
               ) : null}
             </Panel>
           ))}
+          <StudioLink />
         </div>
       </Section>
 

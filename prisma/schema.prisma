@@ -392,3 +392,38 @@ model AgentRun {
 
   @@index([agent, createdAt])
 }
+
+// ───────────────────────────── the content studio (docs/STUDIO_DATA_CONTRACT_AR.md) ─────────────────────────────
+
+/// A token another system (the content studio) calls this one with. Only the sha256 is kept; the token is shown once.
+model ApiToken {
+  id          String    @id @default(cuid())
+  name        String
+  /// vp:read · vp:launch — never a scope that approves spend
+  scopes      String[]
+  tokenHash   String    @unique
+  /// the first characters, so the owner can tell two tokens apart
+  prefix      String
+  createdById String?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+/// The registry of creatives (spec 7.3). Phase 1 keeps only what ties a CR##### to the studio script it came from;
+/// the intake (T3.1) adds the rest of 7.3. Never deleted: an excluded creative stays as `excluded`.
+model CreativeAsset {
+  id          String   @id @default(cuid())
+  crCode      String   @unique
+  productCode String?
+  /// studio · drive · clipper · customer · manual
+  source      String
+  /// the studio script id (VP-TRF01-0012-v2, a hook version ends in -h2)
+  sourceRef   String?  @unique
+  driveFileId String?
+  status      String   @default("ready")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
