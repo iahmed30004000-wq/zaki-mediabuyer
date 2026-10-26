@@ -32,6 +32,10 @@ export async function POST(req: Request) {
     if (limited(email)) throw new HttpError(429, "محاولات كتير. استنى ربع ساعة.");
 
     if ((await db.user.count()) === 0) {
+      // On a public server the first sign-in must not be a race: when OWNER_EMAIL is set, only that address can
+      // become the owner.
+      const ownerEmail = process.env.OWNER_EMAIL?.trim().toLowerCase();
+      if (ownerEmail && email !== ownerEmail) throw new HttpError(403, "حساب المالك بيتعمل بس بإيميل المالك المحدّد بإعدادات السيرفر");
       const owner = await db.user.create({ data: { email, name: parsed.data.name ?? "المالك", role: "OWNER", passwordHash: await bcrypt.hash(parsed.data.password, 12) } });
       await audit({ type: "user", id: owner.id }, "user.first_owner", { type: "user", id: owner.id });
       await startSession(owner);

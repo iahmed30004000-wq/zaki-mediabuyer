@@ -22,9 +22,11 @@ RUN npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3140 TZ=Asia/Amman
-RUN apt-get update -qq && apt-get install -y --no-install-recommends openssl ca-certificates tzdata && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --create-home --shell /bin/false mb
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3140 TZ=Asia/Amman STORAGE_DIR=/app/storage
+# ffmpeg/ffprobe: the creative intake probes every video and cuts its thumbnail frames (spec 7.2, 7.5)
+RUN apt-get update -qq && apt-get install -y --no-install-recommends openssl ca-certificates tzdata ffmpeg && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --create-home --shell /bin/false mb \
+    && mkdir -p /app/storage && chown -R mb:mb /app/storage
 COPY --from=build /app/package.json /app/next.config.mjs /app/tsconfig.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next

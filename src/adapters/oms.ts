@@ -148,3 +148,35 @@ export function toAttributedOrder(o: OmsOrder, confirmWindowH: number) {
     matureAt: maturesAt(created, confirmWindowH),
   };
 }
+
+/**
+ * The customer identifiers behind `capi_ref`, for CAPI only (spec 9.2: «بينفك بكود CAPI بس»). Asked by POST so no
+ * reference ever sits in a URL or a log; the answer is used in memory, hashed, and dropped — never stored.
+ */
+export const CapiIdentifiers = z.object({
+  ref: z.string(),
+  phone_e164: z.string().nullable().optional(),
+  fbc: z.string().nullable().optional(),
+  fbp: z.string().nullable().optional(),
+  external_ref: z.string().nullable().optional(),
+  ctwa_clid: z.string().nullable().optional(),
+  waba_id: z.string().nullable().optional(),
+  page_id: z.string().nullable().optional(),
+  psid: z.string().nullable().optional(),
+});
+export type CapiIdentifiers = z.infer<typeof CapiIdentifiers>;
+
+export async function readCapiIdentifiers(o: OmsOptions, refs: string[]): Promise<Map<string, CapiIdentifiers>> {
+  const out = new Map<string, CapiIdentifiers>();
+  if (!refs.length) return out;
+  const res = await (o.fetch ?? fetch)(`${o.baseUrl.replace(/\/$/, "")}/api/v1/capi/identifiers`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${o.token}`, "content-type": "application/json", "x-request-id": crypto.randomUUID() },
+    body: JSON.stringify({ refs }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`OMS /capi/identifiers answered ${res.status}`);
+  const data = (await res.json()) as { items?: unknown };
+  for (const item of z.array(CapiIdentifiers).parse(data.items ?? [])) out.set(item.ref, item);
+  return out;
+}

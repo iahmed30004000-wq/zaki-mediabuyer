@@ -8,7 +8,8 @@ import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { fmt } from "@/lib/format";
 import { PaceBar, Panel, Section } from "@/components/mb/section";
-import { ALERTS, CHANGES, PACE, SETUP_STEPS, SOURCES, allAds } from "@/lib/mock/data";
+import { ALERTS, PACE, SETUP_STEPS, SOURCES, allAds } from "@/lib/mock/data";
+import { loadChanges } from "@/lib/changes-view";
 import { loadDataset } from "@/lib/source";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +23,9 @@ function greeting(now = new Date()) {
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
-  const ds = await loadDataset();
-  const pending = CHANGES.filter((c) => c.state === "pending_approval");
-  const auto = CHANGES.filter((c) => c.state === "executed" && c.auto);
+  const [ds, changes] = await Promise.all([loadDataset(), loadChanges()]);
+  const pending = changes.filter((c) => c.state === "pending_approval");
+  const auto = changes.filter((c) => c.state === "executed" && c.auto);
   const done = SETUP_STEPS.filter((s) => s.done).length;
   const ranked = allAds(ds).filter((x) => x.view.enoughData && x.view.costPerConfirmed !== null);
   const best = [...ranked].sort((a, b) => a.view.costPerConfirmed! - b.view.costPerConfirmed!).slice(0, 3);

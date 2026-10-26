@@ -2,6 +2,7 @@ import { AdsView, type TreeRow } from "@/components/ads/ads-view";
 import { parseAdName, parseAdSetName, parseCampaignName, STAGE_AR, OBJECTIVE_AR, MARKET_AR } from "@/core/naming";
 import { adsetCounts, campaignCounts, productView, targetsOf, viewOf } from "@/lib/mock/data";
 import { loadDataset } from "@/lib/source";
+import { loadExperiments, loadLaunchOptions } from "@/lib/launch-view";
 
 export const metadata = { title: "الإعلانات" };
 
@@ -9,7 +10,7 @@ export const metadata = { title: "الإعلانات" };
 export const dynamic = "force-dynamic";
 
 export default async function AdsPage({ searchParams }: { searchParams: { tab?: string; open?: string; product?: string } }) {
-  const ds = await loadDataset();
+  const [ds, launchOptions, experiments] = await Promise.all([loadDataset(), loadLaunchOptions(), loadExperiments()]);
   const rows: TreeRow[] = ds.campaigns.map((cmp) => {
     const p = cmp.productCode ? ds.products.find((x) => x.code === cmp.productCode) : undefined;
     const parsed = parseCampaignName(cmp.name);
@@ -66,5 +67,5 @@ export default async function AdsPage({ searchParams }: { searchParams: { tab?: 
     return { code: p.code, name: p.name, market: p.market, stockDays: p.stockDays, view: v.view, targets: v.targets };
   });
 
-  return <AdsView rows={rows} products={products} initialTab={searchParams.tab ?? "campaigns"} openId={searchParams.open} productFilter={searchParams.product} />;
+  return <AdsView rows={rows} products={products} initialTab={searchParams.tab ?? "campaigns"} openId={searchParams.open} productFilter={searchParams.product} launchOptions={launchOptions} experiments={experiments} />;
 }
