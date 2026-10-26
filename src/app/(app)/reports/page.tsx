@@ -83,6 +83,24 @@ export default async function ReportsPage({ searchParams }: { searchParams: { r?
         </div>
       </Section>
 
+      {reports?.analysis?.products.length ? (
+        <Section title="تشخيص اليوم" hint={`أضعف خطوة بالقمع لكل منتج، مقابل وسيط حسابك · ${reports.analysis.by}`}>
+          <Panel className="divide-y divide-border p-0">
+            {reports.analysis.products.map((p) => (
+              <div key={p.product_code} className="space-y-0.5 px-4 py-3 text-sm">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span dir="ltr" className="font-mono text-xs text-fg">{p.product_code}</span>
+                  <span className={p.status === "weak" ? "rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn" : "rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg-muted"}>{{ weak: "ضعيف", watch: "انتبه", good: "ماشي", not_enough: "بيانات غير كافية" }[p.status] ?? p.status}</span>
+                  <span className="text-xs text-fg-muted">{{ impressions: "الظهور", hook: "الهوك", click: "النقر", lpv: "الوصول للصفحة", order: "الطلب", confirm: "التأكيد", delivery: "التسليم", return: "المرتجع", none: "—" }[p.weak_point] ?? p.weak_point}</span>
+                </p>
+                <p className="text-fg">{p.likely_cause} ← {p.proposed_action}</p>
+                <p className="text-[11px] text-fg-muted">{p.sample}</p>
+              </div>
+            ))}
+          </Panel>
+        </Section>
+      ) : null}
+
       {reports?.plan ? (
         <Section title="خطة الأسبوع" hint={`ضمن السقف حرفياً · ${reports.plan.by}`}>
           <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">

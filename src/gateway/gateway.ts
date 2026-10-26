@@ -39,6 +39,9 @@ export const AGENTS: Record<string, AgentProfile> = {
   M11: { code: "M11", route: ["internal", "external"], internalOnly: false, dailyCapUsd: 0.5 },
   M02: { code: "M02", route: ["internal", "external"], internalOnly: false, dailyCapUsd: 3 },
   M01: { code: "M01", route: ["internal"], internalOnly: true, dailyCapUsd: 0.5 },
+  M04: { code: "M04", route: ["internal", "external"], internalOnly: false, dailyCapUsd: 1 },
+  M05: { code: "M05", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 2 },
+  M06: { code: "M06", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 2 },
   M03: { code: "M03", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 3 },
   M07: { code: "M07", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 2 },
   M10: { code: "M10", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 5 },
@@ -47,7 +50,7 @@ export const AGENTS: Record<string, AgentProfile> = {
 
 /** What each agent is, for the settings screen (spec 11.2). */
 export const AGENT_NAMES: Record<string, string> = {
-  M11: "كاتب التقارير", M02: "المحلل اليومي", M01: "المراقب اللحظي", M03: "المخطط", M07: "كاتب الإعلانات", M10: "الاستشاري", H01: "محلل الأسماء",
+  M11: "كاتب التقارير", M02: "المحلل اليومي", M01: "المراقب اللحظي", M03: "المخطط", M04: "معدّ التغييرات", M05: "الحارس", M06: "استراتيجي الإبداعات", M07: "كاتب الإعلانات", M10: "الاستشاري", H01: "محلل الأسماء",
 };
 
 /** The common header of every agent (spec 11.3). */

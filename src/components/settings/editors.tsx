@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, KeyRound, Plus, Trash2, UserPlus } from "lucide-react";
+import { Check, Copy, KeyRound, Plus, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -58,6 +58,17 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
           <Button disabled={busy} className="min-h-9" onClick={() => save(`/api/accounts/${a.metaId}/caps`, { dailyCap: num(caps[a.metaId]!.d), monthlyCap: num(caps[a.metaId]!.m) || 0 }, `${a.name}: السقوف انحفظت`)}>
             <Check className="size-4" /> احفظ
           </Button>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs">
+            <ShieldCheck className={cn("size-4", a.safetyNet === "on" ? "text-ok" : "text-fg-muted")} />
+            <span className="flex-1 text-fg-muted">
+              {a.safetyNet === "on" ? "شبكة الأمان على ميتا مركّبة: سقف الحساب + قاعدة إيقاف جوّا ميتا" : a.safetyNet === "pending" ? "شبكة الأمان بانتظار موافقتك بـ «القرارات»" : "شبكة الأمان على ميتا: سقف الحساب (الشهري + 10%) وقاعدة إيقاف بتشتغل حتى لو نظامنا وقف"}
+            </span>
+            {a.safetyNet === "none" ? (
+              <Button variant="ghost" disabled={busy || !a.monthlyCap} className="min-h-8 px-2 text-xs" onClick={() => save("/api/safety-net", { accountMetaId: a.metaId }, "جهزتها — وافق عليها بـ «القرارات»")}>
+                جهّزها
+              </Button>
+            ) : null}
+          </div>
         </Panel>
       ))}
       <Panel className="space-y-2">

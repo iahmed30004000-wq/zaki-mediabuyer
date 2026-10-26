@@ -9,6 +9,7 @@ import { LevelPicker } from "@/components/settings/level-picker";
 import { loadAudit, loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { CapsEditor, LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
 import { currentCaller } from "@/server/auth";
+import { ImportPanel } from "@/components/settings/import-panel";
 import { fmt } from "@/lib/format";
 import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const GROUPS = [
   { id: "products", label: "المنتجات والصفحات" },
   { id: "rules", label: "القواعد والمستويات" },
   { id: "agents", label: "الوكلاء" },
+  { id: "import", label: "الاستيراد والتصدير" },
   { id: "team", label: "الفريق والتدقيق" },
   { id: "look", label: "المظهر" },
 ];
@@ -197,6 +199,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
             ))
           )}
         </Panel>
+      </Section>
+
+      <Section title="الاستيراد والتصدير" hint="رفع ← ربط الأعمدة ← معاينة ← استيراد · نفس الملف مرتين = مرة">
+        <div id="import" className="scroll-mt-24">
+          <ImportPanel />
+        </div>
       </Section>
 
       <Section title="الفريق والتدقيق" hint="مين عمل شو ومتى: إنسان · قاعدة · وكيل">

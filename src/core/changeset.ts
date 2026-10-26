@@ -26,17 +26,17 @@ export function assertMove(from: ChangeState, to: ChangeState): void {
   if (!canMove(from, to)) throw new Error(`a change cannot go from ${from} to ${to}`);
 }
 
-export type Op = "pause" | "resume" | "set_budget" | "create";
+export type Op = "pause" | "resume" | "set_budget" | "create" | "set_account_cap";
 
 export interface ChangeItemDraft {
   op: Op;
-  objectType: "campaign" | "adset" | "creative" | "ad";
+  objectType: "campaign" | "adset" | "creative" | "ad" | "account" | "rule";
   /** the Meta id — or `{{ref:x}}` for an object this change creates (filled when Meta answers) */
   objectId: string;
   /** daily budget in USD for set_budget */
-  before: { status?: string; dailyBudget?: number };
+  before: { status?: string; dailyBudget?: number; spendCap?: number };
   /** for create: the POST target, the exact payload and the ref the new id is kept under; dailyBudget counts as new spend */
-  after: { status?: string; dailyBudget?: number; endpoint?: string; payload?: Record<string, unknown>; ref?: string };
+  after: { status?: string; dailyBudget?: number; endpoint?: string; payload?: Record<string, unknown>; ref?: string; name?: string; spendCap?: number; reset?: boolean };
 }
 
 /** The money a change moves per day (positive = more spend). Pausing an ad set saves its budget. */

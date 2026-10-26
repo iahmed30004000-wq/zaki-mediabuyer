@@ -71,6 +71,7 @@ describe("autonomy (spec 10.1), cell by cell", () => {
     customer_audience: ["suggest", "approval", "approval", "approval"],
     above_cap: ["suggest", "owner", "owner", "owner"],
     connect_asset: ["owner", "owner", "owner", "owner"],
+    safety_net: ["owner", "owner", "owner", "owner"],
   };
   for (const [kind, row] of Object.entries(T) as [ActionKind, string[]][]) {
     it(kind, () => expect([0, 1, 2, 3].map((l) => modeFor(kind, l as 0 | 1 | 2 | 3))).toEqual(row));
