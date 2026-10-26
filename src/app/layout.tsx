@@ -4,6 +4,7 @@ import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
+import { PwaRegister } from "@/components/pwa-register";
 import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
 
@@ -28,6 +29,9 @@ const reem = localFont({
 export const metadata: Metadata = {
   title: { default: "الميديا باير · Zaki", template: "%s · الميديا باير" },
   description: "مدير إعلانات ميتا للدفع عند الاستلام: الحقيقة من الـ OMS، الأمان تلقائي، والصرف بموافقتك.",
+  applicationName: "الميديا باير",
+  appleWebApp: { capable: true, title: "الميديا باير", statusBarStyle: "default" },
+  icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }], apple: [{ url: "/icons/apple-touch.png", sizes: "180x180" }] },
 };
 
 function chosen() {
@@ -53,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers theme={theme} decor={decor}>
           {children}
         </Providers>
+        <PwaRegister />
       </body>
     </html>
   );
