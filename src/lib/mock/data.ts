@@ -233,19 +233,30 @@ export function viewOf(k: Counts, p: Product | undefined) {
 }
 export type RowView = ReturnType<typeof viewOf>;
 
-export function productView(code: string) {
-  const p = productByCode(code)!;
-  const rows = CAMPAIGNS.filter((x) => x.productCode === code);
+/** What the screens read: the demo set, or the same shapes built from the database (src/lib/source.ts). */
+export interface Dataset {
+  products: Product[];
+  accounts: Account[];
+  campaigns: CampaignRow[];
+  /** true when the numbers are the demo ones */
+  demo: boolean;
+}
+
+export const DEMO: Dataset = { products: PRODUCTS, accounts: ACCOUNTS, campaigns: CAMPAIGNS, demo: true };
+
+export function productView(code: string, ds: Dataset = DEMO) {
+  const p = ds.products.find((x) => x.code === code)!;
+  const rows = ds.campaigns.filter((x) => x.productCode === code);
   const k = sumCounts(rows.map(campaignCounts));
   return { product: p, counts: k, view: viewOf(k, p), targets: targetsOf(p) };
 }
 
 /** All the ads, flattened, with their product and view. */
-export function allAds() {
-  return CAMPAIGNS.flatMap((cmp) =>
+export function allAds(ds: Dataset = DEMO) {
+  return ds.campaigns.flatMap((cmp) =>
     cmp.adsets.flatMap((s) =>
       s.ads.map((a) => {
-        const p = cmp.productCode ? productByCode(cmp.productCode) : undefined;
+        const p = cmp.productCode ? ds.products.find((x) => x.code === cmp.productCode) : undefined;
         return { ad: a, adset: s, campaign: cmp, product: p, view: viewOf(a.counts, p) };
       }),
     ),

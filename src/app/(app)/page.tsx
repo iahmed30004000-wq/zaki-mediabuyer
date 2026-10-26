@@ -8,7 +8,8 @@ import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { fmt } from "@/lib/format";
 import { PaceBar, Panel, Section } from "@/components/mb/section";
-import { ACCOUNTS, ALERTS, CHANGES, PACE, SETUP_STEPS, SOURCES, allAds } from "@/lib/mock/data";
+import { ALERTS, CHANGES, PACE, SETUP_STEPS, SOURCES, allAds } from "@/lib/mock/data";
+import { loadDataset } from "@/lib/source";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "اليوم" };
@@ -18,13 +19,16 @@ function greeting(now = new Date()) {
   return h < 12 ? "صباح الخير" : h < 18 ? "مسا الخير" : "مسا النور";
 }
 
-export default function TodayPage() {
+export const dynamic = "force-dynamic";
+
+export default async function TodayPage() {
+  const ds = await loadDataset();
   const pending = CHANGES.filter((c) => c.state === "pending_approval");
   const auto = CHANGES.filter((c) => c.state === "executed" && c.auto);
   const done = SETUP_STEPS.filter((s) => s.done).length;
-  const ranked = allAds().filter((x) => x.view.enoughData && x.view.costPerConfirmed !== null);
+  const ranked = allAds(ds).filter((x) => x.view.enoughData && x.view.costPerConfirmed !== null);
   const best = [...ranked].sort((a, b) => a.view.costPerConfirmed! - b.view.costPerConfirmed!).slice(0, 3);
-  const untested = allAds().filter((x) => x.ad.status === "untested").length;
+  const untested = allAds(ds).filter((x) => x.ad.status === "untested").length;
   const pendingDelta = pending.reduce((s, c) => s + c.spendDeltaDaily, 0);
   const date = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
@@ -63,7 +67,7 @@ export default function TodayPage() {
             </div>
             <p className="mt-2 text-xs text-fg-muted">الشهر: {fmt(PACE.monthSpent, "$", 0)} من {fmt(PACE.monthlyCap, "$", 0)}</p>
           </Panel>
-          {ACCOUNTS.map((a) => (
+          {ds.accounts.map((a) => (
             <Panel key={a.id}>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-fg">{a.name}</p>

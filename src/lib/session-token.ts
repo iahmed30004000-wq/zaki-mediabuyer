@@ -35,7 +35,7 @@ export async function readSession(token: string | undefined): Promise<Session | 
   }
 }
 
-/** Login is required unless the local demo explicitly turns it off (AUTH_REQUIRED=0 with MOCK_MODE=1). */
+/** Login is required, except on a local development machine that explicitly turns it off (AUTH_REQUIRED=0). Never in production. */
 export function authRequired(): boolean {
-  return !(process.env.MOCK_MODE === "1" && process.env.AUTH_REQUIRED === "0");
+  return !(process.env.AUTH_REQUIRED === "0" && process.env.NODE_ENV !== "production");
 }

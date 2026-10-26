@@ -2,19 +2,20 @@ import { Download, ShieldCheck } from "lucide-react";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { fmt } from "@/lib/format";
-import { ACCOUNTS, CAMPAIGNS, CHANGES, PACE, allAds, campaignCounts, productView, sumCounts, viewOf } from "@/lib/mock/data";
+import { CHANGES, PACE, allAds, campaignCounts, productView, sumCounts, viewOf, type Dataset } from "@/lib/mock/data";
+import { loadDataset } from "@/lib/source";
 
 export const metadata = { title: "التقارير" };
 
 /** The morning report exactly as Telegram receives it (spec 12.1) — every figure from the calculator. */
-function morningReport() {
-  const all = sumCounts(CAMPAIGNS.map(campaignCounts));
+function morningReport(ds: Dataset) {
+  const all = sumCounts(ds.campaigns.map(campaignCounts));
   const v = viewOf(all, undefined);
-  const products = ["TRF01", "TIN01", "SCR01", "NFG01"].map(productView).filter((p) => p.counts.spend > 0);
-  const best = allAds().filter((x) => x.view.enoughData && x.view.costPerConfirmed !== null).sort((a, b) => a.view.costPerConfirmed! - b.view.costPerConfirmed!).slice(0, 3);
+  const products = ds.products.map((p) => productView(p.code, ds)).filter((p) => p.counts.spend > 0);
+  const best = allAds(ds).filter((x) => x.view.enoughData && x.view.costPerConfirmed !== null).sort((a, b) => a.view.costPerConfirmed! - b.view.costPerConfirmed!).slice(0, 3);
   const auto = CHANGES.filter((c) => c.auto && c.state === "executed");
   const pending = CHANGES.filter((c) => c.state === "pending_approval");
-  const orphan = CAMPAIGNS.filter((c) => !c.productCode).reduce((s, c) => s + campaignCounts(c).spend * 1.01, 0);
+  const orphan = ds.campaigns.filter((c) => !c.productCode).reduce((s, c) => s + campaignCounts(c).spend * 1.01, 0);
   return [
     "تقرير الإعلانات — الاثنين 26 تشرين الأول",
     "(الإسناد: 7d click | أمس رقم مبدئي | الحقيقة على الطلبات الناضجة)",
@@ -31,13 +32,16 @@ function morningReport() {
   ].join("\n");
 }
 
-export default function ReportsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ReportsPage() {
+  const ds = await loadDataset();
   return (
     <div className="space-y-8">
       <Section title="التقرير الصباحي" hint="بيوصل تيليجرام الساعة 9 بتوقيت عمّان/دمشق — هيك بالضبط بيبيّن">
         <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
           <Panel>
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-fg">{morningReport()}</pre>
+            <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-fg">{morningReport(ds)}</pre>
           </Panel>
           <div className="space-y-3">
             <Panel className="space-y-2">
@@ -72,7 +76,7 @@ export default function ReportsPage() {
 
       <Section title="سلامة الحسابات" hint="الرفض، الدفع، والقيود — أي مشكلة بتنزّل مستوى الحساب لصفر فوراً">
         <div className="grid gap-3 md:grid-cols-2">
-          {ACCOUNTS.map((a) => (
+          {ds.accounts.map((a) => (
             <Panel key={a.id} className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 size-5 text-ok" />
               <div className="space-y-1 text-sm">

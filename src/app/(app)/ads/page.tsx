@@ -1,15 +1,19 @@
 import { AdsView, type TreeRow } from "@/components/ads/ads-view";
 import { parseAdName, parseAdSetName, parseCampaignName, STAGE_AR, OBJECTIVE_AR, MARKET_AR } from "@/core/naming";
-import { ACCOUNTS, CAMPAIGNS, PRODUCTS, adsetCounts, campaignCounts, productByCode, productView, targetsOf, viewOf } from "@/lib/mock/data";
+import { adsetCounts, campaignCounts, productView, targetsOf, viewOf } from "@/lib/mock/data";
+import { loadDataset } from "@/lib/source";
 
 export const metadata = { title: "الإعلانات" };
 
 /** Builds the tree on the server (every number through the calculator) and hands plain rows to the client view. */
-export default function AdsPage({ searchParams }: { searchParams: { tab?: string; open?: string; product?: string } }) {
-  const rows: TreeRow[] = CAMPAIGNS.map((cmp) => {
-    const p = cmp.productCode ? productByCode(cmp.productCode) : undefined;
+export const dynamic = "force-dynamic";
+
+export default async function AdsPage({ searchParams }: { searchParams: { tab?: string; open?: string; product?: string } }) {
+  const ds = await loadDataset();
+  const rows: TreeRow[] = ds.campaigns.map((cmp) => {
+    const p = cmp.productCode ? ds.products.find((x) => x.code === cmp.productCode) : undefined;
     const parsed = parseCampaignName(cmp.name);
-    const account = ACCOUNTS.find((a) => a.id === cmp.account)!;
+    const account = ds.accounts.find((a) => a.id === cmp.account) ?? { market: "SY" as const };
     return {
       id: cmp.id,
       level: "campaign" as const,
@@ -57,8 +61,8 @@ export default function AdsPage({ searchParams }: { searchParams: { tab?: string
     };
   });
 
-  const products = PRODUCTS.map((p) => {
-    const v = productView(p.code);
+  const products = ds.products.map((p) => {
+    const v = productView(p.code, ds);
     return { code: p.code, name: p.name, market: p.market, stockDays: p.stockDays, view: v.view, targets: v.targets };
   });
 
