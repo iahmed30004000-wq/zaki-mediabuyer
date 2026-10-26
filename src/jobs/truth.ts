@@ -7,20 +7,51 @@ import Decimal from "decimal.js";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
 import { computeTruth } from "@/core/economics";
-import { readOrders, readProducts, toAttributedOrder, type OmsOptions } from "@/adapters/oms";
+import { readOrders, readProducts, toAttributedOrder, type OmsOptions, type OmsProduct } from "@/adapters/oms";
+import { omsLink } from "@/server/oms-link";
 
+/** The live OMS options, or null while the link is off (`OMS_LIVE`, `src/server/oms-link.ts`). */
 export function omsOptions(fetchImpl?: typeof fetch): OmsOptions | null {
-  const baseUrl = process.env.OMS_BASE_URL?.trim();
-  const token = process.env.OMS_TOKEN?.trim();
-  return baseUrl && token ? { baseUrl, token, fetch: fetchImpl } : null;
+  const link = omsLink(process.env, fetchImpl);
+  return link.mode === "live" ? link.options : null;
+}
+
+/**
+ * One OMS product as the economics row: `update` carries only the figures the OMS actually sent, so a null never
+ * wipes a number the owner typed; `create` fills the missing ones with 0 and marks the row `oms_partial`, which the
+ * screens read as «تقدير». Stock days are whole days in this table.
+ */
+export function economicsFromOms(p: OmsProduct) {
+  const update: { name: string; price?: string; unitCost?: string; deliveryFee?: string; returnFee?: string; codFeePct?: string; stockDays?: number | null } = { name: p.name };
+  const price = p.price_options?.[0]?.price;
+  if (price != null) update.price = price;
+  if (p.unit_cost_usd != null) update.unitCost = p.unit_cost_usd;
+  if (p.delivery_fee != null) update.deliveryFee = p.delivery_fee;
+  if (p.return_fee != null) update.returnFee = p.return_fee;
+  if (p.cod_fee_pct != null) update.codFeePct = p.cod_fee_pct;
+  if (p.stock_days !== undefined) update.stockDays = p.stock_days === null ? null : Math.round(p.stock_days);
+  const complete = price != null && p.unit_cost_usd != null && p.delivery_fee != null && p.return_fee != null && p.cod_fee_pct != null;
+  const create = {
+    productCode: p.code,
+    market: "SY",
+    confirmCost: 0.3,
+    price: "0",
+    unitCost: "0",
+    deliveryFee: "0",
+    returnFee: "0",
+    codFeePct: "0",
+    stockDays: null as number | null,
+    ...update,
+    source: complete ? "oms" : "oms_partial",
+  };
+  return { create, update };
 }
 
 export async function syncOms(o: OmsOptions, since: Date) {
   const windowH = await getSetting("truth.confirm_window_h");
   for (const p of await readProducts(o)) {
-    const price = p.price_options?.[0]?.price ?? "0";
-    const data = { name: p.name, unitCost: p.unit_cost_usd, deliveryFee: p.delivery_fee, returnFee: p.return_fee, codFeePct: p.cod_fee_pct, stockDays: p.stock_days ?? null, price };
-    await db.productEconomics.upsert({ where: { productCode: p.code }, create: { productCode: p.code, market: "SY", confirmCost: 0.3, ...data }, update: data });
+    const { create, update } = economicsFromOms(p);
+    await db.productEconomics.upsert({ where: { productCode: p.code }, create, update });
     for (const alias of p.aliases ?? []) {
       await db.productAlias.upsert({ where: { productCode_alias: { productCode: p.code, alias } }, create: { productCode: p.code, alias }, update: {} });
     }

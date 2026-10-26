@@ -5,10 +5,27 @@ import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { fmt } from "@/lib/format";
-import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
+import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf, type SourceHealth } from "@/lib/mock/data";
+import { omsLinkStatus } from "@/server/oms-link";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "الإعدادات" };
+// The OMS row reads the link from the server's environment on every request, so it can never show a stale «مربوط».
+export const dynamic = "force-dynamic";
+
+/** The OMS row is the real link state (host and whether the key is sealed — never the key); the rest is demo for now. */
+function sources(): SourceHealth[] {
+  const oms = omsLinkStatus();
+  return SOURCES.map((s) =>
+    s.key !== "oms"
+      ? s
+      : {
+          ...s,
+          state: oms.live ? "ok" : "off",
+          detail: oms.live ? `مربوط بـ ${oms.host} · ${oms.encrypted ? "المفتاح مشفّر" : "المفتاح مش مشفّر (جهاز تطوير)"}` : (oms.why ?? "مش مربوط"),
+        },
+  );
+}
 
 const GROUPS = [
   { id: "connections", label: "الربط" },
@@ -40,7 +57,7 @@ export default function SettingsPage() {
 
       <Section title="الربط" hint="المفاتيح بملف .env على الجهاز بس — ولا مرة بالموقع ولا بالمحادثة">
         <div id="connections" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
-          {SOURCES.map((s) => (
+          {sources().map((s) => (
             <Panel key={s.key} className="flex items-center gap-3">
               <CircleDot className={cn("size-4", s.state === "ok" ? "text-ok" : s.state === "late" ? "text-warn" : "text-fg-muted")} />
               <div className="flex-1">

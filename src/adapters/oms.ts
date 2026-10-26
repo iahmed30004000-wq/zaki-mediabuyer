@@ -29,22 +29,28 @@ export const OmsOrder = z.object({
   collected: z.string().nullable().optional(),
   currency: z.string(),
   is_fake: z.boolean().optional(),
+  first_contact_at: z.string().nullable().optional(),
   capi_ref: z.string().nullable().optional(),
 });
 export type OmsOrder = z.infer<typeof OmsOrder>;
 
 const Page = z.object({ items: z.array(OmsOrder), next_cursor: z.string().nullable().optional() });
 
+/**
+ * A figure the OMS has no single source for comes back as null, never as a guess (OMS PR #160): delivery and return
+ * fees are per courier × region there, there is no COD percentage, and a cost kept in lira has no dollar rate. So
+ * those stay whatever the owner typed in Settings (spec P0.9) until the OMS can say.
+ */
 export const OmsProduct = z.object({
   code: z.string(),
   name: z.string(),
   aliases: z.array(z.string()).optional(),
-  unit_cost_usd: z.string(),
+  unit_cost_usd: z.string().nullable().optional(),
   price_options: z.array(z.object({ price: z.string() })).optional(),
   stock_days: z.number().nullable().optional(),
-  delivery_fee: z.string(),
-  return_fee: z.string(),
-  cod_fee_pct: z.string(),
+  delivery_fee: z.string().nullable().optional(),
+  return_fee: z.string().nullable().optional(),
+  cod_fee_pct: z.string().nullable().optional(),
 });
 export type OmsProduct = z.infer<typeof OmsProduct>;
 

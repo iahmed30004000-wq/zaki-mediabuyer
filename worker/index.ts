@@ -39,7 +39,7 @@ export async function tick(now = new Date()) {
   if (t.minute >= 5) {
     await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
       const o = omsOptions();
-      return o ? syncOms(o, new Date(now.getTime() - 3 * DAY)) : { skipped: "OMS not linked yet (P0.3)" };
+      return o ? syncOms(o, new Date(now.getTime() - 3 * DAY)) : { skipped: "OMS link off (OMS_LIVE / npm run oms:link)" };
     });
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
