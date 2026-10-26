@@ -8,7 +8,8 @@ import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
-import type { Creative, CreativeStage } from "@/lib/mock/data";
+import type { CreativeStage } from "@/lib/mock/data";
+import type { CreativeView } from "@/lib/creatives-view";
 import { cn } from "@/lib/utils";
 
 const POLICY = {
@@ -19,7 +20,7 @@ const POLICY = {
 } as const;
 
 /** S06 as one flow: inbox → waiting for you → ready → live → tired. The duplicates sit apart, never deleted. */
-export function CreativesView({ creatives, flow, products }: { creatives: Creative[]; flow: { key: CreativeStage; label: string; hint: string }[]; products: { code: string; name: string }[] }) {
+export function CreativesView({ creatives, duplicates = [], flow, products }: { creatives: CreativeView[]; duplicates?: { name: string; product: string; dupOf: string | null; reason: string | null }[]; flow: { key: CreativeStage; label: string; hint: string }[]; products: { code: string; name: string }[] }) {
   const [items, setItems] = useState(creatives);
   const [stage, setStage] = useState<CreativeStage>("review");
   const { toast } = useToast();
@@ -29,6 +30,15 @@ export function CreativesView({ creatives, flow, products }: { creatives: Creati
   const dups = items.filter((c) => c.stage === "excluded");
 
   const move = (code: string, to: CreativeStage) => setItems((l) => l.map((c) => (c.code === code ? { ...c, stage: to, policy: to === "ready" ? "green" : c.policy } : c)));
+
+  /** A real video goes through /api/creatives/:code; a demo one only moves on this screen. */
+  const decide = async (c: CreativeView, action: "approve" | "exclude"): Promise<boolean> => {
+    if (!c.live) return true;
+    const r = await fetch(`/api/creatives/${c.code}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
+    const d = (await r.json().catch(() => ({}))) as { error?: string };
+    if (!r.ok) toast(d.error ?? "صار خطأ", "error");
+    return r.ok;
+  };
 
   return (
     <div className="space-y-6">
@@ -58,7 +68,12 @@ export function CreativesView({ creatives, flow, products }: { creatives: Creati
               <Panel key={c.code} className="space-y-3">
                 {/* The first frame is the real cover (7.5); until thumbnails exist, a calm placeholder of the right shape. */}
                 <div className="flex gap-3">
-                  <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[10px] text-fg-muted", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")}>{c.aspect}</div>
+                  {c.thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.thumb} alt="" loading="lazy" className={cn("shrink-0 rounded-lg bg-surface-2 object-cover", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")} />
+                  ) : (
+                    <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[10px] text-fg-muted", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")}>{c.aspect}</div>
+                  )}
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="flex items-center gap-2">
                       <span dir="ltr" className="font-mono text-sm font-semibold text-fg">{c.code}</span>
@@ -82,7 +97,7 @@ export function CreativesView({ creatives, flow, products }: { creatives: Creati
                 {c.stage === "review" ? (
                   <div className="flex flex-wrap gap-2">
                     {c.policy === "yellow" ? (
-                      <Button size="sm" onClick={() => { move(c.code, "ready"); mission({ title: "تمّت ✓", detail: `${c.code} صار جاهز وانرفع لميتا` }); }}>
+                      <Button size="sm" onClick={async () => { if (!(await decide(c, "approve"))) return; move(c.code, "ready"); mission({ title: "تمّت ✓", detail: `${c.code} صار جاهز — بينرفع لميتا بالدورة الجاية` }); }}>
                         <Check className="size-4" /> وافق
                       </Button>
                     ) : (
@@ -90,7 +105,7 @@ export function CreativesView({ creatives, flow, products }: { creatives: Creati
                         <Send className="size-4" /> اطلب نسخة معدّلة
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => { move(c.code, "excluded"); toast("انتقل لـ excluded — ما انحذف شي.", "info"); }}>
+                    <Button size="sm" variant="ghost" onClick={async () => { if (!(await decide(c, "exclude"))) return; move(c.code, "excluded"); toast("انتقل لـ excluded — ما انحذف شي.", "info"); }}>
                       <X className="size-4" /> استبعد
                     </Button>
                   </div>
@@ -119,11 +134,18 @@ export function CreativesView({ creatives, flow, products }: { creatives: Creati
 
       <Section title="المكرر والمستبعد" hint="بالبصمة (MD5) — بينقل لمجلد excluded ولا بينحذف أبداً" tour="dups">
         <Panel className="divide-y divide-border p-0">
+          {duplicates.map((d, i) => (
+            <div key={`real-${i}`} className="flex items-center gap-2 px-4 py-2.5 text-xs">
+              <Copy className="size-3.5 text-fg-muted" />
+              <span className="text-fg">{d.name}</span>
+              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="font-mono">{d.dupOf}</span></> : d.reason}</span>
+            </div>
+          ))}
           {dups.map((d, i) => (
             <div key={i} className="flex items-center gap-2 px-4 py-2.5 text-xs">
               <Copy className="size-3.5 text-fg-muted" />
               <span className="text-fg">{name(d.product)}</span>
-              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="font-mono">{d.dupOf}</span></> : "انستبعد يدوياً"}</span>
+              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="font-mono">{d.dupOf}</span></> : d.policy === "red" ? "ممنوع بالسياسات — بدو نسخة معدّلة" : "انستبعد يدوياً"}</span>
             </div>
           ))}
         </Panel>

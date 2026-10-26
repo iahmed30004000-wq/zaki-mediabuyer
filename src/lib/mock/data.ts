@@ -331,7 +331,7 @@ export const CREATIVES: Creative[] = [
 export const STAGE_FLOW: { key: CreativeStage; label: string; hint: string }[] = [
   { key: "inbox", label: "وارد", hint: "وصل من Drive أو الاستديو، عم ينفحص" },
   { key: "review", label: "بانتظارك", hint: "فحص السياسات بدو قرارك" },
-  { key: "ready", label: "جاهز", hint: "متسمّي ومفحوص ومرفوع لميتا" },
+  { key: "ready", label: "جاهز", hint: "متسمّي ومفحوص — بينرفع لميتا لحاله وبيصير جاهز للإعلانات" },
   { key: "live", label: "شغّال", hint: "بإعلان نشط" },
   { key: "fatigued", label: "متعب", hint: "بدو هوكات جديدة — انطلبوا من الاستديو" },
 ];

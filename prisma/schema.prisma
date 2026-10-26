@@ -424,8 +424,80 @@ model CreativeAsset {
   driveFileId String?
   status      String   @default("ready")
   notes       String?
+  // ── Phase 3 (spec 7.3), additive: the permanent registry of every video ──
+  fileName     String?
+  md5          String?  @unique
+  durationS    Decimal? @db.Decimal(8, 2)
+  aspect       String? // 9:16 · 4:5 · 1:1
+  resolution   String? // 1080x1920
+  dateIn       DateTime @default(now())
+  conceptId    String?
+  hookType     String?
+  style        String?
+  angle        String?
+  awareness    String?
+  dialect      String?
+  /// green · yellow · red · pending
+  policyFlag   String   @default("pending")
+  policyNote   String?
+  /// md5 duplicate of this CR code (the file went to `excluded`, never deleted)
+  dupOf        String?
+  metaVideoId  String?
+  thumbnailHash String?
+  probe        Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  thumbnails  ThumbnailCandidate[]
+  policyChecks PolicyCheck[]
+}
+
+/// The CR##### counter: one row, incremented atomically; a number is never given twice, even if a row is removed.
+model CreativeCounter {
+  id   Int @id @default(1)
+  last Int @default(0)
+}
+
+/// Every file the intake has seen in a Drive inbox, so a file is processed once (Drive id is the key).
+model DriveFile {
+  id           String   @id @default(cuid())
+  driveId      String   @unique
+  productCode  String?
+  originalName String
+  newName      String?
+  folder       String // inbox · ready · excluded
+  status       String // seen · processed · excluded · failed
+  crCode       String?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PolicyCheck {
+  id          String        @id @default(cuid())
+  assetId     String
+  asset       CreativeAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  adText      String?
+  transcript  String?
+  ocrText     String?
+  lpText      String?
+  /// the dictionary hits: [{text, rule, level, alternative}]
+  codeHits    Json
+  agentVerdict String?
+  /// green · yellow · red
+  flag        String
+  approvedBy  String?
+  createdAt   DateTime      @default(now())
+}
+
+model ThumbnailCandidate {
+  id         String        @id @default(cuid())
+  assetId    String
+  asset      CreativeAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  frameIndex Int
+  atSeconds  Decimal       @db.Decimal(6, 2)
+  path       String
+  chosen     Boolean       @default(false)
+  createdAt  DateTime      @default(now())
 }
 
 // ───────────────────────────── Phase 2: the guard (spec 10) ─────────────────────────────
