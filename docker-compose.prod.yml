@@ -5,7 +5,7 @@
 # The links (Meta, OMS, Telegram, model) are added later in Coolify's Environment Variables screen.
 services:
   app:
-    image: ghcr.io/mkory18/zaki-mediabuyer:main
+    image: ghcr.io/iahmed30004000-wq/zaki-mediabuyer:main
     restart: unless-stopped
     environment:
       - SERVICE_FQDN_APP_3140
@@ -35,7 +35,7 @@ services:
       start_period: 40s
 
   worker:
-    image: ghcr.io/mkory18/zaki-mediabuyer:main
+    image: ghcr.io/iahmed30004000-wq/zaki-mediabuyer:main
     restart: unless-stopped
     command: ["npx", "tsx", "worker/index.ts"]
     environment:
