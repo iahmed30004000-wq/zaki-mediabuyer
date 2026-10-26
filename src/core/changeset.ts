@@ -26,15 +26,17 @@ export function assertMove(from: ChangeState, to: ChangeState): void {
   if (!canMove(from, to)) throw new Error(`a change cannot go from ${from} to ${to}`);
 }
 
-export type Op = "pause" | "resume" | "set_budget";
+export type Op = "pause" | "resume" | "set_budget" | "create";
 
 export interface ChangeItemDraft {
   op: Op;
-  objectType: "campaign" | "adset" | "ad";
+  objectType: "campaign" | "adset" | "creative" | "ad";
+  /** the Meta id — or `{{ref:x}}` for an object this change creates (filled when Meta answers) */
   objectId: string;
   /** daily budget in USD for set_budget */
   before: { status?: string; dailyBudget?: number };
-  after: { status?: string; dailyBudget?: number };
+  /** for create: the POST target, the exact payload and the ref the new id is kept under; dailyBudget counts as new spend */
+  after: { status?: string; dailyBudget?: number; endpoint?: string; payload?: Record<string, unknown>; ref?: string };
 }
 
 /** The money a change moves per day (positive = more spend). Pausing an ad set saves its budget. */
@@ -44,6 +46,7 @@ export function spendDeltaDaily(items: ChangeItemDraft[]): number {
     if (i.op === "set_budget") delta += (i.after.dailyBudget ?? 0) - (i.before.dailyBudget ?? 0);
     if (i.op === "pause" && i.before.dailyBudget) delta -= i.before.dailyBudget;
     if (i.op === "resume" && i.after.dailyBudget) delta += i.after.dailyBudget;
+    if (i.op === "create" && i.after.dailyBudget) delta += i.after.dailyBudget;
   }
   return Math.round(delta * 100) / 100;
 }
@@ -118,4 +121,4 @@ export function flipFlopped(history: { at: Date; direction: "up" | "down" }[], n
 }
 
 export const directionOf = (op: Op, before?: number, after?: number): "up" | "down" =>
-  op === "pause" ? "down" : op === "resume" ? "up" : (after ?? 0) >= (before ?? 0) ? "up" : "down";
+  op === "pause" ? "down" : op === "resume" || op === "create" ? "up" : (after ?? 0) >= (before ?? 0) ? "up" : "down";

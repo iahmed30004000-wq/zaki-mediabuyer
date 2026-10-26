@@ -21,7 +21,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "worker": "tsx --env-file=.env worker/index.ts",
-    "demo:pipeline": "tsx --env-file=.env scripts/demo-pipeline.ts"
+    "demo:pipeline": "tsx --env-file=.env scripts/demo-pipeline.ts",
+    "demo:launch": "tsx --env-file=.env scripts/demo-launch.ts",
+    "demo:capi": "tsx --env-file=.env scripts/demo-capi.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

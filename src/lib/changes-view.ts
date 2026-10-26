@@ -13,9 +13,15 @@ const RULE_AR: Record<string, string> = {
 
 const when = (d: Date) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", weekday: "short", hour: "2-digit", minute: "2-digit" }).format(d);
 
-function side(items: { op: string; before: unknown; after: unknown }[], key: "before" | "after"): string {
+function side(items: { op: string; objectType?: string; before: unknown; after: unknown }[], key: "before" | "after"): string {
   const i = items[0];
   if (!i) return "—";
+  if (i.op === "create") {
+    // a launch: nothing before it; after it, what gets made (paused first, switched on after the check)
+    const made = items.filter((x) => x.op === "create");
+    const n = (t: string) => made.filter((x) => (x as { objectType?: string }).objectType === t).length;
+    return key === "before" ? "ما في شي" : `حملة · ${n("adset")} مجموعة · ${n("ad")} إعلان`;
+  }
   const v = (key === "before" ? i.before : i.after) as { status?: string; dailyBudget?: number };
   const one = v.dailyBudget !== undefined && i.op === "set_budget" ? `${v.dailyBudget}$ باليوم` : v.status === "PAUSED" ? "موقوف" : v.status ? "شغّال" : "—";
   return items.length > 1 ? `${one} (+${items.length - 1})` : one;

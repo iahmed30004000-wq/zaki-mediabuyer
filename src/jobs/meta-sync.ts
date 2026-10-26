@@ -77,7 +77,13 @@ export async function syncStructure(client: MetaClient) {
       if (!adSetId) continue;
       const p = parseAdName(String(ad.name));
       const data = { adSetId, name: String(ad.name), status: String(ad.effective_status), creativeCode: p?.creativeCode ?? null, hookCode: p?.hookCode ?? null, angleCode: p?.angleCode ?? null, lpCode: p?.lpCode ?? null };
-      await db.ad.upsert({ where: { metaId: String(ad.id) }, create: { metaId: String(ad.id), ...data }, update: data });
+      const rejected = ad.effective_status === "DISAPPROVED";
+      await db.ad.upsert({ where: { metaId: String(ad.id) }, create: { metaId: String(ad.id), ...data, reviewStatus: rejected ? "DISAPPROVED" : null }, update: { ...data, reviewStatus: rejected ? "DISAPPROVED" : null } });
+      if (rejected && !(await db.reviewIssue.findFirst({ where: { adMetaId: String(ad.id), status: "open" } }))) {
+        // the rejection is kept with Meta's own words; the appeal draft is written by the safety job (account-safety)
+        const fb = (ad.ad_review_feedback as { global?: Record<string, string> } | undefined)?.global ?? {};
+        await db.reviewIssue.create({ data: { adMetaId: String(ad.id), adName: String(ad.name), accountMetaId: metaId, feedback: fb } });
+      }
       ads++;
     }
   }

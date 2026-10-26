@@ -51,12 +51,12 @@ model AuditLog {
 
 /// A setting with its history: every change is a new version, and any version can be restored.
 model Setting {
-  key       String   @id
+  key       String           @id
   value     Json
-  version   Int      @default(1)
+  version   Int              @default(1)
   updatedBy String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   versions  SettingVersion[]
 }
 
@@ -88,20 +88,20 @@ model MetaConnection {
 }
 
 model AdAccount {
-  id            String   @id @default(cuid())
-  metaId        String   @unique // act_…
+  id            String     @id @default(cuid())
+  metaId        String     @unique // act_…
   name          String
   currency      String
   timezone      String
   status        String
   market        String? // SY · JO · …
-  autonomyLevel Int      @default(1)
-  dailyCap      Decimal? @db.Decimal(12, 2)
-  monthlyCap    Decimal? @db.Decimal(12, 2)
-  spendCapMeta  Decimal? @db.Decimal(12, 2)
+  autonomyLevel Int        @default(1)
+  dailyCap      Decimal?   @db.Decimal(12, 2)
+  monthlyCap    Decimal?   @db.Decimal(12, 2)
+  spendCapMeta  Decimal?   @db.Decimal(12, 2)
   paymentStatus String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   campaigns     Campaign[]
 }
 
@@ -137,27 +137,27 @@ model ApiUsage {
 // ───────────────────────────── structure ─────────────────────────────
 
 model Campaign {
-  id            String    @id @default(cuid())
-  metaId        String    @unique
-  accountId     String
-  account       AdAccount @relation(fields: [accountId], references: [id])
-  name          String
-  status        String
-  objective     String?
-  parsedMarket  String?
-  productCode   String?
+  id              String    @id @default(cuid())
+  metaId          String    @unique
+  accountId       String
+  account         AdAccount @relation(fields: [accountId], references: [id])
+  name            String
+  status          String
+  objective       String?
+  parsedMarket    String?
+  productCode     String?
   parsedObjective String?
-  stage         String?
-  namingOk      Boolean   @default(false)
+  stage           String?
+  namingOk        Boolean   @default(false)
   /// how the product was found: name | alias | none
-  productVia    String?
-  budgetType    String? // CBO | ABO
-  dailyBudget   Decimal?  @db.Decimal(12, 2)
-  bidStrategy   String?
-  spendCap      Decimal?  @db.Decimal(12, 2)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  adsets        AdSet[]
+  productVia      String?
+  budgetType      String? // CBO | ABO
+  dailyBudget     Decimal?  @db.Decimal(12, 2)
+  bidStrategy     String?
+  spendCap        Decimal?  @db.Decimal(12, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  adsets          AdSet[]
 }
 
 model AdSet {
@@ -180,19 +180,19 @@ model AdSet {
 }
 
 model Ad {
-  id            String   @id @default(cuid())
-  metaId        String   @unique
-  adSetId       String
-  adSet         AdSet    @relation(fields: [adSetId], references: [id])
-  name          String
-  status        String
-  creativeCode  String?
-  hookCode      String?
-  angleCode     String?
-  lpCode        String?
-  reviewStatus  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  metaId       String   @unique
+  adSetId      String
+  adSet        AdSet    @relation(fields: [adSetId], references: [id])
+  name         String
+  status       String
+  creativeCode String?
+  hookCode     String?
+  angleCode    String?
+  lpCode       String?
+  reviewStatus String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ProductAlias {
@@ -306,32 +306,32 @@ model TruthDaily {
 }
 
 model UnattributedPool {
-  id        String   @id @default(cuid())
-  date      DateTime @db.Date
+  id             String   @id @default(cuid())
+  date           DateTime @db.Date
   campaignMetaId String
-  spend     Decimal  @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  spend          Decimal  @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([campaignMetaId, date])
 }
 
 /// The numbers of a product for the calculator (spec 6.3). source: estimate until 50 shipments, then actual.
 model ProductEconomics {
-  id            String   @id @default(cuid())
-  productCode   String   @unique
-  name          String
-  market        String
-  price         Decimal  @db.Decimal(12, 2)
-  unitCost      Decimal  @db.Decimal(12, 2)
-  deliveryFee   Decimal  @db.Decimal(12, 2)
-  returnFee     Decimal  @db.Decimal(12, 2)
-  codFeePct     Decimal  @db.Decimal(6, 4)
-  confirmCost   Decimal  @db.Decimal(12, 2)
-  stockDays     Int?
-  source        String   @default("estimate")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  productCode String   @unique
+  name        String
+  market      String
+  price       Decimal  @db.Decimal(12, 2)
+  unitCost    Decimal  @db.Decimal(12, 2)
+  deliveryFee Decimal  @db.Decimal(12, 2)
+  returnFee   Decimal  @db.Decimal(12, 2)
+  codFeePct   Decimal  @db.Decimal(6, 4)
+  confirmCost Decimal  @db.Decimal(12, 2)
+  stockDays   Int?
+  source      String   @default("estimate")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ───────────────────────────── jobs, alerts, reports, agents ─────────────────────────────
@@ -364,31 +364,31 @@ model Alert {
 }
 
 model Report {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   kind      String // morning | weekly | monthly
-  forDate   DateTime @db.Date
+  forDate   DateTime  @db.Date
   text      String
   sentAt    DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@unique([kind, forDate])
 }
 
 /// Every model call: which agent, which provider, cost, and whether the privacy filter blocked it.
 model AgentRun {
-  id         String   @id @default(cuid())
-  agent      String
-  provider   String
-  model      String
-  ok         Boolean
-  blocked    String?
-  tokensIn   Int      @default(0)
-  tokensOut  Int      @default(0)
-  costUsd    Decimal  @default(0) @db.Decimal(10, 4)
-  ms         Int      @default(0)
-  error      String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  agent     String
+  provider  String
+  model     String
+  ok        Boolean
+  blocked   String?
+  tokensIn  Int      @default(0)
+  tokensOut Int      @default(0)
+  costUsd   Decimal  @default(0) @db.Decimal(10, 4)
+  ms        Int      @default(0)
+  error     String?
+  createdAt DateTime @default(now())
 
   @@index([agent, createdAt])
 }
@@ -414,41 +414,41 @@ model ApiToken {
 /// The registry of creatives (spec 7.3). Phase 1 keeps only what ties a CR##### to the studio script it came from;
 /// the intake (T3.1) adds the rest of 7.3. Never deleted: an excluded creative stays as `excluded`.
 model CreativeAsset {
-  id          String   @id @default(cuid())
-  crCode      String   @unique
-  productCode String?
+  id            String               @id @default(cuid())
+  crCode        String               @unique
+  productCode   String?
   /// studio · drive · clipper · customer · manual
-  source      String
+  source        String
   /// the studio script id (VP-TRF01-0012-v2, a hook version ends in -h2)
-  sourceRef   String?  @unique
-  driveFileId String?
-  status      String   @default("ready")
-  notes       String?
+  sourceRef     String?              @unique
+  driveFileId   String?
+  status        String               @default("ready")
+  notes         String?
   // ── Phase 3 (spec 7.3), additive: the permanent registry of every video ──
-  fileName     String?
-  md5          String?  @unique
-  durationS    Decimal? @db.Decimal(8, 2)
-  aspect       String? // 9:16 · 4:5 · 1:1
-  resolution   String? // 1080x1920
-  dateIn       DateTime @default(now())
-  conceptId    String?
-  hookType     String?
-  style        String?
-  angle        String?
-  awareness    String?
-  dialect      String?
+  fileName      String?
+  md5           String?              @unique
+  durationS     Decimal?             @db.Decimal(8, 2)
+  aspect        String? // 9:16 · 4:5 · 1:1
+  resolution    String? // 1080x1920
+  dateIn        DateTime             @default(now())
+  conceptId     String?
+  hookType      String?
+  style         String?
+  angle         String?
+  awareness     String?
+  dialect       String?
   /// green · yellow · red · pending
-  policyFlag   String   @default("pending")
-  policyNote   String?
+  policyFlag    String               @default("pending")
+  policyNote    String?
   /// md5 duplicate of this CR code (the file went to `excluded`, never deleted)
-  dupOf        String?
-  metaVideoId  String?
+  dupOf         String?
+  metaVideoId   String?
   thumbnailHash String?
-  probe        Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  thumbnails  ThumbnailCandidate[]
-  policyChecks PolicyCheck[]
+  probe         Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  thumbnails    ThumbnailCandidate[]
+  policyChecks  PolicyCheck[]
 }
 
 /// The CR##### counter: one row, incremented atomically; a number is never given twice, even if a row is removed.
@@ -473,20 +473,20 @@ model DriveFile {
 }
 
 model PolicyCheck {
-  id          String        @id @default(cuid())
-  assetId     String
-  asset       CreativeAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  adText      String?
-  transcript  String?
-  ocrText     String?
-  lpText      String?
+  id           String        @id @default(cuid())
+  assetId      String
+  asset        CreativeAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  adText       String?
+  transcript   String?
+  ocrText      String?
+  lpText       String?
   /// the dictionary hits: [{text, rule, level, alternative}]
-  codeHits    Json
+  codeHits     Json
   agentVerdict String?
   /// green · yellow · red
-  flag        String
-  approvedBy  String?
-  createdAt   DateTime      @default(now())
+  flag         String
+  approvedBy   String?
+  createdAt    DateTime      @default(now())
 }
 
 model ThumbnailCandidate {
@@ -543,6 +543,8 @@ model ChangeItem {
   before         Json
   after          Json
   idempotencyKey String    @unique
+  /// the order inside the change (a launch creates the campaign before its ad sets, and switches on last)
+  seq            Int       @default(0)
   apiResponse    Json?
   verifyResult   Json?
   createdAt      DateTime  @default(now())
@@ -587,4 +589,93 @@ model KillSwitchEvent {
   changeSetId String?
   objects     Int
   createdAt   DateTime @default(now())
+}
+
+// ───────────────────────────── phase 4: tests · conversions · account safety ─────────────────────────────
+
+/// A test (spec 5.3 / T4.2): what we believe, how it is set up, when it stops, what came out.
+model Experiment {
+  id             String    @id @default(cuid())
+  /// product · creative · fair_creative · landing
+  kind           String
+  productCode    String
+  market         String
+  hypothesis     String
+  /// template, budget, days, the creatives / landing pages being compared
+  setup          Json
+  /// the stop rules in force (spend without orders, max days, min sample)
+  stopRules      Json
+  /// planned · running · done · stopped
+  status         String    @default("planned")
+  changeSetId    String?
+  campaignMetaId String?
+  startedAt      DateTime?
+  endsAt         DateTime?
+  /// winner, per-arm numbers from the truth, the sentence the owner reads
+  result         Json?
+  verdict        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+}
+
+/// One conversion event for Meta (spec 9.1): one per order and status, never twice. No customer identifier is kept
+/// here — they are fetched from the OMS at send time, hashed in memory and dropped.
+model CapiEvent {
+  id         String    @id @default(cuid())
+  /// oms-<order>-<status> — the dedupe key Meta uses too
+  eventId    String    @unique
+  omsOrderId String
+  eventName  String
+  channel    String // website · whatsapp · messenger
+  eventTime  DateTime
+  datasetId  String?
+  value      Decimal?  @db.Decimal(12, 2)
+  currency   String?
+  /// pending · sent · rejected · expired · skipped
+  state      String    @default("pending")
+  attempts   Int       @default(0)
+  error      String?
+  response   Json?
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([state, eventTime])
+  @@index([omsOrderId])
+}
+
+/// A read of one ad account's health (spec S11): status, why it is disabled, payment, rejected ads.
+model AccountHealth {
+  id            String   @id @default(cuid())
+  accountMetaId String
+  status        String
+  disableReason String?
+  paymentOk     Boolean  @default(true)
+  rejectedAds   Int      @default(0)
+  /// ok · watch · restricted
+  verdict       String
+  notes         Json?
+  createdAt     DateTime @default(now())
+
+  @@index([accountMetaId, createdAt])
+}
+
+/// A rejected ad and its appeal draft (written by the system, sent only by a person).
+model ReviewIssue {
+  id            String   @id @default(cuid())
+  adMetaId      String
+  adName        String
+  accountMetaId String?
+  /// Meta's review feedback, as given
+  feedback      Json
+  policyKey     String?
+  appealDraft   String?
+  /// open · appealed · fixed · dropped
+  status        String   @default("open")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([adMetaId])
 }
