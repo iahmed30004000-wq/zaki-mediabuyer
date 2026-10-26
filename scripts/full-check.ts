@@ -20,6 +20,7 @@ const ITEMS: Item[] = [
   { section: "الأمان والمال", what: "الإطلاق بموافقة · حساب مقيّد ← صفر · 3 رفض ← تجميد الإنشاء", cmd: tsx("scripts/demo-launch.ts") },
   { section: "الأمان", what: "شبكة الأمان على ميتا: سقف الحساب (الشهري + 10%) وقاعدة إيقاف — بموافقة المالك، وبترجع", cmd: tsx("scripts/demo-safety-net.ts") },
   { section: "المال", what: "سلّم التكبير: المستوى 1 بيستنى، المستوى 2 ضمن السقف · الخطة ضمن السقف", cmd: tsx("scripts/demo-phase5.ts") },
+  { section: "التنبيهات", what: "قراءتين ورا بعض قبل التنبيه · الموافقة والأمان فوراً · رسالة تيليجرام وحدة · ولا شي بينبعت مرتين", cmd: tsx("scripts/demo-alerts.ts") },
   { section: "التحويلات", what: "حدث ناجح · منع التكرار · حد الأيام السبعة · ولا معرّف محفوظ", cmd: tsx("scripts/demo-capi.ts") },
   { section: "الإبداعات", what: "مكرر بيتلقط · نص KamaaEye بيتعلّم · الترقيم ما بيتكرر", cmd: tsx("scripts/demo-creatives.ts") },
   { section: "الإبداعات", what: "الرابح المتعب بيتعلّم وما بيوقف · 4 هوكات جديدة بطابور الاستديو · الاستديو بياخدها بتوكنه", cmd: tsx("scripts/demo-fatigue.ts") },
