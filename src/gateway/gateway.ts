@@ -34,12 +34,20 @@ export interface AgentProfile {
   dailyCapUsd: number;
 }
 
-/** Spec 11.2 daily caps; H01 and transcripts are internal only. */
+/** Spec 11.2 daily caps (the owner can change them: setting `agents.daily_caps`); H01 and transcripts are internal only. */
 export const AGENTS: Record<string, AgentProfile> = {
   M11: { code: "M11", route: ["internal", "external"], internalOnly: false, dailyCapUsd: 0.5 },
   M02: { code: "M02", route: ["internal", "external"], internalOnly: false, dailyCapUsd: 3 },
   M01: { code: "M01", route: ["internal"], internalOnly: true, dailyCapUsd: 0.5 },
+  M03: { code: "M03", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 3 },
+  M07: { code: "M07", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 2 },
+  M10: { code: "M10", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 5 },
   H01: { code: "H01", route: ["internal"], internalOnly: true, dailyCapUsd: 0 },
+};
+
+/** What each agent is, for the settings screen (spec 11.2). */
+export const AGENT_NAMES: Record<string, string> = {
+  M11: "كاتب التقارير", M02: "المحلل اليومي", M01: "المراقب اللحظي", M03: "المخطط", M07: "كاتب الإعلانات", M10: "الاستشاري", H01: "محلل الأسماء",
 };
 
 /** The common header of every agent (spec 11.3). */
@@ -83,6 +91,11 @@ export interface GatewayDeps {
   privacyMode?: string;
   /** today's spend of an agent in USD (from AgentRun) */
   spentToday: (agent: string) => Promise<number>;
+  /** the owner's caps, when they differ from the defaults above */
+  dailyCap?: (agent: string) => Promise<number | undefined>;
+  /** this month's external spend of all agents, and its cap: at the cap the external providers stop (spec 11.2) */
+  spentMonth?: () => Promise<number>;
+  monthlyCapUsd?: number;
   log: (entry: CallLog) => Promise<void>;
 }
 
@@ -123,8 +136,10 @@ export async function ask<T = string>(deps: GatewayDeps, agentCode: string, mess
     if (e instanceof PrivacyRefusal) await deps.log({ agent: agentCode, provider: "-", model: "-", ok: false, blocked: e.hits.join(","), tokensIn: 0, tokensOut: 0, ms: 0 });
     throw e;
   }
-  if (agent.dailyCapUsd > 0 && (await deps.spentToday(agentCode)) >= agent.dailyCapUsd) throw new AgentUnavailable(`${agentCode} reached its daily cap`);
-  const route = routeFor(agent, deps.providers, deps.privacyMode);
+  const cap = (await deps.dailyCap?.(agentCode)) ?? agent.dailyCapUsd;
+  if (cap > 0 && (await deps.spentToday(agentCode)) >= cap) throw new AgentUnavailable(`${agentCode} reached its daily cap`);
+  const monthFull = deps.monthlyCapUsd !== undefined && deps.spentMonth ? (await deps.spentMonth()) >= deps.monthlyCapUsd : false;
+  const route = routeFor(agent, deps.providers, deps.privacyMode).filter((p) => p.internal || !monthFull);
   if (!route.length) throw new AgentUnavailable(`no allowed provider for ${agentCode}`);
 
   const full: ChatMessage[] = [{ role: "system", content: AGENT_HEADER }, ...messages];

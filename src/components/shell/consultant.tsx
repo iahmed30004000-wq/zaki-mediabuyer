@@ -20,13 +20,14 @@ const STARTERS: Record<string, string[]> = {
 
 /**
  * The consultant (spec S14) is not a place: a button on every page that knows where you are. It drafts and explains;
- * it never touches Meta. In demo mode it shows the starters; the model gateway answers once connected (Phase 5).
+ * it never touches Meta. It answers through /api/consultant (M10) from the code's facts, shown under each answer.
  */
 export function Consultant() {
   const place = placeOf(usePathname() ?? "/");
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [log, setLog] = useState<{ me: boolean; text: string }[]>([]);
+  const [log, setLog] = useState<{ me: boolean; text: string; facts?: string[] }[]>([]);
+  const [busy, setBusy] = useState(false);
 
   // On a phone the button lives in the page header (no floating button over the content): it sends this event.
   useEffect(() => {
@@ -35,10 +36,20 @@ export function Consultant() {
     return () => window.removeEventListener(CONSULTANT_EVENT, show);
   }, []);
 
-  const ask = (text: string) => {
-    if (!text.trim()) return;
-    setLog((l) => [...l, { me: true, text }, { me: false, text: "بالوضع التجريبي ما في موديل موصول. بعد الربط بجاوبك من أرقامك، وكل رقم بمصدره (ميتا · حقيقي · تقدير)، ومسودات بس — ولا تنفيذ." }]);
+  const ask = async (text: string) => {
+    if (!text.trim() || busy) return;
+    setLog((l) => [...l, { me: true, text }]);
     setQ("");
+    setBusy(true);
+    try {
+      const r = await fetch("/api/consultant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: text, place: place.label }) });
+      const j = (await r.json()) as { answer?: string; facts?: string[]; error?: string };
+      setLog((l) => [...l, { me: false, text: j.answer ?? j.error ?? "ما زبط — جرّب كمان مرة", facts: j.facts }]);
+    } catch {
+      setLog((l) => [...l, { me: false, text: "ما قدرت أوصل للموقع — جرّب كمان مرة" }]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -68,11 +79,20 @@ export function Consultant() {
               </div>
             ) : (
               log.map((m, i) => (
-                <p key={i} className={m.me ? "ms-8 rounded-xl bg-accent px-3 py-2 text-sm text-accent-fg" : "me-8 rounded-xl bg-surface-2 px-3 py-2 text-sm text-fg"}>
-                  {m.text}
-                </p>
+                <div key={i} className={m.me ? "ms-8 rounded-xl bg-accent px-3 py-2 text-sm text-accent-fg" : "me-8 space-y-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-fg"}>
+                  <p className="whitespace-pre-wrap">{m.text}</p>
+                  {m.facts?.length ? (
+                    <details className="text-xs text-fg-muted">
+                      <summary className="cursor-pointer">الأرقام اللي جاوبت منها ({m.facts.length})</summary>
+                      <ul className="mt-1 list-disc space-y-1 ps-4">
+                        {m.facts.map((f, n) => <li key={n}>{f}</li>)}
+                      </ul>
+                    </details>
+                  ) : null}
+                </div>
               ))
             )}
+            {busy ? <p className="me-8 animate-pulse rounded-xl bg-surface-2 px-3 py-2 text-sm text-fg-muted">عم بفكّر من أرقامك…</p> : null}
           </SheetBody>
           <SheetFooter className="flex-nowrap">
             <form

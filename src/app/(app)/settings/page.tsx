@@ -5,6 +5,8 @@ import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { StudioLink } from "@/components/settings/studio-link";
+import { LevelPicker } from "@/components/settings/level-picker";
+import { loadSettingsView } from "@/lib/settings-view";
 import { fmt } from "@/lib/format";
 import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
@@ -24,11 +26,17 @@ const GROUPS = [
 const AGENTS = [
   { code: "M11", name: "كاتب التقارير", model: "داخلي · qwen3:4b", cap: 0.5 },
   { code: "M02", name: "المحلل اليومي", model: "داخلي · qwen2.5:7b", cap: 3 },
+  { code: "M03", name: "المخطط", model: "قوي", cap: 3 },
+  { code: "M07", name: "كاتب الإعلانات", model: "قوي", cap: 2 },
+  { code: "M10", name: "الاستشاري", model: "قوي", cap: 5 },
   { code: "H01", name: "محلل الأسماء", model: "داخلي فقط (خصوصية)", cap: 0 },
 ];
 
 /** Everything set once and forgotten (S02 S12 S09 S13 S16 S17 S18), grouped, one anchor per group. */
-export default function SettingsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SettingsPage() {
+  const real = await loadSettingsView();
   return (
     <div className="space-y-8">
       <nav data-tour="groups" aria-label="مجموعات الإعدادات" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
@@ -106,35 +114,62 @@ export default function SettingsPage() {
 
       <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي">
         <div id="rules" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
-          {ACCOUNTS.map((a) => (
-            <Panel key={a.id} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-fg">{a.name}</p>
-                <LevelStars level={a.level} />
-              </div>
-              <div className="grid grid-cols-4 gap-1">
-                {LEVEL_AR.map((l, i) => (
-                  <span key={l} title={LEVEL_HINT[i]} className={cn("rounded-md py-1 text-center text-[11px]", i === a.level ? "bg-accent text-accent-fg" : i === 3 ? "bg-surface-2 text-fg-muted/60 line-through" : "bg-surface-2 text-fg-muted")}>
-                    {l}
-                  </span>
-                ))}
-              </div>
-              <p className="text-xs text-fg-muted">{LEVEL_HINT[a.level]}</p>
-            </Panel>
-          ))}
+          {real
+            ? real.levels.map((a) => (
+                <Panel key={a.metaId} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-fg">{a.name}</p>
+                    <LevelStars level={a.level as 0 | 1 | 2 | 3} />
+                  </div>
+                  <LevelPicker row={a} />
+                </Panel>
+              ))
+            : ACCOUNTS.map((a) => (
+                <Panel key={a.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-fg">{a.name}</p>
+                    <LevelStars level={a.level} />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {LEVEL_AR.map((l, i) => (
+                      <span key={l} title={LEVEL_HINT[i]} className={cn("rounded-md py-1 text-center text-[11px]", i === a.level ? "bg-accent text-accent-fg" : i === 3 ? "bg-surface-2 text-fg-muted/60 line-through" : "bg-surface-2 text-fg-muted")}>
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-fg-muted">{LEVEL_HINT[a.level]}</p>
+                </Panel>
+              ))}
         </div>
       </Section>
 
       <Section title="الوكلاء" hint="بيفسّروا وبيكتبوا بس — ما حدا منهم بيلمس ميتا ولا بيشوف بيانات زبون">
         <Panel id="agents" className="scroll-mt-24 divide-y divide-border p-0">
-          {AGENTS.map((a) => (
-            <div key={a.code} className="flex items-center gap-3 px-4 py-3 text-sm">
-              <span dir="ltr" className="w-10 font-mono text-xs text-fg-muted">{a.code}</span>
-              <span className="flex-1 text-fg">{a.name}</span>
-              <span className="text-xs text-fg-muted">{a.model}</span>
-              <span dir="ltr" className="w-16 text-end text-xs tabular-nums text-fg-muted">{a.cap ? `${fmt(a.cap, "$")}/d` : "—"}</span>
-            </div>
-          ))}
+          {real ? (
+            <>
+              {real.agents.map((a) => (
+                <div key={a.code} className="flex items-center gap-3 px-4 py-3 text-sm">
+                  <span dir="ltr" className="w-10 font-mono text-xs text-fg-muted">{a.code}</span>
+                  <span className="flex-1 text-fg">{a.name}</span>
+                  <span className="text-xs text-fg-muted">{a.internalOnly ? "داخلي فقط (خصوصية)" : real.modelConnected ? `${a.runsToday} مرة اليوم${a.failedToday ? ` · ${a.failedToday} فشل` : ""}` : "ما في موديل موصول — الكود بيكمّل لحاله"}</span>
+                  <span dir="ltr" className="w-24 text-end text-xs tabular-nums text-fg-muted">{a.capUsd ? `${fmt(a.todayUsd, "$")} / ${fmt(a.capUsd, "$")}` : "—"}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between px-4 py-3 text-xs text-fg-muted">
+                <span>الشهر لكل الوكلاء (الخارجيين بيوقفوا عند السقف)</span>
+                <span dir="ltr" className="tabular-nums">{fmt(real.monthUsd, "$")} / {fmt(real.monthCap, "$", 0)}</span>
+              </div>
+            </>
+          ) : (
+            AGENTS.map((a) => (
+              <div key={a.code} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <span dir="ltr" className="w-10 font-mono text-xs text-fg-muted">{a.code}</span>
+                <span className="flex-1 text-fg">{a.name}</span>
+                <span className="text-xs text-fg-muted">{a.model}</span>
+                <span dir="ltr" className="w-16 text-end text-xs tabular-nums text-fg-muted">{a.cap ? `${fmt(a.cap, "$")}/d` : "—"}</span>
+              </div>
+            ))
+          )}
         </Panel>
       </Section>
 

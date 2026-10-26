@@ -14,6 +14,9 @@
  *   attribution    08:00 — M09 by code: the Meta/truth gap per campaign, attribution share, CAPI acceptance
  *   capi.send      every 15 min — the truth back to Meta as conversion events (queued always, sent only when live)
  *   report.morning 09:00 — built by code, sent to Telegram
+ *   rules.scale    every hour at :17, after the safety rules — the scale ladder (auto at level 2, approval at 1)
+ *   plan.week      Saturday 09:30 — M03: the week's split inside the cap (numbers by code, words by the agent)
+ *   report.weekly  Saturday 10:00 · report.monthly the 1st at 10:00 — built by code, sent to Telegram
  *   `npm run worker`
  */
 import { runOnce } from "../src/jobs/runner";
@@ -24,6 +27,9 @@ import { runRules } from "../src/jobs/rules-run";
 import { intakeDrive } from "../src/jobs/creative-intake";
 import { capiDataset, enqueueCapi, sendCapi } from "../src/jobs/capi";
 import { checkAccounts, storeAttributionHealth } from "../src/jobs/account-safety";
+import { runScale } from "../src/jobs/scale-run";
+import { storePeriodReport } from "../src/jobs/weekly-report";
+import { storePlan } from "../src/agents/planner";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
@@ -35,7 +41,8 @@ const DAY = 86_400_000;
 
 function amman(now = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(now).map((p) => [p.type, p.value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minute: Number(parts.minute) };
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", weekday: "short" }).format(now);
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minute: Number(parts.minute), saturday: weekday === "Sat", firstOfMonth: parts.day === "01" };
 }
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const utcDay = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -72,6 +79,21 @@ export async function tick(now = new Date()) {
     const sent = await sendCapi({ meta: token ? new MetaClient({ token }) : null, oms: live ? omsOptions() : null, datasetId: await capiDataset(), testEventCode: process.env.CAPI_TEST_EVENT_CODE?.trim() || null, now });
     return { ...queued, ...sent };
   });
+  if (t.minute >= 17) await runOnce("rules.scale", `${t.date}T${t.hour}`, () => runScale(now));
+  if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 30))) await runOnce("plan.week", t.date, () => storePlan(now));
+  for (const kind of ["weekly", "monthly"] as const) {
+    if ((kind === "weekly" ? t.saturday : t.firstOfMonth) && t.hour >= 10) {
+      await runOnce(`report.${kind}`, t.date, async () => {
+        const r = await storePeriodReport(kind, now);
+        const tg = telegramFromEnv();
+        if (!tg) return { ...r, skipped: "Telegram not linked yet (P0.7)" };
+        const report = await db.report.findUniqueOrThrow({ where: { kind_forDate: { kind, forDate: r.forDate } } });
+        await sendTelegram(tg, report.text);
+        await db.report.update({ where: { id: report.id }, data: { sentAt: new Date() } });
+        return { ...r, sent: true };
+      });
+    }
+  }
   if (t.minute >= 20) await runOnce("account.safety", `${t.date}T${t.hour}`, () => checkAccounts(now));
   if (t.hour >= 8) await runOnce("attribution.health", t.date, () => storeAttributionHealth(now));
   if (t.hour === 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));

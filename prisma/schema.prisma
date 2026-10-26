@@ -679,3 +679,18 @@ model ReviewIssue {
 
   @@index([adMetaId])
 }
+
+/// A lesson the weekly review found (spec T5.3 «سجل الدروس»): one key per dimension and week, with its evidence.
+model Lesson {
+  id        String   @id @default(cuid())
+  /// concept:CPT0012 · angle:HER · hook:H07 · page:SP · lp:LP1
+  key       String
+  week      DateTime @db.Date
+  text      String
+  evidence  String
+  source    String   @default("code")
+  createdAt DateTime @default(now())
+
+  @@unique([key, week])
+  @@index([week])
+}
