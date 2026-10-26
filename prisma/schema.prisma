@@ -737,3 +737,13 @@ model ImportBatch {
 
   @@unique([kind, sha256])
 }
+
+/// The two-readings rule of the instant alerts (spec 12.3): how many readings in a row saw a condition, and when it
+/// was raised. A condition that disappears is removed, so it can be raised again when it returns.
+model AlertState {
+  key        String    @id
+  count      Int
+  lastSeenAt DateTime
+  raisedAt   DateTime?
+  updatedAt  DateTime  @updatedAt
+}

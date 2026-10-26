@@ -17,6 +17,8 @@
  *   attribution    08:00 — M09 by code: the Meta/truth gap per campaign, attribution share, CAPI acceptance
  *   capi.send      every 15 min — the truth back to Meta as conversion events (queued always, sent only when live)
  *   report.morning 09:00 — built by code, sent to Telegram
+ *   alerts.read    every 15 min — the instant alerts of spec 12.3 (two readings in a row, the instant ones at once)
+ *   alerts.send    every 5 min — every unsent danger/warning alert in ONE Telegram message
  *   safety.month   the 1st at 06:00 — the account cap on Meta reset for the new month (waits for the owner)
  *   creatives.fatigue 07:30 — a tired winner is marked and new hooks are queued for the studio (never paused)
  *   rules.scale    every hour at :17, after the safety rules — the scale ladder (auto at level 2, approval at 1)
@@ -40,6 +42,7 @@ import { runFatigue } from "../src/jobs/fatigue";
 import { proposeSafetyNet } from "../src/server/safety-net";
 import { storeAnalysis } from "../src/agents/analyst";
 import { weeklyCreativeRequests } from "../src/agents/strategist";
+import { readAlerts, sendAlerts } from "../src/jobs/alerts";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
@@ -83,6 +86,9 @@ export async function tick(now = new Date()) {
     return drive && root ? intakeDrive(drive, root) : { skipped: "Drive not linked yet (P0.6)" };
   });
   await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
+  await runOnce("alerts.read", quarter, () => readAlerts(now));
+  const five = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 5) * 5).padStart(2, "0")}`;
+  await runOnce("alerts.send", five, () => sendAlerts(telegramFromEnv(), now));
   await runOnce("capi.send", quarter, async () => {
     const queued = await enqueueCapi(now);
     const live = writeMode() === "live";
