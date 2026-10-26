@@ -20,8 +20,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "worker": "tsx worker/index.ts",
-    "mock:servers": "tsx tests/mocks/serve.ts"
+    "worker": "tsx --env-file=.env worker/index.ts",
+    "demo:pipeline": "tsx --env-file=.env scripts/demo-pipeline.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

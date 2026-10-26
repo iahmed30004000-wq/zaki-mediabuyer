@@ -26,7 +26,7 @@ export default function TodayPage() {
   const best = [...ranked].sort((a, b) => a.view.costPerConfirmed! - b.view.costPerConfirmed!).slice(0, 3);
   const untested = allAds().filter((x) => x.ad.status === "untested").length;
   const pendingDelta = pending.reduce((s, c) => s + c.spendDeltaDaily, 0);
-  const date = new Intl.DateTimeFormat("ar", { timeZone: "Asia/Amman", weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const date = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
     <div className="space-y-6">
