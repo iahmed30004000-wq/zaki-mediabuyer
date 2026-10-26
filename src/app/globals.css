@@ -1,0 +1,73 @@
+@import "./themes.css";
+
+/*
+ * The theme tokens (--surface, --fg, --accent, --ok, --cat-1, ...) come from themes.css, which is
+ * GENERATED from src/lib/themes/palettes.ts — never define a colour here. The theme is the
+ * `data-theme` attribute the root layout puts on <html>; dark themes also carry the `dark` class.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface text-fg antialiased;
+  letter-spacing: -0.011em;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  @apply bg-accent/20;
+}
+
+body {
+  font-family: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
+}
+
+@layer base {
+  /* Titles wear the theme's display face (Reem Kufi on the Islamic themes); a utility class still wins. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-border;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*:focus-visible {
+  @apply outline-none ring-2 ring-accent/50 ring-offset-1 ring-offset-surface;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Somebody who asked their device for less motion gets none: no animation, no smooth scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

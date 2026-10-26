@@ -1,0 +1,93 @@
+"use client";
+
+import * as React from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
+import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+
+type ToastKind = "success" | "error" | "info";
+
+export interface ToastItem {
+  id: number;
+  kind: ToastKind;
+  message: string;
+}
+
+interface ToastApi {
+  toast: (message: string, kind?: ToastKind) => void;
+}
+
+const ToastCtx = createContext<ToastApi | null>(null);
+
+let seq = 0;
+
+/**
+ * App-wide toasts. All mutations should surface results through this.
+ *
+ * Where they appear: at the TOP of the screen on phones, below the notch (safe-area inset), so a
+ * toast never covers the bottom bar or the bottom of a sheet; in the bottom corner at the end of the
+ * line from the `md` breakpoint (768px). The stack is a polite live region: `aria-live` is also what
+ * keeps it announced while a dialog hides the rest of the page from screen readers.
+ */
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<ToastItem[]>([]);
+
+  const toast = useCallback((message: string, kind: ToastKind = "info") => {
+    const id = ++seq;
+    setItems((prev) => [...prev.slice(-4), { id, kind, message }]);
+    window.setTimeout(() => {
+      setItems((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const api = useMemo<ToastApi>(() => ({ toast }), [toast]);
+
+  return (
+    <ToastCtx.Provider value={api}>
+      {children}
+      <div
+        aria-live="polite"
+        className="pointer-events-none fixed end-0 start-0 top-0 z-[70] flex flex-col items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:bottom-4 md:end-4 md:start-auto md:top-auto md:w-80 md:items-stretch md:p-0"
+      >
+        {items.map((t) => (
+          <ToastRow key={t.id} item={t} onDismiss={() => setItems((p) => p.filter((x) => x.id !== t.id))} />
+        ))}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+
+export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
+  const { t } = useI18n();
+  const icons: Record<ToastKind, ReactNode> = {
+    success: <CheckCircle2 className="size-4 shrink-0 text-ok" aria-hidden="true" />,
+    error: <AlertCircle className="size-4 shrink-0 text-danger" aria-hidden="true" />,
+    info: <Info className="size-4 shrink-0 text-accent" aria-hidden="true" />,
+  };
+  return (
+    <div
+      role="status"
+      className={cn(
+        "pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-xl border border-border bg-surface-1 ps-3 shadow-md animate-fade-in motion-reduce:animate-none md:max-w-none",
+      )}
+    >
+      {icons[item.kind]}
+      <p className="min-w-0 flex-1 py-3 text-sm text-fg">{item.message}</p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label={t("ui.toast_close")}
+        className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+      >
+        <X className="size-4" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+export function useToast(): ToastApi {
+  const ctx = useContext(ToastCtx);
+  if (!ctx) throw new Error("useToast requires ToastProvider");
+  return ctx;
+}
