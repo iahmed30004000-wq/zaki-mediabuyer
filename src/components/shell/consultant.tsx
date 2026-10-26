@@ -26,7 +26,7 @@ export function Consultant() {
   const place = placeOf(usePathname() ?? "/");
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [log, setLog] = useState<{ me: boolean; text: string; facts?: string[] }[]>([]);
+  const [log, setLog] = useState<{ me: boolean; text: string; facts?: string[]; by?: string; drafted?: string }[]>([]);
   const [busy, setBusy] = useState(false);
 
   // On a phone the button lives in the page header (no floating button over the content): it sends this event.
@@ -43,8 +43,8 @@ export function Consultant() {
     setBusy(true);
     try {
       const r = await fetch("/api/consultant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: text, place: place.label }) });
-      const j = (await r.json()) as { answer?: string; facts?: string[]; error?: string };
-      setLog((l) => [...l, { me: false, text: j.answer ?? j.error ?? "ما زبط — جرّب كمان مرة", facts: j.facts }]);
+      const j = (await r.json()) as { answer?: string; facts?: string[]; error?: string; by?: string };
+      setLog((l) => [...l, { me: false, text: j.answer ?? j.error ?? "ما زبط — جرّب كمان مرة", facts: j.facts, by: j.by }]);
     } catch {
       setLog((l) => [...l, { me: false, text: "ما قدرت أوصل للموقع — جرّب كمان مرة" }]);
     } finally {
@@ -81,6 +81,23 @@ export function Consultant() {
               log.map((m, i) => (
                 <div key={i} className={m.me ? "ms-8 rounded-xl bg-accent px-3 py-2 text-sm text-accent-fg" : "me-8 space-y-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-fg"}>
                   <p className="whitespace-pre-wrap">{m.text}</p>
+                  {!m.me && m.by === "agent" && /بقترح|اقتراح|وقّف|وقف|خفّض|كبّر/.test(m.text) ? (
+                    m.drafted ? (
+                      <a href="/decisions" className="block text-xs font-medium text-accent">{m.drafted}</a>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const r = await fetch("/api/agents/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: m.text }) });
+                          const j = (await r.json()) as { ok?: boolean; error?: string; items?: number; refused?: string[] };
+                          setLog((l) => l.map((x, n) => (n === i ? { ...x, drafted: r.ok ? `انعملت مسودة (${j.items ?? 0} تغيير) — بانتظارك بـ «القرارات»${j.refused?.length ? ` · انشال: ${j.refused.join("، ")}` : ""}` : j.error ?? "ما زبط" } : x)));
+                        }}
+                        className="text-xs font-medium text-accent hover:underline"
+                      >
+                        حوّلها لمسودة تغيير (بتستنى موافقتك)
+                      </button>
+                    )
+                  ) : null}
                   {m.facts?.length ? (
                     <details className="text-xs text-fg-muted">
                       <summary className="cursor-pointer">الأرقام اللي جاوبت منها ({m.facts.length})</summary>

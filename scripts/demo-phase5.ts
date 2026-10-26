@@ -27,7 +27,8 @@ const check = (ok: boolean, label: string) => {
   const account = await db.adAccount.findUniqueOrThrow({ where: { metaId: "act_1029" } });
   await db.adAccount.update({ where: { id: account.id }, data: { autonomyLevel: 1, dailyCap: 400 } });
 
-  // a winner of our own: 3 days at ~4.20$ per confirmed (ceiling ~6.23$), 6 confirmed a day, no edit for 10 days
+  // a winner of our own: 3 days at ~3.16$ per confirmed (ceiling ~6.23$), 8 confirmed a day (as good as the product
+  // or better, whatever the other demos left), no edit for 10 days
   const old = new Date(now.getTime() - 10 * DAY);
   await db.changeItem.deleteMany({ where: { objectId: "DEMO5_AS" } });
   await db.ruleRun.deleteMany({ where: { targetId: "DEMO5_AS" } });
@@ -44,7 +45,7 @@ const check = (ok: boolean, label: string) => {
     });
     for (let n = 0; n < 8; n++) {
       const created = new Date(date.getTime() + (8 + n) * 3_600_000);
-      await db.attributedOrder.create({ data: { omsOrderId: `DEMO5-${d}-${n}`, productCode: "TRF01", market: "SY", channel: "website", adId: "DEMO5_AD", adSetId: "DEMO5_AS", campaignId: "DEMO5_C", adName: "CR00240_H07_HER_LP1", method: "ad_id", status: n < 6 ? "confirmed" : "canceled", createdAtOms: created, confirmedAt: n < 6 ? created : null, canceledAt: n < 6 ? null : created, orderValue: 20, currency: "USD", matureAt: new Date(created.getTime() - DAY) } });
+      await db.attributedOrder.create({ data: { omsOrderId: `DEMO5-${d}-${n}`, productCode: "TRF01", market: "SY", channel: "website", adId: "DEMO5_AD", adSetId: "DEMO5_AS", campaignId: "DEMO5_C", adName: "CR00240_H07_HER_LP1", method: "ad_id", status: "confirmed", createdAtOms: created, confirmedAt: created, orderValue: 20, currency: "USD", matureAt: new Date(created.getTime() - DAY) } });
     }
   }
 

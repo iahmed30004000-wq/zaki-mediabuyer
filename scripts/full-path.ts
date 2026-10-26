@@ -39,6 +39,14 @@ const step = (n: number, ok: boolean, label: string) => {
   const file = path.join(dir, "inbox.mp4");
   spawnSync(process.env.FFMPEG_PATH || "ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1080x1920:rate=25:duration=6", "-f", "lavfi", "-i", `sine=frequency=${300 + (now.getTime() % 400)}:duration=6`, "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", file]);
 
+  // a clean run: what earlier runs of this path left (their orders, their ads' days) would crowd the morning report
+  const oldAds = [...new Set((await db.attributedOrder.findMany({ where: { omsOrderId: { startsWith: "PATH-" } }, select: { adId: true } })).map((o) => o.adId).filter((x): x is string => !!x))];
+  await db.attributedOrder.deleteMany({ where: { omsOrderId: { startsWith: "PATH-" } } });
+  await db.capiEvent.deleteMany({ where: { omsOrderId: { startsWith: "PATH-" } } });
+  await db.truthDaily.deleteMany({ where: { level: "ad", objectId: { in: oldAds } } });
+  await db.insightDaily.deleteMany({ where: { level: "ad", objectId: { in: oldAds } } });
+  await db.ad.updateMany({ where: { metaId: { in: oldAds } }, data: { status: "PAUSED" } });
+
   // 1–2: the inbox: probe, MD5, number, name, policy, thumbnails
   const intake = await processVideo(file, { productCode: "TRF01", source: "drive", originalName: "كمأة من الدرايف.mp4", texts: { adText: "ماء الكمأة — اطلبه واستلمه وادفع عند الباب" }, tags: { conceptId: "CPT0077", hookType: "H07", angle: "HER" } });
   step(1, intake.status === "ready" && "crCode" in intake, `video in 01_inbox → ${intake.status} as ${"fileName" in intake ? intake.fileName : "?"}`);

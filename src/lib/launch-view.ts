@@ -172,6 +172,7 @@ export interface ReportsView {
   selected: { id: string; label: string; text: string } | null;
   plan: { total: number; by: string; lines: { product: string; bucket: string; usd: number; reason: string }[]; risks: string[]; needs: string[]; tests: string[] } | null;
   lessons: { text: string; evidence: string; week: string }[];
+  analysis: { by: string; products: { product_code: string; status: string; weak_point: string; likely_cause: string; proposed_action: string; sample: string }[]; top: string[] } | null;
 }
 
 const KIND_LABEL: Record<string, string> = { morning: "الصباحي", weekly: "الأسبوعي", monthly: "الشهري" };
@@ -199,5 +200,8 @@ export async function loadReportsView(selectedId?: string): Promise<ReportsView 
       })()
     : null;
   const lessons = (await db.lesson.findMany({ orderBy: [{ week: "desc" }, { createdAt: "desc" }], take: 10 })).map((l) => ({ text: l.text, evidence: l.evidence, week: day(l.week) }));
-  return { archive, selected: pick ? { id: pick.id, label: `${KIND_LABEL[pick.kind] ?? pick.kind} — ${day(pick.forDate)}`, text: pick.text } : null, plan, lessons };
+  const an = await db.report.findFirst({ where: { kind: "analysis" }, orderBy: { forDate: "desc" } });
+  const a = an ? (JSON.parse(an.text) as { by: string; products: NonNullable<ReportsView["analysis"]>["products"]; top_decisions: string[] }) : null;
+  const analysis = a ? { by: a.by === "agent" ? "النقطة من الكود · الكلام من المحلل" : "من الكود (بلا موديل)", products: a.products, top: a.top_decisions } : null;
+  return { analysis, archive, selected: pick ? { id: pick.id, label: `${KIND_LABEL[pick.kind] ?? pick.kind} — ${day(pick.forDate)}`, text: pick.text } : null, plan, lessons };
 }

@@ -121,7 +121,8 @@ export async function propose(p: Proposal, actor: Actor) {
 
   const mode = modeFor(p.kind, level);
   if (mode === "suggest") return db.changeSet.findUniqueOrThrow({ where: { id: created.id } });
-  if (mode === "auto" && sim.ok && p.source !== "user") {
+  // an agent only ever suggests: its changes wait for a person, whatever the level (spec 11.1)
+  if (mode === "auto" && sim.ok && p.source !== "user" && p.source !== "agent") {
     await move(created.id, "simulated", "approved", { approvedBy: `level-${level}`, approvedAt: new Date() });
     return execute(created.id, actor);
   }
@@ -138,7 +139,7 @@ export async function propose(p: Proposal, actor: Actor) {
 /** Approve on the site. Telegram never reaches here (spec 3.13). */
 export async function approve(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
-  const ownerOnly = ["above_cap", "test_campaign", "connect_asset", "customer_audience"].includes(cs.kind) || cs.error === "loop_guard";
+  const ownerOnly = ["above_cap", "test_campaign", "connect_asset", "customer_audience", "safety_net"].includes(cs.kind) || cs.error === "loop_guard";
   if (!can(caller.role, ownerOnly ? "owner_only" : "approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
   const sim = cs.simulation as { ok?: boolean } | null;
   if (sim && sim.ok === false && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, "التجربة ما نجحت (سقف أو تعلّم أو تعارض) — شوف «جرّب»");
@@ -217,6 +218,8 @@ export async function rollback(id: string, caller: Caller) {
     const after = i.after as ChangeItemDraft["after"];
     const objectType = i.objectType as ChangeItemDraft["objectType"];
     if (i.op === "create") return objectType === "creative" ? [] : [{ op: "pause", objectType, objectId: i.objectId, before: { status: "ACTIVE", dailyBudget: after.dailyBudget }, after: { status: "PAUSED" } }];
+    // the account cap goes back to what it was (never with a second reset of what was spent)
+    if (i.op === "set_account_cap") return [{ op: "set_account_cap", objectType, objectId: i.objectId, before: { spendCap: after.spendCap }, after: { spendCap: before.spendCap ?? 0, reset: false } }];
     return [{ op: i.op === "pause" ? "resume" : i.op === "resume" ? "pause" : "set_budget", objectType, objectId: i.objectId, before: after, after: before }];
   }).filter((x, n, all) => all.findIndex((y) => y.objectId === x.objectId) === n);
   const back = await db.changeSet.create({

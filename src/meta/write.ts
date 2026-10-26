@@ -24,6 +24,10 @@ export function writeMode(env: Record<string, string | undefined> = process.env)
 /** What goes to Meta for one item: budgets are in the account's minor units (cents for USD). */
 export function payloadOf(item: ChangeItemDraft): Record<string, unknown> {
   if (item.op === "create") return item.after.payload ?? {};
+  // the account cap is WRITTEN in dollars (a float) and read back in cents (Meta's docs, ad account spend_cap)
+  if (item.op === "set_account_cap") return { spend_cap: item.after.spendCap ?? 0, ...(item.after.reset ? { spend_cap_action: "reset" } : {}) };
+  // an automated rule is switched off, not paused
+  if (item.objectType === "rule") return { status: item.op === "pause" ? "DISABLED" : "ENABLED" };
   if (item.op === "pause") return { status: "PAUSED" };
   if (item.op === "resume") return { status: "ACTIVE" };
   return { daily_budget: Math.round((item.after.dailyBudget ?? 0) * 100) };
@@ -51,7 +55,10 @@ export async function applyItem(item: ChangeItemDraft, mode: WriteMode, client: 
   }
   if (mode === "dry_run" || !client) return { response: { dryRun: true, wouldPost: { id: item.objectId, ...payload } }, verified: true, readBack: null };
   const response = await client.post(item.objectId, payload);
-  const readBack = await client.get<Record<string, unknown>>(item.objectId, { fields: "status,effective_status,daily_budget" });
-  const verified = item.op === "set_budget" ? Number(readBack.daily_budget) === payload.daily_budget : readBack.status === payload.status;
+  const readBack = await client.get<Record<string, unknown>>(item.objectId, { fields: item.op === "set_account_cap" ? "spend_cap,amount_spent" : item.objectType === "rule" ? "status" : "status,effective_status,daily_budget" });
+  const verified =
+    item.op === "set_account_cap" ? Number(readBack.spend_cap) === Math.round((item.after.spendCap ?? 0) * 100)
+    : item.op === "set_budget" ? Number(readBack.daily_budget) === payload.daily_budget
+    : readBack.status === payload.status;
   return { response, verified, readBack };
 }

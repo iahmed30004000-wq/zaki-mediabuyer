@@ -12,9 +12,13 @@
  *   creative.intake every 15 min — Drive 01_inbox of every product (probe · MD5 · number · name · policy · thumbnails)
  *   meta.upload    every 15 min after the intake — ready videos to Meta (dry-run unless META_WRITE_MODE=live)
  *   account.safety every hour at :20 — account status, rejections (3 in 24 h freeze creation), appeal drafts
+ *   analysis       08:00 — M02: each product's weakest funnel step (by code), in words by the agent
+ *   creatives.week Saturday 09:45 — M06: one new-script request per product with its winning tags, for the studio
  *   attribution    08:00 — M09 by code: the Meta/truth gap per campaign, attribution share, CAPI acceptance
  *   capi.send      every 15 min — the truth back to Meta as conversion events (queued always, sent only when live)
  *   report.morning 09:00 — built by code, sent to Telegram
+ *   safety.month   the 1st at 06:00 — the account cap on Meta reset for the new month (waits for the owner)
+ *   creatives.fatigue 07:30 — a tired winner is marked and new hooks are queued for the studio (never paused)
  *   rules.scale    every hour at :17, after the safety rules — the scale ladder (auto at level 2, approval at 1)
  *   plan.week      Saturday 09:30 — M03: the week's split inside the cap (numbers by code, words by the agent)
  *   report.weekly  Saturday 10:00 · report.monthly the 1st at 10:00 — built by code, sent to Telegram
@@ -32,6 +36,10 @@ import { runScale } from "../src/jobs/scale-run";
 import { storePeriodReport } from "../src/jobs/weekly-report";
 import { storePlan } from "../src/agents/planner";
 import { dailyBackup } from "../src/ops/backup";
+import { runFatigue } from "../src/jobs/fatigue";
+import { proposeSafetyNet } from "../src/server/safety-net";
+import { storeAnalysis } from "../src/agents/analyst";
+import { weeklyCreativeRequests } from "../src/agents/strategist";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
@@ -82,6 +90,20 @@ export async function tick(now = new Date()) {
     const sent = await sendCapi({ meta: token ? new MetaClient({ token }) : null, oms: live ? omsOptions() : null, datasetId: await capiDataset(), testEventCode: process.env.CAPI_TEST_EVENT_CODE?.trim() || null, now });
     return { ...queued, ...sent };
   });
+  if (t.firstOfMonth && t.hour >= 6) {
+    await runOnce("safety.month", t.date, async () => {
+      const done: string[] = [];
+      for (const a of await db.adAccount.findMany({ where: { monthlyCap: { gt: 0 } } })) {
+        const cs = await proposeSafetyNet(a.metaId, { type: "rule", id: "safety_net" }, { reset: true, source: "rule" }).catch(() => null);
+        if (cs) {
+          done.push(a.metaId);
+          await db.alert.create({ data: { kind: "safety.month", tone: "warn", text: `شهر جديد: سقف حساب ${a.name} عند ميتا بدو تصفير — وافق عليه بـ «القرارات»`, href: "/decisions" } });
+        }
+      }
+      return { proposed: done };
+    });
+  }
+  if (t.hour > 7 || (t.hour === 7 && t.minute >= 30)) await runOnce("creatives.fatigue", t.date, () => runFatigue(now));
   if (t.minute >= 17) await runOnce("rules.scale", `${t.date}T${t.hour}`, () => runScale(now));
   if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 30))) await runOnce("plan.week", t.date, () => storePlan(now));
   for (const kind of ["weekly", "monthly"] as const) {
@@ -98,6 +120,8 @@ export async function tick(now = new Date()) {
     }
   }
   if (t.minute >= 20) await runOnce("account.safety", `${t.date}T${t.hour}`, () => checkAccounts(now));
+  if (t.hour >= 8) await runOnce("analysis", t.date, () => storeAnalysis(now));
+  if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 45))) await runOnce("creatives.week", t.date, () => weeklyCreativeRequests(now));
   if (t.hour >= 8) await runOnce("attribution.health", t.date, () => storeAttributionHealth(now));
   if (t.hour === 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));
   if (t.hour >= 9) {

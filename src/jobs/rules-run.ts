@@ -10,6 +10,7 @@ import { evaluateAccount, evaluateAd, evaluateAdSet, evaluateProduct, type Decis
 import type { ChangeItemDraft } from "@/core/changeset";
 import { propose } from "@/server/changes";
 import { lastSuccess } from "./runner";
+import { explainSafety } from "@/agents/monitor";
 
 const HOUR = 3_600_000;
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
@@ -130,6 +131,8 @@ export async function runRules(now = new Date()) {
         const cs = await propose({ source: "rule", sourceRef: d.rule, reasonCode: d.reasonCode, sentence: d.sentence, kind: d.action === "pause" ? "safety_pause" : "safety_reduce", accountMetaId, items, cooldownHours: cooldown }, { type: "rule", id: d.rule });
         changeSetId = cs.id;
         stats.changes++;
+        // M01 reads the first few safety actions of the run (internal model; nothing changes on its word)
+        if (cs.state === "executed" && stats.changes <= 3) await explainSafety(cs.id, [d.sentence, JSON.stringify(context), ...items.map((i) => `${i.op} ${i.objectType} ${i.objectId}`)]).catch(() => null);
       }
     } else if (!d.alertOnly && (d.action === "freeze_scale" || d.action === "freeze_create")) {
       await db.freeze.create({ data: { scope: d.level, targetId: d.targetId, kind: d.action === "freeze_scale" ? "scale" : "create", reason: d.sentence, until: new Date(now.getTime() + cooldown * HOUR) } });

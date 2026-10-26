@@ -11,6 +11,7 @@ import type { SourceHealth } from "@/lib/mock/data";
 import { lastSuccess } from "@/jobs/runner";
 import { productTargets } from "@/server/launch";
 import { ROLE_AR, type RoleKey } from "@/core/roles";
+import { safetyNetState } from "@/server/safety-net";
 
 export interface LevelRow {
   metaId: string;
@@ -77,7 +78,7 @@ export async function loadSettingsView(): Promise<{ levels: LevelRow[]; agents: 
 export interface EditView {
   links: SourceHealth[];
   writeMode: "dry_run" | "live";
-  accounts: { metaId: string; name: string; market: string; dailyCap: number | null; monthlyCap: number | null; payment: string | null }[];
+  accounts: { metaId: string; name: string; market: string; dailyCap: number | null; monthlyCap: number | null; payment: string | null; safetyNet: "none" | "pending" | "on" }[];
   split: { scale: number; test: number; new: number };
   purchaseOn: "confirmed" | "delivered";
   products: { code: string; name: string; market: string; price: number; unitCost: number; deliveryFee: number; returnFee: number; codFeePct: number; confirmCost: number; stockDays: number | null; source: string; tOrder: number | null; ceiling: number | null; losing: boolean; dailyCap: number | null }[];
@@ -124,7 +125,7 @@ export async function loadEditView(): Promise<EditView | null> {
   return {
     links,
     writeMode: process.env.META_WRITE_MODE === "live" ? "live" : "dry_run",
-    accounts: (await db.adAccount.findMany({ orderBy: { name: "asc" } })).map((a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "—", dailyCap: a.dailyCap ? Number(a.dailyCap) : null, monthlyCap: a.monthlyCap ? Number(a.monthlyCap) : null, payment: a.paymentStatus })),
+    accounts: await Promise.all((await db.adAccount.findMany({ orderBy: { name: "asc" } })).map(async (a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "—", dailyCap: a.dailyCap ? Number(a.dailyCap) : null, monthlyCap: a.monthlyCap ? Number(a.monthlyCap) : null, payment: a.paymentStatus, safetyNet: await safetyNetState(a.metaId) }))),
     split: (await getSetting("budget.split")) as { scale: number; test: number; new: number },
     purchaseOn: String(await getSetting("capi.purchase_on")) === "delivered" ? "delivered" : "confirmed",
     products,

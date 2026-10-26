@@ -17,7 +17,8 @@ export type ActionKind =
   | "test_campaign"
   | "customer_audience"
   | "above_cap"
-  | "connect_asset";
+  | "connect_asset"
+  | "safety_net";
 
 export type Mode = "suggest" | "auto" | "approval" | "owner";
 export type AutonomyLevel = 0 | 1 | 2 | 3;
@@ -33,6 +34,8 @@ const TABLE: Record<ActionKind, [Mode, Mode, Mode, Mode]> = {
   customer_audience: ["suggest", "approval", "approval", "approval"],
   above_cap: ["suggest", "owner", "owner", "owner"],
   connect_asset: ["owner", "owner", "owner", "owner"],
+  // the account's spend cap and Meta's own rules are account controls: the owner, at every level (spec 3)
+  safety_net: ["owner", "owner", "owner", "owner"],
 };
 
 export function modeFor(kind: ActionKind, level: AutonomyLevel): Mode {

@@ -697,3 +697,43 @@ model Lesson {
   @@unique([key, week])
   @@index([week])
 }
+
+/// A request to the content studio (docs/STUDIO_DATA_CONTRACT_AR.md §4.2 #6–7): the studio's machine pulls the queue
+/// when it is on, claims one, and hands back a result — never the other way round.
+model CreativeRequest {
+  id          String    @id @default(cuid())
+  /// new_hooks (new hooks on the same body — the usual case, 7.6) · new_script
+  kind        String
+  productCode String
+  /// the studio script of the tired winner (CreativeAsset.sourceRef), when it came from the studio
+  vpId        String?
+  crCode      String?
+  count       Int       @default(4)
+  /// why, the winning tags, notes for the first frame, the forbidden words
+  brief       Json
+  /// pending · claimed · done · cancelled
+  status      String    @default("pending")
+  claimedAt   DateTime?
+  leaseUntil  DateTime?
+  result      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([crCode])
+}
+
+/// One imported file (spec S13): its fingerprint, so the same file imported twice is said and changes nothing.
+model ImportBatch {
+  id         String   @id @default(cuid())
+  /// meta_insights
+  kind       String
+  sha256     String
+  fileName   String
+  rows       Int
+  unknownAds Int      @default(0)
+  byUser     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([kind, sha256])
+}
