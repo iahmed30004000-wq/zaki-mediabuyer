@@ -48,8 +48,9 @@ export function errorResponse(e: unknown) {
 export async function verifyPassword(email: string, password: string) {
   const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   // compare even when the person does not exist, so timing does not reveal who has an account
-  const ok = await bcrypt.compare(password, user?.passwordHash ?? "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv");
-  return ok && user?.active ? user : null;
+  // an invited member has no password yet (""): they sign in with their one-time code first
+  const ok = await bcrypt.compare(password, user?.passwordHash || "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv").catch(() => false);
+  return ok && user?.active && user.passwordHash ? user : null;
 }
 
 export async function startSession(user: { id: string; role: RoleKey; sessionVer: number }) {

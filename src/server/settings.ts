@@ -34,6 +34,8 @@ export const DEFAULT_SETTINGS = {
   "market.SY": { msg_channel: "whatsapp", min_age: 18, team_hours_until: "17:00", payment_note: "الدفع من حساب مالي برّا سوريا" },
   "market.JO": { msg_channel: null, min_age: 18, team_hours_until: null },
   "pages.codes": { SP: "صحة بلس", VP: "فيتا فارما", AJ: "أسرار الجمال" },
+  /** the landing pages of each product (LP1 · LP2 …) — the launch wizard fills the link from here */
+  "landing.pages": [] as { productCode: string; lpCode: string; url: string }[],
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
