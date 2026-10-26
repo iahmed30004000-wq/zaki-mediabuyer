@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
+import { Prisma } from "@prisma/client";
+import { restoreOrder } from "@/ops/backup";
 import { buildWorkbook } from "@/io/export";
 import { sendTelegram, splitMessage } from "@/adapters/telegram";
 import { attributionOf, toAttributedOrder, OmsOrder } from "@/adapters/oms";
@@ -42,5 +44,18 @@ describe("OMS orders (spec 9.2)", () => {
   });
   it("refuses a phone-like value in a public field", () => {
     expect(() => toAttributedOrder({ ...base, ad_name: "اتصل 0944123456" }, 24)).toThrow(/refused/);
+  });
+});
+
+describe("the restore order (spec 17.4)", () => {
+  it("every table comes after the tables it points to, and none is missing", () => {
+    const models = Prisma.dmmf.datamodel.models;
+    const order = restoreOrder(models).map((m) => m.name);
+    expect(order).toHaveLength(models.length);
+    expect(order.indexOf("AdAccount")).toBeLessThan(order.indexOf("Campaign"));
+    expect(order.indexOf("Campaign")).toBeLessThan(order.indexOf("AdSet"));
+    expect(order.indexOf("AdSet")).toBeLessThan(order.indexOf("Ad"));
+    expect(order.indexOf("ChangeSet")).toBeLessThan(order.indexOf("ChangeItem"));
+    expect(order.indexOf("CreativeAsset")).toBeLessThan(order.indexOf("ThumbnailCandidate"));
   });
 });

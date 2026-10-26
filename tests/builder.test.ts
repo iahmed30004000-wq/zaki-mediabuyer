@@ -112,6 +112,8 @@ describe("the launch as change items (live against a pretend Meta)", () => {
   });
   it("dry-run sends nothing and gives a stand-in id so the next items can be written down", async () => {
     const r = await applyItem(items[0]!, "dry_run", null);
-    expect(r).toMatchObject({ verified: true, createdId: "dry_campaign" });
+    expect(r.verified).toBe(true);
+    expect(r.createdId).toMatch(/^dry_campaign_[0-9a-f]{8}$/);
+    expect((await applyItem(items[0]!, "dry_run", null)).createdId).not.toBe(r.createdId);
   });
 });

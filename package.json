@@ -24,7 +24,11 @@
     "demo:pipeline": "tsx --env-file=.env scripts/demo-pipeline.ts",
     "demo:launch": "tsx --env-file=.env scripts/demo-launch.ts",
     "demo:capi": "tsx --env-file=.env scripts/demo-capi.ts",
-    "demo:phase5": "tsx --env-file=.env scripts/demo-phase5.ts"
+    "demo:phase5": "tsx --env-file=.env scripts/demo-phase5.ts",
+    "db:backup": "tsx --env-file-if-exists=.env scripts/db-backup.ts",
+    "db:restore": "tsx --env-file-if-exists=.env scripts/db-restore.ts",
+    "check:backup": "tsx --env-file=.env scripts/backup-restore-check.ts",
+    "check:full": "tsx --env-file=.env scripts/full-check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

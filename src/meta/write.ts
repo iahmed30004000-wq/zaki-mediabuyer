@@ -6,8 +6,10 @@
  *   live                  — META_WRITE_MODE=live: POST the absolute value, then read the object back and compare.
  * Writes are absolute (a status, a budget), so repeating one is harmless; an item that already has an answer is never
  * sent again (its idempotency key is unique in the database). A create is never retried and is checked field by field
- * against its template (src/core/verify.ts) before anything is switched on.
+ * against its template (src/core/verify.ts) before anything is switched on. In dry_run a created object gets a unique
+ * stand-in id (`dry_<ref>_<8 hex>`), so two dry launches never share one.
  */
+import { randomUUID } from "node:crypto";
 import type { MetaClient } from "./client";
 import type { ChangeItemDraft } from "@/core/changeset";
 import { READ_FIELDS, verifyCreated, type Mismatch } from "@/core/verify";
@@ -40,7 +42,7 @@ export async function applyItem(item: ChangeItemDraft, mode: WriteMode, client: 
   const payload = payloadOf(item);
   if (item.op === "create") {
     const ref = item.after.ref ?? "object";
-    if (mode === "dry_run" || !client) return { response: { dryRun: true, wouldPost: { endpoint: item.after.endpoint, ...payload } }, verified: true, readBack: null, createdId: `dry_${ref}` };
+    if (mode === "dry_run" || !client) return { response: { dryRun: true, wouldPost: { endpoint: item.after.endpoint, ...payload } }, verified: true, readBack: null, createdId: `dry_${ref}_${randomUUID().slice(0, 8)}` };
     const response = await client.post<{ id: string }>(item.after.endpoint ?? "", payload, { retry: false });
     const readBack = await client.get<Record<string, unknown>>(response.id, { fields: READ_FIELDS[item.objectType] });
     const expect = (item.after as { expect?: Expectation }).expect ?? { type: item.objectType };

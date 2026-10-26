@@ -5,6 +5,7 @@
  *
  *   meta.sync      every 30 min 08:00–24:00, every 2 h at night — yesterday and today
  *   meta.final     03:00 — yesterday + the last 7 days again (the archive)
+ *   db.backup      02:30 — every table to STORAGE_DIR/backups/<day>, the last 14 kept (src/ops/backup.ts)
  *   oms.sync       every hour at :05
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
  *   rules          every hour at :15, after the truth — the safety rules (Phase 2), dry-run unless META_WRITE_MODE=live
@@ -30,6 +31,7 @@ import { checkAccounts, storeAttributionHealth } from "../src/jobs/account-safet
 import { runScale } from "../src/jobs/scale-run";
 import { storePeriodReport } from "../src/jobs/weekly-report";
 import { storePlan } from "../src/agents/planner";
+import { dailyBackup } from "../src/ops/backup";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
@@ -56,6 +58,7 @@ export async function tick(now = new Date()) {
   if (day || t.hour % 2 === 0) {
     await runOnce("meta.sync", day ? halfHour : `${t.date}T${t.hour}`, () => syncMeta({ since: yesterday, until: t.date }));
   }
+  if (t.hour > 2 || (t.hour === 2 && t.minute >= 30)) await runOnce("db.backup", t.date, () => dailyBackup(db, now));
   if (t.hour === 3) await runOnce("meta.final", t.date, () => syncMeta({ since: iso(new Date(utcDay(t.date).getTime() - 8 * DAY)), until: yesterday }));
   if (t.minute >= 5) {
     await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
