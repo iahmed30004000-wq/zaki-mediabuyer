@@ -54,7 +54,7 @@ export const AGENT_HEADER = [
 
 export function providersFromEnv(env: Record<string, string | undefined> = process.env): Provider[] {
   const list: Provider[] = [];
-  if (env.INTERNAL_MODEL_BASE_URL) list.push({ key: "internal", baseUrl: env.INTERNAL_MODEL_BASE_URL.replace(/\/$/, ""), apiKey: env.INTERNAL_MODEL_KEY || undefined, model: env.INTERNAL_MODEL_NAME || "qwen3:4b-instruct-2507-q4_K_M", internal: true });
+  if (env.INTERNAL_MODEL_BASE_URL) list.push({ key: "internal", baseUrl: env.INTERNAL_MODEL_BASE_URL.replace(/\/$/, ""), apiKey: env.INTERNAL_MODEL_KEY || undefined, model: env.INTERNAL_MODEL_NAME || "qwen3:4b-instruct-2507-q4_K_M", internal: true }); // scan-secrets:ignore (reads .env, no literal key)
   if (env.EXTERNAL_MODEL_BASE_URL && env.EXTERNAL_MODEL_KEY) list.push({ key: "external", baseUrl: env.EXTERNAL_MODEL_BASE_URL.replace(/\/$/, ""), apiKey: env.EXTERNAL_MODEL_KEY, model: env.EXTERNAL_MODEL_NAME || "", internal: false });
   return list;
 }

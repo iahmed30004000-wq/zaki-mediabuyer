@@ -18,7 +18,7 @@ function deps(fetchImpl: GatewayDeps["fetch"], extra: Partial<GatewayDeps> = {})
 describe("privacy filter (spec 11.1)", () => {
   it.each([
     ["a Meta token", "token EAABsbCS1iHgBAKZBZCZA0ZCxyz123456789"],
-    ["an API key", "use sk-ant-api03-abcdefghijklmnop1234"],
+    ["an API key", "use sk-ant-api03-DUMMYexampleFAKEtest00"],
     ["a Syrian phone", "رقم الزبون 0944123456"],
     ["an international phone", "+963 944 123 456"],
     ["Arabic-Indic digits", "اتصل ٠٩٤٤١٢٣٤٥٦"],
