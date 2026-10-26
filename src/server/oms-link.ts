@@ -4,7 +4,9 @@
  * Three settings, all in `.env` on the machine and never on the site (the «الربط» rule):
  *   OMS_LIVE=1        the switch. Anything else = the real adapter is off; screens stay on demo data and
  *                     `npm run demo:pipeline` keeps exercising the same adapter against the fixtures.
- *   OMS_BASE_URL      the OMS origin, e.g. https://crm.zakiai.io. https only, except a local OMS on this machine.
+ *   OMS_BASE_URL      the OMS origin. LOCAL ONLY (localhost / 127.0.0.1) until the owner says otherwise — his rule
+ *                     of 26/10: the media buyer runs against the local OMS first, production stays untouched.
+ *   OMS_ALLOW_REMOTE  =1 is that word: only then may the address be another host, and then https only.
  *   OMS_TOKEN_ENC     the OMS key («الميديا باير» on the OMS token screen), sealed with ENCRYPTION_KEY by
  *                     `npm run oms:link`. A plaintext OMS_TOKEN is accepted on a dev machine only; production
  *                     refuses it, so the key is never sitting readable in a server's environment.
@@ -32,8 +34,11 @@ export function omsLink(env: Env = process.env, fetchImpl?: typeof fetch): OmsLi
   } catch {
     return { mode: "off", why: "عنوان الـ OMS مش رابط صحيح" };
   }
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && LOCAL_HOSTS.has(url.hostname))) {
-    return { mode: "off", why: "عنوان الـ OMS لازم يكون https — التوكن ما بيمشي على رابط مكشوف" };
+  if (!LOCAL_HOSTS.has(url.hostname)) {
+    if (env.OMS_ALLOW_REMOTE?.trim() !== "1") {
+      return { mode: "off", why: "لهلأ الربط مع الـ OMS المحلي بس (localhost) — الإنتاج بقرار المالك (OMS_ALLOW_REMOTE=1)" };
+    }
+    if (url.protocol !== "https:") return { mode: "off", why: "عنوان الـ OMS لازم يكون https — التوكن ما بيمشي على رابط مكشوف" };
   }
 
   const sealed = env.OMS_TOKEN_ENC?.trim();

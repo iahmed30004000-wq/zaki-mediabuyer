@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { fmt } from "@/lib/format";
 import { getSetting } from "@/server/settings";
 import { lastSuccess } from "./runner";
+import { lastOmsSync, omsStale } from "./oms-health";
 
 const pct = (v: unknown) => (v === null || v === undefined ? null : Number(v) * 100);
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -31,14 +32,16 @@ export async function buildMorningReport(day: Date): Promise<string> {
   const webOrders = await db.attributedOrder.count({ where: { channel: "website", isFake: false, createdAtOms: { gte: date, lt: new Date(date.getTime() + 86_400_000) } } });
   const gap = webOrders ? Math.round(((purchases - webOrders) / webOrders) * 100) : null;
   const metaAge = await lastSuccess("meta.sync");
-  const omsAge = await lastSuccess("oms.sync");
+  // The last REAL OMS sync — a skipped or backed-off slot is not one. Over 3 h old, the OMS figures are «تقدير».
+  const omsAge = lastOmsSync(await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 }));
+  const truthTag = omsStale(omsAge, new Date()) ? "تقدير — الـ OMS ما ردّ من أكتر من 3 ساعات" : "حقيقي";
   const dateAr = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", weekday: "long", day: "numeric", month: "long" }).format(day);
 
   const lines = [
     `تقرير الإعلانات — ${dateAr}`,
     `(الإسناد: ${window} | الرقم مبدئي | الحقيقة على الطلبات الناضجة)`,
     "",
-    `1) الحساب: صرف ${fmt(total.spend, "$")} · طلبات ${total.orders} · مؤكد ${total.confirmed} (${fmt(total.mature ? (total.confirmed / total.mature) * 100 : null, "%")}) · تكلفة المؤكد ${fmt(total.confirmed ? total.spend / total.confirmed : null, "$")} [حقيقي]`,
+    `1) الحساب: صرف ${fmt(total.spend, "$")} · طلبات ${total.orders} · مؤكد ${total.confirmed} (${fmt(total.mature ? (total.confirmed / total.mature) * 100 : null, "%")}) · تكلفة المؤكد ${fmt(total.confirmed ? total.spend / total.confirmed : null, "$")} [${truthTag}]`,
     "2) لكل منتج:",
     ...products.map((p) => {
       const e = econ.get(p.objectId);

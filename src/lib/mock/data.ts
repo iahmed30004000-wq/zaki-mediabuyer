@@ -240,6 +240,8 @@ export interface Dataset {
   campaigns: CampaignRow[];
   /** true when the numbers are the demo ones */
   demo: boolean;
+  /** true when the last real OMS sync is older than 3 h (or never ran): every OMS-based figure is «تقدير» */
+  omsStale?: boolean;
 }
 
 export const DEMO: Dataset = { products: PRODUCTS, accounts: ACCOUNTS, campaigns: CAMPAIGNS, demo: true };

@@ -14,6 +14,7 @@ import { runOnce } from "../src/jobs/runner";
 import { syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
+import { omsBackoff } from "../src/jobs/oms-health";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
 import { db } from "../src/server/db";
 
@@ -39,7 +40,12 @@ export async function tick(now = new Date()) {
   if (t.minute >= 5) {
     await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
       const o = omsOptions();
-      return o ? syncOms(o, new Date(now.getTime() - 3 * DAY)) : { skipped: "OMS link off (OMS_LIVE / npm run oms:link)" };
+      if (!o) return { skipped: "OMS link off (OMS_LIVE / npm run oms:link)" };
+      // After failures, leave the OMS alone for 1 h, 2 h, 4 h, then 8 h (src/jobs/oms-health.ts).
+      const runs = await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 });
+      const back = omsBackoff(runs, now);
+      if (back.wait) return { skipped: "backoff", backoff: true, failures: back.failures, until: back.until?.toISOString() };
+      return syncOms(o, new Date(now.getTime() - 3 * DAY));
     });
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));

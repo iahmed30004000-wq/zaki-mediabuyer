@@ -22,30 +22,30 @@ describe("the OMS link is off until it is switched on, and the key never shows",
   });
 
   it("opens the sealed key with ENCRYPTION_KEY", () => {
-    const link = omsLink({ OMS_LIVE: "1", OMS_BASE_URL: "https://crm.zakiai.io/", OMS_TOKEN_ENC: encryptSecrets({ token: TOKEN }) });
+    const link = omsLink({ OMS_LIVE: "1", OMS_ALLOW_REMOTE: "1", OMS_BASE_URL: "https://crm.zakiai.io/", OMS_TOKEN_ENC: encryptSecrets({ token: TOKEN }) });
     expect(link).toMatchObject({ mode: "live", encrypted: true, options: { baseUrl: "https://crm.zakiai.io", token: TOKEN } });
   });
 
   it("a tampered or foreign blob is off, not a crash", () => {
     const blob = encryptSecrets({ token: TOKEN });
     const tampered = blob.slice(0, -4) + (blob.endsWith("AAAA") ? "BBBB" : "AAAA");
-    expect(omsLink({ OMS_LIVE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN_ENC: tampered }).mode).toBe("off");
+    expect(omsLink({ OMS_LIVE: "1", OMS_ALLOW_REMOTE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN_ENC: tampered }).mode).toBe("off");
   });
 
   it("refuses a plain key in production, allows it on a dev machine and says it is not sealed", () => {
-    const env = { OMS_LIVE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN: TOKEN };
+    const env = { OMS_LIVE: "1", OMS_ALLOW_REMOTE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN: TOKEN };
     expect(omsLink({ ...env, NODE_ENV: "production" }).mode).toBe("off");
     expect(omsLink({ ...env, NODE_ENV: "development" })).toMatchObject({ mode: "live", encrypted: false });
   });
 
   it("never sends the key over plain http, except to an OMS on this machine", () => {
     const sealed = encryptSecrets({ token: TOKEN });
-    expect(omsLink({ OMS_LIVE: "1", OMS_BASE_URL: "http://crm.zakiai.io", OMS_TOKEN_ENC: sealed }).mode).toBe("off");
+    expect(omsLink({ OMS_LIVE: "1", OMS_ALLOW_REMOTE: "1", OMS_BASE_URL: "http://crm.zakiai.io", OMS_TOKEN_ENC: sealed }).mode).toBe("off");
     expect(omsLink({ OMS_LIVE: "1", OMS_BASE_URL: "http://localhost:3001", OMS_TOKEN_ENC: sealed }).mode).toBe("live");
   });
 
   it("the status a screen sees has the host and the state — and not one character of the key", () => {
-    const status = omsLinkStatus({ OMS_LIVE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN_ENC: encryptSecrets({ token: TOKEN }) });
+    const status = omsLinkStatus({ OMS_LIVE: "1", OMS_ALLOW_REMOTE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN_ENC: encryptSecrets({ token: TOKEN }) });
     expect(status).toEqual({ live: true, host: "crm.zakiai.io", encrypted: true, why: null });
     expect(JSON.stringify(status)).not.toContain("zk1_");
   });

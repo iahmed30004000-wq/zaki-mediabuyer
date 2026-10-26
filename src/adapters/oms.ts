@@ -70,21 +70,35 @@ async function get(o: OmsOptions, path: string) {
 }
 
 /** Every order updated since `since`, following the cursor. */
+/**
+ * At most this many pages in one sync (200 orders each on the OMS side = 20 000 orders). A sync that would need more
+ * stops and fails loudly rather than walking the OMS for ever; so does a cursor the OMS hands back twice.
+ */
+export const MAX_PAGES = 100;
+
 export async function readOrders(o: OmsOptions, since: Date): Promise<OmsOrder[]> {
   const out: OmsOrder[] = [];
+  const seen = new Set<string>();
   let cursor: string | null | undefined;
+  let pages = 0;
   do {
+    if (++pages > MAX_PAGES) throw new Error(`OMS /orders/attribution: more than ${MAX_PAGES} pages in one sync — stopped`);
     const q = new URLSearchParams({ updated_since: since.toISOString() });
     if (cursor) q.set("cursor", cursor);
     const page = Page.parse(await get(o, `/orders/attribution?${q}`));
     out.push(...page.items);
     cursor = page.next_cursor;
+    if (cursor && seen.has(cursor)) throw new Error("OMS /orders/attribution: the same cursor came back twice — stopped");
+    if (cursor) seen.add(cursor);
   } while (cursor);
   return out;
 }
 
+/** What the catalogue is asked for — every name must be in contracts/oms-mediabuyer.v1/products-page.schema.json. */
+export const PRODUCT_FIELDS = ["code", "name", "aliases", "unit_cost_usd", "price_options", "stock_days", "delivery_fee", "return_fee", "cod_fee_pct"] as const;
+
 export async function readProducts(o: OmsOptions): Promise<OmsProduct[]> {
-  const data = await get(o, "/products?fields=code,name,aliases,unit_cost_usd,price_options,stock_days,delivery_fee,return_fee,cod_fee_pct");
+  const data = await get(o, `/products?fields=${PRODUCT_FIELDS.join(",")}`);
   return z.array(OmsProduct).parse(Array.isArray(data) ? data : (data as { items: unknown }).items);
 }
 

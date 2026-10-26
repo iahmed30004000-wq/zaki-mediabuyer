@@ -38,12 +38,18 @@ function ask(question: string, hidden = false): Promise<string> {
     console.error("✗ ENCRYPTION_KEY مش معبّى بـ .env — من دونه ما بنخزّن المفتاح.");
     process.exit(1);
   }
-  const baseUrl = (process.argv[2] ?? (await ask("عنوان الـ OMS (مثال https://crm.zakiai.io): "))).replace(/\/+$/, "");
+  const baseUrl = (process.argv[2] ?? (await ask("عنوان الـ OMS المحلي (مثال http://localhost:3001): "))).replace(/\/+$/, "");
   try {
     const u = new URL(baseUrl);
-    if (u.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(u.hostname)) throw new Error("not https");
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+    // Local first (the owner's rule of 26/10): another host only once he set OMS_ALLOW_REMOTE=1, and then https only.
+    if (!local && process.env.OMS_ALLOW_REMOTE?.trim() !== "1") {
+      console.error("✗ لهلأ الربط مع الـ OMS المحلي بس (localhost). الإنتاج بقرار المالك: OMS_ALLOW_REMOTE=1 بـ .env.");
+      process.exit(1);
+    }
+    if (!local && u.protocol !== "https:") throw new Error("not https");
   } catch {
-    console.error("✗ العنوان لازم يكون رابط https كامل.");
+    console.error("✗ العنوان لازم يكون رابط كامل (https لأي جهاز غير هالجهاز).");
     process.exit(1);
   }
   const token = await ask("مفتاح الميديا باير من شاشة توكنات الأنظمة (ما رح يبين وانت بتكتب): ", true);

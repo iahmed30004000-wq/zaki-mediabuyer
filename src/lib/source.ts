@@ -4,6 +4,7 @@
  * screen, the report and the export read real numbers through the very same calculator.
  */
 import { db } from "@/server/db";
+import { lastOmsSync, omsStale } from "@/jobs/oms-health";
 import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type Product, type RowStatus } from "@/lib/mock/data";
 
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
@@ -20,6 +21,9 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
   if (process.env.MOCK_MODE === "1") return DEMO;
   const since = new Date(now.getTime() - days * 86_400_000);
 
+  // The OMS answers once an hour at most; when its last real answer is over 3 h old, nothing here may say «حقيقي».
+  const stale = omsStale(lastOmsSync(await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 })), now);
+
   const [econ, accountsDb, campaignsDb, insights, orders] = await Promise.all([
     db.productEconomics.findMany(),
     db.adAccount.findMany(),
@@ -30,7 +34,7 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
 
   const products: Product[] = econ.map((p) => ({
     code: p.productCode, name: p.name, market: p.market as Product["market"], price: Number(p.price), unitCost: Number(p.unitCost), delivery: Number(p.deliveryFee),
-    returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: p.source === "actual" ? 50 : 0,
+    returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: !stale && p.source === "actual" ? 50 : 0,
   }));
 
   const today = new Date(now);
@@ -81,5 +85,5 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
     };
   });
 
-  return { products, accounts, campaigns, demo: false };
+  return { products, accounts, campaigns, demo: false, omsStale: stale };
 }
