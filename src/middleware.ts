@@ -5,7 +5,7 @@ import { SESSION_COOKIE, authRequired, readSession } from "@/lib/session-token";
  * Paths anybody may open: the login door, health, and the static brand files. The content studio's paths carry no
  * session: each route there checks its own Bearer token (src/server/api-token.ts).
  */
-const OPEN = [/^\/login/, /^\/api\/auth\//, /^\/api\/health/, /^\/api\/vidpattern\//, /^\/api\/v1\/vp\//, /^\/brand\//, /^\/fonts\//, /^\/_next\//, /^\/favicon/];
+const OPEN = [/^\/login/, /^\/api\/auth\//, /^\/api\/health/, /^\/api\/telegram\/webhook/, /^\/api\/vidpattern\//, /^\/api\/v1\/vp\//, /^\/brand\//, /^\/fonts\//, /^\/_next\//, /^\/favicon/];
 
 /** Signed-out visitors go to the door; an API call without a session gets 401 (spec 13.7: every route checks access). */
 export async function middleware(req: NextRequest) {
