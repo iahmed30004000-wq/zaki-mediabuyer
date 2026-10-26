@@ -21,10 +21,7 @@ import { themeColorOf } from "@/lib/themes/palettes";
  * The theme on the client. The SERVER already painted the right theme (the root layout reads the
  * `zaki_theme` cookie), so this provider never repaints on load: it only changes things when a
  * person picks something. A choice is applied at once (the attribute and the `dark` class on
- * <html>, the browser bar colour), remembered in its cookie for a year, and saved to the account
- * with POST /api/me/theme so it follows the person to their other devices. The save is best-effort
- * (signed out, offline: the cookie still holds the choice) and the saves go out one after another,
- * so a slow answer can never bring back an older choice.
+ * <html>, the browser bar colour), remembered in its cookie for a year,.
  */
 
 export interface ThemeContextValue {
@@ -37,20 +34,11 @@ export interface ThemeContextValue {
 
 let saving: Promise<void> = Promise.resolve();
 
-function save(body: { theme: ThemeKey } | { decor: DecorLevel }): void {
-  saving = saving.then(async () => {
-    try {
-      await fetch("/api/me/theme", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify(body),
-      });
-    } catch {
-      // best-effort: the cookie already holds the choice on this device
-    }
-  });
-}
+/**
+ * The Media Buyer keeps the choice in the cookie only (one owner, few devices). When accounts land
+ * (T1.2), a per-person save goes here.
+ */
+function save(_body: { theme: ThemeKey } | { decor: DecorLevel }): void {}
 
 /** Resolves when every choice made so far has been sent (tests, and anything that must wait for it). */
 export function savedPreferences(): Promise<void> {

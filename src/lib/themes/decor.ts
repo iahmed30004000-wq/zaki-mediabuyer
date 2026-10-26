@@ -33,19 +33,19 @@
  *   light  (the default) static washes and ornament. Nothing moves, so there is nothing for reduced motion to
  *          switch off and nothing for a hidden tab to waste a frame on.
  *   full   adds one slow motion: a 24 s drift (day), a 420 s turn of the door's rosette (the Islamic themes), a
- *          70 s zoom of the door photograph (neon coast). `prefers-reduced-motion` REMOVES it (not slows it), and
+ *          70 s zoom of the door photograph (sunset city). `prefers-reduced-motion` REMOVES it (not slows it), and
  *          a hidden tab pauses it (`watchDecorVisibility`, a `data-decor-hidden` attribute the stylesheet reads).
  *
  * ── WHAT EACH THEME WEARS ──
  *
- *   islamic-calm, islamic-epic   three MASKS — rosette, corner, skyline — white on transparent, painted in the
+ *   iznik, observatory           three MASKS — rosette, corner, skyline — white on transparent, painted in the
  *                                theme's accent through CSS `mask`: shape only, never a colour of its own. A
  *                                composed theme turns its rosette; it does not drift (a drift would show a seam of
  *                                background along the edges the corners and the roofline are anchored to).
- *   neon-coast                   three opaque PHOTOGRAPHS (the owner's own generations) under a veil made of the
+ *   sunset-city                  three opaque PHOTOGRAPHS (real, freely licensed, see CREDITS.md) under a veil made of the
  *                                theme's surface colour. A photograph does not drift either; the door zooms from
  *                                its centre, which cannot uncover an edge. The door's text column becomes a panel.
- *   day                          one very faint mask: «نهاري» is the highest-contrast pair, so its ornament is
+ *   wudooh                       one very faint mask: «وُضوح» is the highest-contrast pair, so its ornament is
  *                                barely there.
  *
  * ── RTL ──
@@ -92,19 +92,19 @@ export interface Composition {
   readonly skyline: number;
 }
 export const COMPOSED = {
-  "islamic-calm": { rosette: 0.14, corner: 0.24, skyline: 0.16 },
-  "islamic-epic": { rosette: 0.15, corner: 0.28, skyline: 0.17 },
+  iznik: { rosette: 0.14, corner: 0.24, skyline: 0.16 },
+  observatory: { rosette: 0.15, corner: 0.28, skyline: 0.17 },
 } satisfies Record<string, Composition>;
 
 /** The three drawings of a composed theme, by the name the file carries. */
 export const PIECES = ["rosette", "corner", "skyline"] as const;
 
 /**
- * «نهاري» — one faint mask. Its opacity is the OMS's measured one: the mask moves almost no light against a
+ * «وُضوح» — one faint mask. Its opacity is the OMS's measured one: the mask moves almost no light against a
  * white page, and a louder one would be the loudest pair in the set.
  */
 export const FAINT = {
-  day: { file: "day.webp", ink: 0.031 },
+  wudooh: { file: "wudooh.webp", ink: 0.031 },
 } satisfies Record<string, { file: string; ink: number }>;
 
 /**
@@ -112,7 +112,7 @@ export const FAINT = {
  *
  * The rule «shape only, never colour» protects against a full-colour picture carrying greens and golds that no
  * palette test ever looks at. The owner asked for exactly that for one theme («ثيم بصور حقيقية»), so
- * `neon-coast`, and only it, wears three real photographs, and what the rule protected is protected another way:
+ * `sunset-city`, and only it, wears three real photographs, and what the rule protected is protected another way:
  *
  *   • THE LIST IS CLOSED (this table has one key; the files test fails on a second without a decision).
  *   • THE FOUR PLACES ARE THE SAME FOUR. Never behind a figure, a table or a form.
@@ -138,10 +138,10 @@ export interface Photographs {
   readonly header: readonly [number, number];
 }
 export const PHOTOGRAPHIC = {
-  "neon-coast": {
-    door: "neon-coast.door.webp",
-    doorTall: "neon-coast.door-tall.webp",
-    strip: "neon-coast.strip.webp",
+  "sunset-city": {
+    door: "sunset-city.door.webp",
+    doorTall: "sunset-city.door-tall.webp",
+    strip: "sunset-city.strip.webp",
     panel: 0.8,
     veil: [0.55, 0.2, 0.55],
     empty: 0.14,
@@ -212,33 +212,35 @@ export function allDecorFiles(): string[] {
  * name; the picture is `public/brand/art/<slot>.webp`, and until that file exists the page shows nothing broken
  * (`ArtSlot` hides itself on error) and the CSS ornament is the fallback.
  *
- *   login-door, today-strip     two SCENES (a night gate, a city at dusk) — Islamic themes only, see ART_SCENES.
+ *   login-door, today-strip     two SCENES (a night gate, a city at dusk) — «إزنيق» and «المرصد» only, see ART_SCENES.
  *   empty-*                     one object on a tile, for an empty list (1:1).
  *   guide-*                     the drawings of the in-app guide (4:3).
  */
 export const ART_SLOTS = [
   "login-door",
   "today-strip",
-  "empty-chat",
-  "empty-tasks",
-  "empty-library",
+  "empty-ads",
+  "empty-creatives",
+  "empty-decisions",
+  "empty-reports",
   "empty-inbox",
-  "empty-search",
+  "empty-alerts",
   "guide-welcome",
-  "guide-spaces",
-  "guide-message-to-task",
-  "guide-notifications",
-  "guide-install-app",
+  "guide-connect",
+  "guide-truth",
+  "guide-decisions",
+  "guide-creatives",
+  "launch-done",
 ] as const;
 export type ArtSlotName = (typeof ART_SLOTS)[number];
 
 /**
  * The two slots that are SCENES painted in the Islamic palettes (deep emerald, gold). They belong to the two
- * Islamic themes: «ساحل النيون» has its own photographs and «نهاري» is plain. The stylesheet hides them elsewhere
+ * Islamic themes («إزنيق», «المرصد»): «مدينة الغروب» has its own photographs and «وُضوح» is plain. The stylesheet hides them elsewhere
  * (and when decoration is off), so no other theme ever downloads them.
  */
 export const ART_SCENES = ["login-door", "today-strip"] as const satisfies readonly ArtSlotName[];
-const SCENE_THEMES = ["islamic-calm", "islamic-epic"] as const satisfies readonly ThemeKey[];
+const SCENE_THEMES = ["iznik", "observatory"] as const satisfies readonly ThemeKey[];
 
 export function isArtSlot(value: unknown): value is ArtSlotName {
   return typeof value === "string" && (ART_SLOTS as readonly string[]).includes(value);
@@ -431,10 +433,10 @@ function composedRules(key: ComposedKey): string[] {
   ];
 }
 
-/** «نهاري»: one faint mask in the same places. */
+/** «وُضوح»: one faint mask in the same places. */
 function faintRules(): string[] {
-  const P = theme("day");
-  const { file, ink: opacity } = FAINT.day;
+  const P = theme("wudooh");
+  const { file, ink: opacity } = FAINT.wudooh;
   const bled = (): Decl[] => [...pseudo, ...ink(opacity), ...maskOf(file, "left -40px top -64px", "200px")];
   return [
     banner("DAY — one faint mask, barely there"),
@@ -446,7 +448,7 @@ function faintRules(): string[] {
   ];
 }
 
-/** «ساحل النيون»: photographs under a veil of the surface colour, and the panel under the door's words. */
+/** «مدينة الغروب»: photographs under a veil of the surface colour, and the panel under the door's words. */
 function photographicRules(key: PhotographicKey): string[] {
   const p = PHOTOGRAPHIC[key];
   const P = theme(key);
@@ -493,11 +495,11 @@ function motionRules(): string[] {
     `@keyframes zk-decor-turn {\n  to { transform: rotate(1turn); }\n}`,
     `@keyframes zk-decor-zoom {\n  to { transform: scale(1.06); }\n}`,
     comment("A wash and a glow may wander; a corner and a roofline anchored to the edges may not, and neither may a photograph."),
-    rule(`${full("day")} .${DECOR_CLASS}`, [d("animation", `zk-decor-drift ${MOTION.drift}s ease-in-out infinite alternate`), d("will-change", "transform")]),
+    rule(`${full("wudooh")} .${DECOR_CLASS}`, [d("animation", `zk-decor-drift ${MOTION.drift}s ease-in-out infinite alternate`), d("will-change", "transform")]),
     comment("A composed theme turns its rosette, once round in seven minutes: slow enough that nobody sees it turn and everybody sees that it did."),
     rule(composed, [d("animation", `zk-decor-turn ${MOTION.turn}s linear infinite`)]),
     comment("The photograph of the door zooms from its centre, 6% over seventy seconds: a transform that cannot uncover an edge."),
-    rule(`${full("neon-coast")} .${DECOR_CLASS}-door`, [d("animation", `zk-decor-zoom ${MOTION.zoom}s ease-in-out infinite alternate`), d("will-change", "transform")]),
+    rule(`${full("sunset-city")} .${DECOR_CLASS}-door`, [d("animation", `zk-decor-zoom ${MOTION.zoom}s ease-in-out infinite alternate`), d("will-change", "transform")]),
   ];
 }
 

@@ -45,53 +45,53 @@
   }
 }
 
-/* ── ISLAMIC-CALM — three masks: a rosette, a corner, a skyline ── */
+/* ── IZNIK — three masks: a rosette, a corner, a skyline ── */
 
 /* Door: the rosette behind the content (::before, painted first), a corner at each top corner, the skyline along the bottom. The corners and the skyline sit at the edges of the viewport, where nothing is drawn, so they work at any width. */
-[data-theme="islamic-calm"] .zk-decor-door::before {
+[data-theme="iznik"] .zk-decor-door::before {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.14;
-  -webkit-mask: url(/brand/decor/islamic-calm.rosette.webp) no-repeat center / min(92vmin, 1000px);
-  mask: url(/brand/decor/islamic-calm.rosette.webp) no-repeat center / min(92vmin, 1000px);
+  -webkit-mask: url(/brand/decor/iznik.rosette.webp) no-repeat center / min(92vmin, 1000px);
+  mask: url(/brand/decor/iznik.rosette.webp) no-repeat center / min(92vmin, 1000px);
 }
 
-[data-theme="islamic-calm"] .zk-decor-door::after {
+[data-theme="iznik"] .zk-decor-door::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.24;
-  -webkit-mask: url(/brand/decor/islamic-calm.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
-  mask: url(/brand/decor/islamic-calm.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  -webkit-mask: url(/brand/decor/iznik.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  mask: url(/brand/decor/iznik.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
 }
 
 /* The left corner is the right one, turned: one file, drawn three times, not 68 KB of the same bytes. */
-[data-theme="islamic-calm"] .zk-decor-door .zk-decor-l {
+[data-theme="iznik"] .zk-decor-door .zk-decor-l {
   display: block;
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.24;
-  -webkit-mask: url(/brand/decor/islamic-calm.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
-  mask: url(/brand/decor/islamic-calm.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  -webkit-mask: url(/brand/decor/iznik.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  mask: url(/brand/decor/iznik.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
   transform: scaleX(-1);
 }
 
-[data-theme="islamic-calm"] .zk-decor-door .zk-decor-b {
+[data-theme="iznik"] .zk-decor-door .zk-decor-b {
   display: block;
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.16;
-  -webkit-mask: url(/brand/decor/islamic-calm.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
-  mask: url(/brand/decor/islamic-calm.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
+  -webkit-mask: url(/brand/decor/iznik.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
+  mask: url(/brand/decor/iznik.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
 }
 
 /* An empty list: the rosette alone, in a square of at most 320 px centred behind the sentence. */
-[data-theme="islamic-calm"] .zk-decor-empty::after {
+[data-theme="iznik"] .zk-decor-empty::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -100,24 +100,24 @@
   height: min(320px, 100%);
   background-color: rgb(var(--accent));
   opacity: 0.14;
-  -webkit-mask: url(/brand/decor/islamic-calm.rosette.webp) no-repeat center / contain;
-  mask: url(/brand/decor/islamic-calm.rosette.webp) no-repeat center / contain;
+  -webkit-mask: url(/brand/decor/iznik.rosette.webp) no-repeat center / contain;
+  mask: url(/brand/decor/iznik.rosette.webp) no-repeat center / contain;
 }
 
 /* The 72 px header: one corner, turned, at the end away from the wordmark. */
-[data-theme="islamic-calm"] .zk-decor-sidebar::after {
+[data-theme="iznik"] .zk-decor-sidebar::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.24;
-  -webkit-mask: url(/brand/decor/islamic-calm.corner.webp) no-repeat right top / 170px auto;
-  mask: url(/brand/decor/islamic-calm.corner.webp) no-repeat right top / 170px auto;
+  -webkit-mask: url(/brand/decor/iznik.corner.webp) no-repeat right top / 170px auto;
+  mask: url(/brand/decor/iznik.corner.webp) no-repeat right top / 170px auto;
   transform: scaleX(-1);
 }
 
 /* The Today strip: the skyline along the bottom at the end side, fitted to the strip. The start side is left clear for the greeting. */
-[data-theme="islamic-calm"] .zk-decor-strip::before {
+[data-theme="iznik"] .zk-decor-strip::before {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -125,57 +125,57 @@
   width: min(55%, 560px);
   background-color: rgb(var(--accent));
   opacity: 0.16;
-  -webkit-mask: url(/brand/decor/islamic-calm.skyline.webp) no-repeat center bottom / contain;
-  mask: url(/brand/decor/islamic-calm.skyline.webp) no-repeat center bottom / contain;
+  -webkit-mask: url(/brand/decor/iznik.skyline.webp) no-repeat center bottom / contain;
+  mask: url(/brand/decor/iznik.skyline.webp) no-repeat center bottom / contain;
 }
 
-/* ── ISLAMIC-EPIC — three masks: a rosette, a corner, a skyline ── */
+/* ── OBSERVATORY — three masks: a rosette, a corner, a skyline ── */
 
 /* Door: the rosette behind the content (::before, painted first), a corner at each top corner, the skyline along the bottom. The corners and the skyline sit at the edges of the viewport, where nothing is drawn, so they work at any width. */
-[data-theme="islamic-epic"] .zk-decor-door::before {
+[data-theme="observatory"] .zk-decor-door::before {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.15;
-  -webkit-mask: url(/brand/decor/islamic-epic.rosette.webp) no-repeat center / min(92vmin, 1000px);
-  mask: url(/brand/decor/islamic-epic.rosette.webp) no-repeat center / min(92vmin, 1000px);
+  -webkit-mask: url(/brand/decor/observatory.rosette.webp) no-repeat center / min(92vmin, 1000px);
+  mask: url(/brand/decor/observatory.rosette.webp) no-repeat center / min(92vmin, 1000px);
 }
 
-[data-theme="islamic-epic"] .zk-decor-door::after {
+[data-theme="observatory"] .zk-decor-door::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.28;
-  -webkit-mask: url(/brand/decor/islamic-epic.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
-  mask: url(/brand/decor/islamic-epic.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  -webkit-mask: url(/brand/decor/observatory.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  mask: url(/brand/decor/observatory.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
 }
 
 /* The left corner is the right one, turned: one file, drawn three times, not 68 KB of the same bytes. */
-[data-theme="islamic-epic"] .zk-decor-door .zk-decor-l {
+[data-theme="observatory"] .zk-decor-door .zk-decor-l {
   display: block;
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.28;
-  -webkit-mask: url(/brand/decor/islamic-epic.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
-  mask: url(/brand/decor/islamic-epic.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  -webkit-mask: url(/brand/decor/observatory.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
+  mask: url(/brand/decor/observatory.corner.webp) no-repeat right top / min(46vmin, 420px) auto;
   transform: scaleX(-1);
 }
 
-[data-theme="islamic-epic"] .zk-decor-door .zk-decor-b {
+[data-theme="observatory"] .zk-decor-door .zk-decor-b {
   display: block;
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.17;
-  -webkit-mask: url(/brand/decor/islamic-epic.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
-  mask: url(/brand/decor/islamic-epic.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
+  -webkit-mask: url(/brand/decor/observatory.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
+  mask: url(/brand/decor/observatory.skyline.webp) no-repeat center bottom / min(100%, 1700px) auto;
 }
 
 /* An empty list: the rosette alone, in a square of at most 320 px centred behind the sentence. */
-[data-theme="islamic-epic"] .zk-decor-empty::after {
+[data-theme="observatory"] .zk-decor-empty::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -184,24 +184,24 @@
   height: min(320px, 100%);
   background-color: rgb(var(--accent));
   opacity: 0.15;
-  -webkit-mask: url(/brand/decor/islamic-epic.rosette.webp) no-repeat center / contain;
-  mask: url(/brand/decor/islamic-epic.rosette.webp) no-repeat center / contain;
+  -webkit-mask: url(/brand/decor/observatory.rosette.webp) no-repeat center / contain;
+  mask: url(/brand/decor/observatory.rosette.webp) no-repeat center / contain;
 }
 
 /* The 72 px header: one corner, turned, at the end away from the wordmark. */
-[data-theme="islamic-epic"] .zk-decor-sidebar::after {
+[data-theme="observatory"] .zk-decor-sidebar::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.28;
-  -webkit-mask: url(/brand/decor/islamic-epic.corner.webp) no-repeat right top / 170px auto;
-  mask: url(/brand/decor/islamic-epic.corner.webp) no-repeat right top / 170px auto;
+  -webkit-mask: url(/brand/decor/observatory.corner.webp) no-repeat right top / 170px auto;
+  mask: url(/brand/decor/observatory.corner.webp) no-repeat right top / 170px auto;
   transform: scaleX(-1);
 }
 
 /* The Today strip: the skyline along the bottom at the end side, fitted to the strip. The start side is left clear for the greeting. */
-[data-theme="islamic-epic"] .zk-decor-strip::before {
+[data-theme="observatory"] .zk-decor-strip::before {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -209,23 +209,23 @@
   width: min(55%, 560px);
   background-color: rgb(var(--accent));
   opacity: 0.17;
-  -webkit-mask: url(/brand/decor/islamic-epic.skyline.webp) no-repeat center bottom / contain;
-  mask: url(/brand/decor/islamic-epic.skyline.webp) no-repeat center bottom / contain;
+  -webkit-mask: url(/brand/decor/observatory.skyline.webp) no-repeat center bottom / contain;
+  mask: url(/brand/decor/observatory.skyline.webp) no-repeat center bottom / contain;
 }
 
 /* ── DAY — one faint mask, barely there ── */
 
-[data-theme="day"] .zk-decor-door::after {
+[data-theme="wudooh"] .zk-decor-door::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.031;
-  -webkit-mask: url(/brand/decor/day.webp) no-repeat center / min(96vmin, 1020px);
-  mask: url(/brand/decor/day.webp) no-repeat center / min(96vmin, 1020px);
+  -webkit-mask: url(/brand/decor/wudooh.webp) no-repeat center / min(96vmin, 1020px);
+  mask: url(/brand/decor/wudooh.webp) no-repeat center / min(96vmin, 1020px);
 }
 
-[data-theme="day"] .zk-decor-empty::after {
+[data-theme="wudooh"] .zk-decor-empty::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -234,47 +234,47 @@
   height: min(320px, 100%);
   background-color: rgb(var(--accent));
   opacity: 0.031;
-  -webkit-mask: url(/brand/decor/day.webp) no-repeat center / contain;
-  mask: url(/brand/decor/day.webp) no-repeat center / contain;
+  -webkit-mask: url(/brand/decor/wudooh.webp) no-repeat center / contain;
+  mask: url(/brand/decor/wudooh.webp) no-repeat center / contain;
 }
 
 /* A corner, bled off the top edge, so the strip carries a hint of the ornament rather than a small complete copy of it. */
-[data-theme="day"] .zk-decor-sidebar::after {
+[data-theme="wudooh"] .zk-decor-sidebar::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.031;
-  -webkit-mask: url(/brand/decor/day.webp) no-repeat left -40px top -64px / 200px;
-  mask: url(/brand/decor/day.webp) no-repeat left -40px top -64px / 200px;
+  -webkit-mask: url(/brand/decor/wudooh.webp) no-repeat left -40px top -64px / 200px;
+  mask: url(/brand/decor/wudooh.webp) no-repeat left -40px top -64px / 200px;
 }
 
-[data-theme="day"] .zk-decor-strip::after {
+[data-theme="wudooh"] .zk-decor-strip::after {
   content: "";
   position: absolute;
   inset: 0;
   background-color: rgb(var(--accent));
   opacity: 0.031;
-  -webkit-mask: url(/brand/decor/day.webp) no-repeat left -40px top -64px / 200px;
-  mask: url(/brand/decor/day.webp) no-repeat left -40px top -64px / 200px;
+  -webkit-mask: url(/brand/decor/wudooh.webp) no-repeat left -40px top -64px / 200px;
+  mask: url(/brand/decor/wudooh.webp) no-repeat left -40px top -64px / 200px;
 }
 
 /* ── NEON-COAST — three photographs, each under a veil of the theme's own surface colour ── */
 
 /* The veil and the picture are ONE declaration: a browser that drops it shows the plain wash, never a picture with no veil. */
-[data-theme="neon-coast"] .zk-decor-door {
-  background: linear-gradient(180deg, rgb(var(--surface) / 0.55) 0%, rgb(var(--surface) / 0.2) 45%, rgb(var(--surface) / 0.55) 100%), url(/brand/decor/neon-coast.door.webp) center bottom / cover no-repeat;
+[data-theme="sunset-city"] .zk-decor-door {
+  background: linear-gradient(180deg, rgb(var(--surface) / 0.55) 0%, rgb(var(--surface) / 0.2) 45%, rgb(var(--surface) / 0.55) 100%), url(/brand/decor/sunset-city.door.webp) center bottom / cover no-repeat;
 }
 
 /* A browser is asked for ONE door picture: the wide one, or the portrait one when the window is taller than it is wide. */
 @media (orientation: portrait) {
-  [data-theme="neon-coast"] .zk-decor-door {
-    background: linear-gradient(180deg, rgb(var(--surface) / 0.55) 0%, rgb(var(--surface) / 0.2) 45%, rgb(var(--surface) / 0.55) 100%), url(/brand/decor/neon-coast.door-tall.webp) center bottom / cover no-repeat;
+  [data-theme="sunset-city"] .zk-decor-door {
+    background: linear-gradient(180deg, rgb(var(--surface) / 0.55) 0%, rgb(var(--surface) / 0.2) 45%, rgb(var(--surface) / 0.55) 100%), url(/brand/decor/sunset-city.door-tall.webp) center bottom / cover no-repeat;
   }
 }
 
 /* The text column of the door becomes a panel of the page's own colour: that panel, not the picture, is what every word is read against. (Its padding is in the markup, so the panel moves nothing.) */
-[data-theme="neon-coast"]:not([data-decor="off"]) .zk-door-column {
+[data-theme="sunset-city"]:not([data-decor="off"]) .zk-door-column {
   background: rgb(var(--surface) / 0.8);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
@@ -282,26 +282,26 @@
 }
 
 /* An empty list: the same picture, faint, faded to nothing at its edges. */
-[data-theme="neon-coast"] .zk-decor-empty {
-  background: url(/brand/decor/neon-coast.door.webp) center 72% / cover no-repeat;
+[data-theme="sunset-city"] .zk-decor-empty {
+  background: url(/brand/decor/sunset-city.door.webp) center 72% / cover no-repeat;
   opacity: 0.14;
   -webkit-mask: radial-gradient(ellipse at center, rgb(var(--surface)) 38%, transparent 80%);
   mask: radial-gradient(ellipse at center, rgb(var(--surface)) 38%, transparent 80%);
 }
 
 @media (orientation: portrait) {
-  [data-theme="neon-coast"] .zk-decor-empty {
-    background: url(/brand/decor/neon-coast.door-tall.webp) center 72% / cover no-repeat;
+  [data-theme="sunset-city"] .zk-decor-empty {
+    background: url(/brand/decor/sunset-city.door-tall.webp) center 72% / cover no-repeat;
   }
 }
 
 /* The 72 px header and the Today strip: the strip picture, veiled heaviest where the words begin. */
-[data-theme="neon-coast"] .zk-decor-sidebar {
-  background: linear-gradient(to left, rgb(var(--surface) / 0.82) 0%, rgb(var(--surface) / 0.82) 55%, rgb(var(--surface) / 0.25) 100%), url(/brand/decor/neon-coast.strip.webp) right center / cover no-repeat;
+[data-theme="sunset-city"] .zk-decor-sidebar {
+  background: linear-gradient(to left, rgb(var(--surface) / 0.82) 0%, rgb(var(--surface) / 0.82) 55%, rgb(var(--surface) / 0.25) 100%), url(/brand/decor/sunset-city.strip.webp) right center / cover no-repeat;
 }
 
-[data-theme="neon-coast"] .zk-decor-strip {
-  background: linear-gradient(to left, rgb(var(--surface) / 0.82) 0%, rgb(var(--surface) / 0.82) 55%, rgb(var(--surface) / 0.25) 100%), url(/brand/decor/neon-coast.strip.webp) right center / cover no-repeat;
+[data-theme="sunset-city"] .zk-decor-strip {
+  background: linear-gradient(to left, rgb(var(--surface) / 0.82) 0%, rgb(var(--surface) / 0.82) 55%, rgb(var(--surface) / 0.25) 100%), url(/brand/decor/sunset-city.strip.webp) right center / cover no-repeat;
 }
 
 /* ── MOTION — only at the «full» level ── */
@@ -321,19 +321,19 @@
 }
 
 /* A wash and a glow may wander; a corner and a roofline anchored to the edges may not, and neither may a photograph. */
-[data-decor="full"][data-theme="day"] .zk-decor {
+[data-decor="full"][data-theme="wudooh"] .zk-decor {
   animation: zk-decor-drift 24s ease-in-out infinite alternate;
   will-change: transform;
 }
 
 /* A composed theme turns its rosette, once round in seven minutes: slow enough that nobody sees it turn and everybody sees that it did. */
-[data-decor="full"][data-theme="islamic-calm"] .zk-decor-door::before,
-[data-decor="full"][data-theme="islamic-epic"] .zk-decor-door::before {
+[data-decor="full"][data-theme="iznik"] .zk-decor-door::before,
+[data-decor="full"][data-theme="observatory"] .zk-decor-door::before {
   animation: zk-decor-turn 420s linear infinite;
 }
 
 /* The photograph of the door zooms from its centre, 6% over seventy seconds: a transform that cannot uncover an edge. */
-[data-decor="full"][data-theme="neon-coast"] .zk-decor-door {
+[data-decor="full"][data-theme="sunset-city"] .zk-decor-door {
   animation: zk-decor-zoom 70s ease-in-out infinite alternate;
   will-change: transform;
 }
@@ -399,10 +399,10 @@
   display: none;
 }
 
-[data-theme="islamic-calm"] [data-art-slot="login-door"],
-[data-theme="islamic-calm"] [data-art-slot="today-strip"],
-[data-theme="islamic-epic"] [data-art-slot="login-door"],
-[data-theme="islamic-epic"] [data-art-slot="today-strip"] {
+[data-theme="iznik"] [data-art-slot="login-door"],
+[data-theme="iznik"] [data-art-slot="today-strip"],
+[data-theme="observatory"] [data-art-slot="login-door"],
+[data-theme="observatory"] [data-art-slot="today-strip"] {
   display: block;
 }
 

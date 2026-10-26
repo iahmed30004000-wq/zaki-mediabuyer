@@ -1,0 +1,25 @@
+# بيئة «الميديا باير» لحالها — ما بتشارك شي مع الـ OMS ولا Zaki Workspace.
+# اسم المشروع ثابت (mediabuyer)، فالحاويات والأقراص بأسماء خاصة فيه، وقاعدة البيانات على منفذ خاص (5440).
+name: mediabuyer
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mediabuyer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mediabuyer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediabuyer_local_only}
+      POSTGRES_DB: mediabuyer
+      TZ: Asia/Amman
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - mediabuyer_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mediabuyer"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  mediabuyer_db:
