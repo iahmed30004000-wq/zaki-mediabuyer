@@ -161,3 +161,38 @@ export async function loadSafety(): Promise<SafetyView[] | null> {
     }),
   );
 }
+
+export interface ReportsView {
+  archive: { id: string; kind: string; label: string; sent: boolean }[];
+  selected: { id: string; label: string; text: string } | null;
+  plan: { total: number; by: string; lines: { product: string; bucket: string; usd: number; reason: string }[]; risks: string[]; needs: string[]; tests: string[] } | null;
+  lessons: { text: string; evidence: string; week: string }[];
+}
+
+const KIND_LABEL: Record<string, string> = { morning: "الصباحي", weekly: "الأسبوعي", monthly: "الشهري" };
+
+/** The report archive, the week's plan (M03) and the lessons log (T5.3) — real rows only. */
+export async function loadReportsView(selectedId?: string): Promise<ReportsView | null> {
+  if (process.env.MOCK_MODE === "1") return null;
+  const day = (d: Date) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "UTC", weekday: "long", day: "numeric", month: "numeric" }).format(d);
+  const rows = await db.report.findMany({ where: { kind: { in: ["morning", "weekly", "monthly"] } }, orderBy: [{ forDate: "desc" }, { kind: "asc" }], take: 14 });
+  const archive = rows.map((r) => ({ id: r.id, kind: r.kind, label: `${KIND_LABEL[r.kind] ?? r.kind} — ${day(r.forDate)}`, sent: !!r.sentAt }));
+  const pick = selectedId ? rows.find((r) => r.id === selectedId) ?? (await db.report.findUnique({ where: { id: selectedId } })) : null;
+  const planRow = await db.report.findFirst({ where: { kind: "plan" }, orderBy: { forDate: "desc" } });
+  const BUCKET: Record<string, string> = { scale: "تكبير", test: "اختبار", new: "جديد" };
+  const plan = planRow
+    ? (() => {
+        const p = JSON.parse(planRow.text) as { total_usd: number; by?: string; daily_allocation: { product_code: string; bucket: string; usd: number; reason: string }[]; risks: string[]; creative_needs: string[]; tests: { hypothesis: string; budget_usd: number; days: number }[] };
+        return {
+          total: p.total_usd,
+          by: p.by === "agent" ? "الأرقام من الكود · الكلام من المخطط" : "من الكود (بلا موديل)",
+          lines: p.daily_allocation.map((a) => ({ product: a.product_code, bucket: BUCKET[a.bucket] ?? a.bucket, usd: a.usd, reason: a.reason })),
+          risks: p.risks,
+          needs: p.creative_needs,
+          tests: p.tests.map((t) => `${t.hypothesis} — ${t.budget_usd}$ على ${t.days} أيام`),
+        };
+      })()
+    : null;
+  const lessons = (await db.lesson.findMany({ orderBy: [{ week: "desc" }, { createdAt: "desc" }], take: 10 })).map((l) => ({ text: l.text, evidence: l.evidence, week: day(l.week) }));
+  return { archive, selected: pick ? { id: pick.id, label: `${KIND_LABEL[pick.kind] ?? pick.kind} — ${day(pick.forDate)}`, text: pick.text } : null, plan, lessons };
+}

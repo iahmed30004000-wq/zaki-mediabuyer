@@ -4,6 +4,7 @@ import { Panel, Section } from "@/components/mb/section";
 import { EmptyState } from "@/components/ui/card";
 import { loadChanges } from "@/lib/changes-view";
 import { loadDataset } from "@/lib/source";
+import { gatherScale } from "@/jobs/scale-run";
 
 export const metadata = { title: "القرارات" };
 
@@ -15,13 +16,13 @@ const RULES = [
   { key: "السقف اليومي", when: "صرف الحساب وصل السقف", does: "بيوقف غير المحمي لآخر اليوم", auto: true },
   { key: "قفزة صرف", when: "ساعة صرفت 3 أضعاف المعتاد", does: "بيخفّض 30% وبيبلّغك", auto: true },
   { key: "المخزون", when: "أقل من يومين / أقل من 5 أيام", does: "بيوقف / بيجمّد التكبير", auto: true },
-  { key: "سلّم التكبير", when: "تكلفة المؤكد تحت السقف 3 أيام بـ 5 مؤكد", does: "بيقترح +20% كل 48 ساعة", auto: false },
+  { key: "سلّم التكبير", when: "تكلفة المؤكد تحت السقف 3 أيام بـ 5 مؤكد", does: "+20% كل 48 ساعة، لحد +50% بالأسبوع", auto: false, autoFrom: "تلقائي من المكبّر المحدود" },
 ];
 
 export const dynamic = "force-dynamic";
 
 export default async function DecisionsPage() {
-  const [changes, ds] = await Promise.all([loadChanges(), loadDataset()]);
+  const [changes, ds, ladder] = await Promise.all([loadChanges(), loadDataset(), process.env.MOCK_MODE === "1" ? Promise.resolve(null) : gatherScale()]);
   const pending = changes.filter((c) => c.state === "pending_approval");
   const auto = changes.filter((c) => c.state !== "pending_approval" && c.auto);
   const history = changes.filter((c) => c.state !== "pending_approval" && !c.auto);
@@ -44,6 +45,21 @@ export default async function DecisionsPage() {
         <div className="grid gap-3 lg:grid-cols-2">{history.map((c) => <ChangeCard key={c.id} change={c} />)}</div>
       </Section>
 
+      {ladder?.length ? (
+        <Section title="سلّم التكبير" hint="كل مجموعة شغّالة: بتنرفع ولا لأ، وليش — الكود بيقرر، مش رأي">
+          <Panel className="divide-y divide-border p-0">
+            {ladder.map((r) => (
+              <div key={r.adSetId} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:gap-4">
+                <span dir="ltr" className="w-56 shrink-0 font-mono text-xs text-fg">{r.name}</span>
+                <span dir="ltr" className="w-20 text-xs tabular-nums text-fg-muted">{r.facts.dailyBudget}$ / يوم</span>
+                <span className={r.decision.raise ? "flex-1 text-xs text-ok" : "flex-1 text-xs text-fg-muted"}>{r.decision.raise ? `جاهزة: ← ${r.decision.newBudget}$` : r.decision.blockers[0]}</span>
+                {r.decision.horizontal ? <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn">كبّر أفقياً</span> : null}
+              </div>
+            ))}
+          </Panel>
+        </Section>
+      ) : null}
+
       <Section title="القواعد" hint="شو بيصير لحاله وشو بدو موافقتك — بتتعدّل من الإعدادات" tour="rules" link={{ href: "/settings#rules", label: "عدّل القواعد" }}>
         <div className="flex flex-wrap gap-3">
           {ds.accounts.map((a) => (
@@ -59,7 +75,7 @@ export default async function DecisionsPage() {
               <span className="w-36 shrink-0 text-sm font-semibold text-fg">{r.key}</span>
               <span className="flex-1 text-xs text-fg-muted">لما {r.when}</span>
               <span className="text-xs text-fg">{r.does}</span>
-              <span className={r.auto ? "rounded-md bg-ok/10 px-1.5 py-0.5 text-[11px] font-semibold text-ok" : "rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn"}>{r.auto ? "تلقائي" : "بموافقتك"}</span>
+              <span className={r.auto ? "rounded-md bg-ok/10 px-1.5 py-0.5 text-[11px] font-semibold text-ok" : "rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn"}>{r.auto ? "تلقائي" : "autoFrom" in r ? `بموافقتك · ${r.autoFrom}` : "بموافقتك"}</span>
             </div>
           ))}
         </Panel>

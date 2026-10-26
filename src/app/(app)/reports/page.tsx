@@ -4,7 +4,7 @@ import { Panel, Section } from "@/components/mb/section";
 import { fmt } from "@/lib/format";
 import { CHANGES, PACE, allAds, campaignCounts, productView, sumCounts, viewOf, type Dataset } from "@/lib/mock/data";
 import { loadDataset } from "@/lib/source";
-import { loadDataHealth, loadSafety } from "@/lib/launch-view";
+import { loadDataHealth, loadReportsView, loadSafety } from "@/lib/launch-view";
 
 export const metadata = { title: "التقارير" };
 
@@ -35,8 +35,8 @@ function morningReport(ds: Dataset) {
 
 export const dynamic = "force-dynamic";
 
-export default async function ReportsPage() {
-  const [ds, health, safety] = await Promise.all([loadDataset(), loadDataHealth(), loadSafety()]);
+export default async function ReportsPage({ searchParams }: { searchParams: { r?: string } }) {
+  const [ds, health, safety, reports] = await Promise.all([loadDataset(), loadDataHealth(), loadSafety(), loadReportsView(searchParams.r)]);
   const metrics = health
     ? [
         { l: "نسبة الإسناد", v: health.attributedPct, u: "%" as const, ok: health.attributedPct === null || health.attributedPct >= 80, h: "طلبات الـ OMS اللي إلها رقم إعلان" },
@@ -52,17 +52,29 @@ export default async function ReportsPage() {
       ];
   return (
     <div className="space-y-8">
-      <Section title="التقرير الصباحي" hint="بيوصل تيليجرام الساعة 9 بتوقيت عمّان/دمشق — هيك بالضبط بيبيّن">
+      <Section title={reports?.selected ? reports.selected.label : "التقرير الصباحي"} hint={reports?.selected ? "من الأرشيف — هيك بالضبط انبعت" : "بيوصل تيليجرام الساعة 9 بتوقيت عمّان/دمشق — هيك بالضبط بيبيّن"}>
         <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
           <Panel>
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-fg">{morningReport(ds)}</pre>
+            <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-fg">{reports?.selected ? reports.selected.text : morningReport(ds)}</pre>
           </Panel>
           <div className="space-y-3">
             <Panel className="space-y-2">
               <p className="text-sm font-semibold text-fg">الأرشيف</p>
-              {["الأسبوعي — السبت 24/10", "الصباحي — الأحد 25/10", "الصباحي — السبت 24/10", "الشهري — أيلول"].map((r) => (
-                <p key={r} className="text-xs text-fg-muted">{r}</p>
-              ))}
+              {reports ? (
+                reports.archive.length ? (
+                  reports.archive.map((r) => (
+                    <a key={r.id} href={`/reports?r=${r.id}`} className={`block text-xs hover:text-accent ${reports.selected?.id === r.id ? "font-semibold text-accent" : "text-fg-muted"}`}>
+                      {r.label}{r.sent ? " ✓" : ""}
+                    </a>
+                  ))
+                ) : (
+                  <p className="text-xs text-fg-muted">لسا ما انكتب تقرير — الصباحي 9:00 · الأسبوعي السبت 10:00</p>
+                )
+              ) : (
+                ["الأسبوعي — السبت 24/10", "الصباحي — الأحد 25/10", "الصباحي — السبت 24/10", "الشهري — أيلول"].map((r) => (
+                  <p key={r} className="text-xs text-fg-muted">{r}</p>
+                ))
+              )}
             </Panel>
             <a href="/api/export" className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface-1 text-sm font-medium text-fg hover:bg-surface-2">
               <Download className="size-4" /> تصدير Excel (مع شرح كل مؤشر)
@@ -70,6 +82,43 @@ export default async function ReportsPage() {
           </div>
         </div>
       </Section>
+
+      {reports?.plan ? (
+        <Section title="خطة الأسبوع" hint={`ضمن السقف حرفياً · ${reports.plan.by}`}>
+          <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
+            <Panel className="space-y-2">
+              {reports.plan.lines.map((l) => (
+                <div key={`${l.product}-${l.bucket}`} className="flex flex-wrap items-baseline gap-2 text-sm">
+                  <span dir="ltr" className="font-mono text-xs text-fg">{l.product}</span>
+                  <span className="text-xs text-fg-muted">{l.bucket}</span>
+                  <span dir="ltr" className="font-semibold tabular-nums text-fg">{fmt(l.usd, "$")}</span>
+                  <span className="basis-full text-xs text-fg-muted">{l.reason}</span>
+                </div>
+              ))}
+              <p className="border-t border-border pt-2 text-sm font-semibold text-fg">المجموع {fmt(reports.plan.total, "$")} باليوم</p>
+            </Panel>
+            <Panel className="space-y-2 text-xs">
+              {reports.plan.risks.length ? <p className="font-semibold text-warn">مخاطر</p> : null}
+              {reports.plan.risks.map((r) => <p key={r} className="text-fg-muted">{r}</p>)}
+              {reports.plan.needs.length ? <p className="pt-1 font-semibold text-fg">بدنا فيديوهات</p> : null}
+              {reports.plan.needs.map((r) => <p key={r} className="text-fg-muted">{r}</p>)}
+            </Panel>
+          </div>
+        </Section>
+      ) : null}
+
+      {reports?.lessons.length ? (
+        <Section title="سجل الدروس" hint="بيتسجّل درس بس لما العيّنة كافية والفرق ≥ 15% عن الوسيط">
+          <Panel className="space-y-2">
+            {reports.lessons.map((l) => (
+              <div key={`${l.week}-${l.text}`} className="text-sm">
+                <p className="text-fg">{l.text}</p>
+                <p className="text-xs text-fg-muted">{l.evidence} · أسبوع {l.week}</p>
+              </div>
+            ))}
+          </Panel>
+        </Section>
+      ) : null}
 
       <Section title="صحة البيانات" hint="إذا في أصفر هون، صلّحه أول — كل الأرقام بتعتمد عليه" tour="health">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

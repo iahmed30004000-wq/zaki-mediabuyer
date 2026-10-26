@@ -18,7 +18,7 @@ const SHIPPED = new Set(["shipped", "delivered", "returned"]);
 /** Cooldown per rule, in hours (spec 6.4); the others act once a day per target at most. */
 const COOLDOWN: Partial<Record<Decision["rule"], number>> = { high_cpa: 24, spend_spike: 6, stale_data: 1 };
 
-async function targetsOf(productCode: string) {
+export async function targetsOf(productCode: string) {
   const p = await db.productEconomics.findUnique({ where: { productCode } });
   if (!p) return { tOrder: null, ceiling: null };
   const e = estimateTargets({ price: p.price.toString(), unitCost: p.unitCost.toString(), shipping: p.deliveryFee.toString(), returnFee: p.returnFee.toString(), codFee: p.codFeePct.toString(), confirmCost: p.confirmCost.toString(), confirmRate: "0.65", deliveryRate: "0.75", profitMinShare: "0.30" });

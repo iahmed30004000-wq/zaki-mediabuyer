@@ -24,6 +24,12 @@ export const DEFAULT_SETTINGS = {
   "scale.step_hours": 48,
   "scale.max_week_pct": 0.5,
   "scale.learning_guard_hours": 72,
+  "scale.max_steps_per_day": 1,
+  /** the most a product may spend per day, USD, by product code — above it the ladder stops (spec 6.5 «سقف المنتج») */
+  "scale.product_caps": {} as Record<string, number>,
+  /** agents' daily caps in USD (spec 11.2) and the monthly cap for all of them */
+  "agents.daily_caps": { M01: 0.5, M02: 3, M03: 3, M04: 1, M05: 2, M06: 2, M07: 2, M09: 1, M10: 5, M11: 0.5 } as Record<string, number>,
+  "agents.monthly_cap": 80,
   "capi.purchase_on": "confirmed",
   "market.SY": { msg_channel: "whatsapp", min_age: 18, team_hours_until: "17:00", payment_note: "الدفع من حساب مالي برّا سوريا" },
   "market.JO": { msg_channel: null, min_age: 18, team_hours_until: null },

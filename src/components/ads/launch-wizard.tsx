@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, ChevronRight, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, PenLine, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -52,6 +52,8 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
   const [message, setMessage] = useState("");
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [variants, setVariants] = useState<{ hook: string; body: string; headline: string; flag: string; note: string | null }[] | null>(null);
+  const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const mission = useMission();
   const { toast } = useToast();
@@ -98,6 +100,24 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
     setTemplate(null);
     setPicked([]);
     setPreview(null);
+  };
+
+  // M07: variants from the writer, each already through the policy dictionary; one tap fills the text and the title
+  const write = async () => {
+    if (!p) return;
+    setWriting(true);
+    try {
+      const r = await fetch("/api/agents/writer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productCode: p.code }) });
+      const j = (await r.json()) as { variants?: { hook: string; body: string; headline: string; flag: string; note: string | null }[]; dropped?: number; error?: string };
+      if (!r.ok || !j.variants) {
+        toast(j.error ?? "ما زبط الكاتب", "error");
+        return;
+      }
+      setVariants(j.variants);
+      if (j.dropped) toast(`${j.dropped} نسخة انشالت لأنها فيها ممنوع`, "info");
+    } finally {
+      setWriting(false);
+    }
   };
 
   const submit = async () => {
@@ -212,6 +232,24 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                     <Input dir="ltr" value={lp} onChange={(e) => setLp(e.target.value.trim().toUpperCase())} className="w-20 text-center font-mono" aria-label="رمز صفحة الهبوط" />
                   </div>
                 </label>
+                <div className="sm:col-span-2">
+                  <Button type="button" variant="ghost" disabled={writing} onClick={write} className="min-h-9 px-2 text-xs">
+                    <PenLine className="size-3.5" />
+                    {writing ? "عم يكتب…" : "اكتبلي نسخ (بتنفحص بالقاموس)"}
+                  </Button>
+                  {variants?.length ? (
+                    <div className="mt-1 space-y-1">
+                      {variants.map((v) => (
+                        <button key={v.body} type="button" onClick={() => { setMessage(`${v.hook}
+${v.body}`); setTitle(v.headline); setVariants(null); }} className={choice(false)}>
+                          <span className="block text-sm text-fg">{v.hook}</span>
+                          <span className="block text-xs text-fg-muted">{v.body}</span>
+                          {v.flag === "yellow" ? <span className="mt-1 block text-[11px] text-warn">بدها موافقتك: {v.note}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 <label className="block sm:col-span-2">
                   <Label>نص الإعلان</Label>
                   <Textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="بينفحص بقاموس السياسات قبل ما يطلع" />
