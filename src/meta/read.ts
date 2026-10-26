@@ -7,7 +7,7 @@ import type { MetaClient } from "./client";
 export const ACCOUNT_FIELDS = "id,name,currency,timezone_name,account_status,spend_cap,disable_reason";
 export const CAMPAIGN_FIELDS = "id,name,effective_status,objective,daily_budget,lifetime_budget,bid_strategy,spend_cap";
 export const ADSET_FIELDS = "id,name,campaign_id,effective_status,optimization_goal,daily_budget,learning_stage_info";
-export const AD_FIELDS = "id,name,adset_id,effective_status";
+export const AD_FIELDS = "id,name,adset_id,effective_status,ad_review_feedback";
 
 export const INSIGHT_FIELDS = [
   "ad_id",

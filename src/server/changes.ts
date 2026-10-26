@@ -15,9 +15,11 @@ import { db } from "./db";
 import { audit, type Actor } from "./audit";
 import { HttpError, type Caller } from "./auth";
 import { can } from "@/core/roles";
-import { modeFor, type ActionKind, type AutonomyLevel } from "@/core/autonomy";
+import { effectiveLevel, modeFor, type ActionKind, type AutonomyLevel } from "@/core/autonomy";
+import { accountRestricted } from "@/jobs/account-safety";
 import { assertMove, directionOf, flipFlopped, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
 import { applyItem, writeMode } from "@/meta/write";
+import { resolveRefs } from "@/core/templates";
 import { MetaClient } from "@/meta/client";
 import { metaToken } from "@/jobs/meta-sync";
 
@@ -44,6 +46,11 @@ async function move(id: string, from: ChangeState, to: ChangeState, data: Prisma
     throw new HttpError(409, `هالتغيير ${STATE_AR[from] ?? from} — ما بينفع هالخطوة عليه`);
   }
   return db.changeSet.update({ where: { id }, data: { ...data, state: to } });
+}
+
+async function tokenExpired(): Promise<boolean> {
+  const c = await db.metaConnection.findFirst({ where: { status: { not: "revoked" } }, orderBy: { createdAt: "desc" } });
+  return !!c && (c.status === "expired" || (!!c.expiresAt && c.expiresAt < new Date()));
 }
 
 async function simulationContext(p: Proposal) {
@@ -75,7 +82,8 @@ async function simulationContext(p: Proposal) {
       cooldownHours: p.cooldownHours,
       safety: SAFETY.has(p.kind),
     },
-    level: (account?.autonomyLevel ?? 1) as AutonomyLevel,
+    // a restricted account, a payment problem or an expired token: the account runs at level 0 (spec 10.1, T4.5)
+    level: effectiveLevel((account?.autonomyLevel ?? 1) as AutonomyLevel, { accountHealthAlert: p.accountMetaId ? await accountRestricted(p.accountMetaId) : false, tokenExpired: await tokenExpired(), sourceDown: false, bigGap: false }).level,
     history,
   };
 }
@@ -95,7 +103,7 @@ export async function propose(p: Proposal, actor: Actor) {
       kind: p.kind,
       spendDeltaDaily: spendDeltaDaily(p.items),
       writeMode: writeMode(),
-      items: { create: p.items.map((i) => ({ op: i.op, objectType: i.objectType, objectId: i.objectId, before: json(i.before), after: json(i.after), idempotencyKey: `${i.objectId}:${i.op}:${randomUUID()}` })) },
+      items: { create: p.items.map((i, seq) => ({ seq, op: i.op, objectType: i.objectType, objectId: i.objectId, before: json(i.before), after: json(i.after), idempotencyKey: `${i.objectId}:${i.op}:${randomUUID()}` })) },
     },
   });
   await audit(actor, "change.propose", { type: "changeset", id: created.id }, { after: { kind: p.kind, items: p.items } });
@@ -158,13 +166,28 @@ export async function execute(id: string, actor: Actor) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   const client = await metaClientIfLive();
   let allVerified = true;
+  let mismatch = "";
+  // a launch creates objects in order: the ids Meta gives are kept by ref and filled into the items after them
+  const ids: Record<string, string> = {};
+  for (const item of cs.items) {
+    const ref = (item.after as { ref?: string }).ref;
+    if (item.op === "create" && ref && item.apiResponse !== null) ids[ref] = item.objectId;
+  }
   try {
-    for (const item of cs.items) {
+    for (const item of [...cs.items].sort((a, b) => a.seq - b.seq)) {
       if (item.apiResponse !== null) continue; // already sent once: never twice
-      const draft: ChangeItemDraft = { op: item.op as ChangeItemDraft["op"], objectType: item.objectType as ChangeItemDraft["objectType"], objectId: item.objectId, before: item.before as ChangeItemDraft["before"], after: item.after as ChangeItemDraft["after"] };
+      const objectId = resolveRefs(item.objectId, ids);
+      const draft: ChangeItemDraft = { op: item.op as ChangeItemDraft["op"], objectType: item.objectType as ChangeItemDraft["objectType"], objectId, before: item.before as ChangeItemDraft["before"], after: resolveRefs(item.after as ChangeItemDraft["after"], ids) };
+      if (draft.op !== "create" && objectId.includes("{{ref:")) throw new Error(`ما انعرف رقم ${objectId} — العنصر اللي قبله ما انعمل`);
       const r = await applyItem(draft, cs.writeMode === "live" ? "live" : "dry_run", client);
+      if (r.createdId && draft.after.ref) ids[draft.after.ref] = r.createdId;
       allVerified &&= r.verified;
-      await db.changeItem.update({ where: { id: item.id }, data: { apiResponse: json(r.response), verifyResult: json({ verified: r.verified, readBack: r.readBack }) } });
+      await db.changeItem.update({ where: { id: item.id }, data: { objectId: r.createdId ?? objectId, apiResponse: json(r.response), verifyResult: json({ verified: r.verified, readBack: r.readBack, mismatches: r.mismatches ?? [] }) } });
+      // a created object that does not match its template: stop here — nothing after it is created or switched on
+      if (!r.verified) {
+        mismatch = (r.mismatches ?? []).map((m) => `${m.object}: ${m.sentence}`).join(" · ") || "القراءة بعد الكتابة ما طابقت";
+        break;
+      }
     }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
@@ -172,8 +195,14 @@ export async function execute(id: string, actor: Actor) {
     await audit(actor, "change.failed", { type: "changeset", id }, { after: { error } });
     return db.changeSet.findUniqueOrThrow({ where: { id } });
   }
-  await move(id, "executing", allVerified ? "executed" : "failed", { executedAt: new Date(), verifiedAt: allVerified ? new Date() : null, error: allVerified ? null : "verify_mismatch" });
+  await move(id, "executing", allVerified ? "executed" : "failed", { executedAt: new Date(), verifiedAt: allVerified ? new Date() : null, error: allVerified ? null : `verify_mismatch: ${mismatch}`.slice(0, 1000) });
   await audit(actor, "change.execute", { type: "changeset", id }, { after: { writeMode: cs.writeMode, verified: allVerified } });
+  if (cs.kind === "test_campaign" && allVerified) {
+    // the launch is on: its test starts counting days now
+    const days = await db.experiment.findFirst({ where: { changeSetId: id }, select: { stopRules: true } });
+    const maxDays = (days?.stopRules as { maxDays?: number } | null)?.maxDays ?? 7;
+    await db.experiment.updateMany({ where: { changeSetId: id, status: "planned" }, data: { status: "running", campaignMetaId: ids.campaign ?? null, startedAt: new Date(), endsAt: new Date(Date.now() + maxDays * 86_400_000) } });
+  }
   return db.changeSet.findUniqueOrThrow({ where: { id } });
 }
 
@@ -182,11 +211,14 @@ export async function rollback(id: string, caller: Caller) {
   if (!can(caller.role, "pause_or_reduce")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   if (cs.state !== "executed") throw new HttpError(409, "بس التغيير المنفّذ بينرجع");
-  const inverse: ChangeItemDraft[] = cs.items.map((i) => {
+  // a launch is undone by pausing what it made (never deleting): the switches first, then the created objects
+  const inverse: ChangeItemDraft[] = [...cs.items].sort((a, b) => b.seq - a.seq).flatMap((i): ChangeItemDraft[] => {
     const before = i.before as ChangeItemDraft["before"];
     const after = i.after as ChangeItemDraft["after"];
-    return { op: i.op === "pause" ? "resume" : i.op === "resume" ? "pause" : "set_budget", objectType: i.objectType as ChangeItemDraft["objectType"], objectId: i.objectId, before: after, after: before };
-  });
+    const objectType = i.objectType as ChangeItemDraft["objectType"];
+    if (i.op === "create") return objectType === "creative" ? [] : [{ op: "pause", objectType, objectId: i.objectId, before: { status: "ACTIVE", dailyBudget: after.dailyBudget }, after: { status: "PAUSED" } }];
+    return [{ op: i.op === "pause" ? "resume" : i.op === "resume" ? "pause" : "set_budget", objectType, objectId: i.objectId, before: after, after: before }];
+  }).filter((x, n, all) => all.findIndex((y) => y.objectId === x.objectId) === n);
   const back = await db.changeSet.create({
     data: {
       state: "approved",
@@ -200,11 +232,15 @@ export async function rollback(id: string, caller: Caller) {
       writeMode: writeMode(),
       approvedBy: caller.id,
       approvedAt: new Date(),
-      items: { create: inverse.map((i) => ({ op: i.op, objectType: i.objectType, objectId: i.objectId, before: json(i.before), after: json(i.after), idempotencyKey: `${i.objectId}:${i.op}:${randomUUID()}` })) },
+      items: { create: inverse.map((i, seq) => ({ seq, op: i.op, objectType: i.objectType, objectId: i.objectId, before: json(i.before), after: json(i.after), idempotencyKey: `${i.objectId}:${i.op}:${randomUUID()}` })) },
     },
   });
   const done = await execute(back.id, { type: "user", id: caller.id });
-  if (done.state === "executed") await move(id, "executed", "rolled_back", { rolledBackAt: new Date(), rolledBackBy: caller.id });
+  if (done.state === "executed") {
+    await move(id, "executed", "rolled_back", { rolledBackAt: new Date(), rolledBackBy: caller.id });
+    // undoing a launch ends its test: what was made is paused, nothing is judged on it any more
+    if (cs.kind === "test_campaign") await db.experiment.updateMany({ where: { changeSetId: id, status: { in: ["planned", "running"] } }, data: { status: "stopped", verdict: "انوقف بـ «رجّع» — الحملة موقّفة" } });
+  }
   await audit({ type: "user", id: caller.id }, "change.rollback", { type: "changeset", id }, { after: { by: back.id } });
   return done;
 }

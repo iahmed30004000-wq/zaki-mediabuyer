@@ -100,16 +100,25 @@ export const FAKE_OMS_URL = "http://oms.fake";
 export function fakeFetch(now = new Date()): typeof fetch {
   const meta = metaRoutes(now);
   const orders = omsOrders(now);
-  return (async (input: RequestInfo | URL) => {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     if (url.hostname === "graph.facebook.com") {
       const path = url.pathname.replace(/^\/v\d+\.\d+\//, "");
+      if (init?.method === "POST" && path.endsWith("/events")) {
+        const data = JSON.parse(String(new URLSearchParams(String(init.body ?? "")).get("data") ?? "[]")) as unknown[];
+        return new Response(JSON.stringify({ events_received: data.length, messages: [], fbtrace_id: "demo" }));
+      }
       const body = meta[path];
       return new Response(JSON.stringify(body ?? { error: { code: 100, message: `unknown path ${path}` } }), { status: body ? 200 : 400, headers: { "x-app-usage": JSON.stringify({ call_count: 3, total_cputime: 2, total_time: 2 }) } });
     }
     if (url.origin === FAKE_OMS_URL) {
       if (url.pathname === "/api/v1/orders/attribution") return new Response(JSON.stringify({ items: orders, next_cursor: null }));
       if (url.pathname === "/api/v1/products") return new Response(JSON.stringify({ items: omsProducts() }));
+      if (url.pathname === "/api/v1/capi/identifiers") {
+        // made-up identifiers for the demo refs (no real person): a test phone and click ids
+        const refs = (JSON.parse(String(init?.body ?? "{}")) as { refs?: string[] }).refs ?? [];
+        return new Response(JSON.stringify({ items: refs.map((ref, n) => ({ ref, phone_e164: `+96399900${String(n).padStart(4, "0")}`, fbc: `fb.1.1790000000.demo${n}`, fbp: `fb.1.1790000000.${n}`, external_ref: ref })) }));
+      }
     }
     return new Response("not found", { status: 404 });
   }) as typeof fetch;

@@ -12,6 +12,62 @@ import { useMission } from "@/components/mb/mission";
 import type { RowStatus, RowView } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 import { LaunchWizard } from "./launch-wizard";
+import type { ExperimentView, LaunchOptions } from "@/lib/launch-view";
+
+const EXP_STATUS: Record<ExperimentView["status"], { l: string; c: string }> = {
+  planned: { l: "بانتظار موافقتك", c: "text-warn" },
+  running: { l: "شغّال", c: "text-accent" },
+  done: { l: "خلص", c: "text-ok" },
+  stopped: { l: "وقف", c: "text-fg-muted" },
+};
+
+/** The tests (S08): what we believe, how far it got, and the verdict from the truth — arm by arm. */
+function Experiments({ list }: { list: ExperimentView[] }) {
+  return (
+    <div className="space-y-3">
+      {list.map((e) => (
+        <Panel key={e.id} className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold text-fg">{e.title}</span>
+            <span dir="ltr" className="font-mono text-xs text-fg-muted">{e.campaign}</span>
+            <span className={cn("ms-auto text-xs font-medium", EXP_STATUS[e.status].c)}>
+              {EXP_STATUS[e.status].l}
+              {e.status === "running" ? ` · يوم ${e.day} من ${e.days}` : ""}
+            </span>
+          </div>
+          <p className="text-xs text-fg-muted">الفرضية: {e.hypothesis}</p>
+          {e.arms.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-fg-muted">
+                  <tr>
+                    <th className="py-1 text-start font-medium">المفهوم</th>
+                    <th className="py-1 text-start font-medium">الصرف</th>
+                    <th className="py-1 text-start font-medium">طلبات</th>
+                    <th className="py-1 text-start font-medium">مؤكد ناضج</th>
+                    <th className="py-1 text-start font-medium">تكلفة المؤكد</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.arms.map((a) => (
+                    <tr key={a.key} className={cn("border-t border-border", e.winner === a.key && "text-ok")}>
+                      <td dir="ltr" className="py-1 text-start font-mono">{a.key}</td>
+                      <td className="py-1">{fmt(a.spend, "$")}</td>
+                      <td className="py-1">{a.orders}</td>
+                      <td className="py-1">{a.confirmed}</td>
+                      <td className="py-1">{a.cost === null ? "—" : fmt(a.cost, "$")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          <p className="text-sm text-fg">{e.verdict}</p>
+        </Panel>
+      ))}
+    </div>
+  );
+}
 
 export interface TreeRow {
   id: string;
@@ -76,7 +132,7 @@ const TABS = [
   { key: "tests", label: "الاختبارات" },
 ] as const;
 
-export function AdsView({ rows, products, initialTab, openId, productFilter }: { rows: TreeRow[]; products: ProductRow[]; initialTab: string; openId?: string; productFilter?: string }) {
+export function AdsView({ rows, products, initialTab, openId, productFilter, launchOptions, experiments }: { rows: TreeRow[]; products: ProductRow[]; initialTab: string; openId?: string; productFilter?: string; launchOptions: LaunchOptions; experiments: ExperimentView[] }) {
   const [tab, setTab] = useState(TABS.some((t) => t.key === initialTab) ? initialTab : "campaigns");
   const [market, setMarket] = useState<string>("all");
   const [onlyNaming, setOnlyNaming] = useState(initialTab === "naming");
@@ -124,12 +180,14 @@ export function AdsView({ rows, products, initialTab, openId, productFilter }: {
         </>
       ) : tab === "products" ? (
         <ProductsTruth products={products} />
+      ) : experiments.length ? (
+        <Experiments list={experiments} />
       ) : (
         <EmptyState title="ما في اختبارات شغّالة" hint="كل اختبار إلو فرضية وميزانية وشروط وقف ونتيجة. ابدأ واحد من «＋ إطلاق» ← اختبار." art="empty-ads" />
       )}
 
       <ItemSheet row={open} onClose={() => setOpen(null)} />
-      <LaunchWizard open={launch} onOpenChange={setLaunch} />
+      <LaunchWizard open={launch} onOpenChange={setLaunch} options={launchOptions} />
     </div>
   );
 }
