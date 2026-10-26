@@ -23,8 +23,7 @@
     "worker": "tsx --env-file=.env worker/index.ts",
     "demo:pipeline": "tsx --env-file=.env scripts/demo-pipeline.ts",
     "oms:link": "tsx --env-file=.env scripts/oms-link.ts",
-    "demo:launch": "tsx --env-file=.env scripts/demo-launch.ts",
-    "demo:capi": "tsx --env-file=.env scripts/demo-capi.ts"
+    "demo:launch": "tsx --env-file=.env scripts/demo-launch.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

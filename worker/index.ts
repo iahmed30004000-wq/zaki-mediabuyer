@@ -12,21 +12,18 @@
  *   meta.upload    every 15 min after the intake — ready videos to Meta (dry-run unless META_WRITE_MODE=live)
  *   account.safety every hour at :20 — account status, rejections (3 in 24 h freeze creation), appeal drafts
  *   attribution    08:00 — M09 by code: the Meta/truth gap per campaign, attribution share, CAPI acceptance
- *   capi.send      every 15 min — the truth back to Meta as conversion events (queued always, sent only when live)
+ *   (no capi.send: conversion events go to Meta from the OMS itself, which holds the customer — D11)
  *   report.morning 09:00 — built by code, sent to Telegram
  *   `npm run worker`
  */
 import { runOnce } from "../src/jobs/runner";
-import { metaToken, syncMeta } from "../src/jobs/meta-sync";
+import { syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
 import { omsBackoff } from "../src/jobs/oms-health";
 import { runRules } from "../src/jobs/rules-run";
 import { intakeDrive } from "../src/jobs/creative-intake";
-import { capiDataset, enqueueCapi, sendCapi } from "../src/jobs/capi";
 import { checkAccounts, storeAttributionHealth } from "../src/jobs/account-safety";
-import { MetaClient } from "../src/meta/client";
-import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
 import { driveFromEnv } from "../src/adapters/drive";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
@@ -71,13 +68,6 @@ export async function tick(now = new Date()) {
     return drive && root ? intakeDrive(drive, root) : { skipped: "Drive not linked yet (P0.6)" };
   });
   await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
-  await runOnce("capi.send", quarter, async () => {
-    const queued = await enqueueCapi(now);
-    const live = writeMode() === "live";
-    const token = live ? await metaToken() : null;
-    const sent = await sendCapi({ meta: token ? new MetaClient({ token }) : null, oms: live ? omsOptions() : null, datasetId: await capiDataset(), testEventCode: process.env.CAPI_TEST_EVENT_CODE?.trim() || null, now });
-    return { ...queued, ...sent };
-  });
   if (t.minute >= 20) await runOnce("account.safety", `${t.date}T${t.hour}`, () => checkAccounts(now));
   if (t.hour >= 8) await runOnce("attribution.health", t.date, () => storeAttributionHealth(now));
   if (t.hour === 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));

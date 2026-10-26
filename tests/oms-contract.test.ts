@@ -65,3 +65,19 @@ describe("the adapter reads what the contract promises, and nothing else", () =>
     for (const k of keys) expect(k).not.toMatch(/^(?:name|full_?name|customer|phone|raw_?phone|alt_?phone|address|city|email)$/i);
   });
 });
+
+describe("CAPI stays in the OMS — no customer identifier ever leaves it (D11)", () => {
+  const walk = (dir: string): string[] =>
+    readdirSync(join(process.cwd(), dir), { withFileTypes: true }).flatMap((d) =>
+      d.isDirectory() ? walk(join(dir, d.name)) : /\.(ts|tsx|mjs)$/.test(d.name) ? [join(dir, d.name)] : [],
+    );
+
+  it("nothing in the code asks the OMS to open a capi_ref", () => {
+    const offenders = ["src", "worker", "scripts"]
+      .flatMap(walk)
+      .filter((f) => /capi\/identifiers|readCapiIdentifiers|phone_e164/.test(readFileSync(join(process.cwd(), f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "")));
+    // `src/core/capi.ts` keeps the pure formulas (a hashed-phone field name included) and calls nothing.
+    expect(offenders.filter((f) => !f.split("\\").join("/").endsWith("src/core/capi.ts"))).toEqual([]);
+  });
+});
+

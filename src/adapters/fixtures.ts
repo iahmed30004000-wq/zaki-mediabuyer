@@ -114,11 +114,6 @@ export function fakeFetch(now = new Date()): typeof fetch {
     if (url.origin === FAKE_OMS_URL) {
       if (url.pathname === "/api/v1/orders/attribution") return new Response(JSON.stringify({ items: orders, next_cursor: null }));
       if (url.pathname === "/api/v1/products") return new Response(JSON.stringify({ items: omsProducts() }));
-      if (url.pathname === "/api/v1/capi/identifiers") {
-        // made-up identifiers for the demo refs (no real person): a test phone and click ids
-        const refs = (JSON.parse(String(init?.body ?? "{}")) as { refs?: string[] }).refs ?? [];
-        return new Response(JSON.stringify({ items: refs.map((ref, n) => ({ ref, phone_e164: `+96399900${String(n).padStart(4, "0")}`, fbc: `fb.1.1790000000.demo${n}`, fbp: `fb.1.1790000000.${n}`, external_ref: ref })) }));
-      }
     }
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
