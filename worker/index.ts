@@ -8,6 +8,8 @@
  *   oms.sync       every hour at :05
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
  *   rules          every hour at :15, after the truth — the safety rules (Phase 2), dry-run unless META_WRITE_MODE=live
+ *   creative.intake every 15 min — Drive 01_inbox of every product (probe · MD5 · number · name · policy · thumbnails)
+ *   meta.upload    every 15 min after the intake — ready videos to Meta (dry-run unless META_WRITE_MODE=live)
  *   report.morning 09:00 — built by code, sent to Telegram
  *   `npm run worker`
  */
@@ -16,6 +18,9 @@ import { syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
 import { runRules } from "../src/jobs/rules-run";
+import { intakeDrive } from "../src/jobs/creative-intake";
+import { uploadReadyCreatives } from "../src/jobs/creative-upload";
+import { driveFromEnv } from "../src/adapters/drive";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
 import { db } from "../src/server/db";
 
@@ -46,6 +51,13 @@ export async function tick(now = new Date()) {
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
   if (t.minute >= 15) await runOnce("rules", `${t.date}T${t.hour}`, () => runRules(now));
+  const quarter = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 15) * 15).padStart(2, "0")}`;
+  await runOnce("creative.intake", quarter, async () => {
+    const drive = driveFromEnv();
+    const root = process.env.DRIVE_PRODUCTS_FOLDER_ID?.trim();
+    return drive && root ? intakeDrive(drive, root) : { skipped: "Drive not linked yet (P0.6)" };
+  });
+  await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
   if (t.hour === 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));
   if (t.hour >= 9) {
     await runOnce("report.morning", t.date, async () => {
