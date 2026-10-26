@@ -14,7 +14,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # the auto-merge of a passing pull request (GitHub's own auto-merge needs a paid plan on a private repo)
+  pull-requests: write
   packages: write
 
 concurrency:
@@ -56,8 +57,20 @@ jobs:
           done
           docker logs app; exit 1
 
+      # AUTO-MERGE (our own): a pull request into main whose checks above all passed is merged here. A merge made with
+      # GITHUB_TOKEN does not start a new run, so this same run then publishes the image it just proved (built from the
+      # merge result) and deploys it — exactly what a push to main does.
+      - name: Merge the pull request (its checks passed)
+        id: merge
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --repo "$GITHUB_REPOSITORY" --merge --subject "Merge #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          echo "merged=true" >> "$GITHUB_OUTPUT"
+
       - name: Publish
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') || steps.merge.outputs.merged == 'true'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/zaki-mediabuyer"
@@ -67,7 +80,7 @@ jobs:
           done
 
       - name: Tell Coolify to deploy (only when its secrets are set)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') || steps.merge.outputs.merged == 'true'
         # «Pull latest and restart» of the Coolify service `mediabuyer`: pulls the image just published, then restarts
         # app + worker + db. The address is not a secret (a repo variable can override it); the token is:
         # COOLIFY_TOKEN = a Coolify API token (deploy ability) the owner creates himself, stored as a repo secret.
