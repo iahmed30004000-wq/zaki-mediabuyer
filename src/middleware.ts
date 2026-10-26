@@ -1,0 +1,20 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE, authRequired, readSession } from "@/lib/session-token";
+
+/** Paths anybody may open: the login door, health, and the static brand files. */
+const OPEN = [/^\/login/, /^\/api\/auth\//, /^\/api\/health/, /^\/brand\//, /^\/fonts\//, /^\/_next\//, /^\/favicon/];
+
+/** Signed-out visitors go to the door; an API call without a session gets 401 (spec 13.7: every route checks access). */
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  if (!authRequired() || OPEN.some((r) => r.test(path))) return NextResponse.next();
+  const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (session) return NextResponse.next();
+  if (path.startsWith("/api/")) return NextResponse.json({ error: "لازم تسجّل دخول" }, { status: 401 });
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = path === "/" ? "" : `?next=${encodeURIComponent(path)}`;
+  return NextResponse.redirect(url);
+}
+
+export const config = { matcher: ["/((?!_next/static|_next/image).*)"] };

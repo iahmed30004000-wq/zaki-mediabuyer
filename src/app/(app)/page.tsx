@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CheckCircle2, CircleDot, CreditCard, Info, Sparkles } from "lucide-react";
 import { ThemeDecor } from "@/components/theme/theme-decor";
 import { ArtSlot } from "@/components/theme/art-slot";
+import { EmptyState } from "@/components/ui/card";
 import { ChangeCard } from "@/components/mb/change-card";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
@@ -127,6 +128,7 @@ export default function TodayPage() {
 
         {/* 5 — alerts and sources */}
         <Section title="تنبيهات وصحة المصادر">
+          {ALERTS.length === 0 ? <EmptyState title="ما في تنبيهات" hint="كل شي هادي. أي شي بيصير بيوصلك هون وعلى تيليجرام." art="empty-alerts" /> : null}
           <Panel className="space-y-3">
             <ul className="space-y-2">
               {ALERTS.map((a) => {

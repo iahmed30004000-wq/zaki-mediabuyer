@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, Circle } from "lucide-react";
 import type { SetupStep } from "@/lib/mock/data";
+import { ArtSlot } from "@/components/theme/art-slot";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,6 +18,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
 
   return (
     <div className="space-y-4 rounded-card border border-border bg-surface-1 p-4 shadow-card sm:p-5">
+      <ArtSlot slot="guide-connect" className="max-h-36 w-full rounded-xl object-cover" />
       <div>
         <h1 className="text-xl font-bold text-fg">جهّز النظام</h1>
         <p className="text-sm text-fg-muted">{done} من {steps.length} جاهزين. لحد ما يخلصوا، كل الشاشات شغّالة على بيانات تجريبية.</p>

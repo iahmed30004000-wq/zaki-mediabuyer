@@ -135,7 +135,7 @@ export function LaunchWizard({ open, onOpenChange }: { open: boolean; onOpenChan
               onClick={() => {
                 onOpenChange(false);
                 reset();
-                mission({ title: "انطلقت ✓", detail: "الحملة انعملت موقوفة — بتتفعّل لحالها بعد التحقق من الإعدادات" });
+                mission({ title: "انطلقت ✓", detail: "الحملة انعملت موقوفة — بتتفعّل لحالها بعد التحقق من الإعدادات", art: "launch-done" });
               }}
             >
               <Check className="size-4" />

@@ -42,6 +42,7 @@ export default function GuidePage() {
           {ARTICLES.map((a) => (
             <details key={a.slug} id={a.slug} className="group rounded-card border border-border bg-surface-1 p-4 shadow-card">
               <summary className="cursor-pointer list-none text-sm font-semibold text-fg group-open:text-accent">{a.title}</summary>
+              {a.art ? <ArtSlot slot={a.art} className="mt-3 max-h-40 w-auto rounded-xl" /> : null}
               {a.body.map((b, i) => (
                 <p key={i} className="mt-2 text-sm leading-6 text-fg">{b}</p>
               ))}

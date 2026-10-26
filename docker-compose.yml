@@ -1,5 +1,5 @@
 # بيئة «الميديا باير» لحالها — ما بتشارك شي مع الـ OMS ولا Zaki Workspace.
-# اسم المشروع ثابت (mediabuyer)، فالحاويات والأقراص بأسماء خاصة فيه، وقاعدة البيانات على منفذ خاص (5440).
+# اسم المشروع ثابت (mediabuyer)، فالحاويات والأقراص بأسماء خاصة فيه، وقاعدة البيانات على منفذ خاص (5450).
 name: mediabuyer
 
 services:
@@ -13,7 +13,7 @@ services:
       POSTGRES_DB: mediabuyer
       TZ: Asia/Amman
     ports:
-      - "127.0.0.1:5440:5432"
+      - "127.0.0.1:5450:5432"
     volumes:
       - mediabuyer_db:/var/lib/postgresql/data
     healthcheck:
