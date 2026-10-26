@@ -4,9 +4,13 @@
 # Coolify only pulls. When COOLIFY_WEBHOOK_URL and COOLIFY_TOKEN exist as repository secrets, it is told to deploy.
 name: Image
 
+# A pull request into main: test + build + prove only (this is the check auto-merge waits for).
+# A push to main (the merge): the same, then publish :main and tell Coolify to deploy.
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches: [main, feat/structure-and-themes]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -53,19 +57,32 @@ jobs:
           docker logs app; exit 1
 
       - name: Publish
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          ref="${GITHUB_REF_NAME//\//-}"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/zaki-mediabuyer"
-          for tag in "$ref" "sha-${GITHUB_SHA::7}" $([ "$ref" = "feat-structure-and-themes" ] && echo main); do
+          for tag in main "sha-${GITHUB_SHA::7}"; do
             docker tag mb:test "$image:$tag"
             docker push "$image:$tag"
           done
 
       - name: Tell Coolify to deploy (only when its secrets are set)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        # COOLIFY_WEBHOOK_URL = https://coolify.zakiai.io/api/v1/services/<service uuid>/restart?latest=true
+        # («Pull latest and restart»: pulls the image just published, then restarts app + worker + db).
+        # COOLIFY_TOKEN = a Coolify API token the owner creates himself (Keys & Tokens), stored as a repo secret.
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           if [ -z "${COOLIFY_WEBHOOK_URL:-}" ] || [ -z "${COOLIFY_TOKEN:-}" ]; then echo "Coolify webhook not set yet — skipping"; exit 0; fi
-          curl -fsS -X GET "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN"
+          curl -fsS -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json"
+          echo
+          app_url="${{ vars.APP_HEALTH_URL || 'https://mediabuyer.zakiai.io/api/health' }}"
+          sleep 30
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$app_url" || true)
+            [ "$code" = "200" ] && echo "live and healthy" && exit 0
+            sleep 6
+          done
+          echo "the site did not answer healthy after the deploy"; exit 1
