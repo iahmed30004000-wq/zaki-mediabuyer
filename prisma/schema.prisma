@@ -427,3 +427,92 @@ model CreativeAsset {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// ───────────────────────────── Phase 2: the guard (spec 10) ─────────────────────────────
+
+/// One change to Meta in its eight stages (spec 10.2).
+model ChangeSet {
+  id              String       @id @default(cuid())
+  state           String // draft · simulated · pending_approval · approved · executing · executed · failed · rolled_back · rejected
+  source          String // rule · agent · user · kill_switch · telegram
+  sourceRef       String? // rule key, agent code or user id
+  reasonCode      String
+  sentence        String
+  accountMetaId   String?
+  /// the action kind of src/core/autonomy.ts
+  kind            String
+  spendDeltaDaily Decimal      @default(0) @db.Decimal(12, 2)
+  simulation      Json?
+  /// dry_run or live — how it was (or will be) executed
+  writeMode       String       @default("dry_run")
+  approvedBy      String?
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  verifiedAt      DateTime?
+  followUp24      Json?
+  followUp72      Json?
+  rolledBackAt    DateTime?
+  rolledBackBy    String?
+  error           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  items           ChangeItem[]
+
+  @@index([state, createdAt])
+}
+
+model ChangeItem {
+  id             String    @id @default(cuid())
+  changeSetId    String
+  changeSet      ChangeSet @relation(fields: [changeSetId], references: [id], onDelete: Cascade)
+  op             String // pause · resume · set_budget
+  objectType     String // campaign · adset · ad
+  objectId       String // Meta id
+  before         Json
+  after          Json
+  idempotencyKey String    @unique
+  apiResponse    Json?
+  verifyResult   Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([objectId, createdAt])
+}
+
+/// Every evaluation that decided something (fired or alert-only), for the «القرارات» screen and the cooldowns.
+model RuleRun {
+  id          String   @id @default(cuid())
+  rule        String
+  level       String
+  targetId    String
+  action      String
+  alertOnly   Boolean
+  sentence    String
+  changeSetId String?
+  createdAt   DateTime @default(now())
+
+  @@index([rule, targetId, createdAt])
+}
+
+/// A freeze on scaling or creating, for an object or a whole account, until it is lifted or expires.
+model Freeze {
+  id        String    @id @default(cuid())
+  scope     String // account · product · adset · ad
+  targetId  String
+  kind      String // scale · create · all
+  reason    String
+  until     DateTime?
+  liftedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([targetId, kind])
+}
+
+model KillSwitchEvent {
+  id          String   @id @default(cuid())
+  scope       String // all · act_…
+  byUser      String
+  changeSetId String?
+  objects     Int
+  createdAt   DateTime @default(now())
+}

@@ -83,14 +83,19 @@ export class MetaClient {
     return this.lastUsage;
   }
 
-  private async request<T>(url: string): Promise<T> {
+  private async request<T>(url: string, init?: { method: "POST"; body: URLSearchParams }): Promise<T> {
     if (this.lastUsage >= 90) throw new UsageTooHigh(`Meta usage at ${this.lastUsage}% — stopped until it drops`);
     if (this.lastUsage >= 75) await this.sleep(5_000);
     const max = this.o.maxRetries ?? 4;
     for (let attempt = 0; ; attempt++) {
       let res: Response;
       try {
-        res = await this.f(url, { headers: { authorization: `Bearer ${this.o.token}` }, signal: AbortSignal.timeout(60_000) });
+        res = await this.f(url, {
+          method: init?.method ?? "GET",
+          headers: { authorization: `Bearer ${this.o.token}`, ...(init ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
+          body: init?.body,
+          signal: AbortSignal.timeout(60_000),
+        });
       } catch (e) {
         if (attempt >= max) throw e;
         await this.sleep(2 ** attempt * 1_000);
@@ -112,6 +117,16 @@ export class MetaClient {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined) q.set(k, typeof v === "string" ? v : JSON.stringify(v));
     return this.request<T>(`${this.base}/${path.replace(/^\//, "")}${q.size ? `?${q}` : ""}`);
+  }
+
+  /**
+   * POST to an object (the only write Phase 2 needs: `status`, `daily_budget`). Writes are NOT retried on a
+   * transient error unless the caller asks: a retry of a write must be safe to repeat (a status or a budget set to an
+   * absolute value is; the change service checks with a read-back before trying again).
+   */
+  post<T>(path: string, params: Record<string, string | number>): Promise<T> {
+    const body = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]));
+    return this.request<T>(`${this.base}/${path.replace(/^\//, "")}`, { method: "POST", body });
   }
 
   /** Every item of a list, following `paging.next`. */

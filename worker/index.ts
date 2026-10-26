@@ -7,6 +7,7 @@
  *   meta.final     03:00 — yesterday + the last 7 days again (the archive)
  *   oms.sync       every hour at :05
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
+ *   rules          every hour at :15, after the truth — the safety rules (Phase 2), dry-run unless META_WRITE_MODE=live
  *   report.morning 09:00 — built by code, sent to Telegram
  *   `npm run worker`
  */
@@ -14,6 +15,7 @@ import { runOnce } from "../src/jobs/runner";
 import { syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
+import { runRules } from "../src/jobs/rules-run";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
 import { db } from "../src/server/db";
 
@@ -43,6 +45,7 @@ export async function tick(now = new Date()) {
     });
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
+  if (t.minute >= 15) await runOnce("rules", `${t.date}T${t.hour}`, () => runRules(now));
   if (t.hour === 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));
   if (t.hour >= 9) {
     await runOnce("report.morning", t.date, async () => {

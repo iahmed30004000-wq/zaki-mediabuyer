@@ -5,6 +5,7 @@ import { OctagonX } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { useMission } from "@/components/mb/mission";
 import { ACCOUNTS } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,8 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
   const [scope, setScope] = useState<string>("all");
   const [typed, setTyped] = useState("");
   const { toast } = useToast();
+  const mission = useMission();
+  const [busy, setBusy] = useState(false);
   const ready = typed.trim() === "اوقف";
 
   return (
@@ -63,11 +66,17 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
             </Button>
             <Button
               variant="danger"
-              disabled={!ready}
-              onClick={() => {
+              disabled={!ready || busy}
+              onClick={async () => {
+                setBusy(true);
+                const r = await fetch("/api/kill-switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scope, confirm: typed.trim() }) });
+                const d = (await r.json().catch(() => ({}))) as { demo?: boolean; objects?: number; state?: string; error?: string };
+                setBusy(false);
                 setOpen(false);
                 setTyped("");
-                toast("بالوضع التجريبي ما وقف شي فعلاً. بعد الربط بيوقف كل الحملات خلال ثواني.", "info");
+                if (!r.ok) toast(d.error ?? "صار خطأ", "error");
+                else if (d.demo) toast("بالوضع التجريبي ما وقف شي فعلاً. بعد الربط بيوقف كل الحملات خلال ثواني.", "info");
+                else mission({ title: "وقف كل شي ✓", detail: `${d.objects ?? 0} حملة انوقفت — بترجعها من «القرارات» بزر رجوع` });
               }}
             >
               اوقف الكل

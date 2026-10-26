@@ -296,9 +296,12 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
               {row.status !== "paused" ? (
                 <Button
                   variant="secondary"
-                  onClick={() => {
+                  onClick={async () => {
+                    const r = await fetch("/api/objects/pause", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: row.level, objectId: row.id }) });
+                    const d = (await r.json().catch(() => ({}))) as { error?: string; state?: string };
                     onClose();
-                    mission({ title: "وقف ✓", detail: "انعمل قرار منفّذ بالسجل، وبترجعه من «القرارات»" });
+                    if (!r.ok) toast(d.error ?? "صار خطأ", "error");
+                    else mission({ title: "وقف ✓", detail: "انعمل قرار منفّذ بالسجل، وبترجعه من «القرارات»" });
                   }}
                 >
                   <Pause className="size-4" />

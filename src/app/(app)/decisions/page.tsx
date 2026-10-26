@@ -2,7 +2,8 @@ import { ChangeCard } from "@/components/mb/change-card";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Panel, Section } from "@/components/mb/section";
 import { EmptyState } from "@/components/ui/card";
-import { ACCOUNTS, CHANGES } from "@/lib/mock/data";
+import { loadChanges } from "@/lib/changes-view";
+import { loadDataset } from "@/lib/source";
 
 export const metadata = { title: "القرارات" };
 
@@ -17,10 +18,13 @@ const RULES = [
   { key: "سلّم التكبير", when: "تكلفة المؤكد تحت السقف 3 أيام بـ 5 مؤكد", does: "بيقترح +20% كل 48 ساعة", auto: false },
 ];
 
-export default function DecisionsPage() {
-  const pending = CHANGES.filter((c) => c.state === "pending_approval");
-  const auto = CHANGES.filter((c) => c.state !== "pending_approval" && c.auto);
-  const history = CHANGES.filter((c) => c.state !== "pending_approval" && !c.auto);
+export const dynamic = "force-dynamic";
+
+export default async function DecisionsPage() {
+  const [changes, ds] = await Promise.all([loadChanges(), loadDataset()]);
+  const pending = changes.filter((c) => c.state === "pending_approval");
+  const auto = changes.filter((c) => c.state !== "pending_approval" && c.auto);
+  const history = changes.filter((c) => c.state !== "pending_approval" && !c.auto);
 
   return (
     <div className="space-y-8">
@@ -42,7 +46,7 @@ export default function DecisionsPage() {
 
       <Section title="القواعد" hint="شو بيصير لحاله وشو بدو موافقتك — بتتعدّل من الإعدادات" tour="rules" link={{ href: "/settings#rules", label: "عدّل القواعد" }}>
         <div className="flex flex-wrap gap-3">
-          {ACCOUNTS.map((a) => (
+          {ds.accounts.map((a) => (
             <Panel key={a.id} className="flex items-center gap-3 py-2">
               <span className="text-sm font-medium text-fg">{a.name}</span>
               <LevelStars level={a.level} />
