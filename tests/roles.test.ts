@@ -35,3 +35,20 @@ describe("the audit log never stores a secret", () => {
     });
   });
 });
+
+describe("the team (spec 13.8)", () => {
+  it("an invite code is 4×4 readable characters; only its hash is compared, in any case", async () => {
+    const { newInviteCode, hashInvite } = await import("@/server/team");
+    const c = newInviteCode();
+    expect(c).toMatch(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){3}$/);
+    expect(hashInvite(c.toLowerCase())).toBe(hashInvite(c));
+    expect(newInviteCode()).not.toBe(c);
+  });
+  it("the last owner can never be demoted or switched off; nobody changes their own role", async () => {
+    const { teamChange } = await import("@/server/team");
+    expect(teamChange({ actorId: "a", targetId: "b", targetRole: "OWNER", owners: 1, to: { role: "ANALYST" } }).ok).toBe(false);
+    expect(teamChange({ actorId: "a", targetId: "b", targetRole: "OWNER", owners: 2, to: { active: false } }).ok).toBe(true);
+    expect(teamChange({ actorId: "a", targetId: "a", targetRole: "OWNER", owners: 2, to: { role: "VIEWER" } }).ok).toBe(false);
+    expect(teamChange({ actorId: "a", targetId: "b", targetRole: "ANALYST", owners: 1, to: { role: "ADS_MANAGER" } }).ok).toBe(true);
+  });
+});

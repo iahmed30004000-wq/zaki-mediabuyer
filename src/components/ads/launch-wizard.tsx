@@ -69,7 +69,10 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
 
   useEffect(() => {
     if (!product) return;
-    setUrl(remember(`${product}.url`));
+    // the settings' landing page first, then what was typed last time for this product
+    const lp0 = options.landing.find((l) => l.productCode === product);
+    setUrl(remember(`${product}.url`) || lp0?.url || "");
+    if (lp0) setLp(lp0.lpCode);
     setMessage(remember(`${product}.message`));
     setTitle(remember(`${product}.title`) || "اطلب هلأ — الدفع عند الاستلام");
   }, [product]);
@@ -229,7 +232,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                   <Label>رابط صفحة الهبوط</Label>
                   <div className="flex gap-2">
                     <Input dir="ltr" value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder="https://crm.zakiai.io/lp/…" />
-                    <Input dir="ltr" value={lp} onChange={(e) => setLp(e.target.value.trim().toUpperCase())} className="w-20 text-center font-mono" aria-label="رمز صفحة الهبوط" />
+                    <Input dir="ltr" value={lp} onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setLp(v); const hit = options.landing.find((l) => l.productCode === product && l.lpCode === v); if (hit) setUrl(hit.url); }} className="w-20 text-center font-mono" aria-label="رمز صفحة الهبوط" />
                   </div>
                 </label>
                 <div className="sm:col-span-2">

@@ -6,7 +6,9 @@ import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { StudioLink } from "@/components/settings/studio-link";
 import { LevelPicker } from "@/components/settings/level-picker";
-import { loadSettingsView } from "@/lib/settings-view";
+import { loadAudit, loadEditView, loadSettingsView } from "@/lib/settings-view";
+import { CapsEditor, LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
+import { currentCaller } from "@/server/auth";
 import { fmt } from "@/lib/format";
 import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
@@ -16,7 +18,7 @@ export const metadata = { title: "الإعدادات" };
 const GROUPS = [
   { id: "connections", label: "الربط" },
   { id: "money", label: "المال والسقوف" },
-  { id: "products", label: "المنتجات" },
+  { id: "products", label: "المنتجات والصفحات" },
   { id: "rules", label: "القواعد والمستويات" },
   { id: "agents", label: "الوكلاء" },
   { id: "team", label: "الفريق والتدقيق" },
@@ -35,8 +37,9 @@ const AGENTS = [
 /** Everything set once and forgotten (S02 S12 S09 S13 S16 S17 S18), grouped, one anchor per group. */
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
-  const real = await loadSettingsView();
+export default async function SettingsPage({ searchParams }: { searchParams: { audit?: string } }) {
+  const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
+  const [real, edit, audit, me] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller()]);
   return (
     <div className="space-y-8">
       <nav data-tour="groups" aria-label="مجموعات الإعدادات" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
@@ -49,7 +52,7 @@ export default async function SettingsPage() {
 
       <Section title="الربط" hint="المفاتيح بملف .env على الجهاز بس — ولا مرة بالموقع ولا بالمحادثة">
         <div id="connections" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
-          {SOURCES.map((s) => (
+          {(edit?.links ?? SOURCES).map((s) => (
             <Panel key={s.key} className="flex items-center gap-3">
               <CircleDot className={cn("size-4", s.state === "ok" ? "text-ok" : s.state === "late" ? "text-warn" : "text-fg-muted")} />
               <div className="flex-1">
@@ -63,53 +66,76 @@ export default async function SettingsPage() {
               ) : null}
             </Panel>
           ))}
+          {edit ? (
+            <Panel className="space-y-1">
+              <p className="text-sm font-semibold text-fg">الكتابة على ميتا</p>
+              <p className={cn("text-xs", edit.writeMode === "live" ? "text-warn" : "text-fg-muted")}>{edit.writeMode === "live" ? "حقيقية — كل قرار بيوصل لميتا" : "تجريبية — كل قرار بيسجّل شو كان رح يبعت وما بيبعت. بتصير حقيقية بعد فحص الحساب التجريبي"}</p>
+            </Panel>
+          ) : null}
+          {edit ? <PurchaseOnPicker value={edit.purchaseOn} /> : null}
           <StudioLink />
         </div>
       </Section>
 
       <Section title="المال والسقوف" hint="ولا دولار فوق السقف، ولا حملة جديدة بلا سقف معروف">
-        <div id="money" className="grid scroll-mt-24 gap-3 md:grid-cols-3">
-          <Panel>
-            <p className="text-xs text-fg-muted">السقف اليومي (كل الحسابات)</p>
-            <p dir="ltr" className="text-end text-xl font-semibold tabular-nums text-fg">{fmt(PACE.dailyCap, "$", 0)}</p>
-          </Panel>
-          <Panel>
-            <p className="text-xs text-fg-muted">السقف الشهري</p>
-            <p dir="ltr" className="text-end text-xl font-semibold tabular-nums text-fg">{fmt(PACE.monthlyCap, "$", 0)}</p>
-          </Panel>
-          <Panel>
-            <p className="text-xs text-fg-muted">التوزيع</p>
-            <p className="text-sm text-fg">70% تكبير · 20% اختبار · 10% جديد</p>
-          </Panel>
-        </div>
+        {edit ? (
+          <div id="money" className="scroll-mt-24">
+            <CapsEditor accounts={edit.accounts} split={edit.split} />
+          </div>
+        ) : (
+          <div id="money" className="grid scroll-mt-24 gap-3 md:grid-cols-3">
+            <Panel>
+              <p className="text-xs text-fg-muted">السقف اليومي (كل الحسابات)</p>
+              <p dir="ltr" className="text-end text-xl font-semibold tabular-nums text-fg">{fmt(PACE.dailyCap, "$", 0)}</p>
+            </Panel>
+            <Panel>
+              <p className="text-xs text-fg-muted">السقف الشهري</p>
+              <p dir="ltr" className="text-end text-xl font-semibold tabular-nums text-fg">{fmt(PACE.monthlyCap, "$", 0)}</p>
+            </Panel>
+            <Panel>
+              <p className="text-xs text-fg-muted">التوزيع</p>
+              <p className="text-sm text-fg">70% تكبير · 20% اختبار · 10% جديد</p>
+            </Panel>
+          </div>
+        )}
       </Section>
 
-      <Section title="المنتجات" hint="أرقام الحاسبة — بتنسحب من الـ OMS لما ينربط">
+      <Section title="المنتجات والصفحات" hint="أرقام الحاسبة — بتنسحب من الـ OMS لما ينربط، ولحد هداك بتنحط هون">
+        {edit ? (
+          <div id="products" className="scroll-mt-24 space-y-4">
+            <ProductsEditor products={edit.products} />
+            <div className="grid gap-3 lg:grid-cols-2">
+              <PagesEditor pages={edit.pages} />
+              <LandingEditor landing={edit.landing} products={edit.products} />
+            </div>
+          </div>
+        ) : (
         <Panel id="products" className="scroll-mt-24 overflow-x-auto p-0">
-          <table className="w-full min-w-[36rem] text-sm">
-            <thead className="bg-surface-2 text-xs text-fg-muted">
-              <tr>
-                {["المنتج", "السعر", "تكلفة الوحدة", "التوصيل", "المرتجع", "هدف الطلب"].map((h) => (
-                  <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {PRODUCTS.map((p) => {
-                const t = targetsOf(p);
-                return (
-                  <tr key={p.code}>
-                    <td className="px-3 py-2 text-fg">{p.name} <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span></td>
-                    {[p.price, p.unitCost, p.delivery, p.returnFee].map((n, i) => (
-                      <td key={i} dir="ltr" className="px-3 py-2 text-end tabular-nums text-fg">{fmt(n, "$")}</td>
-                    ))}
-                    <td className="px-3 py-2"><Num value={t.tOrder} unit="$" term="tOrder" source={t.estimated ? "estimate" : "truth"} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Panel>
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead className="bg-surface-2 text-xs text-fg-muted">
+                <tr>
+                  {["المنتج", "السعر", "تكلفة الوحدة", "التوصيل", "المرتجع", "هدف الطلب"].map((h) => (
+                    <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {PRODUCTS.map((p) => {
+                  const t = targetsOf(p);
+                  return (
+                    <tr key={p.code}>
+                      <td className="px-3 py-2 text-fg">{p.name} <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span></td>
+                      {[p.price, p.unitCost, p.delivery, p.returnFee].map((n, i) => (
+                        <td key={i} dir="ltr" className="px-3 py-2 text-end tabular-nums text-fg">{fmt(n, "$")}</td>
+                      ))}
+                      <td className="px-3 py-2"><Num value={t.tOrder} unit="$" term="tOrder" source={t.estimated ? "estimate" : "truth"} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Panel>
+        )}
       </Section>
 
       <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي">
@@ -174,9 +200,28 @@ export default async function SettingsPage() {
       </Section>
 
       <Section title="الفريق والتدقيق" hint="مين عمل شو ومتى: إنسان · قاعدة · وكيل">
-        <Panel id="team" className="scroll-mt-24 text-sm text-fg-muted">
-          الحسابات والأدوار (مالك · مدير إعلانات · محلل · مشاهد) والتدقيق بيجهزوا بالمرحلة 1 (T1.2).
-        </Panel>
+        {edit && audit ? (
+          <div id="team" className="scroll-mt-24 space-y-4">
+            <TeamPanel team={edit.team} me={me && !me.demo ? me.id : null} />
+            <div className="flex flex-wrap gap-2 text-xs">
+              {[{ k: "", l: "الكل" }, { k: "user", l: "ناس" }, { k: "rule", l: "قواعد" }, { k: "agent", l: "وكلاء" }, { k: "system", l: "النظام" }].map((f) => (
+                <a key={f.k} href={`/settings${f.k ? `?audit=${f.k}` : ""}#team`} className={cn("min-h-8 rounded-full border px-3 py-1.5", (actor ?? "") === f.k ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>{f.l}</a>
+              ))}
+            </div>
+            <Panel className="divide-y divide-border p-0">
+              {audit.length ? audit.map((a) => (
+                <div key={a.id} className="space-y-0.5 px-4 py-2 text-sm">
+                  <p className="text-fg"><span className="font-medium">{a.who}</span> · {a.action} <span dir="ltr" className="font-mono text-xs text-fg-muted">{a.target}</span> <span className="text-xs text-fg-muted">· {a.at}</span></p>
+                  {a.change ? <p dir="ltr" className="truncate text-start font-mono text-[11px] text-fg-muted">{a.change}</p> : null}
+                </div>
+              )) : <p className="px-4 py-3 text-sm text-fg-muted">ما في شي بالسجل لهالفلتر</p>}
+            </Panel>
+          </div>
+        ) : (
+          <Panel id="team" className="scroll-mt-24 text-sm text-fg-muted">
+            الفريق والسجل بيبيّنوا لما يشتغل الموقع على البيانات الحقيقية (مش التجريبية).
+          </Panel>
+        )}
       </Section>
 
       <Section title="المظهر" hint="أربع ثيمات للميديا باير — بتتبدّل فوراً">

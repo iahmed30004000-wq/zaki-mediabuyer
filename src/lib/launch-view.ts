@@ -3,6 +3,7 @@
  * (MOCK_MODE=1) or the real rows from the database, mapped to plain shapes the client can take.
  */
 import { db } from "@/server/db";
+import { getSetting } from "@/server/settings";
 import { ACCOUNTS, CREATIVES, PRODUCTS, targetsOf } from "@/lib/mock/data";
 import { productTargets } from "@/server/launch";
 import { judgeExperiment, KIND_AR, type ExperimentKind, type StopRules } from "@/core/experiments";
@@ -17,6 +18,8 @@ export interface LaunchOptions {
   accounts: { metaId: string; name: string; market: string }[];
   pages: { metaId: string; code: string; name: string }[];
   datasets: { metaId: string; name: string }[];
+  /** the product's landing pages from the settings (LP1 → its link) */
+  landing: { productCode: string; lpCode: string; url: string }[];
 }
 
 export async function loadLaunchOptions(): Promise<LaunchOptions> {
@@ -28,6 +31,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
       accounts: ACCOUNTS.map((a) => ({ metaId: a.id, name: a.name, market: a.market })),
       pages: [{ metaId: "demo-sp", code: "SP", name: "صحة بلس" }],
       datasets: [{ metaId: "demo-px", name: "البكسل" }],
+      landing: [{ productCode: "TRF01", lpCode: "LP1", url: "https://crm.zakiai.io/lp/kamaa" }],
     };
   }
   const [econ, assets, accounts, pages, datasets] = await Promise.all([
@@ -45,6 +49,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
     accounts: accounts.map((a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "SY" })),
     pages: pages.map((p) => ({ metaId: p.metaId, code: p.code!, name: p.name })),
     datasets: datasets.map((d) => ({ metaId: d.metaId, name: d.name })),
+    landing: (await getSetting("landing.pages")) as LaunchOptions["landing"],
   };
 }
 

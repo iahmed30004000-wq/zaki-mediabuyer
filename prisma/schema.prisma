@@ -20,17 +20,20 @@ enum Role {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  passwordHash String
-  role         Role      @default(VIEWER)
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String
+  role            Role      @default(VIEWER)
   /// bumped to sign every session of this person out
-  sessionVer   Int       @default(1)
-  active       Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  sessionVer      Int       @default(1)
+  active          Boolean   @default(true)
+  lastLoginAt     DateTime?
+  /// a member the owner invited: the sha256 of the one-time code (shown to the owner once), until it is used
+  inviteHash      String?
+  inviteExpiresAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 /// Who did what to what: a person, a rule or an agent. Append-only.
