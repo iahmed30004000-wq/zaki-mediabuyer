@@ -68,14 +68,14 @@ jobs:
 
       - name: Tell Coolify to deploy (only when its secrets are set)
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        # COOLIFY_WEBHOOK_URL = https://coolify.zakiai.io/api/v1/services/<service uuid>/restart?latest=true
-        # («Pull latest and restart»: pulls the image just published, then restarts app + worker + db).
-        # COOLIFY_TOKEN = a Coolify API token the owner creates himself (Keys & Tokens), stored as a repo secret.
+        # «Pull latest and restart» of the Coolify service `mediabuyer`: pulls the image just published, then restarts
+        # app + worker + db. The address is not a secret (a repo variable can override it); the token is:
+        # COOLIFY_TOKEN = a Coolify API token (deploy ability) the owner creates himself, stored as a repo secret.
         env:
-          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          COOLIFY_WEBHOOK_URL: ${{ vars.COOLIFY_WEBHOOK_URL || 'https://coolify.zakiai.io/api/v1/services/wqsoxkdltpwmcqudnqgybom9/restart?latest=true' }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
-          if [ -z "${COOLIFY_WEBHOOK_URL:-}" ] || [ -z "${COOLIFY_TOKEN:-}" ]; then echo "Coolify webhook not set yet — skipping"; exit 0; fi
+          if [ -z "${COOLIFY_TOKEN:-}" ]; then echo "COOLIFY_TOKEN not set yet — deploy by hand in Coolify («Pull latest and restart»)"; exit 0; fi
           curl -fsS -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json"
           echo
           app_url="${{ vars.APP_HEALTH_URL || 'https://mediabuyer.zakiai.io/api/health' }}"
