@@ -2,6 +2,7 @@
 
 **For:** the next agent (e.g. GLM) or developer who continues this project.
 **Written:** 27 Oct 2026 · **Branch:** `feat/structure-and-themes` · **Last code commit:** `03a4f2a` · **Live version:** `27faea8`
+**Read `docs/ENGINEER_ONBOARDING.md` FIRST** (accounts, permissions map, integrations, the audit plan); this file is the step-by-step playbook that follows it.
 **Rule zero:** read this file from top to bottom BEFORE touching anything. Follow it literally. When something here does not match what you see in the code, STOP and report it to the owner — do not guess.
 
 Arabic terms are kept in Arabic on purpose: they are the exact words the owner and the screens use. Do not translate them in the UI.
