@@ -40,7 +40,7 @@ it pulls performance + the request queue, and (later) posts launch requests. Med
 | Meta write | ✅ ChangeSet, `dry_run` | — | stays `dry_run` until test ad account passes (P0.5) |
 | OMS orders | ✅ adapter + frozen contract copy `contracts/oms-mediabuyer.v1/` + `tests/oms-contract.test.ts` | ✅ `GET /api/v1/orders/attribution` **already on OMS main** (scope `orders.attribution.read`) | needs the OMS token (owner). Status words = the OMS's own owner-reviewed 14→6 mapping — **owner confirms** |
 | OMS products + cost | ✅ adapter now accepts `null` fees (before: one null made the whole sync throw) | ✅ `GET /api/v1/products?fields=` on main (scope `products.economics.read`, old `products.costs.read` still works). `delivery_fee`/`return_fee` only where all active courier fees agree, `cod_fee_pct` always null | those figures stay what the owner types in Settings (P0.9) |
-| OMS web attribution (ad_id, adset_id, fbc, fbp, utm) | ✅ reads `adset_id` | 🟡 **built, not merged**: OMS branch `feat/mediabuyer-integrations-4-1` (migration `20261104000000_web_order_ad_attribution`, 8 nullable columns) | owner reviews + merges + applies the migration in the OMS; the storefront path (`components/store/**`) is another agent's and sends nothing yet |
+| OMS web attribution (ad_id, adset_id, fbc, fbp, utm) | ✅ reads `adset_id` | 🟢 **merged** in the OMS (PR #164, merge `67c08905`, 2026-11-04; migration `20261104000000_web_order_ad_attribution`, 8 nullable columns) | the migration is applied by the container entrypoint (`prisma migrate deploy`) when the OMS image is deployed; production still deploys from the mirrors until Coolify is repointed; the storefront path (`components/store/**`) is another agent's and sends nothing yet |
 | OMS CAPI identifiers | ✅ `readCapiIdentifiers` + `capi.send` exist on main | 🟡 built on the same OMS branch (scope `capi.identifiers`, in nobody's default set) | **decided: Media Buyer sends (D-CAPI below)** — the owner ticks it when minting the token |
 | Drive (MB own tree) | ✅ `intakeDrive` | — | needs service account + `DRIVE_PRODUCTS_FOLDER_ID` (owner, P0.6) |
 | Drive (studio tree) | ✅ **new** `src/jobs/studio-intake.ts` (read only) | ✅ studio already uploads (`drive_sync.py`) | needs owner to share «Zakiai» + `DRIVE_STUDIO_FOLDER_ID` |
@@ -80,7 +80,7 @@ Each of these lands in **another repository** → one session per repo, one task
 
 **Correction (2026-11-04):** the first study said `orders/attribution` and cost fields were missing. They were already on the OMS `main`
 (from 2026-10-26: scope `orders.attribution.read`, `?fields=`, the contract folder `contracts/oms-mediabuyer.v1/`). The OMS session extended them instead of rebuilding.
-What it built (branch `feat/mediabuyer-integrations-4-1`, 3 commits, **not pushed, migration not applied**, 12,637 tests pass in the OMS):
+What it built (OMS PR #164, merged 2026-11-04 as `67c08905`; the migration is applied on the next OMS deploy; 12,637 tests passed in the OMS):
 
 1. Scopes `capi.identifiers` (in no default set — the owner ticks it by hand) and `products.economics.read` (replaces `products.costs.read` in Media Buyer's defaults; the old name still works).
 2. `capi_ref` is a sealed `enc:` reference, minted only for a key holding `capi.identifiers`; `adset_id` now comes from a real column; tests prove no customer field in any answer.

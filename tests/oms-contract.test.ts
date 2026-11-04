@@ -11,7 +11,7 @@ import { economicsFromOms } from "@/jobs/truth";
  * The source is the OMS (MKory18/Zaki-ai-CRM, same path); this folder is a verbatim copy. These tests hold the adapter
  * to it: the golden pages parse, the adapter reads no field the contract does not promise, and asks the catalogue for
  * nothing outside it. v1 only grows — a removed, renamed or retyped field is v2. Copied on 2026-11-04 from the OMS
- * branch `feat/mediabuyer-integrations-4-1` (not merged there yet): when the OMS merges, re-copy and compare.
+ * branch `feat/mediabuyer-integrations-4-1`, and checked identical to OMS main after PR #164 merged (`67c08905`).
  */
 
 const DIR = join(process.cwd(), "contracts", "oms-mediabuyer.v1");
