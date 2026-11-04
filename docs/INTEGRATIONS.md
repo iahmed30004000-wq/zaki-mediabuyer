@@ -1,7 +1,7 @@
 # INTEGRATIONS — Media Buyer ↔ OMS ↔ Studio ↔ Replies ↔ Drive ↔ Meta
 
 Single source for **how the five systems fit together, what already works, what is missing, and who must do it**.
-Written 2026-11-04 from a read-only study of the four code bases (nothing outside this repo was changed).
+Written 2026-11-04 from a read-only study of the four code bases, then corrected after the OMS session found parts of the first study stale (see §4.1).
 Rule zero (CLAUDE.md): **numbers are computed by code (`src/core`)**; no customer data (name / phone / address / message text)
 ever goes to a model; Telegram can only pause; money approval is on the website only; `META_WRITE_MODE` stays `dry_run`
 until a test ad account passes. **Never paste a token into chat or the repo — the owner puts it in Coolify.**
@@ -38,10 +38,10 @@ it pulls performance + the request queue, and (later) posts launch requests. Med
 |---|---|---|---|
 | Meta read | ✅ sync, rules, truth | — | needs `META_SYSTEM_USER_TOKEN` (owner, P0.4) |
 | Meta write | ✅ ChangeSet, `dry_run` | — | stays `dry_run` until test ad account passes (P0.5) |
-| OMS orders | ✅ adapter expects `GET /api/v1/orders/attribution` | ❌ **route does not exist** (BACKLOG RV60) | **OMS work, §4.1** |
-| OMS CAPI identifiers | ✅ adapter expects `POST /api/v1/capi/identifiers` | ❌ **does not exist** | **OMS work, §4.1** |
-| OMS products + cost | ✅ adapter wants `unit_cost_usd, delivery_fee, return_fee, cod_fee_pct, stock_days` | ⚠️ route exists but without cost fields (withheld on purpose), ignores `?fields=` | **OMS work, §4.1** |
-| OMS web attribution | ✅ uses `ad_id` / naming | ❌ web orders keep only `?c=CODE` → campaign. No fbclid / fbp / fbc / utm / ad / adset | **OMS + storefront work, §4.1** |
+| OMS orders | ✅ adapter + frozen contract copy `contracts/oms-mediabuyer.v1/` + `tests/oms-contract.test.ts` | ✅ `GET /api/v1/orders/attribution` **already on OMS main** (scope `orders.attribution.read`) | needs the OMS token (owner). Status words = the OMS's own owner-reviewed 14→6 mapping — **owner confirms** |
+| OMS products + cost | ✅ adapter now accepts `null` fees (before: one null made the whole sync throw) | ✅ `GET /api/v1/products?fields=` on main (scope `products.economics.read`, old `products.costs.read` still works). `delivery_fee`/`return_fee` only where all active courier fees agree, `cod_fee_pct` always null | those figures stay what the owner types in Settings (P0.9) |
+| OMS web attribution (ad_id, adset_id, fbc, fbp, utm) | ✅ reads `adset_id` | 🟡 **built, not merged**: OMS branch `feat/mediabuyer-integrations-4-1` (migration `20261104000000_web_order_ad_attribution`, 8 nullable columns) | owner reviews + merges + applies the migration in the OMS; the storefront path (`components/store/**`) is another agent's and sends nothing yet |
+| OMS CAPI identifiers | ✅ `readCapiIdentifiers` + `capi.send` exist on main | 🟡 built on the same OMS branch (scope `capi.identifiers`, in nobody's default set) | **owner decision D-CAPI below** — it contradicts «CAPI stays in the OMS» (PR #7, D11) |
 | Drive (MB own tree) | ✅ `intakeDrive` | — | needs service account + `DRIVE_PRODUCTS_FOLDER_ID` (owner, P0.6) |
 | Drive (studio tree) | ✅ **new** `src/jobs/studio-intake.ts` (read only) | ✅ studio already uploads (`drive_sync.py`) | needs owner to share «Zakiai» + `DRIVE_STUDIO_FOLDER_ID` |
 | Studio performance feed | ✅ `/api/vidpattern/ad-performance` (+ alias `/api/v1/vp/performance`) | ✅ `crm.py` calls it | ready once tokens exist |
@@ -64,8 +64,9 @@ it pulls performance + the request queue, and (later) posts launch requests. Med
    takes the **highest `-vN`** of each script (a hook copy `-hK` is its own script), runs the same `processVideo` as every intake
    (probe · MD5 duplicate check · `CR#####` · policy guard · thumbnails) with `source="studio"`, `sourceRef=<VP id>`. **Never renames, moves or deletes**
    in the studio tree. An unknown product folder (`kama` ≠ `TRF01`) is skipped, said once a day, and retried — fix it by adding an alias to the product in Settings.
-3. **Studio queue result** accepts both `{result:{…}}` (contract) and `{status:"draft", draft:{…}}` (what `queue_worker.py` posts).
-4. Env: `DRIVE_STUDIO_FOLDER_ID`, `REPLIES_BASE_URL`, `REPLIES_TOKEN` are now passed to `app` and `worker` in `docker-compose.prod.yml`.
+3. **OMS adapter matches the OMS's real contract** — the frozen copy `contracts/oms-mediabuyer.v1/` + `tests/oms-contract.test.ts` (hash-pinned, golden pages parse, no customer field); `null` fees no longer break the sync and never wipe what the owner typed (`economicsFromOms`); paging is bounded (100 pages, a repeated cursor stops it).
+4. **Studio queue result** accepts both `{result:{…}}` (contract) and `{status:"draft", draft:{…}}` (what `queue_worker.py` posts).
+5. Env: `DRIVE_STUDIO_FOLDER_ID`, `REPLIES_BASE_URL`, `REPLIES_TOKEN` are now passed to `app` and `worker` in `docker-compose.prod.yml`.
 
 Why no copy of studio videos into the MB Drive tree: a service-account-created file would be owned by the service account and has no storage
 quota on a normal Gmail (the studio's own plan rejected service accounts for the same reason). The organized view of videos is the registry
@@ -75,32 +76,26 @@ quota on a normal Gmail (the studio's own plan rejected service accounts for the
 
 Each of these lands in **another repository** → one session per repo, one task at a time, branch only, owner merges. Do not touch Media Buyer from there.
 
-### 4.1 OMS (`Zaki-OMS\oms`) — the biggest gap
+### 4.1 OMS (`Zaki-OMS\oms`) — mostly there; one branch to review
 
-Files found: `src/app/api/v1/**` (the door), `src/lib/v1/system-token.ts` (`V1_SCOPES` at ~181, `requireSystemToken` ~310, error envelope `lib/v1/door.ts:120`),
-`src/lib/order-state.ts`, `src/lib/product-cost.ts`, `src/lib/public-order.ts`, `components/landing/OrderForm.tsx`.
+**Correction (2026-11-04):** the first study said `orders/attribution` and cost fields were missing. They were already on the OMS `main`
+(from 2026-10-26: scope `orders.attribution.read`, `?fields=`, the contract folder `contracts/oms-mediabuyer.v1/`). The OMS session extended them instead of rebuilding.
+What it built (branch `feat/mediabuyer-integrations-4-1`, 3 commits, **not pushed, migration not applied**, 12,637 tests pass in the OMS):
 
-1. **Scopes.** Add to `V1_SCOPES` (+ Arabic labels `V1_SCOPE_AR`): `orders.attribution.read`, `capi.identifiers`, `products.economics.read`.
-2. **`GET /api/v1/orders/attribution?updated_since=ISO&cursor=`** → `{items:[…], next_cursor}`. Item = exactly `OmsOrder` in `src/adapters/oms.ts` of Media Buyer
-   (`order_id, product_code(=Product.sku), country, channel, ad_id, adset_id, campaign_id, ad_name, landing_page, status, *_at, order_value, collected, currency, is_fake, capi_ref`).
-   Amounts as decimal **strings**; JOD has 3 decimals. **No name / phone / address anywhere** (Media Buyer refuses phone-looking values).
-   Status mapping (proposal — the engineer must confirm with the owner; priority top to bottom):
-   `returned` = `shippingStatus ∈ {RETURNED, RETURN_REQUESTED}` · `delivered` = `{DELIVERED, PARTIALLY_DELIVERED}` · `shipped` = `{SHIPPED, OUT_FOR_DELIVERY, FAILED_DELIVERY}` ·
-   `canceled` = `confirmationStatus ∈ {REJECTED, CANCELLED}` or shipping `CANCELLED` · `confirmed` = `CONFIRMED` · else `new`.
-   `confirmed_at ← confirmedAt`, `delivered_at ← deliveredAt`, `returned_at ← returnedAt`. `collected ← collectedAmount` (partial deliveries) else null.
-   Paging by `updatedAt` + id cursor; rate limit as the other v1 routes; token → company (never from the request).
-3. **`POST /api/v1/capi/identifiers`** body `{refs:[…]}` → `{items:[{ref, phone_e164, fbc, fbp, ctwa_clid, …}]}` per the `CapiIdentifiers` schema in `oms.ts`.
-   `capi_ref` is an **encrypted reference** the OMS mints per order; decrypt `ctwaClidEnc` / `psidEnc` and read the phone from `Customer` **in memory only**; POST so nothing sits in a URL or a log; never logged.
-4. **`GET /api/v1/products`**: honour `?fields=` and add `aliases, unit_cost_usd` (from `lib/product-cost.ts` average cost per unit, USD), `price_options`, `stock_days`, `delivery_fee` (from `DeliveryFee`),
-   `return_fee`, `cod_fee_pct`, behind the new scope `products.economics.read` (the existing `products.read` keeps hiding cost). Where the OMS has no return fee / COD % per product, return `null` — **do not invent** — and tell the owner to fill them in Media Buyer's product settings.
-5. **Web-order attribution (the real hole).** Today the landing/storefront keep only `?c=CODE`. Capture at the page: `fbclid`, `_fbc`, `_fbp` cookies, `utm_*`, and the ad/adset ids if the ad URL carries them
-   (`{{ad.id}}`, `{{adset.id}}` URL parameters — set in Meta's URL parameters, see 4.5); store on `Order` (new columns; `fbc/fbp` encrypted like `ctwaClidEnc`); expose `ad_id` / `adset_id` in (2).
-   Without this, web orders attribute only to a **campaign**, and Media Buyer labels every ad-level number «تقدير». Landing fork: `Documents\zaki-storefront` has no `/api/v1` and no capture either — decide which one is production.
-6. **Token for Media Buyer.** Settings → Apps → «توكنات الأنظمة» (UI hard-codes `system:'replies'`; the API `POST /api/settings/system-tokens` accepts `system:"mediabuyer"`). Scopes: the three above + `orders.read`. Expiry 90 days (put the date in the owner's calendar). **The owner creates it; plaintext shown once; goes only into Coolify `OMS_TOKEN`.**
-7. **Double-CAPI decision (owner).** The OMS already sends server CAPI (`TrackingPixel`, `CustomConversion`, `lib/conversions/*`, event_id from conversion+order, fbc/fbp not sent) and fires the browser pixel.
-   Media Buyer's `capi.send` uses event id `oms-<order>-<status>`. If both send the same moment on the same pixel, Meta counts two. **Recommended:** Media Buyer is the only server sender for Purchase/confirmed (it has the mature-order truth); switch the OMS `CustomConversion` for that pixel off *when* Media Buyer goes live with `CAPI_TEST_EVENT_CODE`, and keep the browser pixel. Verify with Events Manager test events before switching.
+1. Scopes `capi.identifiers` (in no default set — the owner ticks it by hand) and `products.economics.read` (replaces `products.costs.read` in Media Buyer's defaults; the old name still works).
+2. `capi_ref` is a sealed `enc:` reference, minted only for a key holding `capi.identifiers`; `adset_id` now comes from a real column; tests prove no customer field in any answer.
+3. `POST /api/v1/capi/identifiers`: decrypts in memory, `no-store`, never logged, ≤ 100 refs, own company only.
+4. Products: `delivery_fee` / `return_fee` from `DeliveryFee` only when every active courier fee of the shop's country is the same positive number, else `null`; `cod_fee_pct` always `null` (no source in the OMS).
+5. Landing form captures `ad_id`, `adset_id`, fbclid, `_fbc`, `_fbp`, `utm_*` (shape-checked, cookies encrypted; without an encryption key they are dropped, never stored clear). Money, lines and campaign are identical with or without attribution.
 
-Acceptance (copy into the OMS PR): contract tests with the exact JSON; a 401/403/429 test per scope; a test that **no customer field** is in any answer; migrations reviewed; no secrets in logs.
+Owner decisions on that branch: it changes order creation (`createPublicOrder`, a fixed blocker in the OMS `AGENTS.md` — commit 2, can be dropped alone); touches `components/landing/OrderForm.tsx` (5 lines, on the storefront-overhaul path list); amends four architecture guard tests, each with a written reason.
+Not verified: nothing ran against a real Postgres or the real Media Buyer; `ad_id` comes from the browser so it can be edited by anyone and is not checked against synced ads; the storefront sends no attribution yet.
+
+**D-CAPI — who sends the purchase events? (owner, before Meta goes live).** Facts: the OMS already sends server CAPI (`TrackingPixel`, `CustomConversion`, `lib/conversions/*`) and the browser pixel; with item 5 above it can now also send `fbc`/`fbp` and the ad id.
+Media Buyer's `capi.send` on main sends from the truth and needs `POST /capi/identifiers` (a phone number crossing systems). The unmerged PR #7 (`feat/oms-live-adapter`) removes it: «CAPI stays in the OMS — no customer identifier leaves it» (D11) — it also deletes `capi.ts`, so it cannot be merged as is.
+**Recommendation (changed from the first draft):** keep CAPI in the OMS and leave `capi.identifiers` unticked: one sender, no double events, no phone numbers moving between systems, which is also the stricter reading of «no customer data outside the OMS». Cost: Media Buyer's own CAPI health numbers (acceptance, EMQ) must then come from the OMS or Meta's dataset diagnostics. Either way: **never two senders on one pixel**, and test with `CAPI_TEST_EVENT_CODE` first.
+
+Token for Media Buyer: Settings → Apps → «توكنات الأنظمة» (the panel hard-codes `system:'replies'`; the API accepts `system:"mediabuyer"`). Scopes: `orders.attribution.read`, `products.read`, `products.economics.read` (+ `capi.identifiers` only if the owner picks the option above). 90-day expiry — put the date in a calendar. **The owner creates it; plaintext is shown once; it goes only into Coolify `OMS_TOKEN`.**
 
 ### 4.2 Studio (`Pictures\المشروع`) — small
 
@@ -147,7 +142,7 @@ Registry = truth: `CreativeAsset(crCode, md5, source, sourceRef=VP id, driveFile
 0. Owner account + `OWNER_EMAIL` first (HANDOFF / ONBOARDING §10). Nothing below before that.
 1. **Replies capacity** (lowest risk, read-only): token `capacity.read` → `REPLIES_BASE_URL`, `REPLIES_TOKEN`. Check `/api/health` → `links.replies:true`; next 15-min tick shows `replies.sync` ok in job runs.
 2. **Studio Drive**: share «Zakiai» → `DRIVE_STUDIO_FOLDER_ID` (+ `GOOGLE_SERVICE_ACCOUNT_JSON` once for both Drive trees). Add aliases for each studio product. Next tick: videos land in `/creatives` as «بانتظار / جاهز» with `CR#####`.
-3. **OMS**: only after §4.1 is merged and deployed in the OMS: mint the token → `OMS_BASE_URL`, `OMS_TOKEN` → `MOCK_MODE=0` per the SOP in HANDOFF. Check truth numbers against the OMS's own attribution screen on a few orders by hand.
+3. **OMS**: the read door is already live on the OMS main; the web-attribution branch is optional but improves ad-level numbers. Mint the token → `OMS_BASE_URL`, `OMS_TOKEN` → `MOCK_MODE=0` per the SOP in HANDOFF. Check truth numbers against the OMS's own attribution screen on a few orders by hand.
 4. **Meta read** (`META_SYSTEM_USER_TOKEN`), then the test ad account, then (separately, with the owner) `live` writes. `CAPI_TEST_EVENT_CODE` first; switch off the OMS conversions for the same pixel only after the test events match.
 5. **Studio tokens**: mint `vp:read` + `vp:launch`, put them in the studio's secret store; the studio's first pull of `/api/vidpattern/ad-performance` returns rows only once ads carry the studio-style name (D7).
 
@@ -155,7 +150,7 @@ Registry = truth: `CreativeAsset(crCode, md5, source, sourceRef=VP id, driveFile
 
 - Replies: unit tests `tests/replies.test.ts` (verdicts, strict schema, token header, 503 = error not zero). Live: `curl -H "authorization: Bearer $REPLIES_TOKEN" $REPLIES_BASE_URL/api/v1/capacity` from your own shell, never in chat.
 - Studio tree: `tests/studio-contract.test.ts` (`vpIdOfFile`, `latestVersions`). Live: put a test mp4 named `VP-<code>-1-v1.mp4` under a test `Zakiai/<product>/VP-<code>-1/6-نهائي`.
-- OMS: contract tests in the OMS PR; in Media Buyer the existing adapter tests use fixtures (`src/adapters/fixtures.ts`).
+- OMS: `tests/oms-contract.test.ts` (the frozen contract, golden pages); in the OMS `the-media-buyers-door.test.ts`. Live: with the token in your own shell, `curl -H "authorization: Bearer $OMS_TOKEN" "$OMS_BASE_URL/api/v1/orders/attribution?updated_since=<ISO, ≤31 days back>"`.
 
 ## 7. VERIFY (not confirmed from code)
 
