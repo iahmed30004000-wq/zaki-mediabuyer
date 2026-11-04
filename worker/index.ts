@@ -10,6 +10,8 @@
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
  *   rules          every hour at :15, after the truth — the safety rules (Phase 2), dry-run unless META_WRITE_MODE=live
  *   creative.intake every 15 min — Drive 01_inbox of every product (probe · MD5 · number · name · policy · thumbnails)
+ *   creative.intake.studio every 15 min — the studio's own Drive tree (Zakiai/<product>/<VP>/6-نهائي), read only
+ *   replies.sync   every 15 min — the replies inbox capacity; message ad sets are held (scale freeze) while it is behind or unseen
  *   meta.upload    every 15 min after the intake — ready videos to Meta (dry-run unless META_WRITE_MODE=live)
  *   account.safety every hour at :20 — account status, rejections (3 in 24 h freeze creation), appeal drafts
  *   analysis       08:00 — M02: each product's weakest funnel step (by code), in words by the agent
@@ -47,6 +49,9 @@ import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
 import { driveFromEnv } from "../src/adapters/drive";
+import { intakeStudioDrive } from "../src/jobs/studio-intake";
+import { syncReplies } from "../src/jobs/replies";
+import { repliesFromEnv } from "../src/adapters/replies";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
 import { db } from "../src/server/db";
 
@@ -85,6 +90,12 @@ export async function tick(now = new Date()) {
     const root = process.env.DRIVE_PRODUCTS_FOLDER_ID?.trim();
     return drive && root ? intakeDrive(drive, root) : { skipped: "Drive not linked yet (P0.6)" };
   });
+  await runOnce("creative.intake.studio", quarter, async () => {
+    const drive = driveFromEnv();
+    const root = process.env.DRIVE_STUDIO_FOLDER_ID?.trim();
+    return drive && root ? intakeStudioDrive(drive, root) : { skipped: "Studio Drive folder not shared yet (DRIVE_STUDIO_FOLDER_ID)" };
+  });
+  await runOnce("replies.sync", quarter, () => syncReplies(repliesFromEnv(), now));
   await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
   await runOnce("alerts.read", quarter, () => readAlerts(now));
   const five = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 5) * 5).padStart(2, "0")}`;

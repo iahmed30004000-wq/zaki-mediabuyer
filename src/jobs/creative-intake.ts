@@ -105,7 +105,7 @@ export async function processVideo(file: string, meta: IntakeMeta): Promise<Inta
 }
 
 /** The product a Drive folder belongs to: its code in the name, or an alias («كمأة» → TRF01). */
-async function productOfFolder(name: string): Promise<string | null> {
+export async function productOfFolder(name: string): Promise<string | null> {
   const products = await db.productEconomics.findMany();
   const aliases = await db.productAlias.findMany();
   const direct = products.find((p) => name.toUpperCase().includes(p.productCode));

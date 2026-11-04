@@ -30,6 +30,8 @@ export interface AlertFacts {
   attributedPct: number | null;
   capiRejectedLastHour: number;
   tokenDaysLeft: number | null;
+  /** the replies system's own verdict (src/jobs/replies.ts): null when not linked or all good */
+  repliesProblem?: string | null;
 }
 
 const median = (xs: number[]) => {
@@ -56,6 +58,8 @@ export function detect(f: AlertFacts): Signal[] {
   // a source that stopped
   if (f.metaLinked && (f.metaAgeHours === null || f.metaAgeHours > 2)) out.push({ key: "stale:meta", kind: "alert.stale", tone: "warn", text: `ميتا ما تحدّثت ${f.metaAgeHours === null ? "أبداً" : `من ${Math.round(f.metaAgeHours)} ساعات`} — التكبير مجمّد لحد ما ترجع`, href: "/settings#connections" });
   if (f.omsLinked && (f.omsAgeHours === null || f.omsAgeHours > 2)) out.push({ key: "stale:oms", kind: "alert.stale", tone: "warn", text: `الـ OMS ما تحدّث ${f.omsAgeHours === null ? "أبداً" : `من ${Math.round(f.omsAgeHours)} ساعات`} — قواعد الحقيقة مجمّدة لحد ما يرجع`, href: "/settings#connections" });
+  // the replies inbox cannot keep up, or cannot be seen — message campaigns are held, so say it
+  if (f.repliesProblem) out.push({ key: "replies", kind: "alert.replies", tone: "warn", text: f.repliesProblem, href: "/settings#connections" });
   // weak attribution
   if (f.attributedPct !== null && f.attributedPct < 70) out.push({ key: "attribution", kind: "alert.attribution", tone: "warn", text: `إسناد ضعيف: ${f.attributedPct}% بس من الطلبات واصلة لإعلانها (تحت 70%)`, href: "/reports" });
   // conversion events refused by Meta

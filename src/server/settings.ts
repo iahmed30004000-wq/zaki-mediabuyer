@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = {
   /** agents' daily caps in USD (spec 11.2) and the monthly cap for all of them */
   "agents.daily_caps": { M01: 0.5, M02: 3, M03: 3, M04: 1, M05: 2, M06: 2, M07: 2, M09: 1, M10: 5, M11: 0.5 } as Record<string, number>,
   "agents.monthly_cap": 80,
+  /** the replies inbox limits (spec 9.3): above them message campaigns are not raised — src/core/replies.ts */
+  "replies.limits": { maxUnanswered: 50, maxP50Min: 30, staleHours: 2 } as { maxUnanswered: number; maxP50Min: number; staleHours: number },
   "capi.purchase_on": "confirmed",
   "market.SY": { msg_channel: "whatsapp", min_age: 18, team_hours_until: "17:00", payment_note: "الدفع من حساب مالي برّا سوريا" },
   "market.JO": { msg_channel: null, min_age: 18, team_hours_until: null },
