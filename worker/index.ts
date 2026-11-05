@@ -10,6 +10,7 @@
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
  *   rules          every hour at :15, after the truth — the safety rules (Phase 2), dry-run unless META_WRITE_MODE=live
  *   creative.intake every 15 min — Drive 01_inbox of every product (probe · MD5 · number · name · policy · thumbnails)
+ *   studio.launch every 15 min — the studio's direct uploads (POST /api/v1/vp/launch-requests) go through the same intake
  *   creative.intake.studio every 15 min — the studio's own Drive tree (Zakiai/<product>/<VP>/6-نهائي), read only
  *   replies.sync   every 15 min — the replies inbox capacity; message ad sets are held (scale freeze) while it is behind or unseen
  *   meta.upload    every 15 min after the intake — ready videos to Meta (dry-run unless META_WRITE_MODE=live)
@@ -50,6 +51,7 @@ import { writeMode } from "../src/meta/write";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
 import { driveFromEnv } from "../src/adapters/drive";
 import { intakeStudioDrive } from "../src/jobs/studio-intake";
+import { processPendingRequests } from "../src/server/studio-launch";
 import { syncReplies } from "../src/jobs/replies";
 import { repliesFromEnv } from "../src/adapters/replies";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
@@ -95,6 +97,7 @@ export async function tick(now = new Date()) {
     const root = process.env.DRIVE_STUDIO_FOLDER_ID?.trim();
     return drive && root ? intakeStudioDrive(drive, root) : { skipped: "Studio Drive folder not shared yet (DRIVE_STUDIO_FOLDER_ID)" };
   });
+  await runOnce("studio.launch", quarter, () => processPendingRequests());
   await runOnce("replies.sync", quarter, () => syncReplies(repliesFromEnv(), now));
   await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
   await runOnce("alerts.read", quarter, () => readAlerts(now));

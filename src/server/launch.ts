@@ -130,6 +130,8 @@ export async function launch(input: LaunchInput, caller: Caller) {
     },
     { type: "user", id: caller.id },
   );
+  // a studio launch request waiting on one of these creatives now follows this change set (E1: its status is derived from it)
+  await db.launchRequest.updateMany({ where: { crCode: { in: input.crCodes }, closedStatus: null }, data: { changeSetId: cs.id } });
   const t = TEMPLATES[request.template];
   const experiment = await db.experiment.create({
     data: {

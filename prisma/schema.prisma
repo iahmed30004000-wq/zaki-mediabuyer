@@ -747,3 +747,28 @@ model AlertState {
   raisedAt   DateTime?
   updatedAt  DateTime  @updatedAt
 }
+
+/// A launch request from the content studio (contract §4.2 #2–4). It feeds the normal intake; the owner launches
+/// from the wizard. Its status is derived from the creative and the launch change set it is linked to.
+model LaunchRequest {
+  id           String   @id @default(cuid())
+  vpId         String
+  /// active · test
+  mode         String
+  checksum     String
+  /// the stored upload, until the intake took it
+  filePath     String?
+  crCode       String?
+  changeSetId  String?
+  /// set when the intake ended badly (broken file) or the request was cancelled
+  closedStatus String?
+  reason       String?
+  errorCode    String?
+  /// the meta part as received, minus the thumbnail (no customer data exists in it)
+  meta         Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([vpId, mode])
+  @@index([crCode])
+}
