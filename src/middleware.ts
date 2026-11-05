@@ -21,4 +21,8 @@ export async function middleware(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-export const config = { matcher: ["/((?!_next/static|_next/image).*)"] };
+/**
+ * The upload route of the studio is left out of the matcher: Next buffers a request body that goes through middleware, and a
+ * 500 MB video would sit in memory (ENGINEER_ONBOARDING F-10). It is in OPEN anyway — the route checks its own Bearer token.
+ */
+export const config = { matcher: ["/((?!_next/static|_next/image|api/v1/vp/launch-requests$).*)"] };

@@ -46,7 +46,7 @@ it pulls performance + the request queue, and (later) posts launch requests. Med
 | Drive (studio tree) | ✅ **new** `src/jobs/studio-intake.ts` (read only) | ✅ studio already uploads (`drive_sync.py`) | needs owner to share «Zakiai» + `DRIVE_STUDIO_FOLDER_ID` |
 | Studio performance feed | ✅ `/api/vidpattern/ad-performance` (+ alias `/api/v1/vp/performance`) | ✅ `crm.py` calls it | ready once tokens exist |
 | Studio request queue | ✅ GET queue, claim, result (**result now accepts the studio's body shape**) | ✅ `queue_worker.py` | ready |
-| Studio launch requests | ❌ `POST /api/v1/vp/launch-requests` missing (HANDOFF task E1) | ✅ `launch.py` calls it | **MB work, E1** |
+| Studio launch requests | ✅ `POST /api/v1/vp/launch-requests` (+ `GET …/{id}`, `POST …/{id}/cancel`, product facts) — E1, D17; needs deploy + `prisma migrate deploy` | ✅ `launch.py` calls it | verify on production after deploy |
 | Studio product-market / failure-reasons / library | ❌ not served | ✅ studio calls `/product-market`, `/failure-reasons` | **MB work (follow-up)** |
 | Replies capacity | ✅ **new** `src/adapters/replies.ts` + `src/jobs/replies.ts` + alert + scale freeze | ✅ `GET /api/v1/capacity` exists (scope `capacity.read`) | needs token minted for system `mediabuyer` |
 | Replies ad signals | ❌ not consumed (no contract yet) | ❌ no ad-level aggregate | **Replies work, §4.3 (new feature)** |

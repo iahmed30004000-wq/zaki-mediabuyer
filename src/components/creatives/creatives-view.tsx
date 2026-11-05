@@ -84,6 +84,7 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
                       <P.icon className="size-3.5" />
                       {P.label}
                     </p>
+                    {c.studioMode ? <p className="text-xs text-fg-muted">طلب إطلاق من الاستوديو · {c.studioMode === "test" ? "تست" : "منتج شغّال"}</p> : null}
                   </div>
                 </div>
                 {c.policyNote ? <p className={cn("rounded-lg p-2 text-xs leading-5", c.policy === "red" ? "bg-danger/5 text-fg" : "bg-warn/5 text-fg")}>{c.policyNote}</p> : null}

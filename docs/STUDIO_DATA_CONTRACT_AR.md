@@ -128,10 +128,10 @@
 | # | المسار | الصلاحية | ملاحظة |
 |---|---|---|---|
 | 1 | `GET /api/vidpattern/ad-performance?since&until` | `vp:read` | ≤ 31 يوم بالطلب. صف لكل (إعلان، يوم طلب). بس إعلانات إلها `sourceRef` من الاستوديو. اسم بديل: `GET /api/v1/vp/performance` |
-| 2 | `POST /api/v1/vp/launch-requests` | `vp:launch` | `multipart`: `video` + `meta` (JSON). منع التكرار على `(vp_id, mode)`: نفس الطلب ← نفس الرد `200`، وطلب مختلف ← `409` |
-| 3 | `GET /api/v1/vp/launch-requests/{id}` | `vp:read` | الحالة + أرقام ميتا + السبب |
-| 4 | `POST /api/v1/vp/launch-requests/{id}/cancel` | `vp:launch` | قبل الموافقة بس، وإلا `409 cannot_cancel` |
-| 5 | `GET /api/vidpattern/product-market?product&country` | `vp:read` | من `ProductEconomics` + وسيط للـ OMS. اسم بديل: `/api/v1/vp/products/{id}/facts` |
+| 2 | `POST /api/v1/vp/launch-requests` | `vp:launch` | `multipart`: `video` + `meta` (JSON). منع التكرار على `(vp_id, mode)`: نفس الطلب ← نفس الرد `200`، وطلب مختلف ← `409` ✅ اتنفّذ (5/11/2026، D17). |
+| 3 | `GET /api/v1/vp/launch-requests/{id}` | `vp:read` | الحالة + أرقام ميتا + السبب ✅ اتنفّذ (D17). |
+| 4 | `POST /api/v1/vp/launch-requests/{id}/cancel` | `vp:launch` | قبل الموافقة بس، وإلا `409 cannot_cancel` ✅ اتنفّذ (D17). |
+| 5 | `GET /api/vidpattern/product-market?product&country` | `vp:read` | من `ProductEconomics` + وسيط للـ OMS. اسم بديل: `/api/v1/vp/products/{id}/facts` ✅ اتنفّذ (D17): مفاتيح معروفة بس، بلا `offer_tiers` ولا `guarantee`. |
 | 6 | `GET /api/vidpattern/queue?status=pending` | `vp:read` | من `CreativeRequest`. أقدم أولاً، حد 50 |
 | 7 | `POST /api/vidpattern/queue/{id}/claim` · `…/result` | `vp:launch` | النتيجة **مسودة** بتنعرض بـ «الإبداعات ← وارد» |
 | 8 | `GET /api/vidpattern/failure-reasons` | `vp:read` | لاحقاً، لما الـ OMS يعطي سبب الفشل |

@@ -83,3 +83,13 @@ describe("the studio's Drive tree (Zakiai/<product>/<VP>/6-نهائي)", () => {
     expect(latestVersions(["VP-v2-5-v1.mp4", "VP-v2-5-v4.mp4"])).toEqual(["VP-v2-5-v4.mp4"]);
   });
 });
+
+describe("product facts for the studio (E1)", () => {
+  it("never carries offer_tiers or guarantee: absent means unknown, an empty list would mean «no offer»", async () => {
+    const { productFacts } = await import("@/core/studio-launch");
+    const body = productFacts({ market: "SY", price: "20", deliveryFee: "1.5" }, "SY")!;
+    expect(Object.keys(body).sort()).toEqual(["cod", "country", "delivery", "price"]);
+    expect(body).not.toHaveProperty("offer_tiers");
+    expect(body).not.toHaveProperty("guarantee");
+  });
+});
