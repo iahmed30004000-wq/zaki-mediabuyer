@@ -29,22 +29,28 @@ export const OmsOrder = z.object({
   collected: z.string().nullable().optional(),
   currency: z.string(),
   is_fake: z.boolean().optional(),
+  first_contact_at: z.string().nullable().optional(),
   capi_ref: z.string().nullable().optional(),
 });
 export type OmsOrder = z.infer<typeof OmsOrder>;
 
 const Page = z.object({ items: z.array(OmsOrder), next_cursor: z.string().nullable().optional() });
 
+/**
+ * A figure the OMS has no single source for comes back as null, never as a guess: delivery and return fees are per
+ * courier × region there (a value only when every active fee agrees), there is no COD percentage, and a cost kept in
+ * lira has no dollar rate. A null never wipes a number the owner typed in Settings (`economicsFromOms`).
+ */
 export const OmsProduct = z.object({
   code: z.string(),
   name: z.string(),
   aliases: z.array(z.string()).optional(),
-  unit_cost_usd: z.string(),
+  unit_cost_usd: z.string().nullable().optional(),
   price_options: z.array(z.object({ price: z.string() })).optional(),
   stock_days: z.number().nullable().optional(),
-  delivery_fee: z.string(),
-  return_fee: z.string(),
-  cod_fee_pct: z.string(),
+  delivery_fee: z.string().nullable().optional(),
+  return_fee: z.string().nullable().optional(),
+  cod_fee_pct: z.string().nullable().optional(),
 });
 export type OmsProduct = z.infer<typeof OmsProduct>;
 
@@ -63,22 +69,36 @@ async function get(o: OmsOptions, path: string) {
   return res.json();
 }
 
+/**
+ * At most this many pages in one sync (200 orders each on the OMS side = 20 000 orders). A sync that would need more
+ * stops and fails loudly rather than walking the OMS for ever; so does a cursor the OMS hands back twice.
+ */
+export const MAX_PAGES = 100;
+
 /** Every order updated since `since`, following the cursor. */
 export async function readOrders(o: OmsOptions, since: Date): Promise<OmsOrder[]> {
   const out: OmsOrder[] = [];
+  const seen = new Set<string>();
   let cursor: string | null | undefined;
+  let pages = 0;
   do {
+    if (++pages > MAX_PAGES) throw new Error(`OMS /orders/attribution: more than ${MAX_PAGES} pages in one sync — stopped`);
     const q = new URLSearchParams({ updated_since: since.toISOString() });
     if (cursor) q.set("cursor", cursor);
     const page = Page.parse(await get(o, `/orders/attribution?${q}`));
     out.push(...page.items);
     cursor = page.next_cursor;
+    if (cursor && seen.has(cursor)) throw new Error("OMS /orders/attribution: the same cursor came back twice — stopped");
+    if (cursor) seen.add(cursor);
   } while (cursor);
   return out;
 }
 
+/** What the catalogue is asked for — every name must be in contracts/oms-mediabuyer.v1/products-page.schema.json. */
+export const PRODUCT_FIELDS = ["code", "name", "aliases", "unit_cost_usd", "price_options", "stock_days", "delivery_fee", "return_fee", "cod_fee_pct"] as const;
+
 export async function readProducts(o: OmsOptions): Promise<OmsProduct[]> {
-  const data = await get(o, "/products?fields=code,name,aliases,unit_cost_usd,price_options,stock_days,delivery_fee,return_fee,cod_fee_pct");
+  const data = await get(o, `/products?fields=${PRODUCT_FIELDS.join(",")}`);
   return z.array(OmsProduct).parse(Array.isArray(data) ? data : (data as { items: unknown }).items);
 }
 

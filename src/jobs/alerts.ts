@@ -28,7 +28,10 @@ export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
   const omsAt = await lastSuccess("oms.sync");
   const attr = await db.report.findFirst({ where: { kind: "attribution" }, orderBy: { forDate: "desc" }, select: { text: true } });
   const conn = await db.metaConnection.findFirst({ where: { status: { not: "revoked" } }, orderBy: { createdAt: "desc" }, select: { expiresAt: true, status: true } });
+  const lastReplies = process.env.REPLIES_BASE_URL?.trim() ? await db.jobRun.findFirst({ where: { job: "replies.sync", status: "ok" }, orderBy: { finishedAt: "desc" }, select: { stats: true } }) : null;
+  const repliesStats = (lastReplies?.stats ?? null) as { ok?: boolean; sentence?: string | null } | null;
   return {
+    repliesProblem: repliesStats && repliesStats.ok === false ? repliesStats.sentence ?? null : null,
     hour: ammanHour(now),
     adsets: adsets.filter((s) => s.ads.length).map((s) => ({ id: s.metaId, name: s.name, dailyBudget: Number(s.dailyBudget), impressionsToday: s.ads.reduce((n, a) => n + (imp.get(a.metaId) ?? 0), 0) })),
     pixelPurchasesToday: todayRows.reduce((n, r) => n + r.purchases, 0),
