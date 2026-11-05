@@ -27,6 +27,8 @@ const check = (ok: boolean, label: string) => {
   await db.ad.upsert({ where: { metaId: "FAT_AD" }, create: { metaId: "FAT_AD", adSetId: as.id, name: "CR09500_H07_HER_LP1", status: "ACTIVE", creativeCode: "CR09500", hookCode: "H07", angleCode: "HER", lpCode: "LP1" }, update: { status: "ACTIVE" } });
   await db.creativeAsset.upsert({ where: { crCode: "CR09500" }, create: { crCode: "CR09500", productCode: "TRF01", source: "studio", sourceRef: "VP-TRF01-0050-v1", status: "uploaded", policyFlag: "green", hookType: "H07", angle: "HER" }, update: { status: "uploaded", notes: null } });
   await db.creativeRequest.deleteMany({ where: { crCode: "CR09500" } });
+  // rows left by an earlier run sit on other dates (the window is relative to today): clear them so the demo is the same every day
+  await db.insightDaily.deleteMany({ where: { level: "ad", objectId: "FAT_AD" } });
   await db.attributedOrder.deleteMany({ where: { omsOrderId: { startsWith: "FAT-" } } });
 
   // 9 days: the first 4 fresh (CTR 2%, hook 35%, an order per 3$), the last 5 tired (CTR 1.3%, the same people again, 4.5$)
