@@ -18,6 +18,7 @@ import { decideApproval } from "../src/server/approvals";
 import { setMode, setWakeKinds } from "../src/server/mode";
 import { saveRules } from "../src/server/rules";
 import { DEFAULT_RULES } from "../src/core/rules-v2";
+import { loadNumbers } from "../src/lib/numbers-view";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -56,7 +57,8 @@ async function clean() {
   await db.stockSnapshot.deleteMany({ where: { productCode: "DEMO_STK" } });
   await db.videoBankItem.deleteMany({ where: { job: { startsWith: "DEMO-JOB" } } });
   await db.task.deleteMany({ where: { title: { startsWith: "DEMO" } } });
-  await db.productEconomics.deleteMany({ where: { productCode: "DEMO_STK" } });
+  await db.productEconomics.deleteMany({ where: { productCode: { in: ["DEMO_STK", "DEMO_NUM"] } } });
+  await db.productDay.deleteMany({ where: { productCode: "DEMO_NUM" } });
   await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp" } } });
   await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules"] } } });
 }
@@ -229,6 +231,46 @@ async function clean() {
   check(!(await tool("list_tasks", { assignee: "hermes" })).data?.tasks.some((t: { id: string }) => t.id === tid) && (await db.task.count({ where: { id: tid } })) === 1, "archived: gone from the list, still in the table (nothing is deleted)");
   check((await tool("create_task", { title: "DEMO اتصل 0912345678" })).isError, "a task with a phone number is refused");
   check((await tool("update_task", { id: "nope", status: "done" })).isError, "an unknown task is an error in words");
+
+  // ── v4.1 «الأرقام»: a product's whole day, pushed and read back by the screen ──
+  {
+  await db.productEconomics.create({ data: { productCode: "DEMO_NUM", name: "منتج أرقام تجريبي", market: "SY", price: 20, unitCost: 5, deliveryFee: 2, returnFee: 1, codFeePct: 0.02, confirmCost: 0.3, stockDays: 30 } });
+  const D0 = day(2);
+  const prow = (date: string, x: Record<string, unknown>) => ({ date, level: "product", id: "DEMO_NUM", ...x });
+  const dayBefore = { spend: 30, impressions: 9000, link_clicks: 180, pixel_purchases: 11, orders_in: 10, unique_customers: 10, confirmed: 7, rejected: 1, cancelled: 0, waiting: 2, shipped_orders: 5, shipped_pieces: 9, out_for_delivery: 3, stuck: 0, delivered: 3, returned: 1, revenue_shipped: 100, aov: 20, offer_breakdown: [{ offer: "قطعة", orders: 10, pieces: 1, revenue: 200 }], stock_units: 108 };
+  const theDay = { spend: 40, impressions: 10000, link_clicks: 200, pixel_purchases: 14, orders_in: 12, unique_customers: 11, confirmed: 8, rejected: 2, cancelled: 1, waiting: 3, reject_reasons: [{ reason: "رقم غلط", count: 2 }], shipped_orders: 6, shipped_pieces: 9, out_for_delivery: 4, stuck: 1, delivered: 3, returned: 1, revenue_shipped: 120, offer_breakdown: [{ offer: "قطعة", orders: 8, pieces: 1, revenue: 160 }, { offer: "2 + هدية", orders: 4, pieces: 3, revenue: 104 }], aov: 22, stock_units: 90 };
+  const key = (date: string) => ({ productCode_date: { productCode: "DEMO_NUM", date: new Date(`${date}T00:00:00Z`) } });
+  const pday = await tool("push_metrics", { rows: [prow(D0, dayBefore), prow(Y, theDay)] });
+  check(!pday.isError && pday.data?.applied === 2 && pday.data?.productDays === 2 && pday.data?.orderRows === 0 && pday.data?.tallies === 0, "product rows: two days stored as product-days — no order rows, no tallies", pday.data);
+  check((await db.productDay.count({ where: { productCode: "DEMO_NUM" } })) === 2 && (await db.attributedOrder.count({ where: { omsOrderId: { startsWith: "mcp:product:" } } })) === 0, "…in ProductDay, and not one AttributedOrder was made (the product's orders are never counted twice)");
+  const stored = await db.productDay.findUnique({ where: key(Y) });
+  check(stored?.ordersIn === 12 && stored.uniqueCustomers === 11 && stored.stuck === 1 && Number(stored.revenueShipped) === 120 && stored.source === "mcp" && Array.isArray(stored.offerBreakdown), "the day's columns hold what was sent (orders, customers, stuck, revenue shipped, offers), source mcp", stored);
+  await tool("push_metrics", { rows: [prow(Y, { waiting: 1, stock_units: 85 })] });
+  const part = await db.productDay.findUnique({ where: key(Y) });
+  check(part?.waiting === 1 && part.stockUnits === 85 && part.ordersIn === 12 && Number(part.spend) === 40, "a later push of only the states (waiting, stock) updates those and leaves the rest of the day as it was");
+  await tool("push_metrics", { rows: [prow(D0, dayBefore), prow(Y, theDay)] });
+  check((await db.productDay.count({ where: { productCode: "DEMO_NUM" } })) === 2 && (await db.productDay.findUnique({ where: key(Y) }))?.waiting === 3, "the same push again is still two rows (and puts the day back)");
+  const misplaced = await tool("push_metrics", { rows: [{ date: Y, level: "ad", id: "DEMO_MCP_A1", orders_in: 5 }, prow(Y, { reject_reasons: [{ reason: "اتصل 0912345678", count: 1 }] }), prow(Y, { real_orders: 12 })] });
+  check(misplaced.data?.applied === 1 && misplaced.data?.rejected.map((r: { index: number }) => r.index).join() === "0,1" && misplaced.data?.rejected[0]?.error.includes("product") && misplaced.data?.rejected[1]?.error.includes("رقم هاتف"), "a product-day field on an ad row is refused, a phone inside a reject reason is refused — the good row (real_orders = orders_in) still lands", misplaced.data?.rejected);
+
+  const near = (a: number | null | undefined, b: number) => a !== null && a !== undefined && Math.abs(a - b) < 0.011;
+  const nums = await loadNumbers({ d: "custom", from: Y, to: Y });
+  const mine = nums.products.find((p) => p.code === "DEMO_NUM");
+  const c = mine!.current;
+  check(nums.demo === false && mine?.name === "منتج أرقام تجريبي", "loadNumbers (MOCK_MODE=0): the product is on the screen, by its name", mine?.name);
+  check(near(c.spend, 40.4) && c.ordersIn === 12 && near(c.costPerOrder, 3.37) && near(c.cpm, 4) && near(c.ctr, 2) && near(c.gapPct, 16.7) && c.duplicates === 1, "ads + site: spend with the 1% card fee, cost per real order, CPM and CTR from Meta's own spend, pixel-vs-real gap, duplicates removed", c);
+  check(c.confirmed === 8 && near(c.confirmRate, 80) && c.waiting === 3 && c.rejected === 2 && c.cancelled === 1 && near(c.costPerConfirmed, 5.05) && near(c.costPerDelivered, 13.47), "confirmation: rate = confirmed ÷ (confirmed + rejected) — the waiting are left out; cost per confirmed and per delivered", c);
+  check(near(c.upsellRate, 33.3) && near(c.aov, 22) && mine!.offers.length === 2 && mine!.rejectReasons[0]?.reason === "رقم غلط", "offers: upsell rate from the offers of 2+ pieces, AOV, the offers, the top reject reason", { upsell: c.upsellRate, aov: c.aov });
+  check(c.shippedOrders === 6 && c.shippedPieces === 9 && c.outForDelivery === 4 && c.stuck === 1 && c.delivered === 3 && c.returned === 1 && near(c.deliveryRate30, 75), "shipping: the counts as pushed; delivery rate over 30 days = delivered ÷ (delivered + returned) = 75%", c);
+  check(near(c.expectedRevenue, 90) && near(c.expectedShipping, 13.5) && near(c.expectedProfit, 2.35), "money: revenue 120 × 75% = 90 · shipping 6×2 + 6×25%×1 = 13.5 · profit = 90 − goods 33.75 − shipping 13.5 − ads 40.4 = 2.35", c);
+  check(c.stockUnits === 90 && near(c.stockCover, 35) && mine!.stockUrgency === null, "stock: 90 units ÷ 2.57 pieces a day (18 over the last 7 days) = 35 days — no urgency", { cover: c.stockCover, urgency: mine!.stockUrgency });
+  check(mine!.prev.ordersIn === 10 && near(mine!.prev.spend, 30.3) && near(mine!.prev.costPerOrder, 3.03), "«قارن»: the day before is the previous product-day (10 orders, 30.3$, 3.03$ a real order)", mine!.prev);
+  check(near(mine!.avg7.ordersIn, 10 / 7), "…and the 7-day average is the seven days before, scaled to one day (10 orders in 7 days)", mine!.avg7.ordersIn);
+  const tot = nums.totals.current;
+  const sumOf = (k: "ordersIn" | "shippedPieces" | "expectedProfit") => nums.products.reduce((s, p) => s + (p.current[k] ?? 0), 0);
+  check(tot.ordersIn === sumOf("ordersIn") && tot.shippedPieces === sumOf("shippedPieces") && near(tot.expectedProfit, sumOf("expectedProfit")), "the totals row is the sum of the products (orders, pieces, expected profit)", tot);
+
+  }
 
   // ── what the model gets when it is wrong ──
   const wrong = await tool("push_metrics", { rows: [] });
