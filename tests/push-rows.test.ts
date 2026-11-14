@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MetricRow, StockRow, VideoRow, checkRows, daysRunning, insightPatch, normalizeStatus, parseStart, planOrders, pushedOrderId, refuseIfPrivate, type MetricRowT } from "@/core/push-rows";
+import { MetricRow, StockRow, VideoRow, checkRows, daysRunning, insightPatch, normalizeStatus, parseStart, planOrders, productDayPatch, pushedOrderId, refuseIfPrivate, type MetricRowT } from "@/core/push-rows";
 
 const row = (x: Partial<MetricRowT> = {}): MetricRowT => ({ date: "2026-11-14", level: "ad", id: "120200000000000001", ...x });
 
@@ -25,10 +25,15 @@ describe("checkRows — what may come in (v4 · A)", () => {
     }
   });
 
-  it("does not mistake a Meta id (15–18 digits) or a campaign name for a phone", () => {
-    const { rows, problems } = checkRows([row({ id: "120210000012345678", name: "SY_TRF01_WEB_CRT_261026", parent_id: "23851234567890123", account_id: "act_000000000000001" })]);
+  it("does not mistake a Meta id (15–18 digits, even with a run of zeros) or a campaign name for a phone", () => {
+    const { rows, problems } = checkRows([row({ id: "120210000012345678", name: "SY_TRF01_WEB_CRT_261026", parent_id: "120200000000000001", account_id: "act_000000000000001" })]);
     expect(problems).toEqual([]);
     expect(rows).toHaveLength(1);
+  });
+
+  it("reads an identifier as an identifier: spaces, Arabic digits or a symbol in it are refused", () => {
+    for (const id of ["120 210", "١٢٣", "a;b", "x".repeat(65)]) expect(checkRows([row({ id })]).problems, id).toHaveLength(1);
+    expect(checkRows([row({ parent_id: "bad id" })]).problems).toHaveLength(1);
   });
 
   it("refuses a date that does not exist, and a negative number", () => {
@@ -168,5 +173,40 @@ describe("stock, videos and free text", () => {
   it("refuses a private text and passes a clean one", () => {
     expect(refuseIfPrivate("كلّم 0912345678")).toContain("انرفض");
     expect(refuseIfPrivate("طلب 4 هوكات للطنين", undefined)).toBeNull();
+  });
+});
+
+describe("a product's whole day (v4.1 «الأرقام»)", () => {
+  const day = (x: Partial<MetricRowT> = {}): MetricRowT => ({ date: "2026-11-14", level: "product", id: "TRF01", ...x });
+
+  it("takes the whole day of a product: orders, customers, the confirmation, the shipping, the money, the offers, the stock", () => {
+    const { rows, problems } = checkRows([
+      day({ orders_in: 48, unique_customers: 44, confirmed: 30, rejected: 6, cancelled: 2, waiting: 10, reject_reasons: [{ reason: "رقم غلط", count: 4 }], shipped_orders: 25, shipped_pieces: 41, out_for_delivery: 12, delivered: 9, returned: 3, stuck: 2, revenue_shipped: 610, offer_breakdown: [{ offer: "قطعة", orders: 30, pieces: 1 }, { offer: "2+هدية", orders: 18, pieces: 3, revenue: 400 }], aov: 24.5, stock_units: 380, spend: 120, pixel_purchases: 52 }),
+    ]);
+    expect(problems).toEqual([]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("keeps those fields for a product row: on an ad they are refused, and the refusal names the field", () => {
+    const { rows, problems } = checkRows([day({ level: "ad", id: "A1", orders_in: 5 }), day({ level: "campaign", id: "C1", stock_units: 4 }), day({ level: "ad", id: "A2", real_orders: 5, confirmed: 2 })]);
+    expect(rows.map((r) => r.index)).toEqual([2]);
+    expect(problems.map((p) => p.error.split(":")[0])).toEqual(["orders_in", "stock_units"]);
+  });
+
+  it("refuses a phone in an offer's name or a rejection reason", () => {
+    expect(checkRows([day({ offer_breakdown: [{ offer: "اتصل 0912345678", orders: 1 }] })]).problems).toHaveLength(1);
+    expect(checkRows([day({ reject_reasons: [{ reason: "a@b.com", count: 1 }] })]).problems).toHaveLength(1);
+  });
+
+  it("maps a row to the product's day: the longer name wins, and only what was sent is carried", () => {
+    const p = productDayPatch(day({ orders_in: 48, real_orders: 40, shipped_orders: 25, shipped: 9, delivered: 9, spend: 120, cpm: 4, pixel_purchases: 52, stock_units: 380 }))!;
+    expect(p).toMatchObject({ ordersIn: 48, shippedOrders: 25, delivered: 9, spend: 120, pixelPurchases: 52, stockUnits: 380, impressions: 30000 });
+    expect(p).not.toHaveProperty("confirmed");
+    expect(productDayPatch(day({ real_orders: 7, shipped: 3 }))).toEqual({ ordersIn: 7, shippedOrders: 3 });
+  });
+
+  it("is nothing for a row with nothing about the product's day, and for any other level", () => {
+    expect(productDayPatch(day())).toBeNull();
+    expect(productDayPatch(day({ level: "ad", id: "A1", real_orders: 3 }))).toBeNull();
   });
 });

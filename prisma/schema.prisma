@@ -970,3 +970,50 @@ model PushDevice {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
+
+/// Everything about one product on one business day (Asia/Amman) — v4.1 «الأرقام». Raw counts and amounts only, pushed by
+/// Claude on a «product» row (any field may be empty: a later push fills it, never wipes it). Every ratio on screen —
+/// rates, costs per order, the expected revenue — is computed from these by src/core/numbers.ts, never stored.
+model ProductDay {
+  id              String   @id @default(cuid())
+  productCode     String
+  date            DateTime @db.Date
+  // ads (Meta), when pushed per product
+  spend           Decimal? @db.Decimal(12, 2)
+  impressions     Int?
+  linkClicks      Int?
+  pixelPurchases  Int?
+  // orders that came in (OMS)
+  ordersIn        Int?
+  uniqueCustomers Int?
+  // the confirmation
+  confirmed       Int?
+  rejected        Int?
+  cancelled       Int?
+  /// still waiting for confirmation when it was read (a state, not a flow)
+  waiting         Int?
+  /// [{ reason, count }]
+  rejectReasons   Json?
+  // the offers: [{ offer, orders, pieces?, revenue? }]
+  offerBreakdown  Json?
+  aov             Decimal? @db.Decimal(12, 2)
+  // the shipping
+  shippedOrders   Int?
+  shippedPieces   Int?
+  /// states when it was read
+  outForDelivery  Int?
+  stuck           Int?
+  delivered       Int?
+  returned        Int?
+  // the money
+  revenueShipped  Decimal? @db.Decimal(12, 2)
+  expectedRevenue Decimal? @db.Decimal(12, 2)
+  /// units left
+  stockUnits      Int?
+  source          String   @default("mcp")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productCode, date])
+  @@index([date])
+}

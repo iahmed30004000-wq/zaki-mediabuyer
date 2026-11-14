@@ -52,7 +52,7 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     name: "push_metrics",
     title: "ابعت أرقام الإعلانات",
     description:
-      "ابعت أرقام الإعلانات والطلبات الحقيقية اللي قريتها من مدير الإعلانات والـ OMS. كل صف = عنصر (حساب/حملة/مجموعة/إعلان/منتج) بيوم. أي رقم ما ببعته بيضل متل ما هو، وإعادة البعت لنفس العنصر واليوم بتحدّث ما بتكرر. الطلبات الحقيقية (real_orders وتفاصيلها) على مستوى ad أو product بس. ممنوع أي بيانات زبون (اسم/هاتف/عنوان) — الصف بينرفض.",
+      "ابعت أرقام الإعلانات والطلبات الحقيقية اللي قريتها من مدير الإعلانات والـ OMS. كل صف = عنصر (حساب/حملة/مجموعة/إعلان/منتج) بيوم عمل عمّان. أي رقم ما ببعته بيضل متل ما هو، وإعادة البعت لنفس العنصر واليوم بتحدّث ما بتكرر. صف الإعلان: عدّاد طلباته الحقيقية (real_orders, confirmed, delivered…). صف المنتج (level=product): يوم المنتج الكامل لشاشة «الأرقام» — orders_in · unique_customers · confirmed · rejected · cancelled · waiting · reject_reasons · shipped_orders · shipped_pieces · out_for_delivery · delivered · returned · stuck · revenue_shipped · offer_breakdown · aov · stock_units (+ الصرف والـ pixel_purchases إذا عندك). الموقع بيحسب كل النسب لحاله — لا تبعت نسب. ممنوع أي بيانات زبون (اسم/هاتف/عنوان) — الصف بينرفض.",
     input: PushMetricsLoose,
     listSchema: PushMetricsAdvert,
     readOnly: false,

@@ -12,7 +12,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { parseAdName, parseAdSetName, parseCampaignName, productFromLegacyName, type ProductAlias } from "@/core/naming";
-import { PUSH_LEVELS, StockRow, VideoRow, checkRows, insightPatch, normalizeStatus, parseStart, planOrders, pushedOrderId, type MetricRowT, type PushLevel, type RowProblem } from "@/core/push-rows";
+import { PUSH_LEVELS, StockRow, VideoRow, checkRows, insightPatch, normalizeStatus, parseStart, planOrders, productDayPatch, pushedOrderId, type MetricRowT, type ProductDayPatch, type PushLevel, type RowProblem } from "@/core/push-rows";
 import { stockAlertKey, stockAlertText, stockUrgency } from "@/core/stock-alerts";
 import { readRules } from "@/core/rules-v2";
 import { db } from "./db";
@@ -31,6 +31,8 @@ export interface PushReport {
   insights: number;
   orderRows: number;
   tallies: number;
+  /** product-days written (v4.1) */
+  productDays: number;
   rejected: RowProblem[];
   warnings: string[];
 }
@@ -59,7 +61,7 @@ async function productAliases(): Promise<ProductAlias[]> {
 export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source: "mcp" | "manual"; accountId?: string; now?: Date }): Promise<PushReport> {
   const now = opts.now ?? new Date();
   const { rows, problems } = checkRows(raw);
-  const report: PushReport = { received: raw.length, applied: 0, structure: 0, insights: 0, orderRows: 0, tallies: 0, rejected: problems, warnings: [] };
+  const report: PushReport = { received: raw.length, applied: 0, structure: 0, insights: 0, orderRows: 0, tallies: 0, productDays: 0, rejected: problems, warnings: [] };
   const warn = (w: string) => !report.warnings.includes(w) && report.warnings.push(w);
 
   const [aliases, econ, window, confirmH] = await Promise.all([
@@ -85,10 +87,15 @@ export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source:
           update: { ...patch, source: opts.source },
         });
         report.insights++;
-      } else if (row.level === "product" && (row.spend !== undefined || row.impressions !== undefined)) {
-        warn("أرقام التسليم على مستوى product ما بتنحفظ — بتنحسب من الإعلانات");
       }
-      if (row.real_orders !== undefined) {
+      // a product's whole day (v4.1): the numbers of the «الأرقام» view. Its orders are ALL the product's real orders
+      // — not made into order rows, those stand for the orders tied to an ad (ad level) and would be counted twice
+      const day = productDayPatch(row);
+      if (day) {
+        await upsertProductDay(row.id, row.date, day, opts.source);
+        report.productDays++;
+      }
+      if (row.real_orders !== undefined && row.level !== "product") {
         if (oms) warn("الـ OMS مربوط — طلباته هي المصدر، فتجاهلنا أعداد الطلبات المبعوتة");
         else {
           report.orderRows += await replaceTally(row, now, econ, Number(confirmH));
@@ -106,6 +113,13 @@ export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source:
 }
 
 class ParentMissing extends Error {}
+
+/** Writes (or fills in) one product's day. What the push did not say stays as it was. */
+async function upsertProductDay(productCode: string, date: string, p: ProductDayPatch, source: string): Promise<void> {
+  const data = { ...p, rejectReasons: p.rejectReasons as Prisma.InputJsonValue | undefined, offerBreakdown: p.offerBreakdown as Prisma.InputJsonValue | undefined, source };
+  const key = { productCode, date: new Date(`${date}T00:00:00Z`) };
+  await db.productDay.upsert({ where: { productCode_date: key }, create: { ...key, ...data }, update: data });
+}
 
 /** Upserts Campaign / AdSet / Ad (or the account) from a row. True when it touched the structure. */
 async function structureOf(row: MetricRowT, defaultAccount: string | undefined, aliases: ProductAlias[]): Promise<boolean> {

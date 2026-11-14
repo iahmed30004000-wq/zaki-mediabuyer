@@ -20,17 +20,23 @@ const count = z.number().int().nonnegative().max(1_000_000_000);
 const money = z.number().nonnegative().max(1_000_000_000);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ بصيغة YYYY-MM-DD");
 const text = (max: number) => z.string().trim().min(1).max(max);
+/** An identifier (a Meta id, an account, a product code): a closed alphabet, never read as free text — a long id with a run of zeros is not a phone. */
+const ident = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_.:-]+$/, "المعرّف حروف إنجليزية وأرقام و _ . : - بس");
+
+/** One offer's line of a product's day: how many orders took it, with how many pieces each (for the upsell rate) and what they came to. */
+const OfferLine = z.object({ offer: text(80).describe("اسم العرض (مثلاً: قطعة، 2+هدية، 3 بسعر…)"), orders: count, pieces: count.optional().describe("عدد القطع بالطلب الواحد من هالعرض"), revenue: money.optional() }).strict();
+const ReasonLine = z.object({ reason: text(80), count }).strict();
 
 /** One row. Every field except the three that say «which object, which day» is optional: send what you have. */
 export const MetricRow = z
   .object({
-    date: day.describe("يوم الرقم (يوم حساب الإعلانات)، مثلاً 2026-11-14"),
+    date: day.describe("يوم الرقم — يوم العمل بتوقيت عمّان (Asia/Amman)، مثلاً 2026-11-14"),
     level: z.enum(PUSH_LEVELS).describe("مستوى الصف: account | campaign | adset | ad | product"),
-    id: text(64).describe("رقم ميتا للعنصر (act_… أو رقم الحملة/المجموعة/الإعلان)، أو رمز المنتج لما يكون المستوى product"),
+    id: ident.describe("رقم ميتا للعنصر (act_… أو رقم الحملة/المجموعة/الإعلان)، أو رمز المنتج لما يكون المستوى product"),
     hour: count.max(23).optional().describe("ساعة اللقطة (0–23) إذا الأرقام تراكمية لحد هالساعة. نفس اليوم بيتحدّث، ما بيتكرر"),
     name: text(200).optional().describe("اسم العنصر كما هو بميتا"),
-    parent_id: text(64).optional().describe("رقم الأب: المجموعة ← حملتها، الإعلان ← مجموعته، الحملة ← حسابها"),
-    account_id: text(64).optional().describe("رقم الحساب الإعلاني act_…"),
+    parent_id: ident.optional().describe("رقم الأب: المجموعة ← حملتها، الإعلان ← مجموعته، الحملة ← حسابها"),
+    account_id: ident.optional().describe("رقم الحساب الإعلاني act_…"),
     product: text(40).optional().describe("رمز المنتج (إذا ما انفهم من اسم الحملة)"),
     status: text(40).optional().describe("ACTIVE | PAUSED | …"),
     budget_daily: money.optional().describe("الميزانية اليومية بالدولار"),
@@ -50,18 +56,37 @@ export const MetricRow = z
     frequency: z.number().nonnegative().max(1000).optional(),
     cpm: money.optional().describe("إذا ما بعت impressions، بنحسبها من الصرف والـ CPM"),
     ctr: z.number().nonnegative().max(100).optional().describe("CTR الرابط بالمية — بيحسب النقرات إذا ما انبعتت"),
-    // ── الحقيقة (الـ OMS) ──
-    real_orders: count.optional().describe("الطلبات الحقيقية (هواتف فريدة) برقم هالإعلان بهاليوم — مستوى ad أو product بس"),
+    // ── الحقيقة (الـ OMS) — بالإعلان: عدّاد الطلبات المنسوبة له. بالمنتج: يوم المنتج كامل (الأرقام v4.1) ──
+    real_orders: count.optional().describe("الطلبات الحقيقية (هواتف فريدة) برقم هالإعلان أو المنتج بهاليوم — مستوى ad أو product بس"),
     confirmed: count.optional().describe("منها المؤكد"),
-    mature_orders: count.optional().describe("منها الناضج (مرّ عليه 24 ساعة)"),
+    mature_orders: count.optional().describe("منها الناضج (مرّ عليه 24 ساعة) — للإعلان"),
     shipped: count.optional(),
     delivered: count.optional(),
     returned: count.optional(),
     collected: money.optional().describe("المحصّل بالدولار من المُسلَّم"),
     channel: z.enum(["website", "whatsapp", "messenger"]).optional().describe("قناة الطلبات (الافتراضي website)"),
+    // ── يوم المنتج (v4.1 «الأرقام») — مستوى product بس ──
+    orders_in: count.optional().describe("طلبات الموقع الحقيقية اللي إجت بهاليوم (نفس real_orders)"),
+    unique_customers: count.optional().describe("هواتف فريدة من الطلبات — الفرق عن orders_in هو التكرار المحذوف"),
+    rejected: count.optional().describe("المرفوض بهاليوم"),
+    cancelled: count.optional().describe("الملغي بهاليوم"),
+    waiting: count.optional().describe("لسا بانتظار التأكيد (حالة وقت القراءة)"),
+    reject_reasons: z.array(ReasonLine).max(8).optional().describe("أكتر أسباب الرفض: [{reason, count}]"),
+    shipped_orders: count.optional().describe("الطلبات اللي انشحنت بهاليوم"),
+    shipped_pieces: count.optional().describe("مجموع الكمية (quantity) للطلبات اللي انشحنت بهاليوم"),
+    out_for_delivery: count.optional().describe("خارجة للتوصيل (حالة وقت القراءة)"),
+    stuck: count.optional().describe("عالقة أكتر من 7 أيام (حالة وقت القراءة)"),
+    revenue_shipped: money.optional().describe("مجموع totalAmount للطلبات اللي انشحنت بهاليوم"),
+    expected_revenue: money.optional().describe("إذا حسبتها عندك (الموقع بيحسب لحاله من revenue_shipped ونسبة التسليم)"),
+    offer_breakdown: z.array(OfferLine).max(12).optional().describe("الطلبات لكل عرض: [{offer, orders, pieces?, revenue?}]"),
+    aov: money.optional().describe("متوسط قيمة الطلب بهاليوم"),
+    stock_units: count.optional().describe("القطع الباقية بالمخزون"),
   })
   .strict();
 export type MetricRowT = z.infer<typeof MetricRow>;
+
+/** Fields that describe a whole product's day: they only make sense on a «product» row. */
+export const PRODUCT_DAY_ONLY = ["orders_in", "unique_customers", "rejected", "cancelled", "waiting", "reject_reasons", "shipped_orders", "shipped_pieces", "out_for_delivery", "stuck", "revenue_shipped", "expected_revenue", "offer_breakdown", "aov", "stock_units"] as const;
 
 export interface RowProblem {
   index: number;
@@ -78,7 +103,8 @@ export function checkRows(raw: unknown[]): { rows: { index: number; row: MetricR
       problems.push({ index, error: p.error.issues.map((i) => `${i.path.join(".") || "الصف"}: ${i.message}`).join(" · ").slice(0, 300) });
       return;
     }
-    const hits = privacyHits([p.data.name, p.data.product, p.data.status, p.data.parent_id, p.data.account_id].filter(Boolean).join(" \n "));
+    // the free-text fields only: the identifiers have their own closed alphabet (above)
+    const hits = privacyHits([p.data.name, p.data.product, p.data.status, ...(p.data.offer_breakdown ?? []).map((o) => o.offer), ...(p.data.reject_reasons ?? []).map((x) => x.reason)].filter(Boolean).join(" \n "));
     if (hits.length) {
       problems.push({ index, error: `انرفض: النص فيه ${hits.map((h) => ({ phone: "رقم هاتف", email: "إيميل", token: "مفتاح" })[h]).join(" و")} — ما بيدخل بيانات زبون ولا مفاتيح` });
       return;
@@ -90,6 +116,11 @@ export function checkRows(raw: unknown[]): { rows: { index: number; row: MetricR
     }
     if (p.data.real_orders !== undefined && p.data.level !== "ad" && p.data.level !== "product") {
       problems.push({ index, error: "real_orders: الطلبات الحقيقية بتنبعت على مستوى ad أو product بس" });
+      return;
+    }
+    const misplaced = PRODUCT_DAY_ONLY.find((k) => p.data[k] !== undefined);
+    if (misplaced && p.data.level !== "product") {
+      problems.push({ index, error: `${misplaced}: هالحقل لليوم الكامل للمنتج — ابعته بصف مستواه product` });
       return;
     }
     rows.push({ index, row: p.data });
@@ -241,4 +272,65 @@ export type VideoRowT = z.infer<typeof VideoRow>;
 export function refuseIfPrivate(...texts: (string | undefined | null)[]): string | null {
   const hits = privacyHits(texts.filter(Boolean).join(" \n "));
   return hits.length ? `انرفض: النص فيه ${hits.map((h) => ({ phone: "رقم هاتف", email: "إيميل", token: "مفتاح" })[h]).join(" و")} — ما بيدخل بيانات زبون ولا مفاتيح` : null;
+}
+
+// ───────────────────────────── a product's whole day (v4.1 «الأرقام») ─────────────────────────────
+
+/** The ProductDay columns a «product» row carries — only what was sent, so a later push never wipes what an earlier one said. */
+export interface ProductDayPatch {
+  spend?: number;
+  impressions?: number;
+  linkClicks?: number;
+  pixelPurchases?: number;
+  ordersIn?: number;
+  uniqueCustomers?: number;
+  confirmed?: number;
+  rejected?: number;
+  cancelled?: number;
+  waiting?: number;
+  rejectReasons?: { reason: string; count: number }[];
+  offerBreakdown?: { offer: string; orders: number; pieces?: number; revenue?: number }[];
+  aov?: number;
+  shippedOrders?: number;
+  shippedPieces?: number;
+  outForDelivery?: number;
+  delivered?: number;
+  returned?: number;
+  stuck?: number;
+  revenueShipped?: number;
+  expectedRevenue?: number;
+  stockUnits?: number;
+}
+
+/** `orders_in` and `real_orders` are the same number said two ways; `shipped_orders` and `shipped` too — the longer name wins. */
+export function productDayPatch(r: MetricRowT): ProductDayPatch | null {
+  if (r.level !== "product") return null;
+  const ads = insightPatch(r);
+  const p: ProductDayPatch = {};
+  const put = <K extends keyof ProductDayPatch>(k: K, v: ProductDayPatch[K] | undefined) => {
+    if (v !== undefined) p[k] = v;
+  };
+  put("spend", ads?.spend);
+  put("impressions", ads?.impressions);
+  put("linkClicks", ads?.linkClicks);
+  put("pixelPurchases", ads?.purchases);
+  put("ordersIn", r.orders_in ?? r.real_orders);
+  put("uniqueCustomers", r.unique_customers);
+  put("confirmed", r.confirmed);
+  put("rejected", r.rejected);
+  put("cancelled", r.cancelled);
+  put("waiting", r.waiting);
+  put("rejectReasons", r.reject_reasons);
+  put("offerBreakdown", r.offer_breakdown);
+  put("aov", r.aov);
+  put("shippedOrders", r.shipped_orders ?? r.shipped);
+  put("shippedPieces", r.shipped_pieces);
+  put("outForDelivery", r.out_for_delivery);
+  put("delivered", r.delivered);
+  put("returned", r.returned);
+  put("stuck", r.stuck);
+  put("revenueShipped", r.revenue_shipped);
+  put("expectedRevenue", r.expected_revenue);
+  put("stockUnits", r.stock_units);
+  return Object.keys(p).length ? p : null;
 }
