@@ -40,7 +40,7 @@ self.addEventListener("fetch", (e) => {
           if (res.ok && !res.redirected) caches.open(PAGES).then((c) => c.put(req, res.clone()));
           return res;
         })
-        .catch(async () => (await caches.match(req)) || (await caches.match("/reports")) || (await caches.match("/offline"))),
+        .catch(async () => (await caches.match(req)) || (await caches.match("/done?tab=reports")) || (await caches.match("/offline"))),
     );
   }
 });

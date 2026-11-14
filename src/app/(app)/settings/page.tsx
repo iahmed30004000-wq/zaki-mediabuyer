@@ -10,8 +10,11 @@ import { loadAudit, loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { CapsEditor, LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
 import { currentCaller } from "@/server/auth";
 import { ImportPanel } from "@/components/settings/import-panel";
+import { GuideBody } from "@/components/pages/guide-body";
+import { RulesTable } from "@/components/pages/rules-table";
+import { SetupChecklist } from "@/components/setup/setup-checklist";
 import { fmt } from "@/lib/format";
-import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
+import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SETUP_STEPS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "الإعدادات" };
@@ -24,6 +27,7 @@ const GROUPS = [
   { id: "agents", label: "الوكلاء" },
   { id: "import", label: "الاستيراد والتصدير" },
   { id: "team", label: "الفريق والتدقيق" },
+  { id: "guide", label: "الدليل" },
   { id: "look", label: "المظهر" },
 ];
 
@@ -52,7 +56,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         ))}
       </nav>
 
-      <Section title="الربط" hint="المفاتيح بملف .env على الجهاز بس — ولا مرة بالموقع ولا بالمحادثة">
+      <Section title="الربط" hint="المفاتيح بـ Coolify أو ملف .env بس — ولا مرة بالموقع ولا بالمحادثة">
+        <div id="setup" className="scroll-mt-24">
+          <SetupChecklist steps={SETUP_STEPS} embedded />
+        </div>
         <div id="connections" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
           {(edit?.links ?? SOURCES).map((s) => (
             <Panel key={s.key} className="flex items-center gap-3">
@@ -62,7 +69,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
                 <p className="text-xs text-fg-muted">{s.detail}</p>
               </div>
               {s.state === "off" ? (
-                <Link href="/setup" className="inline-flex items-center gap-1 text-xs font-medium text-accent">
+                <Link href="#setup" className="inline-flex items-center gap-1 text-xs font-medium text-accent">
                   اربط <ArrowLeft className="size-3.5" />
                 </Link>
               ) : null}
@@ -140,7 +147,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         )}
       </Section>
 
-      <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي">
+      <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي" tour="rules">
         <div id="rules" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
           {real
             ? real.levels.map((a) => (
@@ -169,6 +176,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
                 </Panel>
               ))}
         </div>
+        <RulesTable />
       </Section>
 
       <Section title="الوكلاء" hint="بيفسّروا وبيكتبوا بس — ما حدا منهم بيلمس ميتا ولا بيشوف بيانات زبون">
@@ -230,6 +238,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
             الفريق والسجل بيبيّنوا لما يشتغل الموقع على البيانات الحقيقية (مش التجريبية).
           </Panel>
         )}
+      </Section>
+
+      <Section title="الدليل" hint="الأماكن، الأسئلة اللي بتتكرر، وكل رقم من وين — والمساعد بيشرح أي شاشة">
+        <div id="guide" className="scroll-mt-24">
+          <GuideBody />
+        </div>
       </Section>
 
       <Section title="المظهر" hint="أربع ثيمات للميديا باير — بتتبدّل فوراً">

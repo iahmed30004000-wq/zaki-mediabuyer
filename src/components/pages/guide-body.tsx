@@ -5,24 +5,22 @@ import { GLOSSARY, SOURCE_AR } from "@/lib/glossary";
 import { ARTICLES, PAGE_GUIDE } from "@/lib/guide";
 import { PLACES } from "@/lib/nav";
 
-export const metadata = { title: "الدليل" };
-
-/** «الدليل»: the five places in one line each, the short articles, and every number's formula in one table. */
-export default function GuidePage() {
+/** «الدليل» — it lives in الإعدادات now; the assistant's «اشرح لي هالشاشة» opens the page's own part of it. */
+export function GuideBody() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
         <ArtSlot slot="guide-welcome" className="max-h-40 w-auto rounded-2xl" />
         <div>
-          <h2 className="text-xl font-bold text-fg">أهلين بالميديا باير</h2>
+          <h3 className="text-lg font-bold text-fg">أهلين بالميديا باير</h3>
           <p className="mt-1 max-w-prose text-sm leading-6 text-fg-muted">
-            النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. خمس أماكن بس، وكل صفحة فيها زر «؟» بيشرحها وبيفرجيك.
+            النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. سبع أماكن بس، وبكل صفحة زر «؟» بيشرحها وبيفرجيك، والمساعد (الزر العائم) بيشرح أي شاشة بضغطة.
           </p>
         </div>
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-base font-bold text-fg">الأماكن الخمسة</h2>
+        <h3 className="text-base font-bold text-fg">الأماكن السبعة</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {PLACES.map((p) => (
             <Link key={p.key} href={p.href} className="rounded-card border border-border bg-surface-1 p-4 shadow-card hover:border-accent/50">
@@ -37,7 +35,7 @@ export default function GuidePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-bold text-fg">أسئلة بتتكرر</h2>
+        <h3 className="text-base font-bold text-fg">أسئلة بتتكرر</h3>
         <div className="grid gap-3 md:grid-cols-2">
           {ARTICLES.map((a) => (
             <details key={a.slug} id={a.slug} className="group rounded-card border border-border bg-surface-1 p-4 shadow-card">
@@ -52,7 +50,7 @@ export default function GuidePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-bold text-fg">كل رقم من وين</h2>
+        <h3 className="text-base font-bold text-fg">كل رقم من وين</h3>
         <Panel className="overflow-x-auto p-0">
           <table className="w-full min-w-[34rem] text-sm">
             <tbody className="divide-y divide-border">

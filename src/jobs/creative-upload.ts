@@ -45,7 +45,7 @@ export async function uploadReadyCreatives(limit = 10) {
       const next = attempts + 1;
       const notes = `${(a.notes ?? "").replace(/\s*upload_attempts=\d+/, "")} upload_attempts=${next}`.trim();
       await db.creativeAsset.update({ where: { id: a.id }, data: { notes, ...(next >= MAX_ATTEMPTS ? { status: "dead" } : {}) } });
-      if (next >= MAX_ATTEMPTS) await db.alert.create({ data: { kind: "creative.upload_dead", tone: "warn", text: `${a.crCode} ما انرفع لميتا بعد ${MAX_ATTEMPTS} محاولات: ${String(e).slice(0, 160)}`, href: "/creatives" } });
+      if (next >= MAX_ATTEMPTS) await db.alert.create({ data: { kind: "creative.upload_dead", tone: "warn", text: `${a.crCode} ما انرفع لميتا بعد ${MAX_ATTEMPTS} محاولات: ${String(e).slice(0, 160)}`, href: "/videos" } });
     }
   }
   return stats;

@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen } from "lucide-react";
 import { MediaBuyerMark } from "@/components/logo";
 import { ThemeDecor } from "@/components/theme/theme-decor";
 import { PLACES, placeOf } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-/** The navigation from the `md` breakpoint up: the mark on the decorated header, the five places, the settings, the guide. */
+/** The navigation from the `md` breakpoint up: the mark on the decorated header and the seven places. */
 export function Sidebar() {
   const current = placeOf(usePathname() ?? "/");
   return (
@@ -41,12 +40,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-border p-3">
-        <Link href="/guide" className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg">
-          <BookOpen className="size-[18px]" />
-          الدليل
-        </Link>
-      </div>
     </aside>
   );
 }

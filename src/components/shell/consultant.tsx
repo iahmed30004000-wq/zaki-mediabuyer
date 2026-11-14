@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { MessageCircleQuestion, Send } from "lucide-react";
+import Link from "next/link";
+import { CircleHelp, MessageCircleQuestion, Play, Send } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PAGE_GUIDE } from "@/lib/guide";
 import { placeOf } from "@/lib/nav";
+import { runTour } from "./page-help";
 
 /** Fired by the header button on phones. */
 export const CONSULTANT_EVENT = "mb:consultant";
@@ -12,9 +15,10 @@ export const CONSULTANT_EVENT = "mb:consultant";
 const STARTERS: Record<string, string[]> = {
   today: ["ليش وقف CR00174؟", "كم باقي من سقف اليوم؟"],
   ads: ["أي منتج رابح فعلاً هالأسبوع؟", "ليش في فرق بين ميتا والحقيقة بحملة الكمأة؟"],
-  creatives: ["أي هوك بيجيب أرخص مؤكد؟", "شو البديل الآمن لـ «يشفي»؟"],
-  decisions: ["إذا وافقت على الزيادة، كم بيصير صرف اليوم؟"],
-  reports: ["لخّصلي الأسبوع بتلات أسطر"],
+  videos: ["أي هوك بيجيب أرخص مؤكد؟", "شو البديل الآمن لـ «يشفي»؟"],
+  tasks: ["إذا وافقت على الزيادة، كم بيصير صرف اليوم؟"],
+  workflow: ["شو آخر تشغيل خلص، وشو لسا ما اشتغل؟"],
+  done: ["لخّصلي الأسبوع بتلات أسطر"],
   settings: ["شو الفرق بين المستوى 1 و 2؟"],
 };
 
@@ -26,8 +30,14 @@ export function Consultant() {
   const place = placeOf(usePathname() ?? "/");
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [log, setLog] = useState<{ me: boolean; text: string; facts?: string[]; by?: string; drafted?: string }[]>([]);
+  const [log, setLog] = useState<{ me: boolean; text: string; facts?: string[]; by?: string; drafted?: string; tour?: boolean }[]>([]);
   const [busy, setBusy] = useState(false);
+
+  /** «اشرح لي هالشاشة» (it replaced the guide page): this place's own explanation, from the guide — no model, no numbers. */
+  const explain = () => {
+    const g = PAGE_GUIDE[place.key];
+    setLog((l) => [...l, { me: true, text: "اشرح لي هالشاشة" }, { me: false, text: `${g.what}\n\nالخطوة الجاية: ${g.next}`, by: "guide", tour: true }]);
+  };
 
   // On a phone the button lives in the page header (no floating button over the content): it sends this event.
   useEffect(() => {
@@ -69,6 +79,10 @@ export function Consultant() {
             <SheetDescription>بيفهم إنك هلأ بـ «{place.label}». بيشرح وبيجهّز مسودات، وما بيلمس ميتا.</SheetDescription>
           </SheetHeader>
           <SheetBody className="space-y-3">
+            <button type="button" onClick={explain} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 text-sm font-medium text-accent hover:bg-accent/10">
+              <CircleHelp className="size-4" />
+              اشرح لي هالشاشة
+            </button>
             {log.length === 0 ? (
               <div className="flex flex-wrap gap-2">
                 {(STARTERS[place.key] ?? []).map((s) => (
@@ -81,16 +95,34 @@ export function Consultant() {
               log.map((m, i) => (
                 <div key={i} className={m.me ? "ms-8 rounded-xl bg-accent px-3 py-2 text-sm text-accent-fg" : "me-8 space-y-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-fg"}>
                   <p className="whitespace-pre-wrap">{m.text}</p>
+                  {m.tour ? (
+                    <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-accent">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false);
+                          setTimeout(() => void runTour(place.key), 250);
+                        }}
+                        className="inline-flex items-center gap-1 hover:underline"
+                      >
+                        <Play className="size-3.5" />
+                        فرجيني
+                      </button>
+                      <Link href="/settings#guide" onClick={() => setOpen(false)} className="hover:underline">
+                        الدليل والمصطلحات
+                      </Link>
+                    </div>
+                  ) : null}
                   {!m.me && m.by === "agent" && /بقترح|اقتراح|وقّف|وقف|خفّض|كبّر/.test(m.text) ? (
                     m.drafted ? (
-                      <a href="/decisions" className="block text-xs font-medium text-accent">{m.drafted}</a>
+                      <a href="/tasks" className="block text-xs font-medium text-accent">{m.drafted}</a>
                     ) : (
                       <button
                         type="button"
                         onClick={async () => {
                           const r = await fetch("/api/agents/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: m.text }) });
                           const j = (await r.json()) as { ok?: boolean; error?: string; items?: number; refused?: string[] };
-                          setLog((l) => l.map((x, n) => (n === i ? { ...x, drafted: r.ok ? `انعملت مسودة (${j.items ?? 0} تغيير) — بانتظارك بـ «القرارات»${j.refused?.length ? ` · انشال: ${j.refused.join("، ")}` : ""}` : j.error ?? "ما زبط" } : x)));
+                          setLog((l) => l.map((x, n) => (n === i ? { ...x, drafted: r.ok ? `انعملت مسودة (${j.items ?? 0} تغيير) — بانتظارك بـ «المهام»${j.refused?.length ? ` · انشال: ${j.refused.join("، ")}` : ""}` : j.error ?? "ما زبط" } : x)));
                         }}
                         className="text-xs font-medium text-accent hover:underline"
                       >

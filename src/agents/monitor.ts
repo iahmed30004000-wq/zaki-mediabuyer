@@ -19,7 +19,7 @@ export async function explainSafety(changeSetId: string, facts: string[]): Promi
     ], Note);
     await audit({ type: "agent", id: "M01" }, "change.explain", { type: "changeset", id: changeSetId }, { after: n });
     if (n.needs_human_now || !n.action_ok) {
-      await db.alert.create({ data: { kind: "agent.M01", tone: "warn", text: `المراقب: ${n.note}${n.action_ok ? "" : " — شكّ إنه القرار بمحله، راجعه"}`, href: "/decisions" } });
+      await db.alert.create({ data: { kind: "agent.M01", tone: "warn", text: `المراقب: ${n.note}${n.action_ok ? "" : " — شكّ إنه القرار بمحله، راجعه"}`, href: "/tasks" } });
     }
     return n;
   } catch (e) {

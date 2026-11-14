@@ -45,7 +45,7 @@ export default async function TodayPage() {
             <p className="text-xs text-fg-muted">{date} · {pending.length ? `${pending.length} قرار بانتظارك` : "ما في شي بانتظارك"}</p>
           </div>
           {done < SETUP_STEPS.length ? (
-            <Link href="/setup" className="zk-scrim ms-auto inline-flex min-h-11 items-center gap-2 rounded-xl border border-accent/40 px-3 text-sm font-medium text-accent hover:bg-accent/10">
+            <Link href="/settings#setup" className="zk-scrim ms-auto inline-flex min-h-11 items-center gap-2 rounded-xl border border-accent/40 px-3 text-sm font-medium text-accent hover:bg-accent/10">
               <Sparkles className="size-4" />
               جهّز النظام · {done} من {SETUP_STEPS.length}
               <ArrowLeft className="size-4" />
@@ -91,7 +91,7 @@ export default async function TodayPage() {
       </Section>
 
       {/* 2 — what waits for the owner */}
-      <Section title="بانتظار موافقتك" hint={pending.length ? `لو وافقت على الكل: ${pendingDelta > 0 ? "+" : ""}${fmt(pendingDelta, "$", 0)} باليوم` : undefined} tour="approvals" link={{ href: "/decisions", label: "كل القرارات" }}>
+      <Section title="بانتظار موافقتك" hint={pending.length ? `لو وافقت على الكل: ${pendingDelta > 0 ? "+" : ""}${fmt(pendingDelta, "$", 0)} باليوم` : undefined} tour="approvals" link={{ href: "/tasks", label: "كل القرارات" }}>
         {pending.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {pending.map((c) => (

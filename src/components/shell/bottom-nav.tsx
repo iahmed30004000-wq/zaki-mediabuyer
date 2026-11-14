@@ -3,12 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PLACES, placeOf } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-/** The phone's bottom bar (spec 18.5): four places and «المزيد» (reports, settings, guide). */
+/** The phone's bottom bar (spec 18.5): four places and «المزيد» (the other three). */
 export function BottomNav() {
   const current = placeOf(usePathname() ?? "/");
   const [more, setMore] = useState(false);
@@ -41,7 +41,7 @@ export function BottomNav() {
             <SheetTitle>المزيد</SheetTitle>
           </SheetHeader>
           <SheetBody className="space-y-1">
-            {[...rest.map((p) => ({ href: p.href, label: p.label, Icon: p.icon })), { href: "/guide", label: "الدليل", Icon: BookOpen }].map(({ href, label, Icon }) => (
+            {rest.map((p) => ({ href: p.href, label: p.label, Icon: p.icon })).map(({ href, label, Icon }) => (
               <Link key={href} href={href} onClick={() => setMore(false)} className="flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm text-fg hover:bg-surface-2">
                 <Icon className="size-5 text-fg-muted" />
                 {label}

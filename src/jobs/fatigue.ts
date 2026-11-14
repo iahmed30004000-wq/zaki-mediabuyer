@@ -57,7 +57,7 @@ export async function runFatigue(now = new Date()) {
         },
       },
     });
-    await db.alert.create({ data: { kind: "creative.fatigue", tone: "warn", text: `${ad.creativeCode} تعب (${v.reasons.join(" · ")}) — ما وقف، وطلبت 4 هوكات جديدة على نفس الجسم من الاستديو`, href: "/creatives" } });
+    await db.alert.create({ data: { kind: "creative.fatigue", tone: "warn", text: `${ad.creativeCode} تعب (${v.reasons.join(" · ")}) — ما وقف، وطلبت 4 هوكات جديدة على نفس الجسم من الاستديو`, href: "/videos" } });
     stats.requests++;
   }
   return stats;

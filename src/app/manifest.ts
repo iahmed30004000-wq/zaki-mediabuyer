@@ -20,8 +20,8 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
-      { name: "بانتظاري", url: "/decisions", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "آخر تقرير", url: "/reports", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "بانتظاري", url: "/tasks", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "آخر تقرير", url: "/done?tab=reports", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }
