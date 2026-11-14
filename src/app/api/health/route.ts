@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { encryptionKeyConfigured } from "@/server/crypto";
+import { omsLinked } from "@/server/env";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function GET() {
     encryption: encryptionKeyConfigured(),
     links: {
       meta: has("META_SYSTEM_USER_TOKEN"),
-      oms: has("OMS_BASE_URL") && has("OMS_TOKEN"),
+      oms: omsLinked(),
       telegram: has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_OWNER_CHAT_ID"),
       drive: has("GOOGLE_SERVICE_ACCOUNT_JSON"),
       studioDrive: has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_STUDIO_FOLDER_ID"),

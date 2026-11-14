@@ -17,7 +17,9 @@ const MAX_ATTEMPTS = 3;
 
 export async function enqueueCapi(now = new Date()) {
   const purchaseOn = String(await getSetting("capi.purchase_on")) === "delivered" ? "delivered" : "confirmed";
-  const orders = await db.attributedOrder.findMany({ where: { updatedAt: { gte: new Date(now.getTime() - 8 * DAY) }, isFake: false } });
+  // method «mcp» = order rows made from a tally Claude pushed: they stand for orders the OMS has not been asked about, so no
+  // conversion event is ever sent for them (src/server/push.ts)
+  const orders = await db.attributedOrder.findMany({ where: { updatedAt: { gte: new Date(now.getTime() - 8 * DAY) }, isFake: false, method: { not: "mcp" } } });
   const rows = orders.flatMap((o) =>
     eventsOf({ omsOrderId: o.omsOrderId, confirmedAt: o.confirmedAt, shippedAt: o.shippedAt, deliveredAt: o.deliveredAt, returnedAt: o.returnedAt, canceledAt: o.canceledAt, orderValue: Number(o.orderValue), collected: o.collected === null ? null : Number(o.collected), isFake: o.isFake }, purchaseOn).map((e) => {
       const s = sendable(e.eventTime, now);

@@ -3,6 +3,7 @@
  * agent's spend today against its cap. In demo mode the screen keeps its demo rows (null here).
  */
 import { db } from "@/server/db";
+import { omsLinked } from "@/server/env";
 import { getSetting } from "@/server/settings";
 import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { accountRestricted } from "@/jobs/account-safety";
@@ -107,7 +108,7 @@ export async function loadEditView(): Promise<EditView | null> {
   const { modelConnected } = await import("@/gateway");
   const links: SourceHealth[] = [
     link("meta", "ميتا", has("META_SYSTEM_USER_TOKEN"), await lastSuccess("meta.sync"), 90, "سحب"),
-    link("oms", "الـ OMS", has("OMS_BASE_URL") && has("OMS_TOKEN"), await lastSuccess("oms.sync"), 120, "مزامنة"),
+    link("oms", "الـ OMS", omsLinked(), await lastSuccess("oms.sync"), 120, "مزامنة"),
     link("telegram", "تيليجرام", has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_OWNER_CHAT_ID"), lastTelegram, 26 * 60, "تقرير انبعت"),
     link("drive", "Google Drive", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTS_FOLDER_ID"), await lastSuccess("creative.intake"), 60, "فحص للوارد"),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },

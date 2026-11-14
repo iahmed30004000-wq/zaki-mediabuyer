@@ -29,7 +29,8 @@
     "db:restore": "tsx --env-file-if-exists=.env scripts/db-restore.ts",
     "check:backup": "tsx --env-file=.env scripts/backup-restore-check.ts",
     "check:full": "tsx --env-file=.env scripts/full-check.ts",
-    "demo:agents": "tsx --env-file=.env scripts/demo-agents.ts"
+    "demo:agents": "tsx --env-file=.env scripts/demo-agents.ts",
+    "demo:mcp": "tsx --env-file=.env scripts/demo-mcp.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

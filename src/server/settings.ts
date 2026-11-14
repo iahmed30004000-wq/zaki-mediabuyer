@@ -4,6 +4,8 @@
  * 6.5) and are used until the owner changes a value.
  */
 import type { Prisma } from "@prisma/client";
+import { DEFAULT_MODE, type NightPermission, type OwnerMode } from "@/core/mode";
+import { DEFAULT_RULES, type CampaignRules } from "@/core/rules-v2";
 import { db } from "./db";
 import { audit } from "./audit";
 
@@ -38,6 +40,15 @@ export const DEFAULT_SETTINGS = {
   "pages.codes": { SP: "صحة بلس", VP: "فيتا فارما", AJ: "أسرار الجمال" },
   /** the landing pages of each product (LP1 · LP2 …) — the launch wizard fills the link from here */
   "landing.pages": [] as { productCode: string; lpCode: string; url: string }[],
+  /** v4 · D — the owner's awake / asleep switch (src/core/mode.ts) and what may run, and wake him, while he sleeps */
+  "owner.mode": DEFAULT_MODE as OwnerMode,
+  "owner.night_permissions": [] as NightPermission[],
+  /** kinds of decision that may ring him while he sleeps («يصحّيني») */
+  "owner.wake_kinds": [] as string[],
+  /** v4 · F — the campaign rules v2 (src/core/rules-v2.ts): no amount of money until the owner types it */
+  "campaign.rules": DEFAULT_RULES as CampaignRules,
+  /** who gets which alert: a person's key → the Telegram chat id to reach them on (the owner's is TELEGRAM_OWNER_CHAT_ID) */
+  "notify.contacts": {} as Record<string, string>,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;

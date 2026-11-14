@@ -5,6 +5,7 @@
  * message. Info alerts stay on the site. Without Telegram linked, nothing is sent and nothing is lost.
  */
 import { db } from "@/server/db";
+import { omsLinked } from "@/server/env";
 import { detect, reading, telegramText, type AlertFacts, type Signal } from "@/core/alerts";
 import { lastSuccess } from "./runner";
 import { sendTelegram, type TelegramOptions } from "@/adapters/telegram";
@@ -40,7 +41,7 @@ export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
     impressionsToday,
     cpm7: week.filter((d) => (d._sum.impressions ?? 0) >= 1000).map((d) => (Number(d._sum.spend) / (d._sum.impressions ?? 1)) * 1000),
     metaLinked: Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim()),
-    omsLinked: Boolean(process.env.OMS_BASE_URL?.trim() && process.env.OMS_TOKEN?.trim()),
+    omsLinked: omsLinked(),
     metaAgeHours: metaAt ? (now.getTime() - metaAt.getTime()) / 3_600_000 : null,
     omsAgeHours: omsAt ? (now.getTime() - omsAt.getTime()) / 3_600_000 : null,
     attributedPct: attr ? ((JSON.parse(attr.text) as { attributed_pct?: number | null }).attributed_pct ?? null) : null,
