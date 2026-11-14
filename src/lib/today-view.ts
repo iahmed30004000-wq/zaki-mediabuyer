@@ -223,3 +223,10 @@ async function morningOf(now: Date, awake: boolean): Promise<MorningCard | null>
     executed,
   };
 }
+
+/** Just the «صباح الخير» card — for the page's header, whichever tab is open. */
+export async function loadMorning(now = new Date()): Promise<MorningCard | null> {
+  if (process.env.MOCK_MODE === "1") return null;
+  const mode = await currentMode(now);
+  return morningOf(now, mode.mode === "awake");
+}

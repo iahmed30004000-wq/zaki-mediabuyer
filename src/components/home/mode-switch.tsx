@@ -51,7 +51,7 @@ export function ModeSwitch({ initial, demo }: { initial: ModeLite; demo: boolean
       aria-checked={m.mode === key}
       disabled={busy}
       onClick={() => set(key)}
-      className={cn("flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl text-base font-semibold transition-colors", m.mode === key ? (key === "awake" ? "bg-accent text-accent-fg shadow-card" : "bg-fg text-surface shadow-card") : "text-fg-muted hover:text-fg")}
+      className={cn("flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors sm:min-h-14 sm:text-base", m.mode === key ? (key === "awake" ? "bg-accent text-accent-fg shadow-card" : "bg-fg text-surface shadow-card") : "text-fg-muted hover:text-fg")}
     >
       <Icon className="size-5" />
       {label}
