@@ -258,7 +258,8 @@ function demoNumbers(range: Range): NumbersData {
     { code: "TIN01", name: "قطرة طنين الأذن", ctx: { fx, deliveryRate: 0.7, econ: { unitCost: 2.6, deliveryFee: 2.5, returnFee: 1 }, piecesPerDay: 14 } as Ctx, raw: { metaSpend: 64, impressions: 15_000, linkClicks: 270, pixelPurchases: 19, ordersIn: 11, uniqueCustomers: 11, confirmed: 7, rejected: 3, cancelled: 0, waiting: 1, shippedOrders: 9, shippedPieces: 10, delivered: 4, returned: 2, outForDelivery: 5, stuck: 0, revenueShipped: 160, aovRevenue: 198, aovOrders: 11, stockUnits: 60, offers: [{ offer: "قطعة", orders: 11, pieces: 1 }], rejectReasons: [{ reason: "سعر", count: 2 }] } as Partial<Raw> },
   ];
   const sets = (scale: number) => demo.map((p) => ({ raw: mk(scale, p.raw), set: computeSet(mk(scale, p.raw), p.ctx), piecesPerDay: p.ctx.piecesPerDay }));
-  const [cur, prev, avg] = [sets(1), sets(1.06), sets(0.97)];
+  // the flows of a longer range are that many days' worth (the states — waiting, stock — stay as they are)
+  const [cur, prev, avg] = [sets(range.days), sets(1.06 * range.days), sets(0.97 * range.days)];
   const products: ProductNumbers[] = demo.map((p, i) => ({
     code: p.code, name: p.name, current: cur[i]!.set, prev: prev[i]!.set, avg7: avg[i]!.set, rejectReasons: topReasons(cur[i]!.raw.rejectReasons, 3), offers: cur[i]!.raw.offers,
     breakeven: breakevenOf(rules, p.code), stockUrgency: coverUrgency(cur[i]!.set.stockCover, rules.stock), hasData: true,
