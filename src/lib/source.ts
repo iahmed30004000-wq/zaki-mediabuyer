@@ -16,6 +16,14 @@ function statusOf(meta: string, learning?: string | null): RowStatus {
   return "active";
 }
 
+/** A product's economics row as the calculator reads it. */
+export function toProduct(p: { productCode: string; name: string; market: string; price: unknown; unitCost: unknown; deliveryFee: unknown; returnFee: unknown; codFeePct: unknown; confirmCost: unknown; stockDays: number | null; source: string }): Product {
+  return {
+    code: p.productCode, name: p.name, market: p.market as Product["market"], price: Number(p.price), unitCost: Number(p.unitCost), delivery: Number(p.deliveryFee),
+    returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: p.source === "actual" ? 50 : 0,
+  };
+}
+
 export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> {
   if (process.env.MOCK_MODE === "1") return DEMO;
   const since = new Date(now.getTime() - days * 86_400_000);
@@ -28,10 +36,7 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
     db.attributedOrder.findMany({ where: { createdAtOms: { gte: since }, isFake: false, adId: { not: null } }, select: { adId: true, status: true, matureAt: true, channel: true } }),
   ]);
 
-  const products: Product[] = econ.map((p) => ({
-    code: p.productCode, name: p.name, market: p.market as Product["market"], price: Number(p.price), unitCost: Number(p.unitCost), delivery: Number(p.deliveryFee),
-    returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: p.source === "actual" ? 50 : 0,
-  }));
+  const products: Product[] = econ.map(toProduct);
 
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);

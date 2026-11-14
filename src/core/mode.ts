@@ -8,6 +8,7 @@
  * The switch can follow a schedule (awake 10:00, asleep 02:00): then the clock decides and the manual value is the fallback.
  */
 import { z } from "zod";
+import { nextRuns } from "./cron";
 
 const hm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "الوقت بصيغة HH:MM");
 
@@ -15,6 +16,8 @@ export const OwnerModeSchema = z
   .object({
     mode: z.enum(["awake", "asleep"]),
     since: z.string().nullable(),
+    /** when he last went to sleep — kept after he wakes, so the «صباح الخير» card covers the night */
+    asleepAt: z.string().nullable().optional(),
     schedule: z.object({ enabled: z.boolean(), awake: hm, asleep: hm }).strict(),
   })
   .strict();
@@ -69,4 +72,23 @@ export function mayRun(jobKey: string, mode: "awake" | "asleep", night: NightPer
   if (mode === "awake") return { ok: true, cap: null, why: "صاحي" };
   const p = night.find((n) => n.key === jobKey);
   return p ? { ok: true, cap: p.cap ?? null, why: "مسموحة بالليل" } : { ok: false, cap: null, why: "المالك نايم وهالمهمة مش بـ «صلاحيات الليل» — بتستنى لحد ما يصحى" };
+}
+
+/**
+ * The night that just ended, for the «صباح الخير» card: from when he fell asleep to when he woke. With a schedule the
+ * clock knows both; by hand the switch remembered them. Null when there is no night to report (still asleep, or never slept).
+ */
+export function lastNight(m: OwnerMode, now: Date): { from: Date; to: Date } | null {
+  if (effectiveMode(m, now) !== "awake") return null;
+  if (m.schedule.enabled) {
+    const at = (hm: string, before: Date) => {
+      const [h, min] = hm.split(":").map(Number);
+      const hits = nextRuns(`${min} ${h} * * *`, new Date(before.getTime() - 2 * 86_400_000), 4).filter((d) => d <= before);
+      return hits[hits.length - 1] ?? null;
+    };
+    const woke = at(m.schedule.awake, now);
+    const slept = woke ? at(m.schedule.asleep, woke) : null;
+    return woke && slept ? { from: slept, to: woke } : null;
+  }
+  return m.asleepAt && m.since ? { from: new Date(m.asleepAt), to: new Date(m.since) } : null;
 }

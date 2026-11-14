@@ -34,9 +34,11 @@ const config: Config = {
       },
       keyframes: {
         "fade-in": { from: { opacity: "0", transform: "translateY(2px)" }, to: { opacity: "1", transform: "none" } },
+        wiggle: { "0%, 100%": { transform: "rotate(-14deg)" }, "50%": { transform: "rotate(14deg)" } },
       },
       animation: {
         "fade-in": "fade-in 150ms ease-out",
+        wiggle: "wiggle 0.5s ease-in-out infinite",
       },
     },
   },

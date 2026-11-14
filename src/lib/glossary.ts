@@ -35,6 +35,10 @@ export const GLOSSARY = {
   profitDelivered: { name: "ربح الطلب المُسلَّم", formula: "(الصافي − البضاعة − الصرف) × 0.97 ÷ المُسلَّم", meaning: "موجب = المنتج رابح فعلاً.", source: "truth" },
   roas: { name: "العائد الحقيقي", formula: "الصافي المحصّل ÷ الصرف الفعلي", meaning: "كل دولار إعلان رجّع كم دولار مصاري.", source: "truth" },
   tOrder: { name: "هدف تكلفة الطلب (T)", formula: "min(M − ربح أدنى، 0.6 × M)", meaning: "قبل 50 شحنة: من سعر المنتج وتكاليفه.", source: "estimate" },
+  realOrders: { name: "الطلبات الحقيقية", formula: "طلبات الـ OMS (هواتف فريدة) بيوم الطلب", meaning: "كل طلب إجا فعلاً، حتى لو لسا ما تأكد.", source: "truth" },
+  costPerOrder: { name: "تكلفة الطلب الحقيقي", formula: "الصرف الفعلي (مع رسوم البطاقة) ÷ الطلبات الحقيقية", meaning: "الرقم اللي بنقارنه بنقطة التعادل. أرقام ميتا للتسليم بس.", source: "truth" },
+  profitEst: { name: "الربح التقديري", formula: "الطلبات × هامش الطلب المتوقع للمنتج − الصرف الفعلي", meaning: "تقدير لحد ما تتسلّم الشحنات؛ بعدها بيصير حقيقي.", source: "estimate" },
+  testShare: { name: "حصة الاختبارات", formula: "صرف حملات الاختبار ÷ كل صرف اليوم", meaning: "الحد 20%: فوقه الاختبارات بتاكل الصرف وتكلفة الحساب بتطلع.", source: "meta" },
   gap: { name: "فرق ميتا/حقيقي", formula: "(Purchase ميتا − طلبات OMS) ÷ طلبات OMS", meaning: "فوق 20% = في مشكلة تتبع أو إسناد.", source: "truth" },
 } satisfies Record<string, Term>;
 

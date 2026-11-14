@@ -5,10 +5,17 @@ import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { StudioLink } from "@/components/settings/studio-link";
+import { ClaudeLink } from "@/components/settings/claude-link";
+import { ModeSettings } from "@/components/settings/mode-settings";
+import { RulesEditor } from "@/components/settings/rules-editor";
 import { LevelPicker } from "@/components/settings/level-picker";
 import { loadAudit, loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { CapsEditor, LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
 import { currentCaller } from "@/server/auth";
+import { db } from "@/server/db";
+import { currentMode } from "@/server/mode";
+import { getRules } from "@/server/rules";
+import { loadWorkflowCards } from "@/lib/workflow-view";
 import { ImportPanel } from "@/components/settings/import-panel";
 import { GuideBody } from "@/components/pages/guide-body";
 import { RulesTable } from "@/components/pages/rules-table";
@@ -24,6 +31,8 @@ const GROUPS = [
   { id: "money", label: "المال والسقوف" },
   { id: "products", label: "المنتجات والصفحات" },
   { id: "rules", label: "القواعد والمستويات" },
+  { id: "campaign-rules", label: "قواعد الحملات" },
+  { id: "mode", label: "صاحي ونايم" },
   { id: "agents", label: "الوكلاء" },
   { id: "import", label: "الاستيراد والتصدير" },
   { id: "team", label: "الفريق والتدقيق" },
@@ -45,7 +54,8 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({ searchParams }: { searchParams: { audit?: string } }) {
   const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
-  const [real, edit, audit, me] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller()]);
+  const [real, edit, audit, me, rulesView, mode, wf, productRows] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller(), getRules(), currentMode(), loadWorkflowCards(), db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } })]);
+  const demo = process.env.MOCK_MODE === "1";
   return (
     <div className="space-y-8">
       <nav data-tour="groups" aria-label="مجموعات الإعدادات" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
@@ -82,6 +92,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
             </Panel>
           ) : null}
           {edit ? <PurchaseOnPicker value={edit.purchaseOn} /> : null}
+          <ClaudeLink mock={process.env.MOCK_MODE === "1"} />
           <StudioLink />
         </div>
       </Section>
@@ -177,6 +188,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
               ))}
         </div>
         <RulesTable />
+      </Section>
+
+      <Section title="قواعد الحملات" hint="شغلك اليومي كأرقام: بتتحفظ بنسخ، وClaude بيقراها بكل تشغيل — الأرقام بالدولار بتكتبها إنت، ما في شي جاهز بالكود" tour="campaign-rules">
+        <div id="campaign-rules" className="scroll-mt-24">
+          <RulesEditor initial={rulesView.rules} version={rulesView.version} products={productRows.map((p) => p.productCode)} demo={demo} />
+        </div>
+      </Section>
+
+      <Section title="صاحي ونايم" hint="الزر الكبير بصفحة «اليوم». هون الجدول، وشو بيشتغل وإنت نايم، وشو بيصحّيك">
+        <div id="mode" className="scroll-mt-24">
+          <ModeSettings schedule={mode.schedule} night={mode.nightPermissions} wakeKinds={mode.wakeKinds} workflows={wf.cards.map((c) => ({ key: c.key, name: c.name }))} demo={demo} />
+        </div>
       </Section>
 
       <Section title="الوكلاء" hint="بيفسّروا وبيكتبوا بس — ما حدا منهم بيلمس ميتا ولا بيشوف بيانات زبون">

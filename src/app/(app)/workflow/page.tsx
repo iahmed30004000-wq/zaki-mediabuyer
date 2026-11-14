@@ -1,9 +1,13 @@
-import { EmptyState } from "@/components/ui/card";
+import { WorkflowBoard } from "@/components/workflow/workflow-board";
+import { can } from "@/core/roles";
+import { loadWorkflowCards } from "@/lib/workflow-view";
+import { currentCaller } from "@/server/auth";
 
 export const metadata = { title: "الورك فلو" };
 export const dynamic = "force-dynamic";
 
-/** الورك فلو: the work that runs — who does it, when, and what came out. (Filled by the next steps of v3/v4.) */
-export default function WorkflowPage() {
-  return <EmptyState title="ما في تشغيلات لسا" hint="أول ما يبدأ أي تشغيل — من Claude أو من العامل — بيظهر هون مع خطواته." art="empty-decisions" />;
+/** الورك فلو: the work that runs — who does it, when, what came out — and, while Claude runs a job, the job moving. */
+export default async function WorkflowPage() {
+  const [{ cards, demo }, me] = await Promise.all([loadWorkflowCards(), currentCaller()]);
+  return <WorkflowBoard initial={cards} demo={demo} canEdit={!!me && can(me.role, "owner_only") && !me.demo} />;
 }

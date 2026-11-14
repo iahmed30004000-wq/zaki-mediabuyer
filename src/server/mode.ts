@@ -10,6 +10,7 @@ export interface ModeView {
   /** what the switch says (the clock may overrule it when the schedule is on) */
   switch: OwnerMode["mode"];
   since: string | null;
+  asleepAt: string | null;
   schedule: OwnerMode["schedule"];
   nightPermissions: NightPermission[];
   wakeKinds: string[];
@@ -27,15 +28,18 @@ export async function currentMode(now = new Date()): Promise<ModeView> {
     const p = NightPermissionSchema.safeParse(n);
     return p.success ? [p.data] : [];
   });
-  return { mode: effectiveMode(stored, now), switch: stored.mode, since: stored.since, schedule: stored.schedule, nightPermissions: night, wakeKinds: (await getSetting("owner.wake_kinds")) as string[] };
+  return { mode: effectiveMode(stored, now), switch: stored.mode, since: stored.since, asleepAt: stored.asleepAt ?? null, schedule: stored.schedule, nightPermissions: night, wakeKinds: (await getSetting("owner.wake_kinds")) as string[] };
 }
 
 /** Flips the switch (and/or the schedule). `since` moves only when the switch itself changes. */
 export async function setMode(patch: { mode?: OwnerMode["mode"]; schedule?: Partial<OwnerMode["schedule"]> }, by: string | null, now = new Date()): Promise<ModeView> {
   const cur = readMode(await getSetting("owner.mode"));
+  const flipped = !!patch.mode && patch.mode !== cur.mode;
   const next: OwnerMode = {
     mode: patch.mode ?? cur.mode,
-    since: patch.mode && patch.mode !== cur.mode ? now.toISOString() : cur.since,
+    since: flipped ? now.toISOString() : cur.since,
+    // waking: what was «since» is when he fell asleep; falling asleep starts a new night
+    asleepAt: flipped ? (patch.mode === "awake" ? cur.since : null) : cur.asleepAt ?? null,
     schedule: { ...cur.schedule, ...patch.schedule },
   };
   const ok = OwnerModeSchema.parse(next);
