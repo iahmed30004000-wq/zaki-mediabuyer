@@ -1,17 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
 import { MediaBuyerMark } from "@/components/logo";
+import { EditBar, EditToggle } from "@/components/customize/edit-bar";
 import { KillSwitch } from "@/components/mb/kill-switch";
-import { placeOf } from "@/lib/nav";
 import { MessageCircleQuestion } from "lucide-react";
 import { PageHelp } from "./page-help";
 import { CONSULTANT_EVENT } from "./consultant";
+import { useCurrentPlace } from "./shell-context";
 
 /** The top of every page: the place's name and its one question, «؟», and the full stop — always in reach (18.2). */
 export function PageHeader({ actions }: { actions?: ReactNode }) {
-  const place = placeOf(usePathname() ?? "/");
+  const place = useCurrentPlace();
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 md:px-6">
@@ -24,6 +24,7 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
         <button type="button" onClick={() => window.dispatchEvent(new Event(CONSULTANT_EVENT))} aria-label="اسأل المساعد" className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-fg-muted hover:bg-surface-2 hover:text-fg md:hidden">
           <MessageCircleQuestion className="size-[18px]" />
         </button>
+        <EditToggle className="hidden md:inline-flex" />
         <PageHelp place={place} />
         <span className="md:hidden">
           <KillSwitch compact />
@@ -32,6 +33,7 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
           <KillSwitch />
         </span>
       </div>
+      <EditBar />
     </header>
   );
 }

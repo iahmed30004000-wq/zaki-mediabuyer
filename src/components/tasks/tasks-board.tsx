@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, CalendarClock, Combine, Flame, Link2, Plus } from "lucide-react";
+import { Archive, CalendarClock, Combine, Flame, Link2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { FieldChips, FieldInput, RunButton, type CardValues } from "@/components/customize/card-fields";
+import { useShell } from "@/components/shell/shell-context";
+import { onBoard, type ButtonCfgT, type FieldCfgT } from "@/core/customize";
 import { PEOPLE, PRIORITIES, TASK_BOARDS, TASK_COLUMNS, assigneeName, dueState, duplicateGroups, groupByStatus, type TaskColumn } from "@/core/tasks";
 import { cn } from "@/lib/utils";
+import type { TasksCustom } from "@/lib/ui-view";
 import type { TaskView } from "@/server/tasks";
 
 const DUE_STYLE = { late: "bg-danger/10 text-danger", today: "bg-warn/10 text-warn", soon: "bg-surface-2 text-fg" } as const;
@@ -32,7 +36,13 @@ const dayText = (iso: string) => {
   return `${Number(d)}/${Number(m)}`;
 };
 
-function Card({ t, canEdit, selected, now, onToggle, onOpen }: { t: TaskView; canEdit: boolean; selected: boolean; now: Date; onToggle: () => void; onOpen: () => void }) {
+interface CardCustom {
+  fields: FieldCfgT[];
+  buttons: ButtonCfgT[];
+  values?: CardValues;
+}
+
+function Card({ t, canEdit, selected, now, boardLabel, custom, onToggle, onOpen }: { t: TaskView; canEdit: boolean; selected: boolean; now: Date; boardLabel: (key: string) => string; custom: CardCustom; onToggle: () => void; onOpen: () => void }) {
   const due = dueState(t.dueAt, t.status, now);
   const link = linkOf(t);
   return (
@@ -68,19 +78,45 @@ function Card({ t, canEdit, selected, now, onToggle, onOpen }: { t: TaskView; ca
             {link.label}
           </Link>
         ) : null}
-        {t.board !== "main" ? <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-fg-muted">{TASK_BOARDS.find((b) => b.key === t.board)?.label ?? t.board}</span> : null}
+        {t.board !== "main" ? <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-fg-muted">{boardLabel(t.board)}</span> : null}
+        <FieldChips fields={custom.fields} values={custom.values} />
       </div>
+      {custom.buttons.length && canEdit ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {custom.buttons.map((b) => (
+            <RunButton key={b.id} button={b} entityId={t.id} />
+          ))}
+        </div>
+      ) : null}
     </article>
   );
 }
 
-/** One card in the sheet: its people, its date, its note — and the way out (archive; nothing is deleted). */
-function Editor({ task, canEdit, onClose, onSave, onArchive }: { task: TaskView | null; canEdit: boolean; onClose: () => void; onSave: (patch: Record<string, unknown>) => Promise<void>; onArchive: () => Promise<void> }) {
+/** One card in the sheet: its people, its date, its note, the fields the owner added — and the way out (archive; nothing is deleted). */
+function Editor({
+  task,
+  canEdit,
+  boardLabel,
+  custom,
+  onClose,
+  onSave,
+  onArchive,
+}: {
+  task: TaskView | null;
+  canEdit: boolean;
+  boardLabel: (key: string) => string;
+  custom: CardCustom;
+  onClose: () => void;
+  onSave: (patch: Record<string, unknown>, fields: Record<string, string | null>) => Promise<void>;
+  onArchive: () => Promise<void>;
+}) {
   const [status, setStatus] = useState(task?.status ?? "new");
   const [assignee, setAssignee] = useState(task?.assignee ?? "");
   const [priority, setPriority] = useState(task?.priority ?? "normal");
   const [due, setDue] = useState(task?.dueAt?.slice(0, 10) ?? "");
   const [note, setNote] = useState(task?.note ?? "");
+  const stored = (f: FieldCfgT) => String(custom.values?.[f.id] ?? "");
+  const [fv, setFv] = useState<Record<string, string>>(() => Object.fromEntries(custom.fields.map((f) => [f.id, stored(f)])));
   const [busy, setBusy] = useState(false);
   const link = task ? linkOf(task) : null;
   return (
@@ -91,7 +127,7 @@ function Editor({ task, canEdit, onClose, onSave, onArchive }: { task: TaskView 
             <SheetHeader>
               <SheetTitle>{task.title}</SheetTitle>
               <SheetDescription>
-                {TASK_BOARDS.find((b) => b.key === task.board)?.label ?? task.board}
+                {boardLabel(task.board)}
                 {task.executor ? ` · ينفّذها ${assigneeName(task.executor)}` : ""}
                 {link ? (
                   <>
@@ -137,6 +173,27 @@ function Editor({ task, canEdit, onClose, onSave, onArchive }: { task: TaskView 
                 ملاحظة
                 <textarea value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} rows={4} maxLength={1000} className={cn(field, "py-2 leading-6")} />
               </label>
+              {custom.fields.length ? (
+                <div className="space-y-3 border-t border-border pt-3" data-tour="fields">
+                  <p className="text-xs font-semibold text-fg-muted">حقول إضافية</p>
+                  {custom.fields.map((f) => (
+                    <label key={f.id} className="block space-y-1 text-xs text-fg-muted">
+                      {f.label}
+                      <FieldInput field={f} value={fv[f.id] ?? ""} disabled={!canEdit} onChange={(v) => setFv((m) => ({ ...m, [f.id]: v }))} />
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+              {custom.buttons.length && canEdit ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <p className="text-xs font-semibold text-fg-muted">شغّل على هالبطاقة</p>
+                  <div className="flex flex-wrap gap-2">
+                    {custom.buttons.map((b) => (
+                      <RunButton key={b.id} button={b} entityId={task.id} large />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </SheetBody>
             {canEdit ? (
               <SheetFooter>
@@ -156,7 +213,9 @@ function Editor({ task, canEdit, onClose, onSave, onArchive }: { task: TaskView 
                   disabled={busy}
                   onClick={async () => {
                     setBusy(true);
-                    await onSave({ status, ...(assignee ? { assignee } : {}), priority, due_at: due || null, ...(note.trim() ? { note: note.trim() } : {}) });
+                    // only the fields that changed are sent (an emptied one clears)
+                    const changed = Object.fromEntries(custom.fields.filter((f) => (fv[f.id] ?? "") !== stored(f)).map((f) => [f.id, (fv[f.id] ?? "") === "" ? null : fv[f.id]!]));
+                    await onSave({ status, ...(assignee ? { assignee } : {}), priority, due_at: due || null, ...(note.trim() ? { note: note.trim() } : {}) }, changed);
                     setBusy(false);
                   }}
                 >
@@ -172,15 +231,18 @@ function Editor({ task, canEdit, onClose, onSave, onArchive }: { task: TaskView 
 }
 
 /**
- * المهام: the team's board — جديد · شغّال · بانتظار موافقة · متوقف · خلص — with the operations boards as tabs, a one-line quick
- * add («بكرا لميوز: …»), selection for bulk moves, the duplicates worth merging, and drag between columns on a big screen
- * (a phone shows one column at a time). Nothing is deleted: «أرشف» hides a card, and a merge keeps what the others said.
+ * المهام: the team's board — جديد · شغّال · بانتظار موافقة · متوقف · خلص — with the boards as tabs (the owner's own too, from «وضع
+ * التعديل»), a one-line quick add («بكرا لميوز: …»), selection for bulk moves, the duplicates worth merging, and drag between columns
+ * on a big screen (a phone shows one column at a time). The fields and buttons the owner added show on the cards and in the sheet.
+ * Nothing is deleted: «أرشف» hides a card, and a merge keeps what the others said. `lockedBoard`: a page of the owner's that is one board.
  */
-export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; canEdit: boolean; nowIso: string }) {
+export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string }) {
   const { toast } = useToast();
+  const { editing, openPanel } = useShell();
   const now = useMemo(() => new Date(nowIso), [nowIso]);
   const [tasks, setTasks] = useState(initial);
-  const [board, setBoard] = useState("all");
+  const [values, setValues] = useState(custom.values);
+  const [board, setBoard] = useState(lockedBoard ?? "all");
   const [who, setWho] = useState("");
   const [col, setCol] = useState<TaskColumn>("new");
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -188,9 +250,21 @@ export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // after the owner changes something (a merge moved tasks, a field was added) the page is read again and the board follows
+  useEffect(() => setTasks(initial), [initial]);
+  useEffect(() => setValues(custom.values), [custom.values]);
+
+  const boardLabel = useCallback((key: string) => custom.boards.find((b) => b.key === key)?.label ?? TASK_BOARDS.find((b) => b.key === key)?.label ?? key, [custom.boards]);
+  const tabs = useMemo(() => [{ key: "all", label: "الكل" }, ...custom.boards.filter((b) => !b.hidden).map((b) => ({ key: b.key, label: b.label }))], [custom.boards]);
+  const customOf = (t: TaskView): CardCustom => ({ fields: onBoard(custom.fields, t.board), buttons: onBoard(custom.buttons, t.board), values: values[t.id] });
+
   const reload = useCallback(async () => {
     const r = await fetch("/api/tasks", { cache: "no-store" }).catch(() => null);
-    if (r?.ok) setTasks(((await r.json()) as { tasks: TaskView[] }).tasks);
+    if (r?.ok) {
+      const d = (await r.json()) as { tasks: TaskView[]; values?: Record<string, CardValues> };
+      setTasks(d.tasks);
+      if (d.values) setValues(d.values);
+    }
   }, []);
 
   /** Calls the API; an error is said in words and `null` comes back. */
@@ -231,10 +305,16 @@ export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; 
     if (!(await call(`/api/tasks/${id}`, "PATCH", { status }))) setTasks(before);
   }
 
-  async function save(id: string, patch: Record<string, unknown>) {
+  async function save(id: string, patch: Record<string, unknown>, fields: Record<string, string | null>) {
     const d = await call(`/api/tasks/${id}`, "PATCH", patch);
     if (!d) return;
     setTasks((l) => l.map((t) => (t.id === id ? (d.task as TaskView) : t)));
+    if (Object.keys(fields).length) {
+      const v = await call("/api/ui/values", "PUT", { entity: "task", entityId: id, values: fields });
+      // the card itself is saved; a field that was refused says why and the sheet stays open
+      if (!v) return;
+      setValues((m) => ({ ...m, [id]: v.values as CardValues }));
+    }
     setOpen(null);
     toast("انحفظت ✓", "success");
   }
@@ -280,6 +360,22 @@ export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; 
 
   return (
     <div className="space-y-3" data-tour="board">
+      {editing && canEdit ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-accent/50 bg-accent/5 p-2 text-xs">
+          <Pencil className="size-3.5 text-accent" />
+          <span className="font-medium text-fg">وضع التعديل:</span>
+          <Button size="sm" variant="secondary" onClick={() => openPanel("boards")}>
+            ＋ لوحة
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => openPanel("fields")}>
+            الحقول
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => openPanel("buttons")}>
+            الأزرار
+          </Button>
+        </div>
+      ) : null}
+
       {canEdit ? (
         <form onSubmit={quickAdd} className="flex flex-wrap items-center gap-2" data-tour="quick">
           <Input
@@ -298,14 +394,16 @@ export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; 
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" aria-label="اللوحات" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
-          {[{ key: "all", label: "الكل" }, ...TASK_BOARDS].map((b) => (
-            <button key={b.key} role="tab" aria-selected={board === b.key} onClick={() => setBoard(b.key)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", board === b.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
-              {b.label}
-              <span className="ms-1.5 text-[11px] opacity-80">{countOf(b.key)}</span>
-            </button>
-          ))}
-        </div>
+        {lockedBoard ? null : (
+          <div role="tablist" aria-label="اللوحات" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
+            {tabs.map((b) => (
+              <button key={b.key} role="tab" aria-selected={board === b.key} onClick={() => setBoard(b.key)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", board === b.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+                {b.label}
+                <span className="ms-1.5 text-[11px] opacity-80">{countOf(b.key)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <select aria-label="المسؤول" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-9 shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
           <option value="">كل الفريق</option>
           {PEOPLE.map((p) => (
@@ -396,7 +494,7 @@ export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; 
               </p>
             ) : null}
             {grouped[c.key].map((t) => (
-              <Card key={t.id} t={t} canEdit={canEdit} selected={sel.has(t.id)} now={now} onToggle={() => toggle(t.id)} onOpen={() => setOpen(t)} />
+              <Card key={t.id} t={t} canEdit={canEdit} selected={sel.has(t.id)} now={now} boardLabel={boardLabel} custom={customOf(t)} onToggle={() => toggle(t.id)} onOpen={() => setOpen(t)} />
             ))}
             {!grouped[c.key].length ? <p className="px-1 py-6 text-center text-xs text-fg-muted">فاضي</p> : null}
           </section>
@@ -405,7 +503,7 @@ export function TasksBoard({ initial, canEdit, nowIso }: { initial: TaskView[]; 
 
       {!tasks.length ? <p className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في مهام لسا. اكتب أول وحدة فوق بسطر وحد: مين وإمتى وشو — «بكرا لميوز: اعمل 4 هوكات». أي مهمة بيطلبها Claude (أو هيرمز) بتنزل هون كمان.</p> : null}
 
-      <Editor key={open?.id ?? "none"} task={open} canEdit={canEdit} onClose={() => setOpen(null)} onSave={(p) => save(open!.id, p)} onArchive={() => archive(open!.id)} />
+      <Editor key={open?.id ?? "none"} task={open} canEdit={canEdit} boardLabel={boardLabel} custom={open ? customOf(open) : { fields: [], buttons: [] }} onClose={() => setOpen(null)} onSave={(p, f) => save(open!.id, p, f)} onArchive={() => archive(open!.id)} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { TasksBoard } from "@/components/tasks/tasks-board";
 import { EmptyState } from "@/components/ui/card";
 import { can } from "@/core/roles";
 import { fmt } from "@/lib/format";
+import { loadTasksCustom } from "@/lib/ui-view";
 import { loadChanges } from "@/lib/changes-view";
 import { listApprovals } from "@/server/approvals";
 import { currentCaller } from "@/server/auth";
@@ -28,6 +29,7 @@ export default async function TasksPage() {
     listTasks({ limit: 300, doneWithinDays: 14 }, now),
     currentCaller(),
   ]);
+  const custom = await loadTasksCustom(tasks.map((t) => t.id));
   const pending = changes.filter((c) => c.state === "pending_approval");
   const delta = pending.reduce((s, c) => s + c.spendDeltaDaily, 0);
   const waiting = pending.length + requests.length;
@@ -54,7 +56,7 @@ export default async function TasksPage() {
       </Section>
 
       <Section title="مهام الفريق" hint="مين وإمتى وشو — بسطر وحد. أي مهمة بيطلبها Claude أو هيرمز بتنزل هون كمان">
-        <TasksBoard initial={tasks} canEdit={!!me && can(me.role, "propose_change") && !me.demo} nowIso={now.toISOString()} />
+        <TasksBoard initial={tasks} canEdit={!!me && can(me.role, "propose_change") && !me.demo} nowIso={now.toISOString()} custom={custom} />
       </Section>
 
       <DecisionsLog changes={changes} />

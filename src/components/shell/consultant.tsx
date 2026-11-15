@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { CircleHelp, MessageCircleQuestion, Play, RotateCcw, Send, TriangleAlert } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Artifact, Fact, SourceRef } from "@/core/assistant";
-import { PAGE_GUIDE } from "@/lib/guide";
-import { placeOf } from "@/lib/nav";
+import { guideOf } from "@/lib/guide";
 import { ArtifactCard, FactsList } from "./assistant-cards";
 import { runTour } from "./page-help";
+import { useCurrentPlace } from "./shell-context";
 
 /** Fired by the header button on phones. */
 export const CONSULTANT_EVENT = "mb:consultant";
@@ -94,7 +93,7 @@ const MODE_CHIP: Record<Info["mode"], string> = { assistant: "Claude", consultan
  * your yes on the site. Without a Claude key it falls back to the consultant's facts.
  */
 export function Consultant() {
-  const place = placeOf(usePathname() ?? "/");
+  const place = useCurrentPlace();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [log, setLog] = useState<Msg[]>([]);
@@ -106,7 +105,7 @@ export function Consultant() {
 
   /** «اشرح لي هالشاشة» (it replaced the guide page): this place's own explanation, from the guide — no model, no numbers. */
   const explain = () => {
-    const g = PAGE_GUIDE[place.key];
+    const g = guideOf(place.key);
     setLog((l) => [...l, { me: true, text: "اشرح لي هالشاشة" }, { me: false, text: `${g.what}\n\nالخطوة الجاية: ${g.next}`, by: "guide", tour: true }]);
   };
 
