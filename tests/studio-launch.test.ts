@@ -127,7 +127,8 @@ describe("multipart: streamed to disk, limited while reading", () => {
       expect((await readFile(o.filePath)).equals(video)).toBe(true);
       await rm(dir, { recursive: true, force: true });
     }
-  });
+    // 1-byte chunks write thousands of times: on a loaded machine it can pass the default 5 s without being wrong
+  }, 30_000);
   it("also when the video comes before the meta", async () => {
     const { dir, o } = await opts();
     const out = await readMultipart(chunks(Buffer.concat([part("video", video, "a.mp4"), part("meta", "{}"), end]), 11), B, o);

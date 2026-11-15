@@ -19,6 +19,9 @@ import { setMode, setWakeKinds } from "../src/server/mode";
 import { saveRules } from "../src/server/rules";
 import { DEFAULT_RULES } from "../src/core/rules-v2";
 import { loadNumbers } from "../src/lib/numbers-view";
+import { loadAdsTable } from "../src/lib/ads-table";
+import { loadColumns, saveColumns } from "../src/server/ads-prefs";
+import { proposeRaise } from "../src/server/ads-actions";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -59,6 +62,9 @@ async function clean() {
   await db.task.deleteMany({ where: { title: { startsWith: "DEMO" } } });
   await db.productEconomics.deleteMany({ where: { productCode: { in: ["DEMO_STK", "DEMO_NUM"] } } });
   await db.productDay.deleteMany({ where: { productCode: "DEMO_NUM" } });
+  await db.setting.deleteMany({ where: { key: { startsWith: "ads.columns:demo-mcp" } } });
+  await db.changeItem.deleteMany({ where: { changeSet: { sourceRef: "demo-mcp-user" } } });
+  await db.changeSet.deleteMany({ where: { sourceRef: "demo-mcp-user" } });
   await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp" } } });
   await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules"] } } });
 }
@@ -135,6 +141,35 @@ async function clean() {
   check(ds.demo === false && ad?.counts.orders === 6 && ad.counts.confirmed === 4 && ad.counts.delivered === 2 && ad.counts.spend === 52.5, "loadDataset (MOCK_MODE=0) shows the campaign with those counts", ad?.counts);
   const capiRows = await db.attributedOrder.count({ where: { omsOrderId: { startsWith: "mcp:" }, method: { not: "mcp" } } });
   check(capiRows === 0, "every pushed order row is method «mcp» (CAPI skips them)");
+
+  // ── v3 C: the ads table reads the same rows (and a person's columns / raise proposal go through the same services) ──
+  {
+    const t = await loadAdsTable({ d: "custom", from: Y, to: Y });
+    const cmp = t.rows.find((r) => r.id === "DEMO_MCP_C1");
+    const set = cmp?.children.find((r) => r.id === "DEMO_MCP_S1");
+    const adRow = set?.children.find((r) => r.id === "DEMO_MCP_A1");
+    check(t.demo === false && !!cmp && !!set && !!adRow, "ads table (MOCK_MODE=0): the pushed campaign → ad set → ad are rows", t.rows.map((r) => r.id));
+    check(cmp?.m.spend === 53.03 && cmp.m.orders === 6 && cmp.m.pixel === 7 && cmp.m.costPerOrder === 8.84, "…the campaign: spend + 1% fee 53.03 · 6 real orders · 8.84 a real order · 7 pixel purchases (its own rows win — nothing counted twice)", cmp?.m);
+    check(adRow?.m.orders === 6 && adRow.m.frequency !== null && Math.abs(adRow.m.frequency - 2.22) < 0.01 && adRow.m.cpm === 2.63 && adRow.m.ctr === 2, "…the ad: orders by its id · frequency = impressions ÷ reach · CPM and CTR from Meta's own spend", adRow?.m);
+    check(cmp?.budget === 40 && cmp.days !== null && cmp.days >= 5 && cmp.days <= 7 && cmp.pages.length === 1 && cmp.isTest === false, "…budget 40 · days running from start_time · the page from the ad set name · SCALE is not a test", { budget: cmp?.budget, days: cmp?.days, pages: cmp?.pages });
+    check(cmp?.prev.spend === null && cmp.prev.orders === null && t.share.total >= 53.03, "…«قارن»: the day before has no numbers (dashes, not zeros) · the test-share gauge counts the spend", { prev: cmp?.prev.spend, share: t.share });
+
+    await saveColumns("demo-mcp-user", ["orders", "zzz", "spend"]);
+    check(JSON.stringify(await loadColumns("demo-mcp-user")) === JSON.stringify(["name", "orders", "spend"]), "a person's columns are saved for them and read back clean (unknown keys dropped, the name first)");
+    check((await loadColumns("demo-mcp-someone-else")).length === 16 && (await loadColumns(null)).length === 16, "…everybody else still has the 16 default columns");
+
+    // «اقترح زيادة»: one step of the ladder on the ad set's own budget — recorded as a suggestion on an advisor account, waiting for a yes on level 1
+    const advisor = await proposeRaise({ objectType: "adset", objectId: "DEMO_MCP_S1" }, { id: "demo-mcp-user" });
+    const stored = await db.changeSet.findUnique({ where: { id: advisor.id }, include: { items: true } });
+    check(advisor.before === 40 && advisor.after === 48 && advisor.state === "simulated" && stored?.kind === "raise_step" && Number(stored.spendDeltaDaily) === 8 && stored.items[0]?.op === "set_budget", "«اقترح زيادة»: 40$ ← 48$ (+20%) is a proposal on the ad set; an advisor account (level 0) only records it", advisor);
+    await db.adAccount.update({ where: { metaId: "act_demo_mcp" }, data: { autonomyLevel: 1 } });
+    const guard = await proposeRaise({ objectType: "campaign", objectId: "DEMO_MCP_C1" }, { id: "demo-mcp-user" });
+    await db.adAccount.update({ where: { metaId: "act_demo_mcp" }, data: { autonomyLevel: 0 } });
+    check(guard.state === "pending_approval", "…on a level-1 account it waits in «بانتظار موافقتك» — nothing executes without a person's yes", guard);
+    let noBudget = "";
+    await proposeRaise({ objectType: "adset", objectId: "NO_SUCH_ADSET" }, { id: "demo-mcp-user" }).catch((e) => (noBudget = e.message));
+    check(noBudget.includes("مش موجود"), "…an object that does not exist is refused in words");
+  }
 
   // ── workflows ──
   const r1 = await tool("log_run", { job: "daily-check", ref: "demo-mcp-1", status: "running", summary: "بدأ" });
