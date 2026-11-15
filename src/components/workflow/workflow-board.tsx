@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Hourglass, Play, Radio } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Hourglass, PencilRuler, Play, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
@@ -12,6 +13,7 @@ import type { HandoffView } from "@/server/handoffs";
 import type { RunView, WorkflowCard } from "@/server/workflows";
 import { ExecutorBadge, PermBadge } from "./badges";
 import { FlowStrip } from "./flow";
+import { NewWorkflow } from "./new-workflow";
 
 const RUN_AR: Record<string, { label: string; cls: string }> = {
   running: { label: "عم يشتغل", cls: "bg-accent/10 text-accent" },
@@ -145,6 +147,10 @@ function Card({ c, canEdit, handoff, onChanged }: { c: WorkflowCard; canEdit: bo
               {c.enabled ? "شغّال" : "مطفي"}
             </label>
           ) : null}
+          <Link href={`/workflow/${c.key}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-fg-muted hover:bg-surface-2 hover:text-fg" aria-label={`${canEdit ? "عدّل رسم" : "افتح رسم"} ${c.name}`}>
+            <PencilRuler className="size-3.5" />
+            {canEdit ? "عدّل الرسم" : "الرسم"}
+          </Link>
           <Button variant="ghost" size="sm" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
             السجل
             <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
@@ -287,6 +293,7 @@ export function WorkflowBoard({ initial, initialHandoffs, demo, canEdit }: { ini
             </button>
           ))}
         </div>
+        {canEdit ? <NewWorkflow existing={cards.map((c) => ({ key: c.key, name: c.name }))} /> : null}
         <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-fg-muted">
           <Play className="size-3" />
           {cards.length} مهمة · {moving ? `${moving} شغّالة هلأ` : "ولا وحدة شغّالة هلأ"}

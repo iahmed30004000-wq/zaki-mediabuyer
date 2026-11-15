@@ -37,6 +37,9 @@ import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/rou
 import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
 import { loadBoard } from "../src/lib/videos-board";
 import { syncDriveLibrary } from "../src/jobs/drive-library";
+import { WorkflowPatch, createWorkflow, listVersions, updateWorkflow } from "../src/server/workflows";
+import type { WfGraph } from "../src/core/workflow";
+import { addAfter, ensureLayout, isPlaced, setNode } from "../src/core/workflow-edit";
 import { setSetting } from "../src/server/settings";
 import { createVideoRequest, moveVideoRequest } from "../src/server/video-requests";
 
@@ -74,6 +77,9 @@ async function clean() {
   await db.notification.deleteMany({ where: { OR: [{ key: { startsWith: "demo-mcp" } }, { key: { startsWith: "stock:DEMO_STK" } }] } });
   await db.workflowRun.deleteMany({ where: { ref: { startsWith: "demo-mcp" } } });
   await db.workflow.deleteMany({ where: { key: "demo-mcp-flow" } });
+  const drawn = await db.workflow.findMany({ where: { key: { startsWith: "wf-" }, name: { startsWith: "DEMO" } }, select: { id: true } });
+  await db.workflowVersion.deleteMany({ where: { workflowId: { in: drawn.map((w) => w.id) } } });
+  await db.workflow.deleteMany({ where: { id: { in: drawn.map((w) => w.id) } } });
   await db.stockSnapshot.deleteMany({ where: { productCode: "DEMO_STK" } });
   await db.videoBankItem.deleteMany({ where: { job: { startsWith: "DEMO-JOB" } } });
   const asks = await db.videoRequest.findMany({ where: { job: { startsWith: "DEMO-JOB" } }, select: { id: true, taskId: true } });
@@ -682,6 +688,63 @@ async function clean() {
     // a folder with no register and no scenarios is not an error: it says what is missing
     const bare = await syncDriveLibrary({ ...o, fetch: (async (url: string) => (String(url).startsWith("https://oauth2.googleapis.com/token") ? new Response(JSON.stringify({ access_token: "ya29.demo", expires_in: 3600 })) : new Response(JSON.stringify({ files: [] })))) as unknown as typeof fetch }, "EMPTYROOT");
     check(!bare.folders.finals && !bare.folders.scenarios && bare.register === "none" && bare.problems.length === 2, "an empty shared folder: nothing is read, both missing folders are named", bare.problems);
+  }
+
+  // ── الورك فلو: الرسم والنسخ (v3 F) — a workflow made from a template, edited, versioned, copied ──
+  {
+    const actor = { type: "user" as const, id: "demo-mcp-user" };
+    const okg = (e: { ok: boolean; graph?: WfGraph; error?: string }): WfGraph => {
+      if (!e.ok || !e.graph) throw new Error(e.error ?? "edit refused");
+      return e.graph;
+    };
+    const made = await createWorkflow({ name: "DEMO رسم بموافقة", template: "approval" }, actor);
+    check(/^wf-[0-9a-f]{6}$/.test(made.key) && made.version === 1 && made.graph.nodes.every((n) => typeof n.x === "number" && typeof n.y === "number"), "a workflow from the «بموافقتك» template: its own key, version 1, every step already placed on the board", { key: made.key, version: made.version });
+    check(made.graph.nodes.some((n) => n.type === "approval" && n.permission === "red") && made.enabled, "…with its approval gate red, and switched on (Claude can log_run against its key at once)");
+    const v1 = await listVersions(made.key);
+    check(v1?.length === 1 && v1[0]!.version === 1 && v1[0]!.current && v1[0]!.note === "من قالب «بموافقتك»", "its first version is in the history, with where it came from", v1?.map((v) => [v.version, v.note]));
+
+    // the owner renames a step and saves: version 2, and the one it replaced is kept
+    const g1 = made.graph;
+    const g2 = okg(setNode(g1, "prepare", { label: "DEMO تحضير الاقتراح", prompt: "اقرا {{product}} وجهّز الاقتراح" }));
+    const saved2 = await updateWorkflow(made.key, { graph: g2 }, actor);
+    check(saved2?.version === 2 && saved2.graph.nodes.find((n) => n.id === "prepare")?.label === "DEMO تحضير الاقتراح", "saving an edited drawing is a new version (2)");
+    const again = await updateWorkflow(made.key, { graph: g2 }, actor);
+    check(again?.version === 2 && (await db.workflowVersion.count({ where: { workflow: { key: made.key } } })) === 2, "…saving the same drawing again is not another version");
+
+    // a line, a step and the owner's own note
+    const g3 = okg(addAfter(g2, "notify", "wait"));
+    const saved3 = await updateWorkflow(made.key, { graph: g3, note: "DEMO أضفت انتظار بالآخر" }, actor);
+    check(saved3?.version === 3 && saved3.graph.nodes.length === g2.nodes.length + 1, "a step added: version 3, with the owner's note");
+    const hist = (await listVersions(made.key))!;
+    check(hist.map((v) => v.version).join() === "3,2,1" && hist[0]!.current && !hist[1]!.current && hist[0]!.note === "DEMO أضفت انتظار بالآخر" && hist[1]!.note === "1 تعديل", "the history lists 3, 2, 1 — the note is the owner's, or what the code counted («1 تعديل»)", hist.map((v) => [v.version, v.note]));
+    check(hist[2]!.graph.nodes.find((n) => n.id === "prepare")?.label === g1.nodes.find((n) => n.id === "prepare")?.label && hist[2]!.graph.nodes.length === g1.nodes.length, "…and version 1 still holds the drawing as it was (nothing is rewritten, nothing is deleted)");
+
+    // going back is a new version made of an old one
+    const back = await updateWorkflow(made.key, { graph: hist[2]!.graph, note: "رجوع لنسخة 1" }, actor);
+    check(back?.version === 4 && back.graph.nodes.length === g1.nodes.length && (await listVersions(made.key))!.length === 4, "going back to version 1 makes version 4 (history only grows)");
+
+    // what is refused
+    const phone = await updateWorkflow(made.key, { graph: okg(setNode(g3, "prepare", { prompt: "كلّم الزبون 0912345678" })) }, actor).catch((e: Error) => e.message);
+    const phoneName = await updateWorkflow(made.key, { name: "DEMO اتصل 0912345678" }, actor).catch((e: Error) => e.message);
+    check(String(phone).includes("انرفض") && String(phoneName).includes("انرفض"), "a customer's number in a step's text (or in the name) is refused — the drawing is read by Claude");
+    check(!WorkflowPatch.safeParse({ graph: { nodes: [g3.nodes[0]], edges: [{ from: g3.nodes[0]!.id, to: "ghost" }] } }).success, "a drawing with a line to a step that does not exist is refused by the schema");
+    check((await db.workflow.findUnique({ where: { key: made.key } }))?.version === 4, "…and none of those changed the workflow");
+
+    // a copy, and what cannot be made
+    const copy = await createWorkflow({ name: "DEMO نسخة", copy_of: made.key }, actor);
+    const cv = (await listVersions(copy.key))!;
+    check(copy.key !== made.key && copy.version === 1 && copy.graph.nodes.length === g1.nodes.length && cv[0]!.note?.startsWith("نسخة من") === true, "a copy of another workflow: a new key, its drawing, version 1 saying where it came from", cv[0]?.note);
+    const badTpl = await createWorkflow({ name: "DEMO x", template: "nope" }, actor).catch((e: Error) => e.message);
+    const badCopy = await createWorkflow({ name: "DEMO x", copy_of: "no-such" }, actor).catch((e: Error) => e.message);
+    check(String(badTpl).includes("مش معروف") && String(badCopy).includes("مش موجود") && (await db.workflow.count({ where: { name: "DEMO x" } })) === 0, "an unknown template or an unknown workflow to copy is said, and nothing is made");
+
+    // a seeded workflow nobody edited still shows its first version
+    const seeded = await listVersions("daily-check");
+    check(seeded?.length === 1 && seeded[0]!.current && seeded[0]!.note === "النسخة الأولى" && (await listVersions("no-such")) === null, "a seeded workflow nobody edited lists its one (current) version; an unknown key is null");
+
+    // the board's layout is the editor's: a seeded drawing without places comes out placed and without overlaps
+    const placed = ensureLayout(seeded![0]!.graph);
+    check(isPlaced(placed) && placed.nodes.length === seeded![0]!.graph.nodes.length, "the editor lays a seeded drawing out on first open (the same layout every time)");
   }
 
   // ── what the model gets when it is wrong ──

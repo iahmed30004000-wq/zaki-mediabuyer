@@ -817,26 +817,43 @@ model VideoBankItem {
 
 /// A workflow as the owner sees it on الورك فلو: nodes and edges, a schedule, who runs it, how risky it is.
 model Workflow {
-  id          String        @id @default(cuid())
+  id          String            @id @default(cuid())
   /// the id Claude's log_run uses (daily-check, night-round …)
-  key         String        @unique
+  key         String            @unique
   name        String
   description String?
   /// a 5-field cron in Asia/Amman, or null (manual / by event)
   schedule    String?
   /// claude_mcp · claude_task · claude_desktop · claude_api · hermes · muse · n8n · telegram · http · person · system
-  executor    String        @default("claude_mcp")
+  executor    String            @default("claude_mcp")
   /// where its numbers come from: api · mcp · manual — the canvas looks the same for all three
-  dataSource  String        @default("mcp")
+  dataSource  String            @default("mcp")
   /// green · yellow · red · black
-  permission  String        @default("green")
-  enabled     Boolean       @default(true)
+  permission  String            @default("green")
+  enabled     Boolean           @default(true)
   graph       Json
-  version     Int           @default(1)
+  version     Int               @default(1)
   archivedAt  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   runs        WorkflowRun[]
+  versions    WorkflowVersion[]
+}
+
+/// Every saved version of a workflow's drawing (v3 · F): the graph as it was, who saved it, and what changed in a line.
+/// Never deleted: going back loads an old one as a NEW version.
+model WorkflowVersion {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id])
+  version    Int
+  graph      Json
+  /// the owner's words, or what changed («+2 خطوة · 1 تعديل»)
+  note       String?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  @@unique([workflowId, version])
 }
 
 model WorkflowRun {
