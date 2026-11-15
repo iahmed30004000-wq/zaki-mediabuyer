@@ -139,7 +139,7 @@ export async function runRules(now = new Date()) {
       stats.freezes++;
     }
     if (d.alertOnly || d.action === "alert" || d.rule === "spend_spike" || d.rule === "high_return") {
-      await db.alert.create({ data: { kind: `rule.${d.rule}`, tone: d.rule === "daily_cap" || d.rule === "spend_spike" ? "danger" : "warn", text: d.alertOnly ? `اقتراح (دفعة جديدة، تنبيه بس): ${d.sentence}` : d.sentence, href: "/decisions" } });
+      await db.alert.create({ data: { kind: `rule.${d.rule}`, tone: d.rule === "daily_cap" || d.rule === "spend_spike" ? "danger" : "warn", text: d.alertOnly ? `اقتراح (دفعة جديدة، تنبيه بس): ${d.sentence}` : d.sentence, href: "/tasks" } });
       stats.alerts++;
     }
     await db.ruleRun.create({ data: { rule: d.rule, level: d.level, targetId: d.targetId, action: d.action, alertOnly: d.alertOnly, sentence: d.sentence, changeSetId } });

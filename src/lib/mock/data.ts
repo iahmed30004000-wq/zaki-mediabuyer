@@ -361,7 +361,7 @@ export interface Alert {
 export const ALERTS: Alert[] = [
   { id: "al1", tone: "warn", text: "قطرة الطنين: المخزون بيكفي 4 أيام — التكبير مجمّد لحاله.", href: "/ads?product=TIN01" },
   { id: "al2", tone: "warn", text: "حملة «كمأة جديد - نسخة 3» بلا رمز منتج: صرفها 12.63$ يتيم لحد ما تنسمّى.", href: "/ads?tab=naming" },
-  { id: "al3", tone: "info", text: "CR00186 مرفوض من الحارس بسبب ادعاء علاجي، وفي بديل جاهز.", href: "/creatives" },
+  { id: "al3", tone: "info", text: "CR00186 مرفوض من الحارس بسبب ادعاء علاجي، وفي بديل جاهز.", href: "/videos" },
 ];
 
 export interface SetupStep {

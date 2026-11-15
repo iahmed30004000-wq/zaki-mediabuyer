@@ -58,7 +58,7 @@ export async function processVideo(file: string, meta: IntakeMeta): Promise<Inta
   const md5 = await md5File(file);
   const twin = await db.creativeAsset.findUnique({ where: { md5 } });
   if (twin) {
-    await db.alert.create({ data: { kind: "creative.duplicate", tone: "info", text: `«${meta.originalName}» نسخة طبق الأصل من ${twin.crCode} — انتقل لـ excluded وما انحذف.`, href: "/creatives" } });
+    await db.alert.create({ data: { kind: "creative.duplicate", tone: "info", text: `«${meta.originalName}» نسخة طبق الأصل من ${twin.crCode} — انتقل لـ excluded وما انحذف.`, href: "/videos" } });
     return { status: "duplicate", dupOf: twin.crCode, reason: `نسخة من ${twin.crCode}` };
   }
   if (!judged.ok && !probe.ok) return { status: "broken", reason: judged.problems.join(" · ") };

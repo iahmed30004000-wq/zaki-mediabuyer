@@ -158,6 +158,8 @@ model Campaign {
   dailyBudget     Decimal?  @db.Decimal(12, 2)
   bidStrategy     String?
   spendCap        Decimal?  @db.Decimal(12, 2)
+  /// when it started delivering (Meta start_time) — «days running»
+  startTime       DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   adsets          AdSet[]
@@ -177,16 +179,17 @@ model AdSet {
   dailyBudget           Decimal?  @db.Decimal(12, 2)
   learningStage         String?
   lastSignificantEditAt DateTime?
+  startTime             DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   ads                   Ad[]
 }
 
 model Ad {
-  id           String   @id @default(cuid())
-  metaId       String   @unique
+  id           String    @id @default(cuid())
+  metaId       String    @unique
   adSetId      String
-  adSet        AdSet    @relation(fields: [adSetId], references: [id])
+  adSet        AdSet     @relation(fields: [adSetId], references: [id])
   name         String
   status       String
   creativeCode String?
@@ -194,8 +197,9 @@ model Ad {
   angleCode    String?
   lpCode       String?
   reviewStatus String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  startTime    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model ProductAlias {
@@ -771,4 +775,245 @@ model LaunchRequest {
 
   @@index([vpId, mode])
   @@index([crCode])
+}
+
+// ───────────────────────────── v3 / v4: the cockpit — Claude's pushes, approvals, workflows, tasks ─────────────────────────────
+// Additive only. Nothing in here holds a customer name, phone or address.
+
+/// Stock per product, as pushed: the newest row of a product is what the screens show, the rest is its history.
+model StockSnapshot {
+  id          String   @id @default(cuid())
+  productCode String
+  units       Int?
+  daysCover   Decimal  @db.Decimal(8, 1)
+  /// mcp · manual · oms
+  source      String   @default("mcp")
+  at          DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([productCode, at])
+}
+
+/// The video bank as pushed: the owner's own numbering (JOB, V name) beside the Drive and Meta ids. Never deleted.
+model VideoBankItem {
+  id          String   @id @default(cuid())
+  job         String
+  vName       String
+  productCode String
+  driveFileId String?
+  metaVideoId String?
+  /// bank · requested · ready · uploaded · testing · winner · fatigued · dropped
+  status      String   @default("bank")
+  notes       String?
+  source      String   @default("mcp")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([job, vName])
+  @@index([productCode, status])
+}
+
+/// A workflow as the owner sees it on الورك فلو: nodes and edges, a schedule, who runs it, how risky it is.
+model Workflow {
+  id          String        @id @default(cuid())
+  /// the id Claude's log_run uses (daily-check, night-round …)
+  key         String        @unique
+  name        String
+  description String?
+  /// a 5-field cron in Asia/Amman, or null (manual / by event)
+  schedule    String?
+  /// claude_mcp · claude_task · claude_desktop · claude_api · hermes · muse · n8n · telegram · http · person · system
+  executor    String        @default("claude_mcp")
+  /// where its numbers come from: api · mcp · manual — the canvas looks the same for all three
+  dataSource  String        @default("mcp")
+  /// green · yellow · red · black
+  permission  String        @default("green")
+  enabled     Boolean       @default(true)
+  graph       Json
+  version     Int           @default(1)
+  archivedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  runs        WorkflowRun[]
+}
+
+model WorkflowRun {
+  id         String    @id @default(cuid())
+  workflowId String
+  workflow   Workflow  @relation(fields: [workflowId], references: [id])
+  /// the caller's own id of this run, so the same log_run twice is one run
+  ref        String
+  /// running · ok · failed · waiting · skipped
+  status     String
+  /// schedule · manual · event
+  trigger    String    @default("schedule")
+  /// mcp · worker · ui · n8n
+  source     String    @default("mcp")
+  startedAt  DateTime
+  finishedAt DateTime?
+  summary    String?
+  metrics    Json?
+  artifacts  Json?
+  /// the live state of each node: { nodeId: { status, at, note } }
+  nodeStates Json      @default("{}")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([workflowId, ref])
+  @@index([startedAt])
+  @@index([status])
+}
+
+/// A request for the owner's decision (title, why, numbers, amount, options) — it rings the phone when it is urgent.
+model Approval {
+  id             String    @id @default(cuid())
+  /// the caller's own id, so a retried request_approval is one approval
+  ref            String?   @unique
+  title          String
+  why            String
+  /// { decision, analysis, ifYes, ifNo, recommendation } — the «ليش؟» page
+  analysis       Json?
+  /// [{ label, value }]
+  numbers        Json?
+  /// [{ key, label }] — approve / reject by default
+  options        Json?
+  amount         Decimal?  @db.Decimal(12, 2)
+  /// red rings · orange: a notification with a sound · yellow: silent, shown in اليوم
+  urgency        String    @default("orange")
+  /// pending · approved · rejected · postponed · cancelled · expired
+  status         String    @default("pending")
+  /// mcp · workflow · user
+  source         String    @default("mcp")
+  workflowKey    String?
+  /// what kind of decision it is (cap_raise · manufacturing · …) — the owner marks kinds «يصحّيني»
+  kind           String?
+  expiresAt      DateTime?
+  postponedUntil DateTime?
+  chosenOption   String?
+  decisionNote   String?
+  decidedBy      String?
+  decidedAt      DateTime?
+  /// the owner marked this kind «يصحّيني»: it may ring while he sleeps
+  wakeOwner      Boolean   @default(false)
+  /// when it last rang or was pushed to the phone
+  notifiedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+}
+
+/// A non-blocking alert (🔴 · 🟠 · 🟡) for the owner or a person; it shows in اليوم and goes out on Telegram / the phone.
+model Notification {
+  id        String    @id @default(cuid())
+  /// red · orange · yellow
+  urgency   String
+  /// owner, or a person's key (abdullah · mohammad …)
+  audience  String    @default("owner")
+  title     String
+  body      String?
+  href      String?
+  /// mcp · workflow · rule
+  source    String    @default("mcp")
+  /// the same alert twice is one: stock:TIN01:red:2026-11-14
+  key       String?
+  readAt    DateTime?
+  /// when it left (Telegram / the phone), if it did
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([audience, key])
+  @@index([audience, createdAt])
+}
+
+/// A task of the team or of an agent — one place for «what waits for whom». Archived, never deleted.
+model Task {
+  id         String    @id @default(cuid())
+  title      String
+  note       String?
+  /// new · doing · waiting_approval · stalled · done
+  status     String    @default("new")
+  /// a person or an agent (abdullah · hassan · laith · mohammad · hermes · muse · claude)
+  assignee   String?
+  /// claude · hermes · muse · n8n · person · system
+  executor   String?
+  dueAt      DateTime?
+  /// low · normal · high · urgent
+  priority   String    @default("normal")
+  /// what it is about: workflow · approval · video · campaign · product
+  linkType   String?
+  linkId     String?
+  /// main · confirmation · leak · basha · stock …
+  board      String    @default("main")
+  /// ui · mcp · workflow · assistant
+  source     String    @default("ui")
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status, board])
+  @@index([assignee])
+}
+
+/// A phone or a browser that may be pushed to (an FCM token or a Web Push subscription). The token is a secret: never shown, never logged.
+model PushDevice {
+  id         String    @id @default(cuid())
+  userId     String?
+  /// fcm · webpush
+  kind       String
+  token      String    @unique
+  /// Web Push keys (p256dh, auth); null for FCM
+  keys       Json?
+  label      String?
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+/// Everything about one product on one business day (Asia/Amman) — v4.1 «الأرقام». Raw counts and amounts only, pushed by
+/// Claude on a «product» row (any field may be empty: a later push fills it, never wipes it). Every ratio on screen —
+/// rates, costs per order, the expected revenue — is computed from these by src/core/numbers.ts, never stored.
+model ProductDay {
+  id              String   @id @default(cuid())
+  productCode     String
+  date            DateTime @db.Date
+  // ads (Meta), when pushed per product
+  spend           Decimal? @db.Decimal(12, 2)
+  impressions     Int?
+  linkClicks      Int?
+  pixelPurchases  Int?
+  // orders that came in (OMS)
+  ordersIn        Int?
+  uniqueCustomers Int?
+  // the confirmation
+  confirmed       Int?
+  rejected        Int?
+  cancelled       Int?
+  /// still waiting for confirmation when it was read (a state, not a flow)
+  waiting         Int?
+  /// [{ reason, count }]
+  rejectReasons   Json?
+  // the offers: [{ offer, orders, pieces?, revenue? }]
+  offerBreakdown  Json?
+  aov             Decimal? @db.Decimal(12, 2)
+  // the shipping
+  shippedOrders   Int?
+  shippedPieces   Int?
+  /// states when it was read
+  outForDelivery  Int?
+  stuck           Int?
+  delivered       Int?
+  returned        Int?
+  // the money
+  revenueShipped  Decimal? @db.Decimal(12, 2)
+  expectedRevenue Decimal? @db.Decimal(12, 2)
+  /// units left
+  stockUnits      Int?
+  source          String   @default("mcp")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productCode, date])
+  @@index([date])
 }

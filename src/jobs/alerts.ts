@@ -5,6 +5,7 @@
  * message. Info alerts stay on the site. Without Telegram linked, nothing is sent and nothing is lost.
  */
 import { db } from "@/server/db";
+import { omsLinked } from "@/server/env";
 import { detect, reading, telegramText, type AlertFacts, type Signal } from "@/core/alerts";
 import { lastSuccess } from "./runner";
 import { sendTelegram, type TelegramOptions } from "@/adapters/telegram";
@@ -40,7 +41,7 @@ export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
     impressionsToday,
     cpm7: week.filter((d) => (d._sum.impressions ?? 0) >= 1000).map((d) => (Number(d._sum.spend) / (d._sum.impressions ?? 1)) * 1000),
     metaLinked: Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim()),
-    omsLinked: Boolean(process.env.OMS_BASE_URL?.trim() && process.env.OMS_TOKEN?.trim()),
+    omsLinked: omsLinked(),
     metaAgeHours: metaAt ? (now.getTime() - metaAt.getTime()) / 3_600_000 : null,
     omsAgeHours: omsAt ? (now.getTime() - omsAt.getTime()) / 3_600_000 : null,
     attributedPct: attr ? ((JSON.parse(attr.text) as { attributed_pct?: number | null }).attributed_pct ?? null) : null,
@@ -55,8 +56,8 @@ async function eventSignals(now: Date): Promise<Signal[]> {
   const sets = await db.changeSet.findMany({ where: { createdAt: { gte: since }, OR: [{ source: "rule", state: "executed", kind: { in: ["safety_pause", "safety_reduce"] } }, { state: "pending_approval", spendDeltaDaily: { gt: 0 } }, { state: "pending_approval", kind: { in: ["test_campaign", "safety_net"] } }] }, select: { id: true, state: true, sentence: true, spendDeltaDaily: true } });
   return sets.map((c) =>
     c.state === "executed"
-      ? { key: `cs:${c.id}`, kind: "alert.safety", tone: "warn" as const, text: `قرار أمان تنفّذ: ${c.sentence}`, href: "/decisions", instant: true }
-      : { key: `cs:${c.id}`, kind: "alert.approval", tone: "warn" as const, text: `بانتظار موافقتك${Number(c.spendDeltaDaily) > 0 ? ` (+${Number(c.spendDeltaDaily)}$ باليوم)` : ""}: ${c.sentence.slice(0, 160)} — من الموقع بس`, href: "/decisions", instant: true },
+      ? { key: `cs:${c.id}`, kind: "alert.safety", tone: "warn" as const, text: `قرار أمان تنفّذ: ${c.sentence}`, href: "/tasks", instant: true }
+      : { key: `cs:${c.id}`, kind: "alert.approval", tone: "warn" as const, text: `بانتظار موافقتك${Number(c.spendDeltaDaily) > 0 ? ` (+${Number(c.spendDeltaDaily)}$ باليوم)` : ""}: ${c.sentence.slice(0, 160)} — من الموقع بس`, href: "/tasks", instant: true },
   );
 }
 

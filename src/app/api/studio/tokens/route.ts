@@ -14,7 +14,7 @@ const Body = z.object({ name: z.string().trim().min(1).max(60), scope: z.enum(SC
 export async function GET() {
   try {
     await requireCapability("owner_only");
-    const tokens = await db.apiToken.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, scopes: true, prefix: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
+    const tokens = await db.apiToken.findMany({ where: { NOT: { scopes: { has: "mcp" } } }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, scopes: true, prefix: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
     return NextResponse.json({ tokens });
   } catch (e) {
     return errorResponse(e);

@@ -1,0 +1,112 @@
+/*
+ * The motion of الورك فلو (v3 · F): calm when idle, alive while a run is going. Transforms and opacity only (GPU-friendly),
+ * 150–400 ms, and none of it when the person asked for less motion («تقليل الحركة»).
+ */
+@keyframes wf-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+@keyframes wf-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes wf-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--wf-accent, currentColor) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+@keyframes wf-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes wf-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+@keyframes wf-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* the line between two steps: calm, or data travelling along it while the step before it is done and the next one runs */
+.wf-edge {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+.wf-edge[data-flowing="true"] {
+  opacity: 1;
+  color: var(--wf-accent, currentColor);
+  stroke-dasharray: 4 4;
+  animation: wf-flow 0.6s linear infinite;
+}
+
+.wf-node {
+  transition: border-color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+}
+.wf-node[data-state="waiting"] {
+  animation: wf-pulse 1.8s ease-in-out infinite;
+}
+.wf-node[data-state="running"] {
+  --wf-accent: rgb(var(--wf-accent-rgb, 37 99 235));
+  border-color: var(--wf-accent);
+  animation: wf-ring 1.2s ease-out infinite;
+}
+.wf-node[data-state="done"] .wf-check {
+  animation: wf-pop 0.35s ease-out both;
+}
+.wf-node[data-state="failed"] {
+  animation: wf-shake 0.4s ease-in-out 1;
+}
+.wf-node[data-state="handoff"] {
+  animation: wf-pulse 1.4s ease-in-out infinite;
+}
+.wf-node[data-state="approval"] {
+  animation: wf-bounce 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-edge[data-flowing="true"],
+  .wf-node,
+  .wf-node .wf-check {
+    animation: none !important;
+  }
+}

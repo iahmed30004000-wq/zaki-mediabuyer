@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { PageHeader } from "@/components/shell/page-header";
 import { Consultant } from "@/components/shell/consultant";
+import { ApprovalRinger } from "@/components/approvals/approval-ringer";
 import { MissionProvider } from "@/components/mb/mission";
 
 /** Every place: the side menu (desktop) or the bottom bar (phone), the page header, the consultant button. */
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <Consultant />
+      <ApprovalRinger />
       <BottomNav />
     </MissionProvider>
   );

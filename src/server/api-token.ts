@@ -7,10 +7,9 @@ import { NextResponse } from "next/server";
 import type { Scope } from "@/core/studio-contract";
 import { db } from "./db";
 
-const PREFIX = "mbs_";
-
-export function newToken(): string {
-  return PREFIX + randomBytes(32).toString("base64url");
+/** mbs_ = the content studio · mbm_ = Claude, through the MCP server. Either way: 256 random bits, shown once, only the sha256 is kept. */
+export function newToken(prefix: "mbs_" | "mbm_" = "mbs_"): string {
+  return prefix + randomBytes(32).toString("base64url");
 }
 
 export function hashToken(token: string): string {
@@ -30,7 +29,7 @@ export function contractResponse(e: unknown) {
 }
 
 /** The caller's token must exist, be live and carry `scope`. */
-export async function requireToken(req: Request, scope: Scope) {
+export async function requireToken(req: Request, scope: Scope | "mcp") {
   const m = /^Bearer\s+(\S+)$/.exec(req.headers.get("authorization") ?? "");
   if (!m) throw new ContractError(401, "unauthorized", "ما في توكن");
   const token = await db.apiToken.findUnique({ where: { tokenHash: hashToken(m[1]!) } });

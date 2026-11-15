@@ -1,20 +1,22 @@
 /**
- * THE MAP — five places and the settings (the spec's 18 screens, merged; see docs/DECISIONS.md).
- * One question per place; nothing lives in two places.
+ * THE MAP — seven places (v3, DECISIONS D18; it was five + the settings in D1). One question per place; nothing lives
+ * in two places. The assistant is a floating button on every page, not a place.
  *
- *   اليوم      S01 + S12 summary + alerts          «شو لازم أعمل هلأ؟»
- *   الإعلانات  S03 + S04 (side panel) + S05 + S08    «كيف ماشية إعلاناتي بالحقيقة؟»
- *   الإبداعات  S06                                  «شو الفيديوهات اللي جاية والشغّالة؟»
- *   القرارات   S07 + S09 (read)                     «شو بدو موافقتي، وشو صار لحاله؟»
- *   التقارير   S15 + S10 + S11                      «كيف كان الأسبوع، والبيانات سليمة؟»
- *   الإعدادات  S02 S12 S09 S13 S16 S17 S18          كل شي بيتعدّل مرة وبينتسى
- *   المستشار (S14) is a floating button on every page, not a place.
+ *   اليوم       الأرقام + بانتظارك + التنبيهات                       «شو لازم أعمل هلأ؟»
+ *   الإعلانات   الشجرة + الصحة + سلّم التكبير + الاختبارات            «كيف ماشية إعلاناتي بالحقيقة؟»
+ *   الفيديوهات  مسار الفيديو (وارد ← جاهز ← شغّال ← متعب)            «شو الفيديوهات الجاية والشغّالة؟»
+ *   المهام      كانبان + «بانتظار موافقتك» (كانت القرارات)           «شو بدو موافقتي، ومين عم يخلّص شو؟»
+ *   الورك فلو   الشغل اللي بيمشي: مين، متى، وشو آخر نتيجة            «شو عم يشتغل هلأ؟»
+ *   الإنجاز     شو انعمل (أي يوم) وشو جاي بكرا + التقارير            «شو خلّصنا؟»
+ *   الإعدادات   الربط (كان «جهّز النظام»)، السقوف، القواعد، الدليل    كل شي بيتعدّل مرة وبينتسى
+ *
+ * Old addresses still work: next.config.mjs redirects them (tests/nav.test.ts holds the table).
  */
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, Clapperboard, Gavel, Megaphone, Settings, Sun } from "lucide-react";
+import { CheckCheck, Clapperboard, ListChecks, Megaphone, Settings, Sun, Workflow } from "lucide-react";
 
 export interface Place {
-  key: "today" | "ads" | "creatives" | "decisions" | "reports" | "settings";
+  key: "today" | "ads" | "videos" | "tasks" | "workflow" | "done" | "settings";
   href: string;
   label: string;
   /** The one question the place answers (shown under the title). */
@@ -27,9 +29,10 @@ export interface Place {
 export const PLACES: readonly Place[] = [
   { key: "today", href: "/", label: "اليوم", question: "شو لازم أعمل هلأ؟", icon: Sun, mobile: true },
   { key: "ads", href: "/ads", label: "الإعلانات", question: "كيف ماشية إعلاناتي بالحقيقة؟", icon: Megaphone, mobile: true },
-  { key: "decisions", href: "/decisions", label: "القرارات", question: "شو بدو موافقتي، وشو صار لحاله؟", icon: Gavel, mobile: true },
-  { key: "creatives", href: "/creatives", label: "الإبداعات", question: "شو الفيديوهات الجاية والشغّالة؟", icon: Clapperboard, mobile: true },
-  { key: "reports", href: "/reports", label: "التقارير", question: "كيف كان الأسبوع، والبيانات سليمة؟", icon: BarChart3, mobile: false },
+  { key: "videos", href: "/videos", label: "الفيديوهات", question: "شو الفيديوهات الجاية والشغّالة؟", icon: Clapperboard, mobile: false },
+  { key: "tasks", href: "/tasks", label: "المهام", question: "شو بدو موافقتي، ومين عم يخلّص شو؟", icon: ListChecks, mobile: true },
+  { key: "workflow", href: "/workflow", label: "الورك فلو", question: "شو عم يشتغل هلأ، ومين بيعمله؟", icon: Workflow, mobile: true },
+  { key: "done", href: "/done", label: "الإنجاز", question: "شو خلّصنا، وشو جاي بكرا؟", icon: CheckCheck, mobile: false },
   { key: "settings", href: "/settings", label: "الإعدادات", question: "الربط والسقوف والقواعد — مرة وبتنتسى", icon: Settings, mobile: false },
 ];
 

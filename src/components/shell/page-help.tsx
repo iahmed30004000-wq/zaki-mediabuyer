@@ -11,7 +11,7 @@ import "driver.js/dist/driver.css";
 import "@/components/ui/tour.css";
 
 /** Runs the page tour with driver.js (loaded only when somebody asks for it). Steps whose target is not on the page are skipped. */
-async function runTour(key: Place["key"]) {
+export async function runTour(key: Place["key"]) {
   const { driver } = await import("driver.js");
   const steps = PAGE_GUIDE[key].tour
     .filter((s) => document.querySelector(`[data-tour="${s.target}"]`))
@@ -53,8 +53,8 @@ export function PageHelp({ place }: { place: Place }) {
                 <Play className="size-4" />
                 فرجيني
               </Button>
-              <Link href="/guide" onClick={() => setOpen(false)} className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-sm text-fg hover:bg-surface-2">
-                الدليل كامل
+              <Link href="/settings#guide" onClick={() => setOpen(false)} className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-sm text-fg hover:bg-surface-2">
+                الدليل والمصطلحات
               </Link>
             </div>
           </SheetBody>

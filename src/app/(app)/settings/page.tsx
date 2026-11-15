@@ -5,13 +5,23 @@ import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { StudioLink } from "@/components/settings/studio-link";
+import { ClaudeLink } from "@/components/settings/claude-link";
+import { ModeSettings } from "@/components/settings/mode-settings";
+import { RulesEditor } from "@/components/settings/rules-editor";
 import { LevelPicker } from "@/components/settings/level-picker";
 import { loadAudit, loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { CapsEditor, LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
 import { currentCaller } from "@/server/auth";
+import { db } from "@/server/db";
+import { currentMode } from "@/server/mode";
+import { getRules } from "@/server/rules";
+import { loadWorkflowCards } from "@/lib/workflow-view";
 import { ImportPanel } from "@/components/settings/import-panel";
+import { GuideBody } from "@/components/pages/guide-body";
+import { RulesTable } from "@/components/pages/rules-table";
+import { SetupChecklist } from "@/components/setup/setup-checklist";
 import { fmt } from "@/lib/format";
-import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SOURCES, targetsOf } from "@/lib/mock/data";
+import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SETUP_STEPS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "الإعدادات" };
@@ -21,9 +31,12 @@ const GROUPS = [
   { id: "money", label: "المال والسقوف" },
   { id: "products", label: "المنتجات والصفحات" },
   { id: "rules", label: "القواعد والمستويات" },
+  { id: "campaign-rules", label: "قواعد الحملات" },
+  { id: "mode", label: "صاحي ونايم" },
   { id: "agents", label: "الوكلاء" },
   { id: "import", label: "الاستيراد والتصدير" },
   { id: "team", label: "الفريق والتدقيق" },
+  { id: "guide", label: "الدليل" },
   { id: "look", label: "المظهر" },
 ];
 
@@ -41,7 +54,8 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({ searchParams }: { searchParams: { audit?: string } }) {
   const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
-  const [real, edit, audit, me] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller()]);
+  const [real, edit, audit, me, rulesView, mode, wf, productRows] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller(), getRules(), currentMode(), loadWorkflowCards(), db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } })]);
+  const demo = process.env.MOCK_MODE === "1";
   return (
     <div className="space-y-8">
       <nav data-tour="groups" aria-label="مجموعات الإعدادات" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0">
@@ -52,7 +66,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         ))}
       </nav>
 
-      <Section title="الربط" hint="المفاتيح بملف .env على الجهاز بس — ولا مرة بالموقع ولا بالمحادثة">
+      <Section title="الربط" hint="المفاتيح بـ Coolify أو ملف .env بس — ولا مرة بالموقع ولا بالمحادثة">
+        <div id="setup" className="scroll-mt-24">
+          <SetupChecklist steps={SETUP_STEPS} embedded />
+        </div>
         <div id="connections" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
           {(edit?.links ?? SOURCES).map((s) => (
             <Panel key={s.key} className="flex items-center gap-3">
@@ -62,7 +79,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
                 <p className="text-xs text-fg-muted">{s.detail}</p>
               </div>
               {s.state === "off" ? (
-                <Link href="/setup" className="inline-flex items-center gap-1 text-xs font-medium text-accent">
+                <Link href="#setup" className="inline-flex items-center gap-1 text-xs font-medium text-accent">
                   اربط <ArrowLeft className="size-3.5" />
                 </Link>
               ) : null}
@@ -75,6 +92,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
             </Panel>
           ) : null}
           {edit ? <PurchaseOnPicker value={edit.purchaseOn} /> : null}
+          <ClaudeLink mock={process.env.MOCK_MODE === "1"} />
           <StudioLink />
         </div>
       </Section>
@@ -140,7 +158,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         )}
       </Section>
 
-      <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي">
+      <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي" tour="rules">
         <div id="rules" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
           {real
             ? real.levels.map((a) => (
@@ -168,6 +186,19 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
                   <p className="text-xs text-fg-muted">{LEVEL_HINT[a.level]}</p>
                 </Panel>
               ))}
+        </div>
+        <RulesTable />
+      </Section>
+
+      <Section title="قواعد الحملات" hint="شغلك اليومي كأرقام: بتتحفظ بنسخ، وClaude بيقراها بكل تشغيل — الأرقام بالدولار بتكتبها إنت، ما في شي جاهز بالكود" tour="campaign-rules">
+        <div id="campaign-rules" className="scroll-mt-24">
+          <RulesEditor initial={rulesView.rules} version={rulesView.version} products={productRows.map((p) => p.productCode)} demo={demo} />
+        </div>
+      </Section>
+
+      <Section title="صاحي ونايم" hint="الزر الكبير بصفحة «اليوم». هون الجدول، وشو بيشتغل وإنت نايم، وشو بيصحّيك">
+        <div id="mode" className="scroll-mt-24">
+          <ModeSettings schedule={mode.schedule} night={mode.nightPermissions} wakeKinds={mode.wakeKinds} workflows={wf.cards.map((c) => ({ key: c.key, name: c.name }))} demo={demo} />
         </div>
       </Section>
 
@@ -230,6 +261,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
             الفريق والسجل بيبيّنوا لما يشتغل الموقع على البيانات الحقيقية (مش التجريبية).
           </Panel>
         )}
+      </Section>
+
+      <Section title="الدليل" hint="الأماكن، الأسئلة اللي بتتكرر، وكل رقم من وين — والمساعد بيشرح أي شاشة">
+        <div id="guide" className="scroll-mt-24">
+          <GuideBody />
+        </div>
       </Section>
 
       <Section title="المظهر" hint="أربع ثيمات للميديا باير — بتتبدّل فوراً">

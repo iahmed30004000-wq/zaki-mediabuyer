@@ -6,12 +6,13 @@
 import Decimal from "decimal.js";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
+import { omsBaseUrl, omsToken } from "@/server/env";
 import { computeTruth } from "@/core/economics";
 import { readOrders, readProducts, toAttributedOrder, type OmsOptions, type OmsProduct } from "@/adapters/oms";
 
 export function omsOptions(fetchImpl?: typeof fetch): OmsOptions | null {
-  const baseUrl = process.env.OMS_BASE_URL?.trim();
-  const token = process.env.OMS_TOKEN?.trim();
+  const baseUrl = omsBaseUrl() ?? undefined;
+  const token = omsToken() ?? undefined;
   return baseUrl && token ? { baseUrl, token, fetch: fetchImpl } : null;
 }
 
@@ -43,7 +44,10 @@ export async function syncOms(o: OmsOptions, since: Date) {
     }
   }
   let orders = 0;
-  for (const raw of await readOrders(o, since)) {
+  const raws = await readOrders(o, since);
+  // the OMS is the truth: order rows made from a tally Claude pushed (method «mcp») for the days it just read step aside
+  await db.attributedOrder.deleteMany({ where: { method: "mcp", createdAtOms: { gte: since } } });
+  for (const raw of raws) {
     const row = toAttributedOrder(raw, windowH);
     await db.attributedOrder.upsert({ where: { omsOrderId: row.omsOrderId }, create: row, update: row });
     orders++;

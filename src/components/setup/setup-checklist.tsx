@@ -11,16 +11,16 @@ import { cn } from "@/lib/utils";
  * The set-up as ONE list: the next step open, the rest folded. Each step says why in one line and how in two.
  * The keys themselves never go through the site — they go into .env by hand (spec 0.1.3).
  */
-export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
+export function SetupChecklist({ steps, embedded = false }: { steps: SetupStep[]; embedded?: boolean }) {
   const firstOpen = steps.find((s) => !s.done)?.key ?? null;
   const [open, setOpen] = useState<string | null>(firstOpen);
   const done = steps.filter((s) => s.done).length;
 
   return (
     <div className="space-y-4 rounded-card border border-border bg-surface-1 p-4 shadow-card sm:p-5">
-      <ArtSlot slot="guide-connect" className="max-h-36 w-full rounded-xl object-cover" />
+      {embedded ? null : <ArtSlot slot="guide-connect" className="max-h-36 w-full rounded-xl object-cover" />}
       <div>
-        <h1 className="text-xl font-bold text-fg">جهّز النظام</h1>
+        <h2 className="text-xl font-bold text-fg">جهّز النظام</h2>
         <p className="text-sm text-fg-muted">{done} من {steps.length} جاهزين. لحد ما يخلصوا، كل الشاشات شغّالة على بيانات تجريبية.</p>
         <div className="mt-3 h-2 rounded-full bg-surface-2">
           <div className="h-2 rounded-full bg-accent" style={{ width: `${(done / steps.length) * 100}%` }} />
@@ -55,9 +55,11 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
           );
         })}
       </ol>
-      <Link href="/" className="flex min-h-11 items-center justify-center rounded-lg bg-accent text-sm font-semibold text-accent-fg hover:bg-accent/90">
-        كمّل عالموقع (بيانات تجريبية)
-      </Link>
+      {embedded ? null : (
+        <Link href="/" className="flex min-h-11 items-center justify-center rounded-lg bg-accent text-sm font-semibold text-accent-fg hover:bg-accent/90">
+          كمّل عالموقع (بيانات تجريبية)
+        </Link>
+      )}
     </div>
   );
 }

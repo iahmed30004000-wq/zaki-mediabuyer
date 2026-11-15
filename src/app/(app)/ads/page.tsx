@@ -1,4 +1,7 @@
+import { AdsTabs } from "@/components/ads/ads-tabs";
 import { AdsView, type TreeRow } from "@/components/ads/ads-view";
+import { DataHealth } from "@/components/pages/data-health";
+import { ScaleLadder } from "@/components/pages/scale-ladder";
 import { parseAdName, parseAdSetName, parseCampaignName, STAGE_AR, OBJECTIVE_AR, MARKET_AR } from "@/core/naming";
 import { adsetCounts, campaignCounts, productView, targetsOf, viewOf } from "@/lib/mock/data";
 import { loadDataset } from "@/lib/source";
@@ -10,6 +13,17 @@ export const metadata = { title: "الإعلانات" };
 export const dynamic = "force-dynamic";
 
 export default async function AdsPage({ searchParams }: { searchParams: { tab?: string; open?: string; product?: string } }) {
+  // «الصحة» and «سلّم التكبير» are server-rendered tabs of their own (the old reports/decisions pages live here now);
+  // ?tab=safety|data are the addresses the alerts used to point at
+  const tab = searchParams.tab === "safety" || searchParams.tab === "data" ? "health" : searchParams.tab ?? "campaigns";
+  if (tab === "health" || tab === "scale") {
+    return (
+      <div className="space-y-6">
+        <AdsTabs active={tab} />
+        {tab === "health" ? <DataHealth /> : <ScaleLadder />}
+      </div>
+    );
+  }
   const [ds, launchOptions, experiments] = await Promise.all([loadDataset(), loadLaunchOptions(), loadExperiments()]);
   const rows: TreeRow[] = ds.campaigns.map((cmp) => {
     const p = cmp.productCode ? ds.products.find((x) => x.code === cmp.productCode) : undefined;

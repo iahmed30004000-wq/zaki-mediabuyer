@@ -117,7 +117,7 @@ export async function tick(now = new Date()) {
         const cs = await proposeSafetyNet(a.metaId, { type: "rule", id: "safety_net" }, { reset: true, source: "rule" }).catch(() => null);
         if (cs) {
           done.push(a.metaId);
-          await db.alert.create({ data: { kind: "safety.month", tone: "warn", text: `شهر جديد: سقف حساب ${a.name} عند ميتا بدو تصفير — وافق عليه بـ «القرارات»`, href: "/decisions" } });
+          await db.alert.create({ data: { kind: "safety.month", tone: "warn", text: `شهر جديد: سقف حساب ${a.name} عند ميتا بدو تصفير — وافق عليه بـ «القرارات»`, href: "/tasks" } });
         }
       }
       return { proposed: done };

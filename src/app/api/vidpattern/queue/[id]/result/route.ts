@@ -20,7 +20,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const done = await db.creativeRequest.updateMany({ where: { id: params.id, status: "claimed" }, data: { status: "done", result: (parsed.data.result ?? parsed.data.draft) as object, leaseUntil: null } });
     if (!done.count) throw new ContractError(409, "not_claimed", "لازم تاخد الطلب قبل ما تسلّم نتيجته");
     const r = await db.creativeRequest.findUniqueOrThrow({ where: { id: params.id } });
-    await db.alert.create({ data: { kind: "creative.request_done", tone: "info", text: `الاستديو خلّص طلب ${r.crCode ?? r.productCode} (${r.count} ${r.kind === "new_hooks" ? "هوكات" : "سكربت"}) — الفيديوهات بتوصل الوارد`, href: "/creatives" } });
+    await db.alert.create({ data: { kind: "creative.request_done", tone: "info", text: `الاستديو خلّص طلب ${r.crCode ?? r.productCode} (${r.count} ${r.kind === "new_hooks" ? "هوكات" : "سكربت"}) — الفيديوهات بتوصل الوارد`, href: "/videos" } });
     return NextResponse.json({ id: r.id, status: r.status });
   } catch (e) {
     return contractResponse(e);
