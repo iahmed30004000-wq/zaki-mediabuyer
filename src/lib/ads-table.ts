@@ -111,6 +111,8 @@ export interface Source {
   campaigns: SCampaign[];
   insights: InsightRow[];
   orders: OrderRow[];
+  /** the video behind an ad's creative code (CR…): its V name and JOB, when the bank knows which Drive file it is */
+  videoOf?: Record<string, { v: string; job: string }>;
 }
 
 export interface Ctx {
@@ -124,11 +126,29 @@ export interface Ctx {
   rulesMissing: boolean;
 }
 
+/** «فيديو CR09500» — and, when the bank knows the file behind it, «· V12 · JOB-…». */
+export const videoLine = (cr: string, videoOf?: Source["videoOf"]): string => {
+  const v = videoOf?.[cr];
+  return v ? `فيديو ${cr} · ${v.v} · ${v.job}` : `فيديو ${cr}`;
+};
+
 const MS_DAY = 86_400_000;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 
 /** The real facts: Meta's archive (InsightDaily, at every level it has) and the OMS orders, over the days the screen needs. */
+/** Creative code → the bank's V name and JOB, joined on the Drive file they share. A file two bank items share keeps the first one read. */
+export function videoMap(assets: { crCode: string; driveFileId: string | null }[], bank: { driveFileId: string | null; vName: string; job: string }[]): Record<string, { v: string; job: string }> {
+  const byFile = new Map<string, { v: string; job: string }>();
+  for (const b of bank) if (b.driveFileId && !byFile.has(b.driveFileId)) byFile.set(b.driveFileId, { v: b.vName, job: b.job });
+  const out: Record<string, { v: string; job: string }> = {};
+  for (const a of assets) {
+    const hit = a.driveFileId ? byFile.get(a.driveFileId) : undefined;
+    if (hit) out[a.crCode] = hit;
+  }
+  return out;
+}
+
 export async function realSource(range: Range, today: string): Promise<Source> {
   const prevW = previousRange(range);
   const span = [prevW.from, range.from, addDays(today, -6)].sort()[0]!;
@@ -136,7 +156,7 @@ export async function realSource(range: Range, today: string): Promise<Source> {
   const gte = new Date(keyMs(span));
   const lte = new Date(keyMs(last));
 
-  const [econ, campaigns, insights, orders] = await Promise.all([
+  const [econ, campaigns, insights, orders, assets, bank] = await Promise.all([
     db.productEconomics.findMany(),
     db.campaign.findMany({ include: { account: true, adsets: { include: { ads: true } } } }),
     db.insightDaily.findMany({
@@ -147,10 +167,13 @@ export async function realSource(range: Range, today: string): Promise<Source> {
       where: { createdAtOms: { gte: new Date(keyMs(span) - 3 * 3_600_000), lt: new Date(keyMs(last) + 21 * 3_600_000) }, isFake: false },
       select: { adId: true, adSetId: true, campaignId: true, createdAtOms: true, status: true, matureAt: true, channel: true },
     }),
+    db.creativeAsset.findMany({ where: { driveFileId: { not: null } }, select: { crCode: true, driveFileId: true } }),
+    db.videoBankItem.findMany({ where: { driveFileId: { not: null } }, select: { driveFileId: true, vName: true, job: true } }),
   ]);
 
   return {
     demo: false,
+    videoOf: videoMap(assets, bank),
     products: econ.map(toProduct),
     campaigns: campaigns.map((c) => ({
       id: c.metaId,
@@ -294,7 +317,7 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
         const x = measure("ad", a.id);
         return {
           id: a.id, level: "ad", name: a.name, status: a.status, note: a.note, product, market: c.market,
-          decoded: pa ? [`فيديو ${pa.creativeCode}`, `خطّاف ${pa.hookCode}`, `زاوية ${pa.angleCode}`, `صفحة هبوط ${pa.lpCode}`] : null,
+          decoded: pa ? [videoLine(pa.creativeCode, src.videoOf), `خطّاف ${pa.hookCode}`, `زاوية ${pa.angleCode}`, `صفحة هبوط ${pa.lpCode}`] : null,
           counts: x.counts, view: x.view, tOrder: t?.tOrder ?? null,
           pages: page ? [page] : [], isTest, startTime: a.start ?? s.start ?? c.start, days: daysRunning(a.start ?? s.start ?? c.start, today),
           spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: null, m: x.m, prev: x.prev, breakeven,

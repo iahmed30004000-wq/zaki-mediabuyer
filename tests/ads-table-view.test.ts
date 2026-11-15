@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { InsightRow, OrderRow } from "@/core/ads-table";
 import { parseRange } from "@/core/dates";
-import { assembleTable, type Ctx, type Source } from "@/lib/ads-table";
+import { assembleTable, videoLine, videoMap, type Ctx, type Source } from "@/lib/ads-table";
 import { PRODUCTS, targetsOf } from "@/lib/mock/data";
 
 // 2026-11-14, noon in Amman
@@ -159,5 +159,24 @@ describe("assembleTable", () => {
     expect(a1.creativeCode).toBe("CR00147");
     expect(a1.codes).toBe("H07 · HER · LP1");
     expect(a1.counts).toMatchObject({ orders: 2 });
+  });
+});
+
+describe("the video behind an ad (V and JOB)", () => {
+  it("joins an ad's creative code to the bank's V and JOB through the Drive file they share", () => {
+    expect(
+      videoMap(
+        [{ crCode: "CR00147", driveFileId: "file-1" }, { crCode: "CR00160", driveFileId: "file-2" }, { crCode: "CR00170", driveFileId: null }, { crCode: "CR00180", driveFileId: "file-9" }],
+        [{ driveFileId: "file-1", vName: "V12", job: "JOB-TRF-3" }, { driveFileId: "file-1", vName: "V99", job: "JOB-OTHER" }, { driveFileId: "file-2", vName: "V13", job: "JOB-TRF-4" }, { driveFileId: null, vName: "V1", job: "J" }],
+      ),
+    ).toEqual({ CR00147: { v: "V12", job: "JOB-TRF-3" }, CR00160: { v: "V13", job: "JOB-TRF-4" } });
+  });
+
+  it("the ad's first decoded line names its V and JOB when the bank knows the file, and stays «فيديو CR…» when it does not", () => {
+    const withVideo = assembleTable({ ...source(), videoOf: { CR00147: { v: "V12", job: "JOB-TRF-3" } } }, parseRange({ d: "today" }, NOW), NOW, ctx);
+    const ad = (id: string) => withVideo.rows.flatMap((c) => c.children).flatMap((s) => s.children).find((a) => a.id === id)!;
+    expect(ad("A1").decoded?.[0]).toBe("فيديو CR00147 · V12 · JOB-TRF-3");
+    expect(ad("A3").decoded?.[0]).toBe("فيديو CR00160");
+    expect(videoLine("CR00147")).toBe("فيديو CR00147");
   });
 });
