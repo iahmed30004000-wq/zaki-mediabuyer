@@ -160,8 +160,9 @@ npm run worker                # العامل (السحب · القواعد · ا
 
 1. **الإعدادات ← الربط ← Claude ← «اعمل توكن لـ Claude»** — بيظهر مرة وحدة (`mbm_…`).
 2. بـ Claude: **Customize ← Connectors ← إضافة موصّل مخصّص**، العنوان `https://mediabuyer.zakiai.io/mcp`، وبقسم **Request headers**: `Authorization: Bearer <التوكن>` (واختار «بلا تسجيل دخول»).
-3. اطلب من Claude: «شغّل get_mode». الأدوات (12): `push_metrics · push_stock · push_videos · log_run · request_approval · get_approvals · notify · get_mode · get_rules · list_tasks · update_task · create_task` — ما فيها ولا أداة بتصرف أو بتحذف أو بتوافق.
+3. اطلب من Claude: «شغّل get_mode». الأدوات (16): `push_metrics · push_stock · push_videos · log_run · request_approval · get_approvals · notify · get_mode · get_rules · list_tasks · update_task · create_task · get_handoffs · claim_handoff · complete_handoff · create_handoff` — ما فيها ولا أداة بتصرف أو بتحذف أو بتوافق.
 4. غيّر `MOCK_MODE` لـ `0` بـ Coolify حتى تبيّن الشاشات الأرقام المبعوتة. التجربة الكاملة محلياً: `npm run demo:mcp`.
-5. **تبويب «الأرقام» (اليوم):** Claude بيبعت يوم كل منتج بصف `level: "product"` (`id` = رمز المنتج) بالعدّ الخام: الطلبات، الفريدين، المؤكد، المرفوض وأسبابه، المنشحن بالقطع، المُسلَّم، المرتجع، العالق، المخزون… — والموقع هو اللي بيحسب النسب والتكاليف والأموال المتوقعة. المعادلات كلها بـ `docs/DECISIONS.md` (D24).
+5. **طابور التسليم:** «شغّل هلق» بصفحة الورك فلو (وأي خطوة بتوقف) بتنزل بطابور؛ Claude بيقراه بـ `get_handoffs`، وClaude Desktop أو أي وكيل بـ `GET /api/v1/handoffs` بتوكن «طابور التسليم بس» (من نفس لوحة الربط). التفاصيل بـ `docs/DECISIONS.md` (D26).
+6. **تبويب «الأرقام» (اليوم):** Claude بيبعت يوم كل منتج بصف `level: "product"` (`id` = رمز المنتج) بالعدّ الخام: الطلبات، الفريدين، المؤكد، المرفوض وأسبابه، المنشحن بالقطع، المُسلَّم، المرتجع، العالق، المخزون… — والموقع هو اللي بيحسب النسب والتكاليف والأموال المتوقعة. المعادلات كلها بـ `docs/DECISIONS.md` (D24).
 
 مفاتيح جديدة (كلها اختيارية، بـ Coolify، ولا مرة بالمحادثة): `OMS_API_TOKEN` (اسم تاني لـ `OMS_TOKEN`) · `ANTHROPIC_API_KEY` · `WORKSPACE_BASE_URL` + `WORKSPACE_API_TOKEN` · `N8N_BASE_URL` + `N8N_API_KEY` + `N8N_WEBHOOK_SECRET` · `HERMES_BASE_URL` + `HERMES_TOKEN` · `FIREBASE_SERVICE_ACCOUNT_JSON` (للتطبيق الأصلي لاحقاً).
