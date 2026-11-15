@@ -1,6 +1,6 @@
 /**
  * Claude's link to the app (v4 · A), end to end on the local database — through the real route handler, with a real
- * token: auth, the sixteen tools, the numbers landing where the screens and the truth job read them, the privacy net,
+ * token: auth, the nineteen tools, the numbers landing where the screens and the truth job read them, the privacy net,
  * idempotency, approvals and the owner's answer, the switch, the rules, workflows, stock, videos, tasks.
  * `npx tsx --env-file=.env scripts/demo-mcp.ts`  (the database from `docker compose up -d`, migrated)
  */
@@ -137,7 +137,7 @@ async function clean() {
   check((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status === 202, "notifications/initialized → 202");
   const list = await call(rpc("tools/list"));
   const names = (list.json?.result?.tools as { name: string; inputSchema: { required?: string[] } }[]).map((t) => t.name);
-  check(names.length === 16 && ["push_metrics", "log_run", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff"].every((n) => names.includes(n)), "tools/list: sixteen tools (twelve + the handoff queue)", names);
+  check(names.length === 19 && ["push_metrics", "log_run", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff", "get_video_requests", "claim_video_request", "complete_video_request"].every((n) => names.includes(n)), "tools/list: nineteen tools (twelve + the handoff queue + the video requests)", names);
   const pm = (list.json?.result?.tools as { name: string; inputSchema: any }[]).find((t) => t.name === "push_metrics")!;
   check(pm.inputSchema.properties.rows.items.required.join() === "date,level,id", "push_metrics advertises the row schema (date, level, id required)");
   check(!names.some((n) => /delete|remove|execute|approve$|spend/.test(n)), "no delete / execute / spend tool exists");
@@ -610,6 +610,18 @@ async function clean() {
     const up = await moveVideoRequest(r3.request.id, "uploaded", actor, now);
     check(up.status === "uploaded" && !!up.uploadedAt && (await db.task.findUnique({ where: { id: r3.request.taskId! } }))?.status === "done", "the owner marks it «مرفوع»: the card on المهام is «خلص»");
     check((await moveVideoRequest(r3.request.id, "asked", actor, now).catch((e: Error & { status?: number }) => e.status)) === 409, "a finished request does not go back (409)");
+
+    // …and over MCP: the same queue for a client that speaks MCP and not REST
+    const r5 = await createVideoRequest({ key: "DEMO-JOB-V9|V109", kind: "new_hooks" }, actor, now);
+    const lst = await tool("get_video_requests", { product: "VID01" });
+    check(!lst.isError && ((lst.data?.requests as { id: string }[]) ?? []).some((q) => q.id === r5.request.id), "MCP get_video_requests lists the open request", lst.text);
+    const cl = await tool("claim_video_request", { id: r5.request.id });
+    check(!cl.isError && (cl.data?.request as { claimedBy: string } | undefined)?.claimedBy === "demo-mcp", "MCP claim_video_request takes it under the token's name", cl.text);
+    check((await tool("claim_video_request", { id: "no-such-id" })).isError, "…an unknown request is an error in words, not a crash");
+    const cp = await tool("complete_video_request", { id: r5.request.id, note: "3 هوكات جاهزة" });
+    check(!cp.isError && (cp.data?.request as { status: string } | undefined)?.status === "ready", "MCP complete_video_request closes it «جاهز»", cp.text);
+    check((await tool("complete_video_request", { id: r5.request.id, note: "تاني" })).isError, "…and a finished request cannot be answered twice");
+    await moveVideoRequest(r5.request.id, "uploaded", actor, now); // off the board again, so the checks below see what they saw before
     const cancelled = await moveVideoRequest(r2.request.id, "cancelled", actor, now);
     const cancelTask = await db.task.findUnique({ where: { id: r2.request.taskId! } });
     check(cancelled.status === "cancelled" && !!cancelTask?.archivedAt && (await db.videoRequest.count({ where: { id: r2.request.id } })) === 1, "cancelled: the request stays (as cancelled) and its card is archived — nothing is deleted");
