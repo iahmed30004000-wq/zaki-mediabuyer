@@ -210,7 +210,7 @@ export const WorkflowPatch = z
   .strict();
 export type WorkflowPatchT = z.infer<typeof WorkflowPatch>;
 
-export const graphTexts = (g: WfGraph) => g.nodes.flatMap((n) => [n.label, n.assignee, n.prompt, n.inputs, n.outputs, n.destination, n.fallback]);
+export const graphTexts = (g: WfGraph) => g.nodes.flatMap((n) => [n.label, n.assignee, n.prompt, n.inputs, n.outputs, n.destination, n.fallback, n.target]);
 
 /**
  * Edits a workflow (or its kill switch). A change to the graph is a new version (a graph that says nothing new is not: saving

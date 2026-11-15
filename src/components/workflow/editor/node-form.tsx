@@ -135,6 +135,12 @@ export function NodeForm({
         </Row>
       </div>
 
+      {node.executor === "n8n" || node.executor === "http" ? (
+        <Row label={node.executor === "n8n" ? "الـ webhook (الاسم بس)" : "رابط https"} hint="الموقع بينفّذ هالخطوة بس إذا كانت خضراء والهدف بقائمتك المسموحة بإعدادات السيرفر (N8N_ALLOWED_PATHS · STEP_HTTP_ALLOW). غير هيك بتنزل لطابور التسليم.">
+          <Text value={node.target ?? ""} dir="ltr" disabled={readOnly} onCommit={(v) => onChange({ target: v })} />
+        </Row>
+      ) : null}
+
       <Row label="المسؤول (شخص أو وكيل)" hint="مين بيتابعها لو وقفت">
         <>
           <input list="wf-people" defaultValue={node.assignee ?? ""} key={`a-${node.id}`} disabled={readOnly} dir="auto" onBlur={(e) => { if (e.target.value !== (node.assignee ?? "")) set({ assignee: e.target.value }); }} className={field} />

@@ -57,6 +57,7 @@ export const NodeSchema = z
     timeoutS: z.number().int().min(1).max(86_400).optional(),
     retries: z.number().int().min(0).max(10).optional(),
     fallback: z.string().max(300).optional(),
+    target: z.string().trim().max(200).optional().describe("الهدف لما المنفّذ n8n (اسم الـ webhook) أو http (رابط https) — الموقع بينفّذ بس من قائمتك المسموحة"),
     disabled: z.boolean().optional(),
     x: z.number().optional(),
     y: z.number().optional(),

@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { omsLinked } from "@/server/env";
 import { getSetting } from "@/server/settings";
 import { levelChange, type AutonomyLevel } from "@/core/autonomy";
+import { siteConfigFrom } from "@/core/step-exec";
 import { accountRestricted } from "@/jobs/account-safety";
 import { AGENT_NAMES, AGENTS } from "@/gateway";
 import type { SourceHealth } from "@/lib/mock/data";
@@ -108,6 +109,15 @@ function assistantLink(): SourceHealth {
   return { key: "assistant", label: "المساعد الذكي (Claude)", state: "ok", detail: `موصول — ${assistantModel()}` };
 }
 
+/** n8n and addresses the site may call from a workflow step: linked, and what the owner allowed (D35). */
+function stepRunnerLink(): SourceHealth {
+  const c = siteConfigFrom(process.env);
+  const label = "تنفيذ الخطوات من الموقع (n8n · HTTP)";
+  if (!c.n8nBase || !c.n8nSecret) return { key: "stepRunner", label, state: "off", detail: "مش مربوط — N8N_BASE_URL (https) وN8N_WEBHOOK_SECRET بـ Coolify" };
+  if (!c.n8nPaths.length && !c.httpHosts.length) return { key: "stepRunner", label, state: "late", detail: "مربوط، بس ما في ولا هدف مسموح — ضيف N8N_ALLOWED_PATHS أو STEP_HTTP_ALLOW" };
+  return { key: "stepRunner", label, state: "ok", detail: `موصول — ${c.n8nPaths.length} webhook و${c.httpHosts.length} موقع مسموح` };
+}
+
 export async function loadEditView(): Promise<EditView | null> {
   if (process.env.MOCK_MODE === "1") return null;
   const has = (k: string) => Boolean(process.env[k]?.trim());
@@ -120,6 +130,7 @@ export async function loadEditView(): Promise<EditView | null> {
     link("drive", "Google Drive", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTS_FOLDER_ID"), await lastSuccess("creative.intake"), 60, "فحص للوارد"),
     link("driveLibrary", "درايف — فيديوهات وسيناريوهات", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"), await lastSuccess("drive.library"), 90, "فحص"),
     assistantLink(),
+    stepRunnerLink(),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },
   ];
   const caps = (await getSetting("scale.product_caps")) as Record<string, number>;
