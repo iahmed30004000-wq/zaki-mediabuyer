@@ -4,6 +4,7 @@
  * 6.5) and are used until the owner changes a value.
  */
 import type { Prisma } from "@prisma/client";
+import { emptyUi, type UiConfig } from "@/core/customize";
 import { DEFAULT_MODE, type NightPermission, type OwnerMode } from "@/core/mode";
 import { DEFAULT_RULES, type CampaignRules } from "@/core/rules-v2";
 import { db } from "./db";
@@ -51,6 +52,8 @@ export const DEFAULT_SETTINGS = {
   "notify.contacts": {} as Record<string, string>,
   /** v3 · D — the least a video must spend (USD, over its last 7 days) before it is ranked as a winner. null until the owner types it: then twice the cost he aims for per order */
   "videos.min_spend": null as number | null,
+  /** v3 · K — «وضع التعديل»: the owner's pages, boards, fields and buttons over the built-in ones (src/core/customize.ts) */
+  "ui.config": emptyUi() as UiConfig,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;
@@ -71,6 +74,34 @@ export async function setSetting(key: SettingKey, value: unknown, by: string | n
   });
   await audit(by ? { type: "user", id: by } : { type: "system" }, "setting.set", { type: "setting", id: key }, { after: value });
   return version;
+}
+
+/**
+ * Changes a setting under a lock: the current value comes in, `fn` makes the next one — it may do other database work in the SAME
+ * transaction (a merge of two boards moves their tasks while it rewrites the config: both happen or neither does) — and the result is
+ * written as a new version. Two edits at once wait for each other, so neither overwrites the other. `fn` returns null for «no change».
+ */
+export async function mutateSetting<K extends SettingKey, R>(
+  key: K,
+  fn: (current: (typeof DEFAULT_SETTINGS)[K], tx: Prisma.TransactionClient) => Promise<{ value: (typeof DEFAULT_SETTINGS)[K]; result: R } | null>,
+  by: string | null,
+): Promise<{ version: number; value: (typeof DEFAULT_SETTINGS)[K]; result: R } | null> {
+  const out = await db.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`setting:${key}`}))`;
+      const old = await tx.setting.findUnique({ where: { key } });
+      const made = await fn((old?.value ?? DEFAULT_SETTINGS[key]) as (typeof DEFAULT_SETTINGS)[K], tx);
+      if (!made) return null;
+      const json = made.value as unknown as Prisma.InputJsonValue;
+      const next = (old?.version ?? 0) + 1;
+      await tx.setting.upsert({ where: { key }, create: { key, value: json, version: next, updatedBy: by }, update: { value: json, version: next, updatedBy: by } });
+      await tx.settingVersion.create({ data: { key, version: next, value: json, changedBy: by } });
+      return { version: next, value: made.value, result: made.result };
+    },
+    { timeout: 20_000 },
+  );
+  if (out) await audit(by ? { type: "user", id: by } : { type: "system" }, "setting.set", { type: "setting", id: key }, { after: out.value });
+  return out;
 }
 
 /** Brings back an old version as a new one. */

@@ -221,7 +221,8 @@ export function dayOutput(d: DayData): ToolOutput {
 const COLUMN_AR: Record<string, string> = Object.fromEntries(TASK_COLUMNS.map((c) => [c.key, c.label]));
 const BOARD_AR: Record<string, string> = Object.fromEntries(TASK_BOARDS.map((b) => [b.key, b.label]));
 
-export function tasksOutput(list: TaskView[]): ToolOutput {
+export function tasksOutput(list: TaskView[], boards: { key: string; label: string }[] = []): ToolOutput {
+  const boardName = (k: string) => boards.find((b) => b.key === k)?.label ?? BOARD_AR[k] ?? k;
   const source: SourceRef = { id: "tasks:board", label: "المهام", href: "/tasks" };
   const by: Record<string, number> = {};
   for (const t of list) by[COLUMN_AR[t.status] ?? t.status] = (by[COLUMN_AR[t.status] ?? t.status] ?? 0) + 1;
@@ -230,7 +231,9 @@ export function tasksOutput(list: TaskView[]): ToolOutput {
     {
       count: list.length,
       by_status: by,
-      tasks: list.slice(0, 30).map((t) => ({ id: t.id, title: t.title, status: COLUMN_AR[t.status] ?? t.status, status_key: t.status, assignee: assigneeName(t.assignee), due: t.dueAt?.slice(0, 10) ?? null, priority: t.priority, board: BOARD_AR[t.board] ?? t.board, note: t.note })),
+      // the boards (the owner's own too): name → key, which create_task takes
+      boards: boards.map((b) => ({ key: b.key, name: b.label })),
+      tasks: list.slice(0, 30).map((t) => ({ id: t.id, title: t.title, status: COLUMN_AR[t.status] ?? t.status, status_key: t.status, assignee: assigneeName(t.assignee), due: t.dueAt?.slice(0, 10) ?? null, priority: t.priority, board: boardName(t.board), note: t.note })),
     },
     { facts, sources: [source] },
   );
@@ -274,9 +277,14 @@ export function explainOutput(a: { place?: string; term?: string }, current: str
   const wantPlace = a.place ?? (a.term ? undefined : current ?? undefined);
   if (wantPlace) {
     const p = PLACES.find((x) => x.key === wantPlace || x.label === wantPlace);
-    if (!p) return toolError(`الصفحة «${wantPlace}» مش معروفة. الصفحات: ${PLACE_KEYS.join(" · ")}`);
-    const g = PAGE_GUIDE[p.key];
-    result.screen = { key: p.key, name: p.label, question: p.question, what: g.what, next: g.next, parts: g.tour.map((t) => `${t.title}: ${t.text}`) };
+    // the page the owner is on may be one he made himself: it has no entry in the guide, and that is not a mistake of the model's
+    if (!p && a.place) return toolError(`الصفحة «${wantPlace}» مش معروفة. الصفحات: ${PLACE_KEYS.join(" · ")}`);
+    if (p) {
+      const g = PAGE_GUIDE[p.key];
+      result.screen = { key: p.key, name: p.label, question: p.question, what: g.what, next: g.next, parts: g.tour.map((t) => `${t.title}: ${t.text}`) };
+    } else {
+      result.screen = { key: wantPlace, what: "صفحة عملها المالك بوضع التعديل (لوحة مهام أو رابط) — ما إلها شرح جاهز؛ هي لوحة المهام نفسها أو رابط." };
+    }
   }
   if (a.term) {
     const q = normalizeAr(a.term);

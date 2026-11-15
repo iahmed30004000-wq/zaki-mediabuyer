@@ -36,6 +36,9 @@ export const PLACES: readonly Place[] = [
   { key: "settings", href: "/settings", label: "الإعدادات", question: "الربط والسقوف والقواعد — مرة وبتنتسى", icon: Settings, mobile: false },
 ];
 
+/** The places as plain data (no icons): what «وضع التعديل» starts from (src/core/customize.ts). */
+export const BUILTIN_PAGES = PLACES.map((p) => ({ key: p.key as string, href: p.href, label: p.label, question: p.question, mobile: p.mobile }));
+
 export function placeOf(pathname: string): Place {
   const hit = PLACES.filter((p) => p.href !== "/").find((p) => pathname === p.href || pathname.startsWith(`${p.href}/`));
   return hit ?? PLACES[0]!;

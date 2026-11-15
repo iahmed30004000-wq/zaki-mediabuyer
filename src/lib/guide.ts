@@ -119,3 +119,13 @@ export const ARTICLES: { slug: string; title: string; body: string[]; art?: stri
   { slug: "backup", title: "النسخ الاحتياطي", body: ["كل يوم الساعة 2:30 نسخة كاملة على قرص السيرفر، وبيضل آخر 14 يوم.", "الاسترجاع لقاعدة فاضية بس، وبيتأكد إنه كل جدول عدده مطابق. الخطوات بالـ README."] },
   { slug: "telegram", title: "شو بقدر أعمل من تيليجرام؟", body: ["بيوصلك التقرير الصباحي والتنبيهات. وبتقدر تكتب «اوقف» على إعلان أو مجموعة.", "أي زيادة صرف أو تشغيل أو حملة جديدة: من الموقع بس، بعد ما تشوف الأثر المالي."] },
 ];
+
+/** A page the owner made in «وضع التعديل» (a board or a link) has no tour: this is what the «؟» and the assistant say about it. */
+const CUSTOM_GUIDE: PageGuide = {
+  what: "صفحة عملتها إنت بوضع التعديل: لوحة مهام أو رابط. بتقدر تغيّر اسمها وترتيبها أو تخفيها وقت ما بدك.",
+  next: "اضغط القلم فوق (وضع التعديل) وافتح لوحة التعديل: منها بتغيّر الصفحات واللوحات والحقول والأزرار.",
+  tour: [],
+};
+
+/** The guide of a page by its key — a built-in place's own, or the one every page of the owner's shares. */
+export const guideOf = (key: string): PageGuide => (PAGE_GUIDE as Record<string, PageGuide>)[key] ?? CUSTOM_GUIDE;

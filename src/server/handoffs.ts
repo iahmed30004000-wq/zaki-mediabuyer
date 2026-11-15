@@ -114,7 +114,7 @@ const actorKey = (a: Actor) => (a.id ? `${a.type}:${a.id}` : a.type).slice(0, 60
  * Hands a piece of work over. The workflow's run is created (or updated) as «waiting» with the step marked «handoff», so
  * الورك فلو shows it at once. A «manual_run» request is one at a time per workflow: asking again returns the open one.
  */
-export async function createHandoff(input: HandoffCreateT, actor: Actor, now = new Date()): Promise<{ handoff: HandoffView; created: boolean }> {
+export async function createHandoff(input: HandoffCreateT, actor: Actor, now = new Date(), opts: { card?: string } = {}): Promise<{ handoff: HandoffView; created: boolean }> {
   const refusal = refuseIfPrivate(input.title, input.need, input.last_error, input.prompt, ...Object.values(input.inputs ?? {}).map(String));
   if (refusal) throw new HandoffRefused(refusal);
   await ensureSeeded();
@@ -123,7 +123,8 @@ export async function createHandoff(input: HandoffCreateT, actor: Actor, now = n
   const graph = GraphSchema.parse(wf.graph);
 
   if (input.kind === "manual_run") {
-    const open = await db.handoff.findFirst({ where: { workflowKey: wf.key, kind: "manual_run", status: { in: ["open", "claimed"] } } });
+    // a run a button on a card asked for is one at a time per CARD (its inputs say which); «شغّل هلق» is one at a time per workflow
+    const open = await db.handoff.findFirst({ where: { workflowKey: wf.key, kind: "manual_run", status: { in: ["open", "claimed"] }, ...(opts.card ? { context: { path: ["inputs", "card_id"], equals: opts.card } } : {}) } });
     if (open) return { handoff: (await views([open]))[0]!, created: false };
   }
   const node = input.node ?? (input.kind === "manual_run" ? firstStep(graph)?.id : undefined);
