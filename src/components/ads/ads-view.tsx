@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ChevronDown, Pause, Plus, Tag, TrendingUp } from "lucide-react";
+import { Pause, Plus, TrendingUp } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -10,9 +10,14 @@ import { EmptyState } from "@/components/ui/card";
 import { Num, fmt } from "@/components/mb/num";
 import { Panel } from "@/components/mb/section";
 import { useMission } from "@/components/mb/mission";
-import type { RowStatus, RowView } from "@/lib/mock/data";
+import { DateSwitcher } from "@/components/shell/date-switcher";
+import type { ColumnKey, Filters } from "@/core/ads-table";
+import type { AdsTableData, TreeRow } from "@/lib/ads-table";
+import type { RowView } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
+import { AdsTable } from "./ads-table";
 import { LaunchWizard } from "./launch-wizard";
+import { StatusChip } from "./status-chip";
 import type { ExperimentView, LaunchOptions } from "@/lib/launch-view";
 
 const EXP_STATUS: Record<ExperimentView["status"], { l: string; c: string }> = {
@@ -70,25 +75,9 @@ function Experiments({ list }: { list: ExperimentView[] }) {
   );
 }
 
-export interface TreeRow {
-  id: string;
-  level: "campaign" | "adset" | "ad";
-  name: string;
-  status: RowStatus;
-  note?: string;
-  product: { code: string; name: string } | null;
-  market: string;
-  decoded: string[] | null;
-  needsNaming?: boolean;
-  learning?: { events: number; of: number };
-  budget?: number;
-  counts?: { impressions: number; clicks: number; orders: number; confirmed: number; delivered: number; conversations: number | null };
-  view: RowView;
-  tOrder: number | null;
-  children: TreeRow[];
-}
+export type { TreeRow };
 
-interface ProductRow {
+export interface ProductRow {
   code: string;
   name: string;
   market: string;
@@ -97,38 +86,8 @@ interface ProductRow {
   targets: { tOrder: number; tConfirmed: number; margin: number; losing: boolean; estimated: boolean };
 }
 
-const STATUS: Record<RowStatus, { label: string; cls: string }> = {
-  active: { label: "شغّال", cls: "bg-ok/10 text-ok" },
-  learning: { label: "بيتعلّم", cls: "bg-info/10 text-info" },
-  paused: { label: "موقوف", cls: "bg-surface-2 text-fg-muted" },
-  untested: { label: "لم يُختبر", cls: "border border-dashed border-border text-fg-muted" },
-  rejected: { label: "مرفوض", cls: "bg-danger/10 text-danger" },
-};
-
-export function StatusChip({ status }: { status: RowStatus }) {
-  const s = STATUS[status];
-  return <span className={cn("inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold", s.cls)}>{s.label}</span>;
-}
-
-/** The double cell (spec 18.3): Meta's CPA beside the true cost per confirmed, and the gap as an arrow. */
-function DoubleCell({ v }: { v: RowView }) {
-  const over = v.costPerConfirmed !== null && v.ceiling !== null && v.costPerConfirmed > v.ceiling;
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-      <Num value={v.cpaPixel} unit="$" term="cpaPixel" />
-      <Num value={v.costPerConfirmed} unit="$" term="costPerConfirmed" tone={v.costPerConfirmed === null ? undefined : over ? "warn" : "ok"} />
-      {v.gap !== null ? (
-        <span className={cn("inline-flex items-center text-[11px] tabular-nums", Math.abs(v.gap) > 20 ? "text-warn" : "text-fg-muted")} title="فرق ميتا/حقيقي" dir="ltr">
-          {v.gap > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-          {Math.abs(v.gap)}%
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
 const TABS = [
-  { key: "campaigns", label: "حسب الحملة" },
+  { key: "campaigns", label: "الجدول" },
   { key: "products", label: "حسب المنتج" },
   { key: "tests", label: "الاختبارات" },
 ] as const;
@@ -139,16 +98,29 @@ const LINK_TABS = [
   { key: "scale", label: "سلّم التكبير" },
 ] as const;
 
-export function AdsView({ rows, products, initialTab, openId, productFilter, launchOptions, experiments }: { rows: TreeRow[]; products: ProductRow[]; initialTab: string; openId?: string; productFilter?: string; launchOptions: LaunchOptions; experiments: ExperimentView[] }) {
+export function AdsView({
+  table,
+  columns,
+  filters,
+  products,
+  initialTab,
+  openId,
+  launchOptions,
+  experiments,
+}: {
+  table: AdsTableData;
+  columns: ColumnKey[];
+  filters: Filters;
+  products: ProductRow[];
+  initialTab: string;
+  openId?: string;
+  launchOptions: LaunchOptions;
+  experiments: ExperimentView[];
+}) {
   const [tab, setTab] = useState(TABS.some((t) => t.key === initialTab) ? initialTab : "campaigns");
-  const [market, setMarket] = useState<string>("all");
-  const [onlyNaming, setOnlyNaming] = useState(initialTab === "naming");
-  const flat = useMemo(() => rows.flatMap((c) => [c, ...c.children, ...c.children.flatMap((s) => s.children)]), [rows]);
+  const flat = useMemo(() => table.rows.flatMap((c) => [c, ...c.children, ...c.children.flatMap((s) => s.children)]), [table.rows]);
   const [open, setOpen] = useState<TreeRow | null>(() => flat.find((r) => r.id === openId) ?? null);
   const [launch, setLaunch] = useState(false);
-
-  const shown = rows.filter((r) => (market === "all" || r.market === market) && (!onlyNaming || r.needsNaming) && (!productFilter || r.product?.code === productFilter));
-  const namingCount = rows.filter((r) => r.needsNaming).length;
 
   return (
     <div className="space-y-4">
@@ -173,22 +145,8 @@ export function AdsView({ rows, products, initialTab, openId, productFilter, lau
 
       {tab === "campaigns" ? (
         <>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {[{ k: "all", l: "كل الأسواق" }, { k: "SY", l: "سوريا" }, { k: "JO", l: "الأردن" }].map((m) => (
-              <button key={m.k} onClick={() => setMarket(m.k)} className={cn("min-h-8 rounded-full border px-3", market === m.k ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
-                {m.l}
-              </button>
-            ))}
-            {namingCount ? (
-              <button onClick={() => setOnlyNaming((v) => !v)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-full border px-3", onlyNaming ? "border-warn bg-warn/10 text-warn" : "border-border text-fg-muted")}>
-                <Tag className="size-3.5" />
-                بدها تسمية ({namingCount})
-              </button>
-            ) : null}
-          </div>
-          <div data-tour="tree" className="space-y-3">
-            {shown.length ? shown.map((c) => <CampaignBlock key={c.id} row={c} onOpen={setOpen} />) : <EmptyState title="ما في حملات بهالفلتر" hint="غيّر السوق أو شيل فلتر التسمية." art="empty-ads" />}
-          </div>
+          <DateSwitcher range={table.range} />
+          <AdsTable data={table} initialColumns={columns} initialFilters={filters} onOpen={setOpen} />
         </>
       ) : tab === "products" ? (
         <ProductsTruth products={products} />
@@ -200,60 +158,6 @@ export function AdsView({ rows, products, initialTab, openId, productFilter, lau
 
       <ItemSheet row={open} onClose={() => setOpen(null)} />
       <LaunchWizard open={launch} onOpenChange={setLaunch} options={launchOptions} />
-    </div>
-  );
-}
-
-function CampaignBlock({ row, onOpen }: { row: TreeRow; onOpen: (r: TreeRow) => void }) {
-  const [expanded, setExpanded] = useState(row.status !== "paused");
-  return (
-    <Panel className="p-0">
-      <div className="flex items-start gap-2 p-3 sm:p-4">
-        <button onClick={() => setExpanded((e) => !e)} aria-expanded={expanded} aria-label="افتح/سكّر" className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2">
-          <ChevronDown className={cn("size-4 transition-transform", !expanded && "-rotate-90 rtl:rotate-90")} />
-        </button>
-        <RowBody row={row} onOpen={onOpen} big />
-      </div>
-      {expanded ? (
-        <div className="border-t border-border">
-          {row.children.map((s) => (
-            <div key={s.id} className="border-b border-border last:border-b-0">
-              <div className="flex items-start gap-2 bg-surface-2/40 px-3 py-2.5 ps-10 sm:px-4 sm:ps-12">
-                <RowBody row={s} onOpen={onOpen} />
-              </div>
-              {s.children.map((a) => (
-                <div key={a.id} className="flex items-start gap-2 border-t border-border/60 px-3 py-2.5 ps-14 sm:px-4 sm:ps-20">
-                  <RowBody row={a} onOpen={onOpen} />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </Panel>
-  );
-}
-
-function RowBody({ row, onOpen, big = false }: { row: TreeRow; onOpen: (r: TreeRow) => void; big?: boolean }) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:flex-row lg:items-center lg:gap-4">
-      <button onClick={() => onOpen(row)} className="min-w-0 flex-1 text-start">
-        <span className="flex flex-wrap items-center gap-2">
-          <StatusChip status={row.status} />
-          {row.needsNaming ? <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn">بدها تسمية</span> : null}
-          <span dir="ltr" className={cn("truncate font-mono text-fg hover:text-accent", big ? "text-sm font-semibold" : "text-xs")}>{row.name}</span>
-        </span>
-        {row.decoded ? <span className="mt-0.5 block truncate text-xs text-fg-muted">{row.decoded.join(" · ")}</span> : null}
-        {row.note ? <span className="mt-0.5 block text-xs text-warn">{row.note}</span> : null}
-      </button>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <Num value={row.view.spend} unit="$" term="spend" />
-        <DoubleCell v={row.view} />
-        <span className="text-fg-muted">
-          مؤكد <span className="font-semibold tabular-nums text-fg">{row.view.confirmed}</span>
-          {row.view.open > 0 ? <span className="text-fg-muted"> · {row.view.open} مفتوح</span> : null}
-        </span>
-      </div>
     </div>
   );
 }
@@ -308,6 +212,17 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
         { l: "مُسلَّم", n: row.counts.delivered },
       ]
     : null;
+
+  async function proposeRaise(r: TreeRow) {
+    const res = await fetch("/api/objects/scale", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: r.level, objectId: r.id }) });
+    const d = (await res.json().catch(() => ({}))) as { error?: string; demo?: boolean; state?: string; before?: number; after?: number };
+    onClose();
+    if (!res.ok) toast(d.error ?? "صار خطأ", "error");
+    else if (d.demo) toast("بالوضع التجريبي ما انعمل اقتراح فعلي.", "info");
+    else if (d.state === "pending_approval") toast(`انضاف اقتراح: ${d.before}$ ← ${d.after}$ باليوم. بيستنى موافقتك بـ «المهام».`, "success");
+    else toast(`انسجّل اقتراح: ${d.before}$ ← ${d.after}$ باليوم. الحساب «مستشار» فما بيتنفّذ ولا بيستنى موافقة.`, "info");
+  }
+
   return (
     <Sheet open={!!row} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
@@ -368,9 +283,10 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
                   variant="secondary"
                   onClick={async () => {
                     const r = await fetch("/api/objects/pause", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: row.level, objectId: row.id }) });
-                    const d = (await r.json().catch(() => ({}))) as { error?: string; state?: string };
+                    const d = (await r.json().catch(() => ({}))) as { error?: string; state?: string; demo?: boolean };
                     onClose();
                     if (!r.ok) toast(d.error ?? "صار خطأ", "error");
+                    else if (d.demo) toast("بالوضع التجريبي ما انوقف شي فعلياً.", "info");
                     else mission({ title: "وقف ✓", detail: "انعمل قرار منفّذ بالسجل، وبترجعه من «المهام»" });
                   }}
                 >
@@ -378,15 +294,12 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
                   اوقف
                 </Button>
               ) : null}
-              <Button
-                onClick={() => {
-                  onClose();
-                  toast("انضاف اقتراح زيادة لـ «المهام ← بانتظار موافقتك» مع أثره المالي.", "success");
-                }}
-              >
-                <TrendingUp className="size-4" />
-                اقترح زيادة
-              </Button>
+              {row.level !== "ad" && row.canScale ? (
+                <Button onClick={() => void proposeRaise(row)}>
+                  <TrendingUp className="size-4" />
+                  اقترح زيادة
+                </Button>
+              ) : null}
             </SheetFooter>
           </>
         ) : null}

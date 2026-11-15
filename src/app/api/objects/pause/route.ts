@@ -9,11 +9,11 @@ const Body = z.object({ objectType: z.enum(["campaign", "adset", "ad"]), objectI
 /** POST /api/objects/pause — «اوقف» on an item card: a safety change, executed at once, logged, undoable. */
 export async function POST(req: Request) {
   try {
+    const caller = await requireCapability("pause_or_reduce");
+    // demo numbers are not real campaigns (their ids are not Meta ids either): say so, change nothing
+    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
-    const caller = await requireCapability("pause_or_reduce");
-    // demo numbers are not real campaigns: say so, change nothing
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
     const { objectType, objectId } = parsed.data;
     const row =
       objectType === "ad"

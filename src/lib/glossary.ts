@@ -63,6 +63,13 @@ export const GLOSSARY = {
   stockUnits: { name: "القطع الباقية", formula: "المخزون وقت آخر قراءة", meaning: "من آخر ما انبعت.", source: "truth" },
   stockCover: { name: "أيام التغطية", formula: "القطع الباقية ÷ متوسط القطع المشحونة باليوم (آخر 7 أيام)", meaning: "🔴 أقل من 7 · 🟠 7–10 · 🟡 10–14 (القواعد).", source: "estimate" },
   gap: { name: "فرق ميتا/حقيقي", formula: "(Purchase ميتا − طلبات OMS) ÷ طلبات OMS", meaning: "فوق 20% = في مشكلة تتبع أو إسناد.", source: "truth" },
+  // the ads table (v3 · C)
+  pageCode: { name: "الصفحة", formula: "رمز صفحة الهبوط من اسم المجموعة (SP · VP · AJ…) — للحملة: رموز مجموعاتها", meaning: "أي صفحة بتنزّل عليها الإعلانات.", source: "meta" },
+  daysRunning: { name: "أيام التشغيل", formula: "من يوم بداية الصرف (start_time) لليوم؛ اليوم الأول بيحسب يوم 1 (توقيت عمّان)", meaning: "قاعدة الاختبار: ما منحكم على اليوم الأول، وبعد 3 أيام بيجي القرار.", source: "meta" },
+  budgetDaily: { name: "الميزانية اليومية", formula: "ميزانية المجموعة بالدولار (أو الحملة إذا كانت CBO)", meaning: "السقف اليومي اللي حاطه ميتا للعنصر. أي زيادة عليه بموافقتك.", source: "meta" },
+  spendTY: { name: "الصرف اليوم / أمس", formula: "صرف ميتا × (1 + رسوم البطاقة 1%) ليوم عمّان الحالي ثم لليوم اللي قبله", meaning: "بيبيّن إذا الصرف عم يتسارع أو يتباطأ مقابل أمس.", source: "meta" },
+  frequency: { name: "التكرار", formula: "معدّل مرات ما شاف الشخص الواحد الإعلان — مرجّح بالظهور على أيام الفترة", meaning: "لما يعلى (حدّ تعب الإبداع بالقواعد) الجمهور بدأ يملّ.", source: "meta" },
+  adsCount: { name: "عدد الإعلانات", formula: "الإعلانات تحت العنصر (للحملة: إعلانات كل مجموعاتها)", meaning: "إعلانات كتيرة بمجموعة وحدة بتوزّع الصرف وبتأخّر الحكم.", source: "meta" },
 } satisfies Record<string, Term>;
 
 export type TermKey = keyof typeof GLOSSARY;
