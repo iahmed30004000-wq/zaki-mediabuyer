@@ -9,7 +9,7 @@ import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type P
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
 const SHIPPED = new Set(["shipped", "delivered", "returned"]);
 
-function statusOf(meta: string, learning?: string | null): RowStatus {
+export function statusOf(meta: string, learning?: string | null): RowStatus {
   if (meta === "PAUSED" || meta === "CAMPAIGN_PAUSED" || meta === "ADSET_PAUSED" || meta === "ARCHIVED") return "paused";
   if (meta === "DISAPPROVED" || meta === "WITH_ISSUES") return "rejected";
   if (learning === "LEARNING") return "learning";
