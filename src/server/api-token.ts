@@ -7,8 +7,11 @@ import { NextResponse } from "next/server";
 import type { Scope } from "@/core/studio-contract";
 import { db } from "./db";
 
-/** mbs_ = the content studio · mbm_ = Claude, through the MCP server. Either way: 256 random bits, shown once, only the sha256 is kept. */
-export function newToken(prefix: "mbs_" | "mbm_" = "mbs_"): string {
+/**
+ * mbs_ = the content studio · mbm_ = Claude, through the MCP server · mbh_ = Claude Desktop (or any agent) that only reads
+ * and answers the handoff queue. Either way: 256 random bits, shown once, only the sha256 is kept.
+ */
+export function newToken(prefix: "mbs_" | "mbm_" | "mbh_" = "mbs_"): string {
   return prefix + randomBytes(32).toString("base64url");
 }
 
@@ -29,12 +32,14 @@ export function contractResponse(e: unknown) {
 }
 
 /** The caller's token must exist, be live and carry `scope`. */
-export async function requireToken(req: Request, scope: Scope | "mcp") {
+export async function requireToken(req: Request, scope: Scope | "mcp" | "handoff") {
   const m = /^Bearer\s+(\S+)$/.exec(req.headers.get("authorization") ?? "");
   if (!m) throw new ContractError(401, "unauthorized", "ما في توكن");
   const token = await db.apiToken.findUnique({ where: { tokenHash: hashToken(m[1]!) } });
   if (!token || token.revokedAt) throw new ContractError(401, "unauthorized", "التوكن مرفوض");
-  if (!token.scopes.includes(scope)) throw new ContractError(403, "forbidden", "التوكن ما إله صلاحية لهالعملية");
+  // Claude's MCP token is Claude: it may read and answer the handoff queue as well; a token made only for the queue carries «handoff» alone
+  const accepted: string[] = scope === "handoff" ? ["handoff", "mcp"] : [scope];
+  if (!accepted.some((s) => token.scopes.includes(s))) throw new ContractError(403, "forbidden", "التوكن ما إله صلاحية لهالعملية");
   // at most one write a minute per token, so a busy sync does not hammer the table
   if (!token.lastUsedAt || Date.now() - token.lastUsedAt.getTime() > 60_000) {
     await db.apiToken.update({ where: { id: token.id }, data: { lastUsedAt: new Date() } });

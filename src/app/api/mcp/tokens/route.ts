@@ -8,14 +8,15 @@ import { appOrigin } from "@/server/env";
 
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ name: z.string().trim().min(1).max(60) });
+/** `mcp` = the connector Claude adds (also reads and answers the handoff queue) · `handoff` = a token for the queue only (Claude Desktop polling the REST API). */
+const Body = z.object({ name: z.string().trim().min(1).max(60), kind: z.enum(["mcp", "handoff"]).default("mcp") });
 
-/** GET /api/mcp/tokens — Claude's tokens (never the secret part) and the address to give Claude. Owner only. */
+/** GET /api/mcp/tokens — Claude's tokens (never the secret part) and the addresses to give Claude. Owner only. */
 export async function GET() {
   try {
     await requireCapability("owner_only");
-    const tokens = await db.apiToken.findMany({ where: { scopes: { has: "mcp" } }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
-    return NextResponse.json({ tokens, url: `${appOrigin()}/mcp` });
+    const tokens = await db.apiToken.findMany({ where: { OR: [{ scopes: { has: "mcp" } }, { scopes: { has: "handoff" } }] }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, scopes: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
+    return NextResponse.json({ tokens, url: `${appOrigin()}/mcp`, handoffUrl: `${appOrigin()}/api/v1/handoffs` });
   } catch (e) {
     return errorResponse(e);
   }
@@ -28,11 +29,12 @@ export async function POST(req: Request) {
     if (caller.demo) throw new HttpError(403, "بلا تسجيل دخول ما بينعمل توكن");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "اكتب اسم للتوكن (مثلاً «Claude الرئيسي»)");
-    if ((await db.apiToken.count({ where: { scopes: { has: "mcp" }, revokedAt: null } })) >= 10) throw new HttpError(409, "عندك 10 توكنات شغّالة — وقّف واحد قبل ما تعمل جديد");
-    const token = newToken("mbm_");
-    const row = await db.apiToken.create({ data: { name: parsed.data.name, scopes: ["mcp"], tokenHash: hashToken(token), prefix: token.slice(0, 10), createdById: caller.id } });
-    await audit({ type: "user", id: caller.id }, "mcp.token_create", { type: "api_token", id: row.id }, { after: { name: row.name } });
-    return NextResponse.json({ id: row.id, token, url: `${appOrigin()}/mcp` });
+    const { name, kind } = parsed.data;
+    if ((await db.apiToken.count({ where: { scopes: { has: kind }, revokedAt: null } })) >= 10) throw new HttpError(409, "عندك 10 توكنات شغّالة من هالنوع — وقّف واحد قبل ما تعمل جديد");
+    const token = newToken(kind === "mcp" ? "mbm_" : "mbh_");
+    const row = await db.apiToken.create({ data: { name, scopes: [kind], tokenHash: hashToken(token), prefix: token.slice(0, 10), createdById: caller.id } });
+    await audit({ type: "user", id: caller.id }, "mcp.token_create", { type: "api_token", id: row.id }, { after: { name: row.name, kind } });
+    return NextResponse.json({ id: row.id, token, url: kind === "mcp" ? `${appOrigin()}/mcp` : `${appOrigin()}/api/v1/handoffs` });
   } catch (e) {
     return errorResponse(e);
   }
