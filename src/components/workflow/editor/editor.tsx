@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, History as HistoryIcon, ListOrdered, Network, Plus, Radio, Redo2, RotateCcw, Save, Settings, Trash2, Undo2, Wand2 } from "lucide-react";
+import { ArrowRight, Film, History as HistoryIcon, ListOrdered, Network, Plus, Radio, Redo2, RotateCcw, Save, Settings, Trash2, Undo2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
@@ -44,6 +44,7 @@ import { ExecutorBadge, PermBadge } from "../badges";
 import { Canvas, type Selection } from "./canvas";
 import { NodeForm } from "./node-form";
 import { NodePicker } from "./node-picker";
+import { ReplayBar } from "./replay-bar";
 import { SettingsSheet, type Meta } from "./settings-sheet";
 import { StepsView } from "./steps-view";
 import { VersionsSheet } from "./versions-sheet";
@@ -103,6 +104,8 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
   const [saving, setSaving] = useState(false);
   const [run, setRun] = useState<RunView | null>(card.live ?? card.lastRun);
   const [showRun, setShowRun] = useState(!!card.live);
+  const [replayOn, setReplayOn] = useState(false);
+  const [replayStates, setReplayStates] = useState<NodeStates | null>(null);
   const dragBase = useRef<WfGraph | null>(null);
   const box = useRef({ w: 800, h: 520 });
   const g = () => histRef.current.graph;
@@ -111,7 +114,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
   const dirty = isChanged(diff);
   const issues = useMemo(() => checkGraph(graph), [graph]);
   const node = sel?.kind === "node" ? graph.nodes.find((n) => n.id === sel.id) ?? null : null;
-  const states: NodeStates = showRun && run ? run.nodeStates : {};
+  const states: NodeStates = replayStates ?? (showRun && run ? run.nodeStates : {});
   const liveNow = run?.status === "running" || run?.status === "waiting";
 
   // how wide the screen is: a side panel for a step's card from lg, a bottom sheet below; a phone opens in the list
@@ -431,12 +434,17 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
         ) : (
           <span className="rounded-lg bg-surface-2 px-3 py-1.5 text-xs text-fg-muted">للمشاهدة بس — التعديل للمالك</span>
         )}
+        <button type="button" aria-pressed={replayOn} onClick={() => setReplayOn((v) => !v)} className={cn("ms-auto inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs", replayOn ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
+          <Film className="size-3.5" /> إعادة عرض
+        </button>
         {hasRun ? (
-          <button type="button" aria-pressed={showRun} onClick={() => setShowRun((v) => !v)} className={cn("ms-auto inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs", showRun ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
+          <button type="button" aria-pressed={showRun} onClick={() => setShowRun((v) => !v)} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs", showRun ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
             <Radio className="size-3.5" /> {liveNow ? "التشغيل الحالي" : "آخر تشغيل"}
           </button>
         ) : null}
       </div>
+
+      {replayOn ? <ReplayBar workflowKey={card.key} graph={graph} startRef={run?.id} onStates={setReplayStates} onClose={() => setReplayOn(false)} /> : null}
 
       {canEdit && dirty ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/40 bg-warn/5 p-2" role="status" data-tour="save">

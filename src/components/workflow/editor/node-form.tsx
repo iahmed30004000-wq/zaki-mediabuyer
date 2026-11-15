@@ -5,6 +5,7 @@ import { Copy, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DATA_SOURCES, EXECUTORS, EXECUTOR_AR, NODE_TYPES, PERMISSIONS, PERMISSION_AR, type DataSource, type Executor, type Permission, type WfGraph, type WfNode } from "@/core/workflow";
 import { TYPE_AR, connect, setPredecessor } from "@/core/workflow-edit";
+import { tryPrompt } from "@/core/workflow-replay";
 import { cn } from "@/lib/utils";
 import { PermBadge } from "../badges";
 
@@ -38,6 +39,35 @@ function Text({ value, onCommit, multiline, rows = 4, placeholder, disabled, dir
       {multiline ? <textarea {...common} rows={rows} className={cn(common.className, "py-2 leading-6")} /> : <input {...common} inputMode={inputMode} />}
       {error ? <span className="block text-xs text-danger">{error}</span> : null}
     </>
+  );
+}
+
+/** «جرّب التعليمات»: the step's words with sample values in the {{variables}} — what is still missing, and what is refused. Nothing is sent anywhere. */
+function TryPrompt({ prompt }: { prompt: string }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const t = tryPrompt(prompt, values);
+  return (
+    <details className="rounded-lg border border-border bg-surface-2/50 p-2 text-xs">
+      <summary className="min-h-8 cursor-pointer select-none py-1.5 font-medium text-fg">جرّب التعليمات{t.vars.length ? ` (${t.vars.length} متغيّر)` : ""}</summary>
+      <div className="space-y-2 pt-1">
+        {t.vars.length ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {t.vars.map((v) => (
+              <label key={v} className="block space-y-1">
+                <span dir="ltr" className="block text-start font-mono text-[11px] text-fg-muted">{`{{${v}}}`}</span>
+                <input value={values[v] ?? ""} dir="auto" maxLength={200} onChange={(e) => setValues((x) => ({ ...x, [v]: e.target.value }))} placeholder="قيمة تجريبية" className="min-h-9 w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="text-fg-muted">ما فيها متغيّرات — هيك بتنبعت متل ما هي.</p>
+        )}
+        <pre dir="auto" aria-label="التعليمات بعد تعبئة المتغيّرات" className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-1 p-2 font-sans text-xs leading-6 text-fg">{t.text}</pre>
+        {t.missing.length ? <p className="text-warn">لسا ناقص: {t.missing.join("، ")} — بتضل {"{{…}}"} إذا ما انعبّت وقت التشغيل.</p> : t.vars.length ? <p className="text-ok">كل المتغيّرات معبّاية.</p> : null}
+        {t.refused.map((r) => <p key={r.name} className="text-danger">{r.name}: {r.why}</p>)}
+        <p className="text-fg-muted">{t.length} حرف من 8000. بس معاينة نص — ما بينبعت لأي موديل.</p>
+      </div>
+    </details>
   );
 }
 
@@ -132,6 +162,7 @@ export function NodeForm({
       <Row label="التعليمات" hint="اكتب شو بدها تعمل. المتغيّرات مثل {{product}} بتنملى وقت التشغيل. ولا أرقام زبائن ولا مفاتيح.">
         <Text value={node.prompt ?? ""} multiline rows={5} disabled={readOnly} onCommit={(v) => onChange({ prompt: v })} />
       </Row>
+      {node.prompt ? <TryPrompt key={node.id} prompt={node.prompt} /> : null}
 
       <div className="grid grid-cols-2 gap-3">
         <Row label="الدخل">
