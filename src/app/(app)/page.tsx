@@ -14,7 +14,8 @@ import { DateSwitcher } from "@/components/shell/date-switcher";
 import { TabNav } from "@/components/shell/tab-nav";
 import { ArtSlot } from "@/components/theme/art-slot";
 import { ThemeDecor } from "@/components/theme/theme-decor";
-import { parseRange } from "@/core/dates";
+import { can } from "@/core/roles";
+import { addDays, ammanKey, parseRange } from "@/core/dates";
 import { fmt } from "@/lib/format";
 import { loadChanges, type ChangeView } from "@/lib/changes-view";
 import { PACE, SETUP_STEPS, SOURCES, allAds } from "@/lib/mock/data";
@@ -97,12 +98,14 @@ export default async function TodayPage({ searchParams }: { searchParams: { tab?
 /** «الأرقام»: the date switcher, then the totals and the products. */
 async function NumbersTab({ q }: { q: { d?: string; from?: string; to?: string } }) {
   const range = parseRange(q, new Date());
-  const data = await loadNumbers(q);
+  const [data, me] = await Promise.all([loadNumbers(q), currentCaller()]);
+  // «ألصق أرقام» is the owner's, on real data: it starts from yesterday (the closed day)
+  const pasteDay = me && !me.demo && process.env.MOCK_MODE !== "1" && can(me.role, "owner_only") ? addDays(ammanKey(new Date()), -1) : undefined;
   const query = range.key === "custom" ? `d=custom&from=${range.from}&to=${range.to}` : `d=${range.key}`;
   return (
     <div className="space-y-4">
       <DateSwitcher range={range} />
-      <NumbersView data={data} query={query} />
+      <NumbersView data={data} query={query} pasteDay={pasteDay} />
     </div>
   );
 }

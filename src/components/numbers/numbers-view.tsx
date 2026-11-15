@@ -7,6 +7,7 @@ import { Num } from "@/components/mb/num";
 import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { PasteNumbers } from "./paste-numbers";
 import { GROUPS, STATS, costTone, type GroupKey, type NumbersSet, type ProductNumbers, type StatDef } from "@/core/numbers";
 import type { TermKey } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
@@ -170,7 +171,7 @@ function Share({ query }: { query: string }) {
  * «الأرقام»: every number of the day. The totals strip first (one phone screen), then a card per product — collapsed until
  * tapped. «قارن» puts each number beside yesterday's and the 7-day average. Every figure explains itself with a tap.
  */
-export function NumbersView({ data, query }: { data: NumbersData; query: string }) {
+export function NumbersView({ data, query, pasteDay }: { data: NumbersData; query: string; /** set only for the owner: the day «ألصق أرقام» starts from */ pasteDay?: string }) {
   const [compare, setCompare] = useState(false);
   const [all, setAll] = useState(false);
   // Short on purpose: it sits in a ~110px tile on a phone, next to its arrow and percentage.
@@ -188,7 +189,8 @@ export function NumbersView({ data, query }: { data: NumbersData; query: string 
           قارن
         </label>
         <span className="text-xs text-fg-muted">{data.label}</span>
-        <span className="ms-auto">
+        <span className="ms-auto flex flex-wrap items-center gap-2">
+          {pasteDay ? <PasteNumbers defaultDay={pasteDay} /> : null}
           <Share query={query} />
         </span>
       </div>
