@@ -11,6 +11,7 @@ interface TokenRow {
   id: string;
   name: string;
   prefix: string;
+  scopes: string[];
   lastUsedAt: string | null;
   revokedAt: string | null;
 }
@@ -25,15 +26,17 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
   const { toast } = useToast();
   const [tokens, setTokens] = useState<TokenRow[] | null>(null);
   const [url, setUrl] = useState("");
+  const [handoffUrl, setHandoffUrl] = useState("");
   const [fresh, setFresh] = useState<string | null>(null);
   const [name, setName] = useState("Claude الرئيسي");
 
   const load = useCallback(async () => {
     const r = await fetch("/api/mcp/tokens");
     if (!r.ok) return setTokens([]);
-    const d = (await r.json()) as { tokens: TokenRow[]; url: string };
+    const d = (await r.json()) as { tokens: TokenRow[]; url: string; handoffUrl?: string };
     setTokens(d.tokens);
     setUrl(d.url);
+    setHandoffUrl(d.handoffUrl ?? "");
   }, []);
   useEffect(() => {
     load().catch(() => setTokens([]));
@@ -47,6 +50,13 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
   }
   const copy = (text: string, done: string) => navigator.clipboard.writeText(text).then(() => toast(done, "success"));
   const live = (tokens ?? []).filter((t) => !t.revokedAt);
+  const mint = async (kind: "mcp" | "handoff") => {
+    const d = await call("/api/mcp/tokens", { method: "POST", body: JSON.stringify({ name, kind }) });
+    if (d?.token) {
+      setFresh(d.token);
+      await load();
+    }
+  };
 
   return (
     <Panel className="space-y-4 md:col-span-2">
@@ -88,6 +98,7 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
             <KeyRound className="size-4 text-fg-muted" />
             <span className="text-fg">{t.name}</span>
             <span dir="ltr" className="font-mono text-xs text-fg-muted">{t.prefix}…</span>
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">{t.scopes.includes("mcp") ? "Claude (MCP)" : "طابور التسليم بس"}</span>
             <span className="ms-auto text-xs text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
             <Button size="sm" variant="ghost" onClick={async () => (await call(`/api/mcp/tokens/${t.id}`, { method: "DELETE" })) && load()}>
               وقّفه
@@ -96,6 +107,10 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
         ))}
         {tokens && !live.length ? <p className="text-xs text-fg-muted">ما في توكن لـ Claude لسا.</p> : null}
       </div>
+
+      <p className="text-xs leading-5 text-fg-muted">
+        <span className="font-semibold text-fg">طابور التسليم:</span> لما تضغط «شغّل هلق» أو تقف خطوة، بتنزل هناك. Claude بيقراه بـ <code dir="ltr" className="font-mono">get_handoffs</code> (توكن الـ MCP نفسه)، وClaude Desktop أو أي وكيل بيقدر يقراه من <code dir="ltr" className="break-all font-mono">{handoffUrl || "…/api/v1/handoffs"}</code> بتوكن «طابور التسليم بس» (<code dir="ltr" className="font-mono">Authorization: Bearer …</code>).
+      </p>
 
       {fresh ? (
         <div className="space-y-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
@@ -113,16 +128,15 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
           className="flex flex-wrap items-center gap-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            const d = await call("/api/mcp/tokens", { method: "POST", body: JSON.stringify({ name }) });
-            if (d?.token) {
-              setFresh(d.token);
-              await load();
-            }
+            await mint("mcp");
           }}
         >
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم التوكن" className="w-56" aria-label="اسم التوكن" />
           <Button size="sm" type="submit" disabled={!name.trim()}>
             اعمل توكن لـ Claude
+          </Button>
+          <Button size="sm" type="button" variant="secondary" disabled={!name.trim()} onClick={() => void mint("handoff")}>
+            توكن لطابور التسليم بس
           </Button>
         </form>
       )}
