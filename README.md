@@ -78,6 +78,7 @@
 | الـ OMS (P0.3) | `OMS_BASE_URL` · `OMS_TOKEN` |
 | تيليجرام (P0.7) | `TELEGRAM_BOT_TOKEN` · `TELEGRAM_OWNER_CHAT_ID` · `TELEGRAM_ALLOWED_CHAT_IDS` |
 | درايف (P0.6) | `GOOGLE_SERVICE_ACCOUNT_JSON` · `DRIVE_PRODUCTS_FOLDER_ID` |
+| درايف — فيديوهات وسيناريوهات (قراءة بس) | `DRIVE_PRODUCTION_FOLDER_ID` (مجلد «Zaki Production» مشارك مع نفس الـ Service Account) · `DRIVE_REGISTER_FILE_ID` (اختياري) — التفاصيل `docs/DECISIONS.md` (D30) |
 | الموديل الداخلي | `INTERNAL_MODEL_BASE_URL` · `INTERNAL_MODEL_NAME` |
 | موديل خارجي (اختياري) | `EXTERNAL_MODEL_BASE_URL` · `EXTERNAL_MODEL_KEY` · `EXTERNAL_MODEL_NAME` |
 | أحداث التحويل | `META_DATASET_ID` (اختياري) · `CAPI_TEST_EVENT_CODE` لأول تجربة بأداة Test Events |

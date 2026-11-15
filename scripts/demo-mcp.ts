@@ -9,6 +9,7 @@ process.env.APP_URL = "http://localhost:3140";
 process.env.TELEGRAM_BOT_TOKEN = "";
 process.env.TELEGRAM_OWNER_CHAT_ID = "";
 
+import { generateKeyPairSync } from "node:crypto";
 import { createServer } from "node:http";
 import { db } from "../src/server/db";
 import { hashToken, newToken } from "../src/server/api-token";
@@ -35,6 +36,7 @@ import { GET as vrList } from "../src/app/api/v1/video-requests/route";
 import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/route";
 import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
 import { loadBoard } from "../src/lib/videos-board";
+import { syncDriveLibrary } from "../src/jobs/drive-library";
 import { setSetting } from "../src/server/settings";
 import { createVideoRequest, moveVideoRequest } from "../src/server/video-requests";
 
@@ -77,6 +79,7 @@ async function clean() {
   const asks = await db.videoRequest.findMany({ where: { job: { startsWith: "DEMO-JOB" } }, select: { id: true, taskId: true } });
   await db.task.deleteMany({ where: { id: { in: asks.map((r) => r.taskId).filter((t): t is string => !!t) } } });
   await db.videoRequest.deleteMany({ where: { id: { in: asks.map((r) => r.id) } } });
+  await db.alert.deleteMany({ where: { kind: "drive.library_unmapped" } });
   await db.task.deleteMany({ where: { title: { startsWith: "DEMO" } } });
   await db.productEconomics.deleteMany({ where: { productCode: { in: ["DEMO_STK", "DEMO_NUM", "VID01"] } } });
   await db.productDay.deleteMany({ where: { productCode: "DEMO_NUM" } });
@@ -596,6 +599,89 @@ async function clean() {
     hermes.close();
     delete process.env.HERMES_BASE_URL;
     delete process.env.HERMES_TOKEN;
+  }
+
+  // ── درايف (v3 I): the owner's «Zaki Production» tree, read only — files, scenarios and his register ──
+  {
+    const now = new Date();
+    // the bank as it stands: V301 has no file, V302 already points at one of his own, V303 has nothing
+    await db.videoBankItem.createMany({
+      data: [
+        { job: "DEMO-JOB-D1", vName: "V301", productCode: "VID01", status: "bank", source: "mcp" },
+        { job: "DEMO-JOB-D2", vName: "V302", productCode: "VID01", status: "bank", source: "mcp", driveFileId: "MINEfileabc" },
+        { job: "DEMO-JOB-D3", vName: "V303", productCode: "VID01", status: "bank", source: "mcp" },
+      ],
+    });
+    // a stand-in Drive: a tree of folders and files, and a register as CSV
+    const FOLDER = "application/vnd.google-apps.folder";
+    const reg = [
+      "JOB,اسم الفيديو,المنتج,الحالة,رابط الفيديو",
+      "DEMO-JOB-D1,V301,VID01,,https://drive.google.com/file/d/RegisterDriveD1abc/view",
+      "DEMO-JOB-D2,V302,VID01,,",
+      "DEMO-JOB-D4,V304,VID01,جاهز,",
+      "DEMO-JOB-D5,V305,منتج بلا اسم معروف,,",
+      ",,,,",
+    ].join("\n");
+    const tree: Record<string, { name: string; mimeType: string; parent: string }> = {
+      F06: { name: "06_الفيديوهات النهائية", mimeType: FOLDER, parent: "ROOT" },
+      F03: { name: "03_السيناريوهات", mimeType: FOLDER, parent: "ROOT" },
+      REG: { name: "سجل الفيديوهات.csv", mimeType: "text/csv", parent: "ROOT" },
+      P1: { name: "VID01", mimeType: FOLDER, parent: "F06" },
+      P2: { name: "منتج مجهول", mimeType: FOLDER, parent: "F06" },
+      V1: { name: "V301.mp4", mimeType: "video/mp4", parent: "P1" },
+      V2: { name: "V302.mp4", mimeType: "video/mp4", parent: "P1" },
+      V3: { name: "V303_v2.mp4", mimeType: "video/mp4", parent: "P1" },
+      V4: { name: "random clip.mp4", mimeType: "video/mp4", parent: "P1" },
+      V5: { name: "V999.mp4", mimeType: "video/mp4", parent: "P2" },
+      S1: { name: "V303 سيناريو.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", parent: "F03" },
+      S2: { name: "JOB DEMO-JOB-D4 سيناريو.docx", mimeType: "application/vnd.google-apps.document", parent: "F03" },
+    };
+    const ids: Record<string, string> = { V1: "FolderFileV301abc", V2: "FolderFileV302abc", V3: "FolderFileV303abc", S1: "ScenFileV303abc", S2: "ScenFileD4abc" };
+    const idOf = (k: string) => ids[k] ?? k;
+    const seen: { method: string; url: string }[] = [];
+    const drive = (async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      seen.push({ method, url });
+      if (url.startsWith("https://oauth2.googleapis.com/token")) return new Response(JSON.stringify({ access_token: "ya29.demo", expires_in: 3600 }));
+      const q = new URL(url).searchParams.get("q");
+      if (q) {
+        const parent = /'([^']+)' in parents/.exec(q)![1]!;
+        const onlyFolders = q.includes("mimeType = 'application/vnd.google-apps.folder'");
+        const kids = Object.entries(tree).filter(([, f]) => f.parent === parent && (!onlyFolders || f.mimeType === FOLDER)).map(([k, f]) => ({ id: idOf(k), name: f.name, mimeType: f.mimeType }));
+        return new Response(JSON.stringify({ files: kids }));
+      }
+      if (url.includes("alt=media")) return new Response(reg);
+      return new Response("{}", { status: 404 });
+    }) as unknown as typeof fetch;
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+    // folders keep their keys as ids (F06, P1…), files get the long ids above
+    for (const [k, f] of Object.entries(tree)) if (f.mimeType === FOLDER) ids[k] = k;
+    ids.REG = "RegisterFileDemoabc";
+    const o = { account: { client_email: "demo-library@test.iam.gserviceaccount.com", private_key: privateKey }, fetch: drive };
+
+    const run1 = await syncDriveLibrary(o, "ROOT");
+    check(run1.folders.finals && run1.folders.scenarios && run1.register === "read" && run1.registerRows === 4, "drive.library: finds the two folders by name and reads the register (4 rows; the empty line is skipped)", run1);
+    check(run1.created === 1 && (await db.videoBankItem.findFirst({ where: { job: "DEMO-JOB-D4" } }))?.status === "ready" && (await db.videoBankItem.findFirst({ where: { job: "DEMO-JOB-D4" } }))?.source === "drive", "a video the register has and the bank lacks is added, as the register says («جاهز»), source drive");
+    check(run1.problems.some((p) => p.includes("منتج بلا اسم معروف")) && (await db.videoBankItem.count({ where: { job: "DEMO-JOB-D5" } })) === 0, "a product the app does not know creates nothing, and is named");
+    const bankNow = Object.fromEntries((await db.videoBankItem.findMany({ where: { job: { startsWith: "DEMO-JOB-D" } } })).map((b) => [b.vName, b]));
+    check(bankNow.V301?.driveFileId === "RegisterDriveD1abc", "the register fills a video's EMPTY file (V301) — and the file the folder holds for it is a conflict, not an overwrite", { drive: bankNow.V301?.driveFileId, conflicts: run1.conflicts });
+    check(bankNow.V302?.driveFileId === "MINEfileabc" && run1.conflicts.some((c) => c.includes("V302.mp4")), "V302 keeps the file it already had; the folder's file is listed as a conflict");
+    check(bankNow.V303?.driveFileId === "FolderFileV303abc" && run1.linkedVideos === 1, "V303 had nothing: the folder's «V303_v2.mp4» becomes its file (a version tail still names V303)");
+    check(bankNow.V303?.scenarioFileId === "ScenFileV303abc" && bankNow.V304?.scenarioFileId === "ScenFileD4abc" && run1.linkedScenarios === 2, "scenarios: by the V name (V303) and, with none, by the JOB number (V304)");
+    check(run1.unmatched.includes("random clip.mp4") && run1.unmatched.includes("V999.mp4") && run1.unmappedFolders.join() === "منتج مجهول", "a file that fits no video is listed, and a product folder the app does not know is named", { unmatched: run1.unmatched, unmapped: run1.unmappedFolders });
+    check((await db.alert.count({ where: { kind: "drive.library_unmapped" } })) === 1, "…said once as an alert");
+    check(seen.every((s) => s.method === "GET" || s.url.startsWith("https://oauth2.googleapis.com/token")) && !seen.some((s) => /alt=media/.test(s.url) && !s.url.includes("RegisterFileDemoabc")), "READ ONLY: Drive saw only sign-in and GETs, and only the register's content was read");
+
+    const run2 = await syncDriveLibrary(o, "ROOT");
+    check(run2.created === 0 && run2.linkedVideos === 0 && run2.linkedScenarios === 0 && run2.already >= 3 && (await db.alert.count({ where: { kind: "drive.library_unmapped" } })) === 1, "a second pass changes nothing: no new rows, no new links, the alert is not repeated", run2);
+
+    const board = await loadBoard(now);
+    const rest = board.products.find((x) => x.code === "VID01")!.rest.find((v) => v.vName === "V303");
+    check(rest?.previewUrl === "https://drive.google.com/file/d/FolderFileV303abc/preview" && rest.scenarioUrl === "https://drive.google.com/file/d/ScenFileV303abc/view", "…and the board's card for V303 now has its Drive preview and its scenario link", rest);
+
+    // a folder with no register and no scenarios is not an error: it says what is missing
+    const bare = await syncDriveLibrary({ ...o, fetch: (async (url: string) => (String(url).startsWith("https://oauth2.googleapis.com/token") ? new Response(JSON.stringify({ access_token: "ya29.demo", expires_in: 3600 })) : new Response(JSON.stringify({ files: [] })))) as unknown as typeof fetch }, "EMPTYROOT");
+    check(!bare.folders.finals && !bare.folders.scenarios && bare.register === "none" && bare.problems.length === 2, "an empty shared folder: nothing is read, both missing folders are named", bare.problems);
   }
 
   // ── what the model gets when it is wrong ──
