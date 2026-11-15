@@ -69,7 +69,8 @@ export interface QuickAdd {
   /** YYYY-MM-DD on the Amman clock */
   due_at?: string;
   priority?: "high" | "urgent";
-  board?: TaskBoard;
+  /** a board key: one of the built-in ones or one the owner made (src/core/customize.ts) */
+  board?: string;
 }
 
 const clean = (w: string | undefined) => (w ?? "").replace(/[:：،,]+$/, "");
@@ -119,8 +120,9 @@ function dayOf(token: string, today: string): string | null {
  * «بكرا لميوز: اعمل 4 هوكات للطنين #confirmation !عاجل» → who, when, which board, how urgent, and what is left is the title.
  * The words that count are read from the start of the line (a date, «لـ<name>», a name followed by a colon, a priority);
  * the first word that is none of them starts the title. A hashtag or «!عاجل» counts anywhere. A line with none of it is just a title.
+ * `extraBoards` are the boards the owner made («#شحنات_الأسبوع»): word → key.
  */
-export function parseQuickAdd(input: string, now: Date): QuickAdd | null {
+export function parseQuickAdd(input: string, now: Date, extraBoards: Record<string, string> = {}): QuickAdd | null {
   const today = ammanKey(now);
   let line = input.replace(/\s+/g, " ").trim().replace(/(^|\s)بعد (بكرا|بكره)(?=\s|:|$)/g, "$1بعدبكرا");
   if (!line) return null;
@@ -129,7 +131,7 @@ export function parseQuickAdd(input: string, now: Date): QuickAdd | null {
   // hashtags and «!word» anywhere: the board and the urgency
   line = line
     .replace(/(^|\s)#([^\s#:،,]+)/g, (m, sp: string, w: string) => {
-      const b = BOARD_WORDS[normalize(w)];
+      const b = BOARD_WORDS[normalize(w)] ?? extraBoards[normalize(w)];
       if (!b) return m;
       out.board = b;
       return sp;

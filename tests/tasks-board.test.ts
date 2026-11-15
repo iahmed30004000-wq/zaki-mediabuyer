@@ -132,3 +132,16 @@ describe("duplicates", () => {
     expect(groups.map((g) => g.map((c) => c.id))).toEqual([["a", "b"]]);
   });
 });
+
+describe("the boards the owner made (v3 · K)", () => {
+  const extra = { "شحنات_نوفمبر": "bd-1a2b3c", "bd-1a2b3c": "bd-1a2b3c" };
+  it("«#word» finds a board of his by its name (spaces as «_») or its key, beside the built-in ones", () => {
+    expect(parseQuickAdd("بكرا لميوز: تابع الشحنة #شحنات_نوفمبر", NOW, extra)?.board).toBe("bd-1a2b3c");
+    expect(parseQuickAdd("تابع #bd-1a2b3c", NOW, extra)?.board).toBe("bd-1a2b3c");
+    expect(parseQuickAdd("تابع #stock", NOW, extra)?.board).toBe("stock");
+  });
+  it("a hashtag that is no board stays in the title, as before", () => {
+    expect(parseQuickAdd("تابع #شي_تاني", NOW, extra)).toMatchObject({ title: "تابع #شي_تاني" });
+    expect(parseQuickAdd("تابع #شحنات_نوفمبر", NOW)?.board).toBeUndefined();
+  });
+});

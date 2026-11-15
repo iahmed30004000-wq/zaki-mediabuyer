@@ -64,3 +64,12 @@ describe("the date switcher: اليوم / امبارح / 7 أيام / مخصص",
     expect(rangeLabel(parseRange({ d: "custom", from: "2026-11-01", to: "2026-11-10" }, now))).toBe("2026-11-01 ← 2026-11-10");
   });
 });
+
+describe("a date that only looks like one", () => {
+  it("is not a key — and asking never throws (it may be a query string somebody typed)", () => {
+    for (const bad of ["2026-13-40", "2026-02-30", "2026-00-10", "9999-99-99", "2026-11-31"]) expect(isKey(bad), bad).toBe(false);
+    expect(isKey("2026-02-28")).toBe(true);
+    const now = new Date("2026-11-14T09:00:00Z");
+    expect(parseRange({ d: "custom", from: "2026-13-40", to: "2026-13-41" }, now)).toMatchObject({ key: "today", from: "2026-11-14" });
+  });
+});
