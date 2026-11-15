@@ -261,6 +261,7 @@ export const VideoRow = z
     v_name: text(60).describe("اسم الفيديو V…"),
     product: text(40).describe("رمز المنتج"),
     drive_file_id: text(120).optional(),
+    scenario_file_id: text(120).optional().describe("ملف سيناريو الفيديو بدرايف (03_السيناريوهات) — بيظهر رابطه على بطاقة الفيديو وبيروح مع كل طلب لهيرمز"),
     meta_video_id: text(64).optional(),
     status: z.enum(VIDEO_STATUSES).optional().describe("bank | requested | ready | uploaded | testing | winner | fatigued | dropped"),
     notes: z.string().trim().max(300).optional(),

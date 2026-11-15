@@ -22,7 +22,9 @@ function linkOf(t: TaskView): { href: string; label: string } | null {
   const label = { workflow: "ورك فلو", approval: "قرار", video: "فيديو", campaign: "حملة", product: "منتج" }[t.linkType] ?? t.linkType;
   const href =
     t.linkType === "workflow" ? "/workflow" : t.linkType === "approval" ? "/tasks#approval" : t.linkType === "video" ? "/videos" : t.linkType === "campaign" ? `/ads?open=${encodeURIComponent(id)}` : t.linkType === "product" ? `/ads?product=${encodeURIComponent(id)}` : "";
-  return href ? { href, label: id ? `${label} ${id}` : label } : null;
+  // a request about a video links by its own long id, which is no name for anyone: say «فيديو» and open the board
+  const shown = t.linkType === "video" && id.length > 16 ? "" : id;
+  return href ? { href, label: shown ? `${label} ${shown}` : label } : null;
 }
 
 const dayText = (iso: string) => {

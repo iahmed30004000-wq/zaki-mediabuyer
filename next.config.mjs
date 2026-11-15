@@ -6,7 +6,7 @@
  */
 export const LEGACY_REDIRECTS = [
   { source: "/decisions", destination: "/tasks", permanent: false },
-  { source: "/creatives", destination: "/videos", permanent: false },
+  { source: "/creatives", destination: "/videos?tab=flow", permanent: false },
   // alerts used to point at /reports?tab=safety|data — those two tabs are «الصحة» inside الإعلانات now
   { source: "/reports", has: [{ type: "query", key: "tab", value: "(safety|data)" }], destination: "/ads", permanent: false },
   { source: "/reports", destination: "/done?tab=reports", permanent: false },
