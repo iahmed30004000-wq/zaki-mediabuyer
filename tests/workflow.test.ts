@@ -8,7 +8,7 @@ describe("the seeded jobs (v4 · E)", () => {
   it("are the owner's real jobs, each under its own key", () => {
     const keys = SEED_WORKFLOWS.map((w) => w.key);
     expect(new Set(keys).size).toBe(keys.length);
-    for (const k of ["daily-check", "night-round", "product-tests", "video-collection", "shipments-check", "leak-plan", "manager-comment", "girls-training", "tinnitus-experiment", "one-off-verdicts", "team-round", "review-fixes", "hermes-requests", "basha-parcels", "breakeven-refresh"]) expect(keys, k).toContain(k);
+    for (const k of ["daily-check", "night-round", "product-tests", "video-collection", "shipments-check", "leak-plan", "manager-comment", "girls-training", "tinnitus-experiment", "one-off-verdicts", "team-round", "review-fixes", "hermes-requests", "basha-parcels", "breakeven-refresh", "stock-alerts"]) expect(keys, k).toContain(k);
   });
 
   it("run when the owner said they run (Amman clock)", () => {

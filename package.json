@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "themes:css": "tsx scripts/build-themes-css.mjs",
+    "n8n:build": "tsx scripts/build-n8n.ts",
     "decor:css": "node scripts/build-decor-css.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

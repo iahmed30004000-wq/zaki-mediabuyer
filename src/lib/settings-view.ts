@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { omsLinked } from "@/server/env";
 import { getSetting } from "@/server/settings";
 import { levelChange, type AutonomyLevel } from "@/core/autonomy";
+import { N8N_CREATOR } from "@/core/n8n-starters";
 import { siteConfigFrom } from "@/core/step-exec";
 import { accountRestricted } from "@/jobs/account-safety";
 import { AGENT_NAMES, AGENTS } from "@/gateway";
@@ -118,6 +119,15 @@ function stepRunnerLink(): SourceHealth {
   return { key: "stepRunner", label, state: "ok", detail: `موصول — ${c.n8nPaths.length} webhook و${c.httpHosts.length} موقع مسموح` };
 }
 
+/** Is n8n waking Claude? The starters create their requests through a token named «n8n»: the last one says how alive the clock is. */
+async function n8nPulse(): Promise<SourceHealth> {
+  const label = "n8n — بيصحّي Claude بمواعيده";
+  const last = await db.handoff.findFirst({ where: { createdBy: N8N_CREATOR }, orderBy: { createdAt: "desc" }, select: { createdAt: true, workflowKey: true } });
+  if (!last) return { key: "n8n", label, state: "off", detail: "ولا مرة — استورد ملفات n8n/media-buyer واربط توكن اسمه n8n (docs/N8N.md)" };
+  const late = Date.now() - last.createdAt.getTime() > 26 * 3_600_000;
+  return { key: "n8n", label, state: late ? "late" : "ok", detail: `آخر مرة صحّى Claude ${ago(last.createdAt)} (${last.workflowKey})` };
+}
+
 export async function loadEditView(): Promise<EditView | null> {
   if (process.env.MOCK_MODE === "1") return null;
   const has = (k: string) => Boolean(process.env[k]?.trim());
@@ -131,6 +141,7 @@ export async function loadEditView(): Promise<EditView | null> {
     link("driveLibrary", "درايف — فيديوهات وسيناريوهات", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"), await lastSuccess("drive.library"), 90, "فحص"),
     assistantLink(),
     stepRunnerLink(),
+    await n8nPulse(),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },
   ];
   const caps = (await getSetting("scale.product_caps")) as Record<string, number>;

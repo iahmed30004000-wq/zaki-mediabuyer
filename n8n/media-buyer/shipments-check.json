@@ -1,0 +1,139 @@
+{
+  "name": "Media Buyer — فحص الشحنات كل ساعتين",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## فحص الشحنات كل ساعتين\nالساعة حسب الجدول (7 11-21/2 * * * بتوقيت عمّان) هالفلو بيطلب من Claude يشغّل «فحص الشحنات كل ساعتين» عن طريق طابور التسليم. ما بيصرف ولا بيلمس ميتا.\n\n**قبل التفعيل:**\n1. اربط credential «Media Buyer — handoff token» (Header Auth: Authorization = Bearer mbh_… من «الإعدادات ← الربط ← Claude»، اسم التوكن `n8n`).\n2. للمسار الموقّع: الصق السر بعقدة «تحقّق من توقيع الموقع» وضيف `shipments-check` لـ N8N_ALLOWED_PATHS بالموقع.\n3. فعّل الفلو.",
+        "height": 300,
+        "width": 460
+      },
+      "id": "9b013bd6-d30e-4b7a-acdd-c1ca03a836ef",
+      "name": "اقرأني",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "7 11-21/2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "fc8bd34b-a259-42ae-a79b-df0a101dfe4c",
+      "name": "الجدول",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shipments-check",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "c74e186e-cc23-43a9-aec7-c11594f11feb",
+      "name": "الموقع بيطلب",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        220
+      ],
+      "webhookId": "6269e093-cfae-48a3-a342-cce2ee0ff944"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Checks that the site signed this call: HMAC-SHA256 over \"<timestamp>.<body>\", not older than 5 minutes.\n// Needs n8n to allow the built-in module: NODE_FUNCTION_ALLOW_BUILTIN=crypto\nconst crypto = require('crypto');\nconst SECRET = 'PASTE_N8N_WEBHOOK_SECRET_HERE';\nconst item = $input.first().json;\nconst headers = item.headers || {};\nconst ts = String(headers['x-mb-timestamp'] || '');\nconst sig = Buffer.from(String(headers['x-mb-signature'] || ''));\nconst want = Buffer.from('sha256=' + crypto.createHmac('sha256', SECRET).update(ts + '.' + JSON.stringify(item.body)).digest('hex'));\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nif (SECRET.startsWith('PASTE_') || !fresh || sig.length !== want.length || !crypto.timingSafeEqual(sig, want)) {\n  throw new Error('Not signed by the site (or the secret is not pasted yet) - refused');\n}\nreturn $input.all();"
+      },
+      "id": "bbb9dd9a-5c07-4143-a699-f2d3be6c8872",
+      "name": "تحقّق من توقيع الموقع",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mediabuyer.zakiai.io/api/v1/handoffs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"workflow\": \"shipments-check\",\n  \"kind\": \"manual_run\",\n  \"title\": \"شغّل «فحص الشحنات كل ساعتين» (من n8n)\",\n  \"need\": \"من 11:07 لـ 21:07 كل ساعتين: متابعة الشحنات المتأخرة والمرتجعات.\",\n  \"assignee\": \"claude\"\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "8e166c99-aa3c-4d63-aef3-61c53f88af4a",
+      "name": "اطلب من Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        540,
+        110
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Media Buyer — handoff token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "الجدول": {
+      "main": [
+        [
+          {
+            "node": "اطلب من Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "الموقع بيطلب": {
+      "main": [
+        [
+          {
+            "node": "تحقّق من توقيع الموقع",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحقّق من توقيع الموقع": {
+      "main": [
+        [
+          {
+            "node": "اطلب من Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman"
+  },
+  "pinData": {}
+}

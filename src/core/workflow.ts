@@ -336,6 +336,15 @@ export const SEED_WORKFLOWS: SeedWorkflow[] = [
     graph: chain([trigger("11:07 – 21:07 كل ساعتين"), claude("read", "قراءة حالة الشحنات", "الـ OMS (قراءة)", "green"), claude("flag", "تحويل المتأخر لمهمة", "الميديا باير ← المهام", "green")]),
   },
   {
+    key: "stock-alerts",
+    name: "تنبيهات المخزون",
+    description: "كل 4 ساعات من 9:30: قراءة مخزون كل منتج من الـ OMS ومقارنته بحد الأمان، وتنبيه المالك لما منتج يقرب يخلص.",
+    schedule: "30 9-21/4 * * *",
+    executor: "claude_mcp",
+    permission: "green",
+    graph: chain([trigger("09:30 – 21:30 كل 4 ساعات"), claude("read", "قراءة مخزون المنتجات", "الـ OMS (قراءة)", "green"), claude("compare", "مقارنته بحد الأمان", "الميديا باير ← التنبيهات", "green"), notify("المالك")]),
+  },
+  {
     key: "girls-training",
     name: "تدريب بنات التأكيد (الخميس)",
     description: "الخميس 11:20: جلسة تدريب فريق التأكيد عن طريق ميوز.",
