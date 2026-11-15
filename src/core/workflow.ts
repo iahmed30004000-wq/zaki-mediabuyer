@@ -13,6 +13,11 @@ import { z } from "zod";
 
 export const NODE_TYPES = ["trigger", "step", "condition", "approval", "wait", "notify"] as const;
 export const EXECUTORS = ["claude_task", "claude_mcp", "claude_desktop", "claude_api", "hermes", "muse", "n8n", "telegram", "http", "person", "system"] as const;
+/** The doers the site itself may run (D35): n8n, an HTTP address, Telegram. Lives here, with the other executors, so a screen can ask without loading node:crypto. */
+export const SITE_EXECUTORS = ["n8n", "http", "telegram"] as const;
+export type SiteExecutor = (typeof SITE_EXECUTORS)[number];
+export const isSiteExecutor = (x: string | undefined): x is SiteExecutor => !!x && (SITE_EXECUTORS as readonly string[]).includes(x);
+
 export const PERMISSIONS = ["green", "yellow", "red", "black"] as const;
 export const DATA_SOURCES = ["api", "mcp", "manual"] as const;
 export const NODE_STATUSES = ["waiting", "running", "done", "failed", "handoff", "approval"] as const;

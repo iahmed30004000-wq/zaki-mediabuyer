@@ -12,11 +12,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { refuseIfPrivate } from "./push-rows";
-import { stepOrder, type WfGraph, type WfNode } from "./workflow";
+import { isSiteExecutor, stepOrder, type SiteExecutor, type WfGraph, type WfNode } from "./workflow";
 
-export const SITE_EXECUTORS = ["n8n", "http", "telegram"] as const;
-export type SiteExecutor = (typeof SITE_EXECUTORS)[number];
-export const isSiteExecutor = (x: string | undefined): x is SiteExecutor => !!x && (SITE_EXECUTORS as readonly string[]).includes(x);
+export { SITE_EXECUTORS, isSiteExecutor, type SiteExecutor } from "./workflow";
 
 export const MAX_BODY = 4_000;
 export const MAX_TIMEOUT_S = 120;
