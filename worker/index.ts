@@ -24,6 +24,7 @@
  *   report.morning 09:00 — built by code, sent to Telegram
  *   alerts.read    every 15 min — the instant alerts of spec 12.3 (two readings in a row, the instant ones at once)
  *   alerts.send    every 5 min — every unsent danger/warning alert in ONE Telegram message
+ *   workflow.timeouts every 5 min — a workflow step «running» past its own timeout goes to the handoff queue (once each)
  *   safety.month   the 1st at 06:00 — the account cap on Meta reset for the new month (waits for the owner)
  *   creatives.fatigue 07:30 — a tired winner is marked and new hooks are queued for the studio (never paused)
  *   rules.scale    every hour at :17, after the safety rules — the scale ladder (auto at level 2, approval at 1)
@@ -58,6 +59,7 @@ import { processPendingRequests } from "../src/server/studio-launch";
 import { syncReplies } from "../src/jobs/replies";
 import { repliesFromEnv } from "../src/adapters/replies";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
+import { sweepTimeouts } from "../src/server/step-exec";
 import { db } from "../src/server/db";
 
 const DAY = 86_400_000;
@@ -111,6 +113,7 @@ export async function tick(now = new Date()) {
   await runOnce("alerts.read", quarter, () => readAlerts(now));
   const five = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 5) * 5).padStart(2, "0")}`;
   await runOnce("alerts.send", five, () => sendAlerts(telegramFromEnv(), now));
+  await runOnce("workflow.timeouts", five, () => sweepTimeouts(now));
   await runOnce("capi.send", quarter, async () => {
     const queued = await enqueueCapi(now);
     const live = writeMode() === "live";

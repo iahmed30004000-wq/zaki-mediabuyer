@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Hourglass, PencilRuler, Play, Radio } from "lucide-react";
+import { ChevronDown, Hourglass, PencilRuler, Play, Radio, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
 import { ASSIGNEES, waitingText } from "@/core/handoff";
-import { EXECUTOR_AR, type Executor } from "@/core/workflow";
+import { EXECUTOR_AR, isSiteExecutor, type Executor } from "@/core/workflow";
 import { cn } from "@/lib/utils";
 import type { HandoffView } from "@/server/handoffs";
 import type { RunView, WorkflowCard } from "@/server/workflows";
@@ -111,6 +111,20 @@ function Card({ c, canEdit, handoff, onChanged }: { c: WorkflowCard; canEdit: bo
     onChanged();
   }
 
+  async function execute() {
+    setBusy(true);
+    const r = await fetch(`/api/workflow/${c.key}/execute`, { method: "POST" });
+    const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; status?: "ok" | "waiting"; ran?: { status: string }[]; handedOver?: { label: string; why: string } };
+    setBusy(false);
+    if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
+    if (d.demo) return toast("بالوضع التجريبي ما بينفّذ الموقع شي", "info");
+    const n = d.ran?.filter((x) => x.status === "done").length ?? 0;
+    toast(d.status === "ok" ? `خلصت من الموقع: ${n} خطوة ✓` : `نفّذ الموقع ${n} خطوة ووقف عند «${d.handedOver?.label}» — ${d.handedOver?.why}`, d.status === "ok" ? "success" : "info");
+    onChanged();
+  }
+
+  const siteSteps = c.graph.nodes.some((n) => !n.disabled && isSiteExecutor(n.executor));
+
   return (
     <Panel className={cn("min-w-0 space-y-3", live && "border-accent/50")}>
       <div className="flex flex-wrap items-start gap-2">
@@ -139,6 +153,12 @@ function Card({ c, canEdit, handoff, onChanged }: { c: WorkflowCard; canEdit: bo
             <Button size="sm" variant="secondary" disabled={busy || !!handoff} onClick={runNow} aria-label={`شغّل ${c.name} هلق`}>
               <Play className="size-3.5" />
               شغّل هلق
+            </Button>
+          ) : null}
+          {canEdit && c.enabled && siteSteps ? (
+            <Button size="sm" variant="secondary" disabled={busy || !!handoff} onClick={execute} aria-label={`شغّل ${c.name} من الموقع`} title="الموقع بينفّذ الخطوات الخضرا اللي منفّذها n8n أو HTTP أو تيليجرام، وبيسلّم الباقي">
+              <Zap className="size-3.5" />
+              من الموقع
             </Button>
           ) : null}
           {canEdit ? (

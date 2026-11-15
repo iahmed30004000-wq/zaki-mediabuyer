@@ -37,7 +37,9 @@ import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/rou
 import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
 import { loadBoard } from "../src/lib/videos-board";
 import { syncDriveLibrary } from "../src/jobs/drive-library";
-import { WorkflowPatch, createWorkflow, listVersions, updateWorkflow } from "../src/server/workflows";
+import { WorkflowPatch, createWorkflow, listVersions, logRun, updateWorkflow } from "../src/server/workflows";
+import { ExecRefused, executeWorkflow, sweepTimeouts, type ExecDeps } from "../src/server/step-exec";
+import { siteConfigFrom, verifySignature } from "../src/core/step-exec";
 import type { WfGraph } from "../src/core/workflow";
 import { addAfter, ensureLayout, isPlaced, setNode } from "../src/core/workflow-edit";
 import { getSetting, restoreSetting, setSetting } from "../src/server/settings";
@@ -85,9 +87,10 @@ async function clean() {
   await db.campaign.deleteMany({ where: { metaId: { startsWith: "DEMO_MCP" } } });
   await db.approval.deleteMany({ where: { OR: [{ ref: { startsWith: "demo-mcp" } }, { title: { startsWith: "DEMO" } }] } });
   await db.notification.deleteMany({ where: { OR: [{ key: { startsWith: "demo-mcp" } }, { key: { startsWith: "stock:DEMO_STK" } }] } });
-  await db.workflowRun.deleteMany({ where: { ref: { startsWith: "demo-mcp" } } });
+  await db.workflowRun.deleteMany({ where: { OR: [{ ref: { startsWith: "demo-mcp" } }, { workflow: { name: { startsWith: "DEMO" } } }] } });
   await db.workflow.deleteMany({ where: { key: "demo-mcp-flow" } });
-  const drawn = await db.workflow.findMany({ where: { key: { startsWith: "wf-" }, name: { startsWith: "DEMO" } }, select: { id: true } });
+  const drawn = await db.workflow.findMany({ where: { key: { startsWith: "wf-" }, name: { startsWith: "DEMO" } }, select: { id: true, key: true } });
+  await db.handoff.deleteMany({ where: { workflowKey: { in: drawn.map((w) => w.key) } } });
   await db.workflowVersion.deleteMany({ where: { workflowId: { in: drawn.map((w) => w.id) } } });
   await db.workflow.deleteMany({ where: { id: { in: drawn.map((w) => w.id) } } });
   await db.stockSnapshot.deleteMany({ where: { productCode: "DEMO_STK" } });
@@ -986,6 +989,85 @@ async function clean() {
   const leak = await db.auditLog.count({ where: { OR: [{ before: { string_contains: TOKEN } }, { after: { string_contains: TOKEN } }] } });
   check(leak === 0, "the token never appears in the audit log");
   check((await db.apiToken.findUnique({ where: { id: row.id } }))?.tokenHash !== TOKEN && !!(await db.apiToken.findUnique({ where: { id: row.id } }))?.lastUsedAt, "only the hash is stored, and last use is recorded");
+
+  // ── v3 F: steps the site runs itself (n8n signed · Telegram · HTTP), and steps that ran out of time ──
+  {
+    const me = { type: "user" as const, id: "demo-mcp-user" };
+    const cfg = siteConfigFrom({ N8N_BASE_URL: "https://n8n.example.com", N8N_WEBHOOK_SECRET: "demo-secret-value", N8N_ALLOWED_PATHS: "daily-ops", STEP_HTTP_ALLOW: "api.example.com", TELEGRAM_BOT_TOKEN: "x", TELEGRAM_OWNER_CHAT_ID: "1" });
+    const sent: { url: string; headers: Record<string, string>; body: string }[] = [];
+    const told: string[] = [];
+    let status = 200;
+    const deps = (over: Partial<ExecDeps> = {}): ExecDeps => ({
+      cfg,
+      fetch: (async (u: URL | string, init?: RequestInit) => {
+        sent.push({ url: String(u), headers: init?.headers as Record<string, string>, body: String(init?.body) });
+        return new Response('{"ok":true}', { status });
+      }) as typeof fetch,
+      resolve: async () => ["93.184.216.34"],
+      sleep: async () => undefined,
+      now: () => new Date(),
+      telegram: async (t) => {
+        told.push(t);
+      },
+      ...over,
+    });
+    const g = (extra: Record<string, unknown> = {}) => ({
+      nodes: [
+        { id: "t", type: "trigger" as const, label: "بداية" },
+        { id: "a", type: "step" as const, label: "نداء n8n", executor: "n8n" as const, permission: "green" as const, target: "daily-ops", prompt: "اقرا أرقام الطنين", timeoutS: 60, ...extra },
+        { id: "b", type: "notify" as const, label: "تبليغ", executor: "telegram" as const, permission: "green" as const, prompt: "خلص الفحص" },
+        { id: "c", type: "step" as const, label: "تحليل Claude", executor: "claude_mcp" as const, permission: "green" as const },
+      ],
+      edges: [{ from: "t", to: "a" }, { from: "a", to: "b" }, { from: "b", to: "c" }],
+    });
+    const wf1 = await createWorkflow({ name: "DEMO محوّلات", graph: g() }, me);
+    const r1 = await executeWorkflow(wf1.key, me, deps());
+    check(r1.status === "waiting" && r1.ran.map((x) => `${x.id}:${x.status}`).join() === "a:done,b:done" && r1.handedOver?.id === "c", "the site ran n8n and Telegram, and handed Claude's step over", r1);
+    const s1 = sent[0];
+    check(!!s1 && s1.url === "https://n8n.example.com/webhook/daily-ops" && verifySignature("demo-secret-value", s1.headers["x-mb-timestamp"]!, s1.body, s1.headers["x-mb-signature"]!, Date.now()), "n8n got the body signed (HMAC over timestamp.body) at the listed webhook");
+    check(told.length === 1 && told[0]!.includes("خلص الفحص"), "Telegram got the step's words");
+    const run1 = await db.workflowRun.findFirst({ where: { workflowId: (await db.workflow.findUnique({ where: { key: wf1.key } }))!.id, ref: r1.ref } });
+    const st1 = (run1?.nodeStates ?? {}) as Record<string, { status: string }>;
+    check(run1?.status === "waiting" && st1.a?.status === "done" && st1.b?.status === "done" && st1.c?.status === "handoff", "the run shows a·b done and c waiting on its handoff", st1);
+    const h1 = await db.handoff.findFirst({ where: { workflowKey: wf1.key, status: "open" } });
+    check(h1?.kind === "needs_input" && h1.nodeId === "c" && h1.runRef === r1.ref, "c is in the handoff queue on the same run");
+    check((await executeWorkflow(wf1.key, me, deps()).catch((e: Error) => e)) instanceof ExecRefused, "a second go while a handoff is open is refused");
+    await db.handoff.updateMany({ where: { workflowKey: wf1.key }, data: { status: "cancelled" } });
+
+    // a step that fails: 502 twice (one retry), then it is a failed-step handoff
+    sent.length = 0;
+    status = 502;
+    const wf2 = await createWorkflow({ name: "DEMO محوّلات فشل", graph: g({ retries: 1 }) }, me);
+    const r2 = await executeWorkflow(wf2.key, me, deps());
+    check(r2.status === "waiting" && r2.ran[0]?.status === "failed" && sent.length === 2, "a 502 is retried once, then the step fails", { ran: r2.ran, tries: sent.length });
+    const h2 = await db.handoff.findFirst({ where: { workflowKey: wf2.key, status: "open" } });
+    check(h2?.kind === "node_failed" && h2.nodeId === "a" && JSON.stringify(h2.context).includes("502"), "the failed step is in the queue with what failed");
+    status = 200;
+
+    // what is refused before anything leaves
+    const wf3 = await createWorkflow({ name: "DEMO محوّلات ممنوع", graph: g({ target: "not-listed" }) }, me);
+    const r3 = await executeWorkflow(wf3.key, me, deps()).catch((e: Error) => e);
+    check(r3 instanceof ExecRefused, "a webhook that is not on the owner's list is not called, and nothing is run", r3 instanceof Error ? r3.message : r3);
+    const wf4 = await createWorkflow({ name: "DEMO محوّلات http", graph: { nodes: [{ id: "t", type: "trigger" as const, label: "بداية" }, { id: "h", type: "step" as const, label: "نداء http", executor: "http" as const, permission: "green" as const, target: "https://api.example.com/hook" }], edges: [{ from: "t", to: "h" }] } }, me);
+    sent.length = 0;
+    const r4 = await executeWorkflow(wf4.key, me, deps({ resolve: async () => ["10.0.0.5"] }));
+    check(r4.ran[0]?.status === "failed" && sent.length === 0, "an address that resolves to a private IP is never called", r4.ran);
+    await db.handoff.updateMany({ where: { workflowKey: wf4.key }, data: { status: "cancelled" } });
+    const r5 = await executeWorkflow(wf4.key, me, deps());
+    check(r5.status === "ok" && sent.length === 1 && !sent[0]!.headers["x-mb-signature"], "http to a listed host with a public address goes out, and the run ends ok");
+    const run5 = await db.workflowRun.findFirst({ where: { ref: r5.ref } });
+    check(run5?.status === "ok" && !!run5.finishedAt, "the run is closed ok with its end time");
+    check((await db.auditLog.count({ where: { action: "workflow.execute" } })) >= 3, "every execution is in the audit log");
+
+    // a step past its own timeout goes to the queue once
+    const wf6 = await createWorkflow({ name: "DEMO مهلة", graph: g() }, me);
+    await logRun({ job: wf6.key, ref: "demo-mcp-timeout", status: "running", node: { id: "a", status: "running" } }, me, "ui", new Date(Date.now() - 10 * 60_000));
+    const sw1 = await sweepTimeouts(new Date());
+    const hto = await db.handoff.findMany({ where: { workflowKey: wf6.key, kind: "timeout" } });
+    check(hto.length === 1 && hto[0]!.nodeId === "a" && sw1.created >= 1, "a step running past its timeout becomes a «timeout» handoff", hto.length);
+    const sw2 = await sweepTimeouts(new Date());
+    check((await db.handoff.count({ where: { workflowKey: wf6.key, kind: "timeout" } })) === 1 && sw2.created === 0, "…once, not again on the next sweep");
+  }
 
   await clean();
   await db.$disconnect();
