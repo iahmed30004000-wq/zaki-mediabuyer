@@ -23,6 +23,8 @@ import { applyMetrics, applyStock, applyVideos } from "../push";
 import { getRules } from "../rules";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask } from "../tasks";
 import { LogRunInput, RunRefused, UnknownJob, logRun } from "../workflows";
+import { HANDOFF_STATUSES } from "@/core/handoff";
+import { HandoffComplete, HandoffCreate, HandoffRefused, claimHandoff, completeHandoff, createHandoff, listHandoffs } from "../handoffs";
 
 export interface McpCtx {
   tokenId: string;
@@ -235,6 +237,77 @@ export const TOOLS: ToolDef<McpCtx>[] = [
       }
     },
   },
+  {
+    name: "get_handoffs",
+    title: "شو مسلَّم إلك؟",
+    description:
+      "اقرا طابور التسليم: شغل المالك ضغط عليه «شغّل هلق»، أو خطوة وقفت وبدها حدا يكمّلها. كل بند فيه شو المطلوب والخطوات والمدخلات وآخر خطأ ومعرّف التشغيل (run_ref). الافتراضي: المفتوح والمأخود المسلَّم لـ Claude. اقراها بأول كل تشغيل وبين المهام.",
+    input: z
+      .object({
+        assignee: z.string().trim().min(1).max(40).optional().describe("الافتراضي claude (كل أنواع Claude). أو hermes · muse · مفتاح شخص"),
+        status: z.array(z.enum(HANDOFF_STATUSES)).max(4).optional().describe("الافتراضي open + claimed"),
+        workflow: z.string().trim().min(1).max(60).optional(),
+      })
+      .strict(),
+    readOnly: true,
+    run: async (a) => {
+      const q = a as { assignee?: string; status?: (typeof HANDOFF_STATUSES)[number][]; workflow?: string };
+      const list = await listHandoffs({ assignee: q.assignee ?? "claude", status: q.status, workflow: q.workflow });
+      return ok(list.length ? `في ${list.length} مسلَّم: ${list.slice(0, 5).map((h) => `«${h.title}» (${h.workflowKey})`).join("، ")}` : "ما في شي مسلَّم هلأ.", { handoffs: list });
+    },
+  },
+  {
+    name: "claim_handoff",
+    title: "خذ تسليم",
+    description: "خذ تسليم قبل ما تبلّش فيه — الورك فلو بيصير «عم يشتغل» والمالك بيشوف إنه عندك. اللي أخدها قبلك بيجيك خطأ.",
+    input: z.object({ id: z.string().trim().min(1).max(40) }).strict(),
+    readOnly: false,
+    run: async (a, ctx) => {
+      try {
+        const h = await claimHandoff((a as { id: string }).id, ctx.tokenName, ctx.actor);
+        return ok(`أخدت «${h.title}». نفّذ الخطوات وسجّلها بـ log_run (job=${h.workflowKey}, ref=${h.runRef}) وبعدين complete_handoff.`, { handoff: h });
+      } catch (e) {
+        if (e instanceof HandoffRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
+  {
+    name: "complete_handoff",
+    title: "جاوب تسليم",
+    description:
+      "جاوب تسليم: سطر شو انعمل (note) وأرقام النتيجة (result). تشغيل طلبه المالك بيخلص (ok) بالجواب؛ خطوة واقفة بتتفكّ وتكمّل إنت (أو قول run_status=ok/failed). ما في صرف ولا موافقة هون — اللي بدو موافقة المالك بيروح request_approval.",
+    input: HandoffComplete.extend({ id: z.string().trim().min(1).max(40) }).strict(),
+    readOnly: false,
+    run: async (a, ctx) => {
+      const { id, ...rest } = a as { id: string } & z.infer<typeof HandoffComplete>;
+      try {
+        const r = await completeHandoff(id, rest, ctx.tokenName, ctx.actor);
+        return ok(`انجاوب «${r.handoff.title}» — التشغيل ${r.run?.status ?? "—"}.`, { handoff: r.handoff, run: r.run });
+      } catch (e) {
+        if (e instanceof HandoffRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
+  {
+    name: "create_handoff",
+    title: "سلّم شغلة",
+    description:
+      "إذا خطوة وقفت (فشلت، انتهت مهلتها، ناقصها ربط، بدها جواب) ولا تقدر تكمّلها: سلّمها بدل ما تخليها تضيع — مع شو المطلوب بالضبط، آخر خطأ، والمدخلات (بلا بيانات زبائن). بتظهر عند المالك «متوقف — Claude بيكمّلها» وبيقدر يعطيها لحدا تاني.",
+    input: HandoffCreate,
+    readOnly: false,
+    run: async (a, ctx) => {
+      try {
+        const r = await createHandoff(a as z.infer<typeof HandoffCreate>, ctx.actor);
+        return ok(`${r.created ? "انسلّمت" : "موجودة من قبل"}: «${r.handoff.title}» لـ ${r.handoff.assigneeLabel}. رقمها ${r.handoff.id}`, { handoff: r.handoff });
+      } catch (e) {
+        if (e instanceof UnknownJob) return fail(`المفتاح مش معروف. المفاتيح: ${e.known.join("، ")}`);
+        if (e instanceof HandoffRefused || e instanceof RunRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
 ];
 
 /** What every client is told on connecting: how to work with this server. */
@@ -242,6 +315,7 @@ export const SERVER_INSTRUCTIONS = [
   "هاد سيرفر الميديا باير. ابعتله الأرقام اللي قريتها (push_metrics · push_stock · push_videos)، وسجّل كل تشغيل (log_run)، واسأل المالك (request_approval) واقرا جوابه (get_approvals).",
   "قبل أي شي بدو المالك: get_mode (صاحي/نايم). وبأول كل تشغيل: get_rules — اشتغل على آخر نسخة، وإذا رقم ناقص قول للمالك ولا تخمّن.",
   "لا بتبعت أبداً اسم زبون أو هاتفه أو عنوانه (بينرفض). الصرف والتصنيع ورفع السقف وأي شي برّا القواعد: قرار المالك — اطلبه بـ request_approval ولا تنفّذه قبل ما يوافق.",
+  "المالك بيضغط «شغّل هلق» على ورك فلو، وأي خطوة بتوقف: بتنزل بطابور التسليم. اقرا get_handoffs بأول كل تشغيل، خذ البند (claim_handoff)، نفّذه وسجّله بـ log_run، وجاوب بـ complete_handoff. خطوة وقفت عندك: create_handoff بدل ما تخليها.",
   "كل نداء مسجّل. استعمل ref/key ثابت حتى لو أعدت المحاولة ما يتكرر شي.",
 ].join("\n");
 

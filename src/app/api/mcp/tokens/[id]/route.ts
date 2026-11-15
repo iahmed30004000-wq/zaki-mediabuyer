@@ -10,7 +10,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   try {
     const caller = await requireCapability("owner_only");
     const row = await db.apiToken.findUnique({ where: { id: params.id } });
-    if (!row || !row.scopes.includes("mcp")) throw new HttpError(404, "التوكن مش موجود");
+    if (!row || !(row.scopes.includes("mcp") || row.scopes.includes("handoff"))) throw new HttpError(404, "التوكن مش موجود");
     if (!row.revokedAt) await db.apiToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
     if (!caller.demo) await audit({ type: "user", id: caller.id }, "mcp.token_revoke", { type: "api_token", id: row.id });
     return NextResponse.json({ ok: true });

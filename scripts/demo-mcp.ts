@@ -1,6 +1,6 @@
 /**
  * Claude's link to the app (v4 · A), end to end on the local database — through the real route handler, with a real
- * token: auth, the twelve tools, the numbers landing where the screens and the truth job read them, the privacy net,
+ * token: auth, the sixteen tools, the numbers landing where the screens and the truth job read them, the privacy net,
  * idempotency, approvals and the owner's answer, the switch, the rules, workflows, stock, videos, tasks.
  * `npx tsx --env-file=.env scripts/demo-mcp.ts`  (the database from `docker compose up -d`, migrated)
  */
@@ -22,6 +22,9 @@ import { loadNumbers } from "../src/lib/numbers-view";
 import { loadAdsTable } from "../src/lib/ads-table";
 import { loadColumns, saveColumns } from "../src/server/ads-prefs";
 import { proposeRaise } from "../src/server/ads-actions";
+import { cancelHandoff, createHandoff, listHandoffs, reassignHandoff, requestRun } from "../src/server/handoffs";
+import { GET as hoList, POST as hoCreate } from "../src/app/api/v1/handoffs/route";
+import { POST as hoClaim } from "../src/app/api/v1/handoffs/[id]/claim/route";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -63,6 +66,9 @@ async function clean() {
   await db.productEconomics.deleteMany({ where: { productCode: { in: ["DEMO_STK", "DEMO_NUM"] } } });
   await db.productDay.deleteMany({ where: { productCode: "DEMO_NUM" } });
   await db.setting.deleteMany({ where: { key: { startsWith: "ads.columns:demo-mcp" } } });
+  const mine = await db.handoff.findMany({ where: { OR: [{ createdBy: { startsWith: "user:demo-mcp" } }, { createdBy: { startsWith: "agent:mcp:demo-mcp" } }, { createdBy: { startsWith: "agent:api:demo-mcp" } }] }, select: { runRef: true } });
+  await db.workflowRun.deleteMany({ where: { ref: { in: mine.map((h) => h.runRef).filter((r): r is string => !!r) } } });
+  await db.handoff.deleteMany({ where: { OR: [{ createdBy: { startsWith: "user:demo-mcp" } }, { createdBy: { startsWith: "agent:mcp:demo-mcp" } }, { createdBy: { startsWith: "agent:api:demo-mcp" } }] } });
   await db.changeItem.deleteMany({ where: { changeSet: { sourceRef: "demo-mcp-user" } } });
   await db.changeSet.deleteMany({ where: { sourceRef: "demo-mcp-user" } });
   await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp" } } });
@@ -90,7 +96,7 @@ async function clean() {
   check((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status === 202, "notifications/initialized → 202");
   const list = await call(rpc("tools/list"));
   const names = (list.json?.result?.tools as { name: string; inputSchema: { required?: string[] } }[]).map((t) => t.name);
-  check(names.length === 12 && ["push_metrics", "log_run", "request_approval", "get_approvals", "get_mode", "get_rules"].every((n) => names.includes(n)), "tools/list: twelve tools", names);
+  check(names.length === 16 && ["push_metrics", "log_run", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff"].every((n) => names.includes(n)), "tools/list: sixteen tools (twelve + the handoff queue)", names);
   const pm = (list.json?.result?.tools as { name: string; inputSchema: any }[]).find((t) => t.name === "push_metrics")!;
   check(pm.inputSchema.properties.rows.items.required.join() === "date,level,id", "push_metrics advertises the row schema (date, level, id required)");
   check(!names.some((n) => /delete|remove|execute|approve$|spend/.test(n)), "no delete / execute / spend tool exists");
@@ -188,6 +194,84 @@ async function clean() {
   check((await tool("log_run", { job: "daily-check", ref: "demo-mcp-4" })).text.includes("enabled=false"), "a workflow the owner switched off says so in the answer");
   await db.workflow.update({ where: { key: "daily-check" }, data: { enabled: true } });
   await db.workflowRun.deleteMany({ where: { ref: "demo-mcp-4" } });
+
+  // ── handoffs (v3 F): the owner's «شغّل هلق» and a stuck step — Claude takes them, does them, answers ──
+  {
+    const owner = { type: "user" as const, id: "demo-mcp-user" };
+    const asked = await requestRun("daily-check", owner);
+    const h0 = asked.handoff;
+    check(asked.created && h0.kind === "manual_run" && h0.status === "open" && h0.assignee === "claude" && !!h0.runRef && (h0.context.steps?.length ?? 0) > 1 && !!h0.nodeId, "«شغّل هلق»: a handoff for Claude with the run ref and the steps of the job", h0);
+    const again = await requestRun("daily-check", owner);
+    check(!again.created && again.handoff.id === h0.id, "…asking again returns the open one (one request at a time per workflow)");
+    const waiting = await db.workflowRun.findFirst({ where: { ref: h0.runRef! } });
+    const ns = (waiting?.nodeStates ?? {}) as Record<string, { status: string }>;
+    check(waiting?.status === "waiting" && waiting.trigger === "manual" && ns[h0.nodeId!]?.status === "handoff", "…the workflow's run is «waiting» and its first step shows «handoff»", { status: waiting?.status, node: ns[h0.nodeId!] });
+
+    const seen = await tool("get_handoffs");
+    check(seen.data?.handoffs.some((h: { id: string }) => h.id === h0.id) && seen.data?.handoffs.every((h: { assignee: string }) => h.assignee.startsWith("claude")), "get_handoffs (MCP): Claude sees it — and only what is for Claude");
+    const took = await tool("claim_handoff", { id: h0.id });
+    const running = await db.workflowRun.findFirst({ where: { ref: h0.runRef! } });
+    check(!took.isError && took.data?.handoff.status === "claimed" && took.data.handoff.claimedBy === "demo-mcp" && running?.status === "running", "claim_handoff: it is Claude's now and the run is «running»", took.data?.handoff);
+    check(!(await tool("claim_handoff", { id: h0.id })).isError, "…claiming twice by the same taker is fine");
+
+    // the REST face, with a token made only for the queue
+    const hoTok = newToken("mbh_");
+    await db.apiToken.create({ data: { name: "demo-mcp-handoff", scopes: ["handoff"], tokenHash: hashToken(hoTok), prefix: hoTok.slice(0, 10) } });
+    const rest = (route: (r: Request, c: { params: { id: string } }) => Promise<Response>, path: string, body: unknown = undefined, token: string | null = hoTok, id = "") =>
+      route(new Request(`http://localhost:3140/api/v1/handoffs${path}`, { method: body === undefined ? "GET" : "POST", headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) }), { params: { id } });
+    check((await rest(hoList as never, "", undefined, null)).status === 401 && (await rest(hoList as never, "", undefined, studio)).status === 403, "REST /api/v1/handoffs: no token → 401, a studio token → 403");
+    const listed = await rest(hoList as never, "?status=open,claimed");
+    const listedJson = (await listed.json()) as { handoffs: { id: string }[] };
+    check(listed.status === 200 && listedJson.handoffs.some((h) => h.id === h0.id), "…a «handoff» token lists the queue");
+    check((await rest(hoList as never, "", undefined, TOKEN)).status === 200, "…and Claude's MCP token may read it too");
+    const second = await rest(hoClaim as never, "/x/claim", {}, hoTok, h0.id);
+    check(second.status === 409, "a second taker is refused (409) — somebody has it", second.status);
+    check((await rest(hoClaim as never, "/x/claim", {}, hoTok, "no-such-id")).status === 404, "…an unknown handoff is 404");
+
+    // a step that failed hands itself over, with what is needed
+    const made = await rest(hoCreate as never, "", { workflow: "daily-check", kind: "missing_connection", node: h0.nodeId, title: "ما في ربط بالـ OMS", need: "اقرا الطلبات من متصفح المالك", last_error: "401 من الـ OMS", inputs: { day: "2026-11-14" }, assignee: "claude_desktop" });
+    const madeJson = (await made.json()) as { handoff: { id: string; kind: string; assignee: string; context: { lastError?: string } }; created: boolean };
+    check(made.status === 201 && madeJson.created && madeJson.handoff.assignee === "claude_desktop" && madeJson.handoff.context.lastError === "401 من الـ OMS", "POST a handoff: a missing connection goes to Claude Desktop with the last error", madeJson);
+    check((await tool("get_handoffs")).data?.handoffs.some((h: { id: string }) => h.id === madeJson.handoff.id), "…Claude's queue includes Claude Desktop's (every kind of Claude reads the same one)");
+    const bad = await rest(hoCreate as never, "", { workflow: "daily-check", title: "اتصل 0912345678" });
+    const unknownFlow = await rest(hoCreate as never, "", { workflow: "no-such-flow", title: "x" });
+    const unknownNode = await rest(hoCreate as never, "", { workflow: "daily-check", node: "ghost", title: "x" });
+    const invalidBody = await rest(hoCreate as never, "", { workflow: "daily-check" });
+    check(bad.status === 400 && unknownFlow.status === 404 && unknownNode.status === 400 && invalidBody.status === 422, "…a phone number is refused, an unknown job is 404, an unknown step is 400, a bad body is 422", [bad.status, unknownFlow.status, unknownNode.status, invalidBody.status]);
+
+    // the owner moves one to somebody else, and drops another
+    const moved = await reassignHandoff(madeJson.handoff.id, "hermes", owner);
+    check(moved.assignee === "hermes" && moved.status === "open", "the owner gives it to Hermes: back to «open», for Hermes", moved);
+    check(!(await tool("get_handoffs")).data?.handoffs.some((h: { id: string }) => h.id === madeJson.handoff.id) && (await listHandoffs({ assignee: "hermes" })).some((h) => h.id === madeJson.handoff.id), "…Claude no longer sees it; Hermes' queue does");
+    const dropped = await cancelHandoff(madeJson.handoff.id, owner);
+    check(dropped.status === "cancelled", "…and he can drop it");
+
+    // the answer: a run the owner asked for ends with it; the numbers it carries are filtered like every other
+    const dirty = await tool("complete_handoff", { id: h0.id, note: "كلّم 0912345678" });
+    check(dirty.isError && (await db.handoff.findUnique({ where: { id: h0.id } }))?.status === "claimed", "complete_handoff: a phone number in the answer is refused and the handoff stays open for its taker");
+    const answered = await tool("complete_handoff", { id: h0.id, note: "خلص الفحص: 3 تنبيهات", result: { alerts: 3, day: "2026-11-14" } });
+    const ended = await db.workflowRun.findFirst({ where: { ref: h0.runRef! } });
+    const endStates = Object.values((ended?.nodeStates ?? {}) as Record<string, { status: string }>);
+    check(!answered.isError && answered.data?.handoff.status === "done" && ended?.status === "ok" && !!ended.finishedAt && ended.summary === "خلص الفحص: 3 تنبيهات" && endStates.every((s) => s.status === "done"), "…answered: the run ends «ok» with every step done, the note as its summary", { run: ended?.status, summary: ended?.summary });
+    check((await tool("complete_handoff", { id: h0.id, note: "تاني" })).isError, "…an answered handoff cannot be answered again");
+
+    // a stuck step is unblocked, not ended: the answerer goes on and reports the rest with log_run
+    const stuck = await createHandoff({ workflow: "night-round", kind: "node_failed", title: "فشلت خطوة القراءة", last_error: "timeout" }, owner);
+    const unblocked = await tool("complete_handoff", { id: stuck.handoff.id, note: "قريت من المتصفح" });
+    const goes = await db.workflowRun.findFirst({ where: { ref: stuck.handoff.runRef! } });
+    check(!unblocked.isError && goes?.status === "running" && !goes.finishedAt, "a stuck step: the answer unblocks the run («running») and does not end it");
+    const failedEnd = await createHandoff({ workflow: "night-round", kind: "node_failed", title: "ثانية" }, owner);
+    await tool("complete_handoff", { id: failedEnd.handoff.id, note: "ما قدرت", run_status: "failed" });
+    check((await db.workflowRun.findFirst({ where: { ref: failedEnd.handoff.runRef! } }))?.status === "failed", "…unless the answer says it failed");
+    const dropRun = await requestRun("night-round", owner);
+    await cancelHandoff(dropRun.handoff.id, owner);
+    check((await db.workflowRun.findFirst({ where: { ref: dropRun.handoff.runRef! } }))?.status === "skipped", "a cancelled «شغّل هلق» marks its run «skipped» — nothing is deleted");
+    await db.workflow.update({ where: { key: "night-round" }, data: { enabled: false } });
+    let off = "";
+    await requestRun("night-round", owner).catch((e) => (off = e.message));
+    await db.workflow.update({ where: { key: "night-round" }, data: { enabled: true } });
+    check(off.includes("مطفي"), "a workflow the owner switched off cannot be run from «شغّل هلق»");
+  }
 
   // ── approvals: ask, answer, read ──
   const ask = { ref: "demo-mcp-ap-1", title: "DEMO رفع السقف", why: "3 أيام ورا بعض ضمن الهدف", urgency: "red", kind: "cap_raise", amount: 100, numbers: [{ label: "تكلفة", value: 2.9 }], expires_in_min: 60 };

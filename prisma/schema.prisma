@@ -1017,3 +1017,36 @@ model ProductDay {
   @@unique([productCode, date])
   @@index([date])
 }
+
+/// A step that Claude (or a person) has to finish by hand (v3 · F «طابور التسليم»): a run the owner started with «شغّل هلق»,
+/// or a step that failed, timed out or waits on a connection that is not there yet. It carries what is needed to do the
+/// step (the prompt, the inputs, the last error — never customer data); completing it moves the workflow's run on.
+/// Claude reads it with get_handoffs / GET /api/v1/handoffs and answers with complete_handoff / POST …/complete.
+model Handoff {
+  id          String    @id @default(cuid())
+  workflowKey String
+  /// the run it holds up: whoever does it passes this ref to log_run
+  runRef      String?
+  nodeId      String?
+  /// manual_run · node_failed · missing_connection · timeout · needs_input
+  kind        String
+  title       String
+  /// { need, lastError, prompt, inputs, steps } — filtered for customer data when written
+  context     Json      @default("{}")
+  /// who should do it: claude · claude_desktop · hermes · muse · a person's key
+  assignee    String    @default("claude")
+  /// open · claimed · done · cancelled
+  status      String    @default("open")
+  claimedBy   String?
+  claimedAt   DateTime?
+  result      Json?
+  resultNote  String?
+  doneBy      String?
+  doneAt      DateTime?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, assignee])
+  @@index([workflowKey, status])
+}
