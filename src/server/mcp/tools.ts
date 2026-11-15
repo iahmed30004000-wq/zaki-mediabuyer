@@ -24,6 +24,8 @@ import { getRules } from "../rules";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask } from "../tasks";
 import { LogRunInput, RunRefused, UnknownJob, logRun } from "../workflows";
 import { HANDOFF_STATUSES } from "@/core/handoff";
+import { REQUEST_STATUSES } from "@/core/video-board";
+import { VideoRequestComplete, claimVideoRequest, completeVideoRequest, listVideoRequests } from "../video-requests";
 import { HandoffComplete, HandoffCreate, HandoffRefused, claimHandoff, completeHandoff, createHandoff, listHandoffs } from "../handoffs";
 
 export interface McpCtx {
@@ -308,6 +310,57 @@ export const TOOLS: ToolDef<McpCtx>[] = [
       }
     },
   },
+  {
+    name: "get_video_requests",
+    title: "شو مطلوب من الفيديوهات؟",
+    description:
+      "اقرا طلبات الفيديوهات (هوكات جديدة، سيناريو جديد، فيديو للتيست، فيديو تعبان) اللي المالك أو الكود طلبها وبانتظار هيرمز. كل طلب فيه JOB الفيديو وملف السيناريو وأرقامه. الافتراضي: المطلوبة والعند هيرمز. بدل REST: نفس الطابور.",
+    input: z
+      .object({
+        status: z.array(z.enum(REQUEST_STATUSES)).max(6).optional().describe("الافتراضي asked + with_hermes"),
+        product: z.string().trim().min(1).max(40).optional().describe("رمز المنتج"),
+      })
+      .strict(),
+    readOnly: true,
+    run: async (a) => {
+      const q = a as { status?: (typeof REQUEST_STATUSES)[number][]; product?: string };
+      const list = await listVideoRequests({ status: q.status ?? ["asked", "with_hermes"], product: q.product });
+      return ok(list.length ? `في ${list.length} طلب فيديو: ${list.slice(0, 5).map((r) => `«${r.kindLabel}: ${r.label}»`).join("، ")}` : "ما في طلبات فيديو هلأ.", { requests: list });
+    },
+  },
+  {
+    name: "claim_video_request",
+    title: "خذ طلب فيديو",
+    description: "خذ طلب فيديو قبل ما تبلّش — بيصير «عند هيرمز» باسمك. اللي أخده قبلك بيجيه خطأ.",
+    input: z.object({ id: z.string().trim().min(1).max(40) }).strict(),
+    readOnly: false,
+    run: async (a, ctx) => {
+      try {
+        const r = await claimVideoRequest((a as { id: string }).id, ctx.tokenName, ctx.actor);
+        return ok(`أخدت «${r.kindLabel}: ${r.label}». لما تخلص: complete_video_request.`, { request: r });
+      } catch (e) {
+        if (e instanceof HandoffRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
+  {
+    name: "complete_video_request",
+    title: "جاوب طلب فيديو",
+    description: "جاوب طلب فيديو: سطر شو انعمل (note)، أرقام النتيجة (result)، والفيديوهات اللي طلعت (new_videos: job · v_name · ملف الفيديو والسيناريو) — بتنضاف للبنك «جاهز». ما في صرف ولا ميتا هون.",
+    input: VideoRequestComplete.extend({ id: z.string().trim().min(1).max(40) }).strict(),
+    readOnly: false,
+    run: async (a, ctx) => {
+      const { id, ...rest } = a as { id: string } & z.infer<typeof VideoRequestComplete>;
+      try {
+        const r = await completeVideoRequest(id, rest, ctx.tokenName, ctx.actor);
+        return ok(`انجاوب «${r.kindLabel}: ${r.label}» — ${r.statusLabel}.`, { request: r });
+      } catch (e) {
+        if (e instanceof HandoffRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
 ];
 
 /** What every client is told on connecting: how to work with this server. */
@@ -316,6 +369,7 @@ export const SERVER_INSTRUCTIONS = [
   "قبل أي شي بدو المالك: get_mode (صاحي/نايم). وبأول كل تشغيل: get_rules — اشتغل على آخر نسخة، وإذا رقم ناقص قول للمالك ولا تخمّن.",
   "لا بتبعت أبداً اسم زبون أو هاتفه أو عنوانه (بينرفض). الصرف والتصنيع ورفع السقف وأي شي برّا القواعد: قرار المالك — اطلبه بـ request_approval ولا تنفّذه قبل ما يوافق.",
   "المالك بيضغط «شغّل هلق» على ورك فلو، وأي خطوة بتوقف: بتنزل بطابور التسليم. اقرا get_handoffs بأول كل تشغيل، خذ البند (claim_handoff)، نفّذه وسجّله بـ log_run، وجاوب بـ complete_handoff. خطوة وقفت عندك: create_handoff بدل ما تخليها.",
+  "طلبات الفيديوهات (هوكات · سيناريو · تيست · فيديو تعبان): get_video_requests ← claim_video_request ← complete_video_request (مع new_videos لما يطلع فيديو جاهز).",
   "كل نداء مسجّل. استعمل ref/key ثابت حتى لو أعدت المحاولة ما يتكرر شي.",
 ].join("\n");
 
