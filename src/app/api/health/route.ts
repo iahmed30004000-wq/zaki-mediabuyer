@@ -27,6 +27,7 @@ export async function GET() {
       telegram: has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_OWNER_CHAT_ID"),
       drive: has("GOOGLE_SERVICE_ACCOUNT_JSON"),
       studioDrive: has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_STUDIO_FOLDER_ID"),
+      driveLibrary: has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"),
       replies: has("REPLIES_BASE_URL") && has("REPLIES_TOKEN"),
       internalModel: has("INTERNAL_MODEL_BASE_URL"),
     },

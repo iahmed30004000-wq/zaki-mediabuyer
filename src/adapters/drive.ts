@@ -109,6 +109,22 @@ export async function download(o: DriveOptions, fileId: string, target: string):
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(target));
 }
 
+/** One file's name and kind (to know a register is a CSV or a Sheet). Read only. */
+export async function getFile(o: DriveOptions, fileId: string): Promise<DriveItem> {
+  return call<DriveItem>(o, `/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size&supportsAllDrives=true`);
+}
+
+/** A small text file — a CSV, or a Google Sheet exported as CSV — of at most 2 MB. Read only. */
+export async function readText(o: DriveOptions, fileId: string, mimeType: string): Promise<string> {
+  const id = encodeURIComponent(fileId);
+  const url = mimeType === "application/vnd.google-apps.spreadsheet" ? `${API}/files/${id}/export?mimeType=text%2Fcsv` : `${API}/files/${id}?alt=media&supportsAllDrives=true`;
+  const res = await (o.fetch ?? fetch)(url, { headers: { authorization: `Bearer ${await token(o)}` } });
+  if (!res.ok) throw new Error(`Drive read answered ${res.status}`);
+  const text = await res.text();
+  if (text.length > 2_000_000) throw new Error("the register is bigger than 2 MB");
+  return text;
+}
+
 /** Rename and/or move in one call. Moving = add the new parent, remove the old one (the file itself stays). */
 export async function renameMove(o: DriveOptions, fileId: string, p: { name?: string; from?: string; to?: string }): Promise<void> {
   const params = new URLSearchParams({ supportsAllDrives: "true" });
