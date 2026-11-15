@@ -23,6 +23,8 @@ import { loadAdsTable } from "../src/lib/ads-table";
 import { loadColumns, saveColumns } from "../src/server/ads-prefs";
 import { proposeRaise } from "../src/server/ads-actions";
 import { cancelHandoff, createHandoff, listHandoffs, reassignHandoff, requestRun } from "../src/server/handoffs";
+import { duplicateGroups } from "../src/core/tasks";
+import { bulkUpdateTasks, listTasks, mergeTasks, quickAddTask, updateTask } from "../src/server/tasks";
 import { GET as hoList, POST as hoCreate } from "../src/app/api/v1/handoffs/route";
 import { POST as hoClaim } from "../src/app/api/v1/handoffs/[id]/claim/route";
 
@@ -389,6 +391,37 @@ async function clean() {
   const sumOf = (k: "ordersIn" | "shippedPieces" | "expectedProfit") => nums.products.reduce((s, p) => s + (p.current[k] ?? 0), 0);
   check(tot.ordersIn === sumOf("ordersIn") && tot.shippedPieces === sumOf("shippedPieces") && near(tot.expectedProfit, sumOf("expectedProfit")), "the totals row is the sum of the products (orders, pieces, expected profit)", tot);
 
+  }
+
+
+  // ── the tasks board (v3 E): the one-line quick add, duplicates, merge, bulk ──
+  {
+    const actor = { type: "user" as const, id: "demo-mcp-user" };
+    const a = await quickAddTask("بكرا لميوز: DEMO اعمل 4 هوكات للطنين #stock !عاجل", actor);
+    check(a.assignee === "muse" && a.priority === "urgent" && a.board === "stock" && a.title === "DEMO اعمل 4 هوكات للطنين" && !!a.dueAt, "quick add «بكرا لميوز: … #stock !عاجل» → Muse, tomorrow, the stock board, urgent", a);
+    const b = await quickAddTask("DEMO اعمل 4 هوكات للطنين", actor, { board: "stock" });
+    check(b.board === "stock" && b.assignee === null && b.status === "new", "…a line with no words that count is only a title, on the board the person is looking at");
+    let empty = "";
+    await quickAddTask("بكرا لميوز:", actor).catch((e) => (empty = e.message));
+    let phone = "";
+    await quickAddTask("DEMO كلّم 0912345678", actor).catch((e) => (phone = e.message));
+    check(empty.includes("اكتب") && phone.includes("انرفض"), "…an empty line is asked again, a phone number in a task is refused");
+    const groups = duplicateGroups((await listTasks({ board: "stock" })).filter((t) => t.title.startsWith("DEMO")));
+    check(groups.length === 1 && groups[0]!.length === 2, "the same job written twice is found as a duplicate group", groups.map((g) => g.map((t) => t.title)));
+    await updateTask({ id: b.id, note: "ملاحظة من النسخة التانية", due_at: "2026-11-01" }, actor);
+    const merged = await mergeTasks(a.id, [b.id], actor);
+    const dropped = await db.task.findUnique({ where: { id: b.id } });
+    check(merged.priority === "urgent" && merged.note === "ملاحظة من النسخة التانية" && merged.dueAt?.startsWith("2026-11-01") === true && !!dropped?.archivedAt && dropped.note?.startsWith("مكرّرة") === true, "merge: the kept card takes the notes, the earliest date and the most urgent priority; the other is archived with a pointer (nothing deleted)", { merged, dropped: dropped?.note });
+    check(!(await listTasks({ board: "stock" })).some((t) => t.id === b.id) && (await listTasks({ board: "stock", includeArchived: true })).some((t) => t.id === b.id), "…the archived one is off the board and still in the table");
+    const c = await quickAddTask("DEMO تانية", actor);
+    const bulk = await bulkUpdateTasks({ ids: [a.id, c.id], status: "doing", assignee: "hermes" }, actor);
+    const after = await db.task.findMany({ where: { id: { in: [a.id, c.id] } } });
+    check(bulk.updated === 2 && after.every((t) => t.status === "doing" && t.assignee === "hermes"), "bulk: two cards moved to «شغّال» and handed to Hermes in one call");
+    await bulkUpdateTasks({ ids: [c.id], status: "done" }, actor);
+    const old = await db.task.create({ data: { title: "DEMO قديمة", status: "done", updatedAt: new Date(Date.now() - 30 * 86_400_000) } });
+    await db.$executeRaw`UPDATE "Task" SET "updatedAt" = ${new Date(Date.now() - 30 * 86_400_000)} WHERE id = ${old.id}`;
+    const recent = (await listTasks({ doneWithinDays: 14, limit: 300 })).filter((t) => t.title.startsWith("DEMO"));
+    check(recent.some((t) => t.id === c.id) && !recent.some((t) => t.id === old.id), "a finished task shows for two weeks, then leaves the board (it stays in the table)");
   }
 
   // ── what the model gets when it is wrong ──
