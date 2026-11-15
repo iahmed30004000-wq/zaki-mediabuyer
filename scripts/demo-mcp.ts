@@ -40,8 +40,13 @@ import { syncDriveLibrary } from "../src/jobs/drive-library";
 import { WorkflowPatch, createWorkflow, listVersions, updateWorkflow } from "../src/server/workflows";
 import type { WfGraph } from "../src/core/workflow";
 import { addAfter, ensureLayout, isPlaced, setNode } from "../src/core/workflow-edit";
-import { setSetting } from "../src/server/settings";
+import { getSetting, setSetting } from "../src/server/settings";
 import { createVideoRequest, moveVideoRequest } from "../src/server/video-requests";
+import { askAssistant } from "../src/server/assistant";
+import { AssistantError, type Llm, type LlmRequest, type LlmResponse } from "../src/server/assistant/loop";
+import { GET as assistantGet, POST as assistantPost } from "../src/app/api/assistant/route";
+import { PrivacyRefusal } from "../src/gateway/privacy";
+import { STATS, formatStat } from "../src/core/numbers";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -96,7 +101,10 @@ async function clean() {
   await db.changeItem.deleteMany({ where: { changeSet: { sourceRef: "demo-mcp-user" } } });
   await db.changeSet.deleteMany({ where: { sourceRef: "demo-mcp-user" } });
   await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp" } } });
-  await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules", "videos.min_spend"] } } });
+  await db.changeItem.deleteMany({ where: { changeSet: { sourceRef: "assistant:demo-mcp-user" } } });
+  await db.changeSet.deleteMany({ where: { sourceRef: "assistant:demo-mcp-user" } });
+  await db.agentRun.deleteMany({ where: { agent: "M12", model: "demo-model" } });
+  await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules", "videos.min_spend", "agents.daily_caps", "agents.monthly_cap"] } } });
 }
 
 (async () => {
@@ -745,6 +753,111 @@ async function clean() {
     // the board's layout is the editor's: a seeded drawing without places comes out placed and without overlaps
     const placed = ensureLayout(seeded![0]!.graph);
     check(isPlaced(placed) && placed.nodes.length === seeded![0]!.graph.nodes.length, "the editor lays a seeded drawing out on first open (the same layout every time)");
+  }
+
+
+  // ── المساعد الذكي (v3 H): the assistant over the real loaders and the real database, with a scripted stand-in for the model ──
+  {
+    const caller = { id: "demo-mcp-user", role: "OWNER" as const, demo: false };
+    const now = new Date();
+    const wasPrivacy = process.env.PRIVACY_MODE;
+    const wasKey = process.env.ANTHROPIC_API_KEY;
+    process.env.PRIVACY_MODE = "off";
+    const modelName = "demo-model";
+    const usage = { input_tokens: 4200, output_tokens: 310 };
+    const toolUse = (name: string, input: unknown): LlmResponse => ({ content: [{ type: "tool_use", id: `tu_${name}`, name, input }], stop_reason: "tool_use", usage });
+    const said = (text: string): LlmResponse => ({ content: [{ type: "text", text }], stop_reason: "end_turn", usage });
+    const lastResults = (req: LlmRequest) => ((req.messages[req.messages.length - 1]!.content as { tool_use_id: string; content: string; is_error?: boolean }[]).map((b) => ({ id: b.tool_use_id, error: !!b.is_error, data: JSON.parse(b.content) })));
+    const scripted = (...steps: ((req: LlmRequest) => LlmResponse)[]): Llm & { calls: number } => {
+      const m = { calls: 0, create: async (req: LlmRequest) => steps[Math.min(m.calls++, steps.length - 1)]!(req) };
+      return m;
+    };
+    const ask = (question: string, llm: Llm) => askAssistant({ question, history: [], place: { key: "today", label: "اليوم" } }, caller, { llm, model: modelName, now });
+
+    // the question that is the quality gate: the answer is the dashboard's number
+    const dash = await loadNumbers({ d: "custom", from: Y, to: Y }, now);
+    const mineN = dash.products.find((p) => p.code === "DEMO_NUM")!;
+    const expected = formatStat(STATS.find((s) => s.key === "costPerOrder")!, mineN.current.costPerOrder);
+    const q1 = scripted(
+      () => toolUse("get_numbers", { range: "custom", from: Y, to: Y, product: "أرقام تجريبي", stats: ["costPerOrder", "ordersIn"] }),
+      (req) => said(`تكلفة الطلب الحقيقي لمنتج الأرقام التجريبي ${lastResults(req)[0]!.data.scopes[0].stats[0].display} (حقيقي).`),
+    );
+    const a1 = await ask("كم كلفة الطلب الحقيقي لمنتج أرقام تجريبي؟", q1);
+    check(expected === "3.37$" && a1.answer.includes(expected) && a1.verified && a1.unsupported.length === 0, "assistant — the quality gate: «كم كلفة الطلب الحقيقي؟» is the number «الأرقام» shows (3.37$), on the real database", { expected, answer: a1.answer });
+    check(a1.facts[0]?.raw === mineN.current.costPerOrder && a1.facts[0]?.cited === true && a1.sources[0]?.href === `/?tab=numbers&d=custom&from=${Y}&to=${Y}`, "…its «الأرقام اللي جاوبت منها» is the code's line (raw value, cited) and links to the screen that holds it", a1.facts[0]);
+    const runs = await db.agentRun.findMany({ where: { agent: "M12", model: modelName }, orderBy: { createdAt: "asc" } });
+    check(runs.length === 2 && runs.every((r) => r.ok && r.provider === "anthropic" && r.tokensIn === 4200 && r.tokensOut === 310 && Number(r.costUsd) > 0), "every call to the model is an AgentRun row (M12): tokens, cost, ok", runs.map((r) => [r.tokensIn, r.tokensOut, Number(r.costUsd)]));
+
+    // a number the model makes up is caught
+    const lie = await ask("كم الصرف؟", scripted(() => said("الصرف 999.99$ امبارح."), () => said("الصرف 999.99$ (متأكد).")));
+    check(!lie.verified && lie.unsupported.join() === "999.99$", "a number no tool returned is named, and the answer goes out marked", lie.unsupported);
+
+    // tasks: made at once, by the owner's word; a customer's number is refused
+    const t1 = await ask("اعملي مهمة", scripted(() => toolUse("create_task", { title: "DEMO متابعة الكرتون", assignee: "muse", due_at: day(-1) }), (req) => said(`عملت «${lastResults(req)[0]!.data.title}».`)));
+    const taskRow = await db.task.findFirst({ where: { title: "DEMO متابعة الكرتون" } });
+    check(taskRow?.source === "assistant" && taskRow.assignee === "muse" && t1.artifacts[0]?.kind === "task_created" && (await db.auditLog.count({ where: { action: "assistant.tool", targetId: "demo-mcp-user" } })) >= 1, "create_task makes the task (source «assistant»), shows a card, and leaves a trail in the audit log");
+    const t2 = await ask("اعملي مهمة", scripted(() => toolUse("create_task", { title: "DEMO كلّم 0944123456" }), (req) => said(lastResults(req)[0]!.error ? "انرفضت" : "انعملت")));
+    check(t2.answer === "انرفضت" && (await db.task.count({ where: { title: { contains: "0944123456" } } })) === 0, "a task with a customer's number is refused by the task service itself");
+
+    // a change: proposed, checked by the code, and it WAITS — nothing executed, nothing changed on the campaign
+    const before = await db.campaign.findUnique({ where: { metaId: "DEMO_MCP_C1" } });
+    const p1 = await ask("وقّف الحملة", scripted(() => toolUse("propose_change", { sentence: "DEMO إيقاف حملة تكلفة طلبها فوق الحد", items: [{ op: "pause", object_type: "campaign", object_id: "DEMO_MCP_C1" }] }), (req) => said(`اقترحت (${lastResults(req)[0]!.data.state})`)));
+    const cs = await db.changeSet.findFirst({ where: { sourceRef: "assistant:demo-mcp-user" }, include: { items: true } });
+    const after = await db.campaign.findUnique({ where: { metaId: "DEMO_MCP_C1" } });
+    check(cs?.source === "agent" && (cs.state === "pending_approval" || cs.state === "simulated") && cs.items.length === 1 && cs.items[0]!.op === "pause" && !cs.executedAt && p1.artifacts[0]?.kind === "change_proposed", "propose_change: a ChangeSet from source «agent» — waiting for the owner's yes (or only recorded, when the account runs as an advisor) — never executed, with its card", cs?.state);
+    check(before?.status === after?.status && before?.dailyBudget?.toString() === after?.dailyBudget?.toString(), "…and the campaign itself did not change");
+    const sets = await db.changeSet.count({ where: { sourceRef: "assistant:demo-mcp-user" } });
+    const bad = await ask("زوّد", scripted(() => toolUse("propose_change", { sentence: "DEMO زيادة كبيرة", items: [{ op: "set_budget", object_type: "campaign", object_id: "DEMO_MCP_C1", daily_budget: 400 }, { op: "pause", object_type: "campaign", object_id: "NO_SUCH_ID" }] }), (req) => said(lastResults(req)[0]!.error ? lastResults(req)[0]!.data.error : "انعمل")));
+    check(bad.answer.includes("±50%") && (await db.changeSet.count({ where: { sourceRef: "assistant:demo-mcp-user" } })) === sets, "a budget ten times the current one, and an object that is not there, are refused by the code's own check — nothing is proposed", bad.answer);
+
+    // drafts are not saved; the owner's click saves one, switched off
+    const g = await ask("ارسم", scripted(() => toolUse("draft_workflow", { name: "DEMO مسودة المساعد", nodes: [{ id: "start", type: "trigger", label: "كل صباح", executor: "system" }, { id: "read", type: "step", label: "اقرا الأرقام", executor: "claude_mcp" }], edges: [{ from: "start", to: "read" }] }), () => said("جهّزت مسودة")));
+    const draft = g.artifacts[0];
+    check(draft?.kind === "workflow_draft" && (await db.workflow.count({ where: { name: "DEMO مسودة المساعد" } })) === 0, "draft_workflow: a card with the laid-out drawing — and nothing saved");
+    const savedDraft = draft?.kind === "workflow_draft" ? await createWorkflow({ name: draft.name, graph: draft.graph, enabled: false, note: "مسودة من المساعد" }, { type: "user", id: "demo-mcp-user" }) : null;
+    check(savedDraft?.enabled === false && savedDraft.version === 1 && (await listVersions(savedDraft.key))?.[0]?.note === "مسودة من المساعد", "the owner opens it: a workflow made SWITCHED OFF, version 1 «مسودة من المساعد»");
+    const both = await createWorkflow({ name: "DEMO x", template: "blank", graph: savedDraft!.graph }, { type: "user", id: "demo-mcp-user" }).catch((e: Error) => e.message);
+    check(String(both).includes("واحد منهم بس"), "a ready drawing together with a template is refused");
+
+    // privacy: a phone number never leaves; the refusal is logged; PRIVACY_MODE=internal_only keeps the assistant off
+    const spy = scripted(() => said("ما لازم أوصل هون"));
+    const refused = await ask("اتصل بالزبون 0912345678", spy).then(() => null, (e) => e);
+    check(refused instanceof PrivacyRefusal && spy.calls === 0 && (await db.agentRun.count({ where: { agent: "M12", model: modelName, blocked: "phone" } })) === 1, "a question with a phone number is refused before anything is sent, and the refusal is logged");
+    process.env.PRIVACY_MODE = "internal_only";
+    const off = await ask("كم الصرف؟", spy).then(() => null, (e) => e);
+    check(off instanceof AssistantError && off.code === "off" && spy.calls === 0, "PRIVACY_MODE=internal_only: the assistant (an external model) stays off — no call");
+    process.env.PRIVACY_MODE = "off";
+
+    // the caps: at a cap it stops, in words, without calling the model
+    const caps = (await getSetting("agents.daily_caps")) as Record<string, number>;
+    await setSetting("agents.daily_caps", { ...caps, M12: 0.0001 }, "demo-mcp-user");
+    const capped = await ask("كم الصرف؟", spy);
+    check(spy.calls === 0 && capped.answer.includes("للحد اليومي") && capped.steps === 1, "a daily cap that is reached stops it with a sentence — the model is not asked", capped.answer);
+    await setSetting("agents.daily_caps", { ...caps, M12: 0 }, "demo-mcp-user");
+    const monthly = Number(await getSetting("agents.monthly_cap"));
+    await setSetting("agents.monthly_cap", 0.0001, "demo-mcp-user");
+    const cappedM = await ask("كم الصرف؟", spy);
+    check(spy.calls === 0 && cappedM.answer.includes("للحد الشهري"), "…and so does the monthly cap (all agents together); a daily cap of 0 means «no cap»", cappedM.answer);
+    await setSetting("agents.monthly_cap", monthly, "demo-mcp-user");
+    await setSetting("agents.daily_caps", caps, "demo-mcp-user");
+
+    // the route: with no key (or with PRIVACY_MODE keeping it off) it falls back to the consultant and says why
+    delete process.env.ANTHROPIC_API_KEY;
+    const info = await (await assistantGet()).json();
+    check(info.mode === "consultant" && String(info.notice).includes("ANTHROPIC_API_KEY") && info.canDraft === false, "GET /api/assistant without a key: mode «consultant», and it says which variable is missing", info);
+    const fb = await (await assistantPost(new Request("http://localhost:3140/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: "كيف الوضع؟", place: { key: "today", label: "اليوم" } }) }))).json();
+    check(fb.mode === "consultant" && fb.verified === true && Array.isArray(fb.facts) && String(fb.notice).includes("ANTHROPIC_API_KEY"), "POST /api/assistant without a key: the consultant's answer from the code's facts, with the reason", { mode: fb.mode, notice: fb.notice });
+    const bigQ = await assistantPost(new Request("http://localhost:3140/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: "x".repeat(1200) }) }));
+    check(bigQ.status === 400, "a question over 1000 characters is a 400");
+    process.env.ANTHROPIC_API_KEY = "local-test-key";
+    process.env.PRIVACY_MODE = "internal_only";
+    const infoOff = await (await assistantGet()).json();
+    check(infoOff.mode === "consultant" && String(infoOff.notice).includes("PRIVACY_MODE"), "with a key but PRIVACY_MODE=internal_only: still the consultant, and the notice names PRIVACY_MODE", infoOff);
+
+    if (wasPrivacy === undefined) delete process.env.PRIVACY_MODE;
+    else process.env.PRIVACY_MODE = wasPrivacy;
+    if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = wasKey;
   }
 
   // ── what the model gets when it is wrong ──
