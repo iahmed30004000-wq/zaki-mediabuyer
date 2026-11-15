@@ -9,6 +9,7 @@ process.env.APP_URL = "http://localhost:3140";
 process.env.TELEGRAM_BOT_TOKEN = "";
 process.env.TELEGRAM_OWNER_CHAT_ID = "";
 
+import { createServer } from "node:http";
 import { db } from "../src/server/db";
 import { hashToken, newToken } from "../src/server/api-token";
 import { POST as mcp, GET as mcpGet } from "../src/app/mcp/route";
@@ -30,6 +31,12 @@ import { loadDay, readDay } from "../src/lib/day-view";
 import { bulkUpdateTasks, listTasks, mergeTasks, quickAddTask, updateTask } from "../src/server/tasks";
 import { GET as hoList, POST as hoCreate } from "../src/app/api/v1/handoffs/route";
 import { POST as hoClaim } from "../src/app/api/v1/handoffs/[id]/claim/route";
+import { GET as vrList } from "../src/app/api/v1/video-requests/route";
+import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/route";
+import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
+import { loadBoard } from "../src/lib/videos-board";
+import { setSetting } from "../src/server/settings";
+import { createVideoRequest, moveVideoRequest } from "../src/server/video-requests";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -67,8 +74,11 @@ async function clean() {
   await db.workflow.deleteMany({ where: { key: "demo-mcp-flow" } });
   await db.stockSnapshot.deleteMany({ where: { productCode: "DEMO_STK" } });
   await db.videoBankItem.deleteMany({ where: { job: { startsWith: "DEMO-JOB" } } });
+  const asks = await db.videoRequest.findMany({ where: { job: { startsWith: "DEMO-JOB" } }, select: { id: true, taskId: true } });
+  await db.task.deleteMany({ where: { id: { in: asks.map((r) => r.taskId).filter((t): t is string => !!t) } } });
+  await db.videoRequest.deleteMany({ where: { id: { in: asks.map((r) => r.id) } } });
   await db.task.deleteMany({ where: { title: { startsWith: "DEMO" } } });
-  await db.productEconomics.deleteMany({ where: { productCode: { in: ["DEMO_STK", "DEMO_NUM"] } } });
+  await db.productEconomics.deleteMany({ where: { productCode: { in: ["DEMO_STK", "DEMO_NUM", "VID01"] } } });
   await db.productDay.deleteMany({ where: { productCode: "DEMO_NUM" } });
   await db.setting.deleteMany({ where: { key: { startsWith: "ads.columns:demo-mcp" } } });
   const mine = await db.handoff.findMany({ where: { OR: [{ createdBy: { startsWith: "user:demo-mcp" } }, { createdBy: { startsWith: "agent:mcp:demo-mcp" } }, { createdBy: { startsWith: "agent:api:demo-mcp" } }] }, select: { runRef: true } });
@@ -77,7 +87,7 @@ async function clean() {
   await db.changeItem.deleteMany({ where: { changeSet: { sourceRef: "demo-mcp-user" } } });
   await db.changeSet.deleteMany({ where: { sourceRef: "demo-mcp-user" } });
   await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp" } } });
-  await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules"] } } });
+  await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules", "videos.min_spend"] } } });
 }
 
 (async () => {
@@ -451,6 +461,141 @@ async function clean() {
     const yesterday = await loadDay(addDays(today, -1), now);
     check(yesterday.state === "past" && yesterday.planned.length === 0, "a past day plans nothing");
     check(readDay("2026-02-30", now) === today && readDay("nonsense", now) === today && readDay("2026-11-20", now) === "2026-11-20" && readDay(undefined, now) === today, "a day in the address that is not a date is today");
+  }
+
+  // ── الفيديوهات (v3 D): the board per product, the four buttons, and Hermes ──
+  {
+    const actor = { type: "user" as const, id: "demo-mcp-user" };
+    const now = new Date();
+    const today = ammanKey(now);
+    const d = (back: number) => addDays(today, -back);
+    await db.productEconomics.create({ data: { productCode: "VID01", name: "منتج فيديوهات تجريبي", market: "SY", price: 20, unitCost: 5, deliveryFee: 2, returnFee: 1, codFeePct: 0.02, confirmCost: 0.3, stockDays: 30 } });
+
+    // the bank as Claude pushes it: the owner's numbering, the Drive file of the video and of its scenario
+    const bank = await tool("push_videos", {
+      rows: [
+        { job: "DEMO-JOB-V1", v_name: "V101", product: "VID01", status: "testing", drive_file_id: "DemoVideoFile101", scenario_file_id: "DemoScenarioFile101" },
+        { job: "DEMO-JOB-V2", v_name: "V102", product: "VID01", status: "testing", drive_file_id: "DemoVideoFile102" },
+        { job: "DEMO-JOB-V3", v_name: "V103", product: "VID01", status: "testing" },
+        { job: "DEMO-JOB-V4", v_name: "V104", product: "VID01", status: "ready" },
+      ],
+    });
+    check(!bank.isError && bank.data?.applied === 4 && (await db.videoBankItem.findFirst({ where: { job: "DEMO-JOB-V1" } }))?.scenarioFileId === "DemoScenarioFile101", "push_videos carries the scenario file too (scenario_file_id)", bank.data);
+
+    // nine days of three ads whose names carry the video's V name — V101 doubles its cost over the last two days, V102 holds steady, V103 barely spends
+    const plan: Record<string, (back: number) => { spend: number; orders: number }> = {
+      VA1: (b) => ({ spend: 10, orders: b >= 3 ? 2 : 1 }),
+      VA2: () => ({ spend: 10, orders: 1 }),
+      VA3: (b) => ({ spend: 1.5, orders: b === 3 ? 1 : 0 }),
+    };
+    const names: Record<string, string> = { VA1: "SY|VID01|V101_H1", VA2: "SY|VID01|V102", VA3: "SY|VID01|V103" };
+    const adRows = Object.keys(plan).flatMap((k) =>
+      Array.from({ length: 9 }, (_, i) => {
+        const back = i + 1;
+        const x = plan[k]!(back);
+        return { date: d(back), level: "ad", id: `DEMO_MCP_${k}`, parent_id: "DEMO_MCP_VS1", name: names[k], status: "ACTIVE", spend: x.spend, impressions: 1000, reach: 900, link_clicks: 20, video_3s: 300, thruplays: 100, real_orders: x.orders };
+      }),
+    );
+    const pushed = await tool("push_metrics", {
+      rows: [
+        { date: d(1), level: "campaign", id: "DEMO_MCP_VC1", name: "SY_VID01_WEB_SCALE_261010_C07", status: "ACTIVE", budget_daily: 40, start_time: `${d(12)}T08:00:00+0200`, account_id: "act_demo_mcp" },
+        { date: d(1), level: "adset", id: "DEMO_MCP_VS1", parent_id: "DEMO_MCP_VC1", name: "BROAD_ADV_SP_CPT0070_v1", status: "ACTIVE", budget_daily: 40 },
+        ...adRows,
+      ],
+    });
+    check(!pushed.isError && pushed.data?.applied === 2 + 27 && pushed.data?.rejected.length === 0, "the ads and their nine days land through push_metrics", pushed.data);
+
+    await setSetting("videos.min_spend", 20, "demo-mcp");
+    const board = await loadBoard(now);
+    const p = board.products.find((x) => x.code === "VID01")!;
+    check(board.demo === false && p?.name === "منتج فيديوهات تجريبي" && p.bank.count === 4 && p.bank.target === 50 && p.bank.short === 46, "الفيديوهات (MOCK_MODE=0): the product is on the board by its name, 4 of 50 in the bank", p?.bank);
+    check(p.winners.map((v) => v.vName).join() === "V101,V102" && p.winners[0]!.costPerOrder === 6.06 && p.winners[1]!.costPerOrder === 10.1 && p.winners[0]!.orders === 10 && p.winners[0]!.spend === 60.6, "the winners are ranked by the cost of a real order: V101 (60.6$ ÷ 10 orders = 6.06$), then V102 (10.1$)", p.winners.map((v) => [v.vName, v.costPerOrder]));
+    check(p.minSpend === 20 && p.minSpendFrom === "typed" && p.learning.map((v) => v.vName).join() === "V103" && p.learning[0]!.spend! < 20, "V103 spent less than the minimum the owner typed (20$): still being judged, not ranked", p.learning.map((v) => [v.vName, v.spend]));
+    check(p.rest.map((v) => v.vName).join() === "V104" && p.rest[0]!.status === "ready", "V104 has no ad: it waits in the bank");
+    check(p.winners[0]!.fatigue.state === "tired" && p.winners[0]!.fatigue.rise === 1 && p.winners[1]!.fatigue.state === "ok" && p.learning[0]!.fatigue.state === "unknown" && p.tiredCount === 1, "tired = the cost of a real order over the last two days is +100% over its own 7-day average (V101); V102 holds; V103 has no base yet", p.winners.map((v) => v.fatigue));
+    check(p.winners[0]!.hook === 30 && p.winners[0]!.hold === 33.33 && p.winners[0]!.ctr === 2 && p.winners[0]!.days === 13, "hook, hold, CTR and days live are the ads table's numbers (30% · 33.33% · 2% · 13 days: the campaign started 12 days ago, and the first day counts)", p.winners[0]);
+    check(p.winners[0]!.previewUrl === "https://drive.google.com/file/d/DemoVideoFile101/preview" && p.winners[0]!.scenarioUrl === "https://drive.google.com/file/d/DemoScenarioFile101/view" && p.winners[1]!.scenarioUrl === null, "the card links to its Drive preview and to its scenario file (and says so when there is none)");
+
+    // the four buttons: one request each, a card on المهام, and what it carries
+    const r1 = await createVideoRequest({ key: "DEMO-JOB-V1|V101", kind: "new_hooks", note: "نفس الجسم" }, actor, now);
+    check(r1.created && r1.request.status === "asked" && r1.request.via === "none" && r1.request.job === "DEMO-JOB-V1" && r1.request.scenarioFileId === "DemoScenarioFile101", "«بدو هوكات جديدة»: a request with the JOB and the scenario file — no channel to Hermes yet, so it stays «طلب»", r1.request);
+    const nums = r1.request.numbers as { costPerOrder: number; orders: number; fatigue: string };
+    check(nums.costPerOrder === 6.06 && nums.orders === 10 && nums.fatigue === "tired", "…the numbers it carries are the ones the code computed (6.06$ a real order, 10 orders, tired)", nums);
+    const t1 = await db.task.findUnique({ where: { id: r1.request.taskId! } });
+    check(t1?.title === "هوكات جديدة على V101 · JOB DEMO-JOB-V1" && t1.assignee === "hermes" && t1.executor === "hermes" && t1.status === "new" && t1.linkType === "video" && t1.linkId === r1.request.id && t1.note!.includes("DemoScenarioFile101") && t1.note!.includes("تكلفة الطلب 6.1$"), "…and a card on المهام for Hermes, with the JOB, the scenario link and the numbers in it", t1);
+    const again = await createVideoRequest({ key: "DEMO-JOB-V1|V101", kind: "new_hooks" }, actor, now);
+    check(!again.created && again.request.id === r1.request.id && (await db.videoRequest.count({ where: { job: "DEMO-JOB-V1" } })) === 1, "asking the same thing about the same video while it is open returns the open request (nothing is asked twice)");
+    const board2 = await loadBoard(now);
+    const p2 = board2.products.find((x) => x.code === "VID01")!;
+    check(p2.winners[0]!.request?.id === r1.request.id && p2.winners[0]!.request?.statusLabel === "طلب" && p2.requests.length === 1 && board2.totals.openRequests >= 1, "the open request shows on the video's card and on the product");
+
+    // delivery to Hermes: its API (a local stand-in here), and what happens when it is down
+    const got: { path: string; auth?: string; body: any }[] = [];
+    let down = false;
+    const hermes = createServer((req, res) => {
+      let s = "";
+      req.on("data", (c) => (s += c)).on("end", () => {
+        got.push({ path: req.url ?? "", auth: req.headers.authorization, body: s ? JSON.parse(s) : null });
+        res.statusCode = down ? 500 : 200;
+        res.end("{}");
+      });
+    });
+    await new Promise<void>((ok) => hermes.listen(0, "127.0.0.1", ok));
+    process.env.HERMES_BASE_URL = `http://127.0.0.1:${(hermes.address() as { port: number }).port}`;
+    process.env.HERMES_TOKEN = "demo-hermes-token";
+    const r2 = await createVideoRequest({ key: "DEMO-JOB-V2|V102", kind: "to_test" }, actor, now);
+    const sent = got[0];
+    check(r2.request.via === "api" && r2.request.status === "with_hermes" && !!r2.request.deliveredAt && sent?.path === "/requests" && sent.auth === "Bearer demo-hermes-token", "«ارفعه للتيست» with HERMES_BASE_URL set: it reaches Hermes by the API (Bearer token) and the request is «عند هيرمز»", { via: r2.request.via, sent: sent && { path: sent.path } });
+    check(sent?.body.job === "DEMO-JOB-V2" && sent.body.kind === "to_test" && sent.body.product === "VID01" && sent.body.numbers.orders === 6 && sent.body.reply.claim.endsWith(`/api/v1/video-requests/${r2.request.id}/claim`) && !JSON.stringify(sent.body).includes("demo-hermes-token"), "…the payload carries the JOB, the numbers and where to answer — and never the token", sent?.body);
+    check((await db.task.findUnique({ where: { id: r2.request.taskId! } }))?.status === "doing", "…and its card on المهام is «شغّال»");
+    down = true;
+    const r3 = await createVideoRequest({ key: "DEMO-JOB-V3|V103", kind: "new_script" }, actor, now);
+    check(r3.request.status === "asked" && r3.request.via === "none" && r3.request.deliveryError === "Hermes answered 500", "Hermes down (500): the request stays «طلب» and says why — it is not lost, Hermes can still pull it", r3.request);
+    down = false;
+    const r4 = await createVideoRequest({ key: "DEMO-JOB-V1|V101", kind: "tired" }, actor, now);
+    const flagged = await db.videoBankItem.findFirst({ where: { job: "DEMO-JOB-V1" } });
+    check(r4.created && r4.request.via === "api" && flagged?.status === "fatigued", "«تعب»: a request too, and the video's own flag in the bank turns «تعبان» (nothing else about it changes)");
+    check((await createVideoRequest({ key: "DEMO-JOB-V1|V101", kind: "new_script", note: "كلّم 0912345678" }, actor, now).catch((e: Error) => e.message)).toString().includes("انرفض"), "a note with a phone number is refused");
+    check((await createVideoRequest({ key: "no|such", kind: "tired" }, actor, now).catch((e: Error & { status?: number }) => e.status)) === 404, "a video that is not in the bank is 404");
+
+    // Hermes pulls the queue over REST, takes one, answers it
+    const hermesTok = newToken("mbh_");
+    await db.apiToken.create({ data: { name: "demo-mcp-hermes", scopes: ["handoff"], tokenHash: hashToken(hermesTok), prefix: hermesTok.slice(0, 10) } });
+    const other = newToken("mbh_");
+    await db.apiToken.create({ data: { name: "demo-mcp-other", scopes: ["handoff"], tokenHash: hashToken(other), prefix: other.slice(0, 10) } });
+    const vr = (route: (r: Request, c: { params: { id: string } }) => Promise<Response>, path: string, body: unknown = undefined, token: string | null = hermesTok, id = "") =>
+      route(new Request(`http://localhost:3140/api/v1/video-requests${path}`, { method: body === undefined ? "GET" : "POST", headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) }), { params: { id } });
+    check((await vr(vrList as never, "", undefined, null)).status === 401 && (await vr(vrList as never, "", undefined, studio)).status === 403, "REST /api/v1/video-requests: no token → 401, a studio token → 403");
+    const queue = (await (await vr(vrList as never, "?status=asked,with_hermes&product=VID01")).json()) as { requests: { id: string; job: string; status: string; numbers: { orders: number } }[] };
+    check(queue.requests.length === 4 && queue.requests.some((q) => q.id === r3.request.id && q.status === "asked") && queue.requests.every((q) => q.job.startsWith("DEMO-JOB")), "…a «handoff» token lists the open requests, each with its JOB and numbers", queue.requests.map((q) => [q.job, q.status]));
+    const claimed = await vr(vrClaim as never, "/x/claim", {}, hermesTok, r3.request.id);
+    const claimedJson = (await claimed.json()) as { request: { status: string; claimedBy: string } };
+    check(claimed.status === 200 && claimedJson.request.status === "with_hermes" && claimedJson.request.claimedBy === "demo-mcp-hermes", "claim: «عند هيرمز», with the taker's name", claimedJson);
+    check((await vr(vrClaim as never, "/x/claim", {}, other, r3.request.id)).status === 409 && (await vr(vrClaim as never, "/x/claim", {}, hermesTok, r3.request.id)).status === 200 && (await vr(vrClaim as never, "/x/claim", {}, hermesTok, "no-such-id")).status === 404, "…a second taker is refused (409), the same taker is fine, an unknown request is 404");
+    const done = await vr(vrComplete as never, "/x/complete", { note: "4 سيناريوهات جاهزة", new_videos: [{ job: "DEMO-JOB-V9", v_name: "V109", drive_file_id: "DemoVideoFile109", scenario_file_id: "DemoScenarioFile109" }] }, hermesTok, r3.request.id);
+    const doneJson = (await done.json()) as { request: { status: string; resultNote: string; readyAt: string | null } };
+    const made = await db.videoBankItem.findFirst({ where: { job: "DEMO-JOB-V9" } });
+    check(done.status === 200 && doneJson.request.status === "ready" && doneJson.request.resultNote === "4 سيناريوهات جاهزة" && !!doneJson.request.readyAt, "complete: the request is «جاهز»", doneJson);
+    check(made?.productCode === "VID01" && made.status === "ready" && made.scenarioFileId === "DemoScenarioFile109", "…and what Hermes made lands in the bank as «جاهز», for the same product, with its scenario");
+    check((await db.task.findUnique({ where: { id: r3.request.taskId! } }))?.status === "waiting_approval", "…its card on المهام moves to «بانتظار موافقة» (the owner has to look)");
+    check((await vr(vrComplete as never, "/x/complete", { note: "تاني" }, hermesTok, r3.request.id)).status === 409 && (await vr(vrComplete as never, "/x/complete", { note: "كلّم 0912345678" }, hermesTok, r2.request.id)).status === 400 && (await vr(vrComplete as never, "/x/complete", { nonsense: 1 }, hermesTok, r2.request.id)).status === 422, "…answering twice is 409, a phone number in the answer is refused, a bad body is 422");
+
+    // the owner closes it: uploaded; and cancels another — nothing is deleted
+    const up = await moveVideoRequest(r3.request.id, "uploaded", actor, now);
+    check(up.status === "uploaded" && !!up.uploadedAt && (await db.task.findUnique({ where: { id: r3.request.taskId! } }))?.status === "done", "the owner marks it «مرفوع»: the card on المهام is «خلص»");
+    check((await moveVideoRequest(r3.request.id, "asked", actor, now).catch((e: Error & { status?: number }) => e.status)) === 409, "a finished request does not go back (409)");
+    const cancelled = await moveVideoRequest(r2.request.id, "cancelled", actor, now);
+    const cancelTask = await db.task.findUnique({ where: { id: r2.request.taskId! } });
+    check(cancelled.status === "cancelled" && !!cancelTask?.archivedAt && (await db.videoRequest.count({ where: { id: r2.request.id } })) === 1, "cancelled: the request stays (as cancelled) and its card is archived — nothing is deleted");
+    const board3 = await loadBoard(now);
+    const open3 = board3.products.find((x) => x.code === "VID01")!.requests.map((r) => r.id).sort();
+    check(open3.join() === [r1.request.id, r4.request.id].sort().join(), "the board lists only the open ones (the uploaded and the cancelled are off it)", open3);
+    const bank3 = board3.products.find((x) => x.code === "VID01")!;
+    check(bank3.bank.count === 5 && bank3.rest.some((v) => v.vName === "V109"), "the new video is in the bank: 5 of 50, waiting its turn");
+
+    hermes.close();
+    delete process.env.HERMES_BASE_URL;
+    delete process.env.HERMES_TOKEN;
   }
 
   // ── what the model gets when it is wrong ──

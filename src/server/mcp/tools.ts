@@ -79,7 +79,7 @@ export const TOOLS: ToolDef<McpCtx>[] = [
   {
     name: "push_videos",
     title: "ابعت بنك الفيديوهات",
-    description: "ابعت صفوف بنك الفيديوهات: رقم الـ JOB، اسم الفيديو (V…)، المنتج، رقم ملف Drive، رقم فيديو ميتا، والحالة. بتتحدّث بنفس (JOB + الاسم). ممنوع تعديل الفيديوهات نفسها.",
+    description: "ابعت صفوف بنك الفيديوهات: رقم الـ JOB، اسم الفيديو (V…)، المنتج، رقم ملف Drive، رقم ملف السيناريو (scenario_file_id)، رقم فيديو ميتا، والحالة. بتتحدّث بنفس (JOB + الاسم). ممنوع تعديل الفيديوهات نفسها.",
     input: looseRows(300),
     listSchema: rowsOf(VideoRow, 300, "صف لكل فيديو"),
     readOnly: false,
