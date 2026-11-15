@@ -324,6 +324,7 @@ export async function applyVideos(raw: unknown[], opts: { actor: Actor; source: 
     const data = {
       productCode: v.product,
       ...(v.drive_file_id ? { driveFileId: v.drive_file_id } : {}),
+      ...(v.scenario_file_id ? { scenarioFileId: v.scenario_file_id } : {}),
       ...(v.meta_video_id ? { metaVideoId: v.meta_video_id } : {}),
       ...(v.status ? { status: v.status } : {}),
       ...(v.notes ? { notes: v.notes } : {}),

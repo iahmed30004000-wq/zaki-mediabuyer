@@ -49,6 +49,8 @@ export const DEFAULT_SETTINGS = {
   "campaign.rules": DEFAULT_RULES as CampaignRules,
   /** who gets which alert: a person's key → the Telegram chat id to reach them on (the owner's is TELEGRAM_OWNER_CHAT_ID) */
   "notify.contacts": {} as Record<string, string>,
+  /** v3 · D — the least a video must spend (USD, over its last 7 days) before it is ranked as a winner. null until the owner types it: then twice the cost he aims for per order */
+  "videos.min_spend": null as number | null,
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;

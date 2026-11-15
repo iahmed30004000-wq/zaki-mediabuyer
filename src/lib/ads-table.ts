@@ -129,7 +129,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 
 /** The real facts: Meta's archive (InsightDaily, at every level it has) and the OMS orders, over the days the screen needs. */
-async function realSource(range: Range, today: string): Promise<Source> {
+export async function realSource(range: Range, today: string): Promise<Source> {
   const prevW = previousRange(range);
   const span = [prevW.from, range.from, addDays(today, -6)].sort()[0]!;
   const last = [range.to, today].sort().reverse()[0]!;
@@ -196,7 +196,7 @@ const hash = (s: string) => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0))
  * The demo: the demo counts spread over fourteen made-up days (heavier and lighter days, a frequency that creeps up) and
  * turned into the same kind of rows the database gives — so the screen, its ranges and «قارن» all run the real arithmetic.
  */
-function demoSource(today: string, nowMs: number): Source {
+export function demoSource(today: string, nowMs: number): Source {
   const weights = [0.9, 1.1, 1, 1.05, 0.95, 1, 1];
   const insights: InsightRow[] = [];
   const orders: OrderRow[] = [];

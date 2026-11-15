@@ -796,18 +796,20 @@ model StockSnapshot {
 
 /// The video bank as pushed: the owner's own numbering (JOB, V name) beside the Drive and Meta ids. Never deleted.
 model VideoBankItem {
-  id          String   @id @default(cuid())
-  job         String
-  vName       String
-  productCode String
-  driveFileId String?
-  metaVideoId String?
+  id             String   @id @default(cuid())
+  job            String
+  vName          String
+  productCode    String
+  driveFileId    String?
+  /// the Drive file of its scenario (03_السيناريوهات) — the card links to it and every request to Hermes carries it
+  scenarioFileId String?
+  metaVideoId    String?
   /// bank · requested · ready · uploaded · testing · winner · fatigued · dropped
-  status      String   @default("bank")
-  notes       String?
-  source      String   @default("mcp")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status         String   @default("bank")
+  notes          String?
+  source         String   @default("mcp")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([job, vName])
   @@index([productCode, status])
@@ -1049,4 +1051,46 @@ model Handoff {
 
   @@index([status, assignee])
   @@index([workflowKey, status])
+}
+
+/// A request about one video of the board (v3 · D): «بدو هوكات جديدة» · «بدو سيناريو جديد» · «ارفعه للتيست» · «تعب».
+/// It goes to Hermes (the API, or a chat), shows as a card on المهام, and moves طلب ← عند هيرمز ← جاهز ← مرفوع.
+/// It carries the video's JOB, its scenario file and the numbers the code computed — never a customer's detail.
+/// Never deleted: a cancelled request stays, as cancelled.
+model VideoRequest {
+  id             String    @id @default(cuid())
+  /// the video: «JOB|V» (the owner's bank) or its CR code (the registry)
+  videoKey       String
+  /// new_hooks · new_script · to_test · tired
+  kind           String
+  productCode    String
+  job            String?
+  vName          String?
+  crCode         String?
+  driveFileId    String?
+  scenarioFileId String?
+  /// asked · with_hermes · ready · uploaded · cancelled
+  status         String    @default("asked")
+  /// what the video had done when it was asked (code-made): spend, orders, cost per order, hook, hold, ctr, days, tired signal
+  numbers        Json      @default("{}")
+  note           String?
+  /// the card on المهام that mirrors it
+  taskId         String?
+  /// how it reached Hermes: api · telegram · none
+  via            String    @default("none")
+  deliveredAt    DateTime?
+  deliveryError  String?
+  claimedBy      String?
+  claimedAt      DateTime?
+  /// what Hermes answered (a note and a few names) and the videos it made
+  result         Json?
+  resultNote     String?
+  readyAt        DateTime?
+  uploadedAt     DateTime?
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([videoKey, status])
 }
