@@ -210,7 +210,7 @@ export const WorkflowPatch = z
   .strict();
 export type WorkflowPatchT = z.infer<typeof WorkflowPatch>;
 
-const graphTexts = (g: WfGraph) => g.nodes.flatMap((n) => [n.label, n.assignee, n.prompt, n.inputs, n.outputs, n.destination, n.fallback]);
+export const graphTexts = (g: WfGraph) => g.nodes.flatMap((n) => [n.label, n.assignee, n.prompt, n.inputs, n.outputs, n.destination, n.fallback]);
 
 /**
  * Edits a workflow (or its kill switch). A change to the graph is a new version (a graph that says nothing new is not: saving
@@ -260,6 +260,11 @@ export const WorkflowCreate = z
     description: z.string().trim().max(500).optional(),
     template: z.string().trim().max(30).optional().describe("blank · daily · approval · person"),
     copy_of: z.string().trim().max(60).optional().describe("مفتاح ورك فلو بدك تنسخه"),
+    /** a drawing that is ready (the assistant's draft) instead of a template or a copy */
+    graph: GraphSchema.optional(),
+    /** false: made switched off — a draft stays asleep until the owner turns it on */
+    enabled: z.boolean().optional(),
+    note: z.string().trim().max(200).optional(),
   })
   .strict();
 export type WorkflowCreateT = z.infer<typeof WorkflowCreate>;
@@ -273,7 +278,13 @@ export async function createWorkflow(input: WorkflowCreateT, actor: Actor): Prom
   let executor = "claude_mcp";
   let permission = "green";
   let note: string;
-  if (input.copy_of) {
+  if (input.graph) {
+    if (input.copy_of || input.template) throw new RunRefused("رسم جاهز أو قالب أو نسخة — واحد منهم بس");
+    const bad = refuseIfPrivate(...graphTexts(input.graph), input.note);
+    if (bad) throw new RunRefused(bad);
+    graph = input.graph;
+    note = input.note ?? "مسودة من المساعد";
+  } else if (input.copy_of) {
     const src = await db.workflow.findUnique({ where: { key: input.copy_of } });
     if (!src) throw new RunRefused("الورك فلو اللي بدك تنسخه مش موجود");
     graph = GraphSchema.parse(src.graph);
@@ -292,7 +303,7 @@ export async function createWorkflow(input: WorkflowCreateT, actor: Actor): Prom
     key = `wf-${randomBytes(4).toString("hex").slice(0, 6)}`;
     if (!(await db.workflow.findUnique({ where: { key } }))) break;
   }
-  const row = await db.workflow.create({ data: { key, name: input.name, description: input.description ?? null, executor, dataSource: "mcp", permission, graph: json(graph) } });
+  const row = await db.workflow.create({ data: { key, name: input.name, description: input.description ?? null, executor, dataSource: "mcp", permission, graph: json(graph), ...(input.enabled === undefined ? {} : { enabled: input.enabled }) } });
   await db.workflowVersion.create({ data: { workflowId: row.id, version: 1, graph: json(graph), note, createdBy: actor.id ?? actor.type } });
   await audit(actor, "workflow.create", { type: "workflow", id: row.id }, { after: { key, name: input.name, from: input.copy_of ?? input.template ?? "blank" } });
   return (await listWorkflows()).find((c) => c.key === key)!;

@@ -54,7 +54,8 @@ export function kindOf(items: ChangeItemDraft[]): ActionKind {
   return "raise_step";
 }
 
-async function find(type: string, id: string) {
+/** An object as the database has it, by its id (an ad may be named by its code too) — what `checkItems` checks a proposal against. */
+export async function findObject(type: string, id: string) {
   if (type === "campaign") {
     const c = await db.campaign.findUnique({ where: { metaId: id } });
     return c ? { metaId: c.metaId, status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null } : null;
@@ -74,7 +75,7 @@ export async function prepareChange(text: string) {
   const out = await ask("M04", [
     { role: "user", content: [`حوّل هالطلب لعمليات: «${text.slice(0, 600)}»`, "العمليات المسموحة بس: pause · resume · set_budget (للمجموعات). استعمل الأرقام (object_id) من القائمة تحت بس. إذا الطلب مش واضح رجّع items فاضية مع تحذير.", `رجّع JSON: {"items":[{"op":"pause","object_type":"ad","object_id":"…","after":{}}],"warnings":["…"]}`, JSON.stringify(objects.map((s) => ({ adset: s.metaId, name: s.name, daily_budget: s.dailyBudget ? Number(s.dailyBudget) : null, ads: s.ads.map((a) => ({ ad: a.metaId, name: a.name })) })))].join("\n") },
   ], Out);
-  const checked = await checkItems(out.items, find);
+  const checked = await checkItems(out.items, findObject);
   checked.warnings = out.warnings ?? [];
   if (!checked.items.length) throw new HttpError(422, ["ما طلع ولا تغيير صالح", ...checked.refused, ...checked.warnings].join(" · "));
   const cs = await propose({ source: "agent", sourceRef: "M04", reasonCode: "S11", sentence: `مسودة من الطلب: «${text.slice(0, 160)}»${checked.refused.length ? ` (انشال: ${checked.refused.join(" · ")})` : ""}`, kind: kindOf(checked.items), items: checked.items }, { type: "agent", id: "M04" });

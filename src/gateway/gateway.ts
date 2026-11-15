@@ -46,11 +46,13 @@ export const AGENTS: Record<string, AgentProfile> = {
   M07: { code: "M07", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 2 },
   M10: { code: "M10", route: ["external", "internal"], internalOnly: false, dailyCapUsd: 5 },
   H01: { code: "H01", route: ["internal"], internalOnly: true, dailyCapUsd: 0 },
+  // the smart assistant (v3 · H) talks to the Claude API through the SDK, not through this gateway (src/server/assistant): it is listed here for its cap and its spend
+  M12: { code: "M12", route: [], internalOnly: false, dailyCapUsd: 3 },
 };
 
 /** What each agent is, for the settings screen (spec 11.2). */
 export const AGENT_NAMES: Record<string, string> = {
-  M11: "كاتب التقارير", M02: "المحلل اليومي", M01: "المراقب اللحظي", M03: "المخطط", M04: "معدّ التغييرات", M05: "الحارس", M06: "استراتيجي الإبداعات", M07: "كاتب الإعلانات", M10: "الاستشاري", H01: "محلل الأسماء",
+  M11: "كاتب التقارير", M02: "المحلل اليومي", M01: "المراقب اللحظي", M03: "المخطط", M04: "معدّ التغييرات", M05: "الحارس", M06: "استراتيجي الإبداعات", M07: "كاتب الإعلانات", M10: "الاستشاري", M12: "المساعد الذكي", H01: "محلل الأسماء",
 };
 
 /** The common header of every agent (spec 11.3). */
