@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Clock, GitBranch, Hourglass, Minus, Play, Plus, Scan, UserCheck, X } from "lucide-react";
 import type { NodeStates, NodeType, WfGraph } from "@/core/workflow";
 import { NODE_H, NODE_W, TYPE_AR, connect, edgeGeometry, toWorld, zoomAt, type View } from "@/core/workflow-edit";
+import { miniMap, viewAtMapPoint } from "@/core/workflow-replay";
 import { cn } from "@/lib/utils";
 import type { Executor } from "@/core/workflow";
 import { EXECUTOR_AR } from "@/core/workflow";
@@ -73,8 +74,10 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
   const [dragging, setDragging] = useState<string | null>(null);
   const [touch, setTouch] = useState(false);
   const [targets, setTargets] = useState<Set<string>>(new Set());
+  const [box, setBox] = useState({ w: 0, h: 0 });
 
   const nodes = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
+  const map = useMemo(() => (box.w > 0 && graph.nodes.length > 1 ? miniMap(graph, view, box) : null), [graph, view, box]);
   const lines = useMemo(
     () =>
       graph.edges.flatMap((e) => {
@@ -95,6 +98,7 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
       const { width, height } = entry!.contentRect;
       if (width <= 0 || height <= 0) return;
       onSize({ w: width, h: height });
+      setBox({ w: width, h: height });
       if (!touched.current) onFit({ w: width, h: height });
     });
     ro.observe(el);
@@ -102,6 +106,14 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
     // the callbacks are stable; a new fit only comes from a size change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // a tap or drag on the minimap puts that spot of the drawing in the middle of the board
+  const go = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!map) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    touched.current = true;
+    onView(viewAtMapPoint(map, e.clientX - r.left, e.clientY - r.top, live.current.view, box));
+  };
 
   // Ctrl (or a trackpad pinch) + wheel zooms around the cursor; the plain wheel pans. A native listener, so the page does not scroll too.
   useEffect(() => {
@@ -357,6 +369,33 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
           );
         })}
       </div>
+
+      {map ? (
+        <svg
+          width={map.w}
+          height={map.h}
+          role="img"
+          aria-label="خريطة مصغّرة للرسم — اضغط عليها أو اسحب لتروح لمكان"
+          data-tour="minimap"
+          className="absolute bottom-3 end-3 z-10 hidden cursor-pointer touch-none rounded-lg border border-border bg-surface-1/90 shadow-card md:block"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            go(e);
+          }}
+          onPointerMove={(e) => {
+            e.stopPropagation();
+            if (e.buttons === 1) go(e);
+          }}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
+          {map.boxes.map((b) => {
+            const st = states[b.id]?.status;
+            return <rect key={b.id} x={b.x} y={b.y} width={Math.max(2, b.w)} height={Math.max(2, b.h)} rx={1.5} className={st === "failed" ? "fill-danger/70" : st === "running" || st === "handoff" || st === "approval" ? "fill-accent/80" : st === "done" ? "fill-ok/60" : "fill-fg-muted/40"} />;
+          })}
+          <rect x={map.viewport.x} y={map.viewport.y} width={map.viewport.w} height={map.viewport.h} fill="none" strokeWidth={1.5} className="stroke-accent" />
+        </svg>
+      ) : null}
 
       <div className="absolute bottom-3 start-3 z-10 flex flex-col gap-1.5" dir="rtl">
         {[
