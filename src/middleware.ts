@@ -6,7 +6,7 @@ import { SESSION_COOKIE, authRequired, readSession } from "@/lib/session-token";
  * (manifest, icons, the service worker, the offline page — none of them carries data). The content studio's paths carry no
  * session: each route there checks its own Bearer token (src/server/api-token.ts). So does /mcp, the server Claude connects to.
  */
-const OPEN = [/^\/login/, /^\/api\/auth\//, /^\/api\/health/, /^\/api\/telegram\/webhook/, /^\/api\/vidpattern\//, /^\/api\/v1\/vp\//, /^\/api\/v1\/handoffs/, /^\/mcp$/, /^\/brand\//, /^\/fonts\//, /^\/_next\//, /^\/favicon/, /^\/icons\//, /^\/manifest\.webmanifest$/, /^\/sw\.js$/, /^\/offline$/];
+const OPEN = [/^\/login/, /^\/api\/auth\//, /^\/api\/health/, /^\/api\/telegram\/webhook/, /^\/api\/vidpattern\//, /^\/api\/v1\/vp\//, /^\/api\/v1\/handoffs/, /^\/api\/v1\/video-requests/, /^\/mcp$/, /^\/brand\//, /^\/fonts\//, /^\/_next\//, /^\/favicon/, /^\/icons\//, /^\/manifest\.webmanifest$/, /^\/sw\.js$/, /^\/offline$/];
 
 /** Signed-out visitors go to the door; an API call without a session gets 401 (spec 13.7: every route checks access). */
 export async function middleware(req: NextRequest) {
