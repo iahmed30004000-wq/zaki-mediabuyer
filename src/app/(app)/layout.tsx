@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/shell/sidebar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { PageHeader } from "@/components/shell/page-header";
+import { CommandPalette } from "@/components/shell/command-palette";
 import { Consultant } from "@/components/shell/consultant";
 import { ShellProvider } from "@/components/shell/shell-context";
 import { EditPanel } from "@/components/customize/edit-panel";
@@ -26,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <Consultant />
+        <CommandPalette />
         <ApprovalRinger />
         <BottomNav />
         <EditPanel />

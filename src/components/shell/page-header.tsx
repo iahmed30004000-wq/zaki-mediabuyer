@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { MediaBuyerMark } from "@/components/logo";
 import { EditBar, EditToggle } from "@/components/customize/edit-bar";
 import { KillSwitch } from "@/components/mb/kill-switch";
-import { MessageCircleQuestion } from "lucide-react";
+import { MessageCircleQuestion, Search } from "lucide-react";
 import { PageHelp } from "./page-help";
+import { SEARCH_EVENT } from "./command-palette";
 import { CONSULTANT_EVENT } from "./consultant";
 import { useCurrentPlace } from "./shell-context";
 
@@ -21,6 +22,9 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
           <p className="truncate text-xs text-fg-muted">{place.question}</p>
         </div>
         {actions}
+        <button type="button" onClick={() => window.dispatchEvent(new Event(SEARCH_EVENT))} aria-label="بحث (Ctrl K)" title="بحث (Ctrl K)" data-tour="search" className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-fg-muted hover:bg-surface-2 hover:text-fg">
+          <Search className="size-[18px]" />
+        </button>
         <button type="button" onClick={() => window.dispatchEvent(new Event(CONSULTANT_EVENT))} aria-label="اسأل المساعد" className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-fg-muted hover:bg-surface-2 hover:text-fg md:hidden">
           <MessageCircleQuestion className="size-[18px]" />
         </button>
