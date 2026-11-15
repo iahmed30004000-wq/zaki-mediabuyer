@@ -111,6 +111,7 @@ export async function loadEditView(): Promise<EditView | null> {
     link("oms", "الـ OMS", omsLinked(), await lastSuccess("oms.sync"), 120, "مزامنة"),
     link("telegram", "تيليجرام", has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_OWNER_CHAT_ID"), lastTelegram, 26 * 60, "تقرير انبعت"),
     link("drive", "Google Drive", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTS_FOLDER_ID"), await lastSuccess("creative.intake"), 60, "فحص للوارد"),
+    link("driveLibrary", "درايف — فيديوهات وسيناريوهات", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"), await lastSuccess("drive.library"), 90, "فحص"),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },
   ];
   const caps = (await getSetting("scale.product_caps")) as Record<string, number>;
