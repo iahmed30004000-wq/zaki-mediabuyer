@@ -24,6 +24,9 @@ import { loadColumns, saveColumns } from "../src/server/ads-prefs";
 import { proposeRaise } from "../src/server/ads-actions";
 import { cancelHandoff, createHandoff, listHandoffs, reassignHandoff, requestRun } from "../src/server/handoffs";
 import { duplicateGroups } from "../src/core/tasks";
+import { addDays, ammanKey } from "../src/core/dates";
+import { summaryOfDay } from "../src/core/day";
+import { loadDay, readDay } from "../src/lib/day-view";
 import { bulkUpdateTasks, listTasks, mergeTasks, quickAddTask, updateTask } from "../src/server/tasks";
 import { GET as hoList, POST as hoCreate } from "../src/app/api/v1/handoffs/route";
 import { POST as hoClaim } from "../src/app/api/v1/handoffs/[id]/claim/route";
@@ -422,6 +425,32 @@ async function clean() {
     await db.$executeRaw`UPDATE "Task" SET "updatedAt" = ${new Date(Date.now() - 30 * 86_400_000)} WHERE id = ${old.id}`;
     const recent = (await listTasks({ doneWithinDays: 14, limit: 300 })).filter((t) => t.title.startsWith("DEMO"));
     check(recent.some((t) => t.id === c.id) && !recent.some((t) => t.id === old.id), "a finished task shows for two weeks, then leaves the board (it stays in the table)");
+  }
+
+
+  // ── الإنجاز (v3 G): the day, written from rows that already exist ──
+  {
+    const actor = { type: "user" as const, id: "demo-mcp-user" };
+    await quickAddTask("بكرا لميوز: DEMO مهمة بكرا", actor);
+    const now = new Date();
+    const today = ammanKey(now);
+    const t = await loadDay(today, now);
+    const group = (d: typeof t, key: string) => d.done.find((g) => g.key === key);
+    check(t.demo === false && t.state === "today" && t.done[0]?.key === "owner", "الإنجاز (MOCK_MODE=0): today's groups start with the owner", t.done.map((g) => g.key));
+    check(group(t, "owner")?.items.some((i) => i.kind === "approval" && i.text.includes("وافق على: DEMO رفع السقف")) === true, "…the owner's answer to Claude's request is his line");
+    check(group(t, "claude")?.items.some((i) => i.kind === "run" && i.text.includes("خلص ✓") && i.numbers?.includes("alerts 3")) === true, "…Claude's finished run, with the numbers it reported");
+    check(group(t, "claude")?.items.some((i) => i.kind === "handoff" && i.text.includes("خلص الفحص")) === true, "…the handover Claude answered");
+    check(group(t, "hermes")?.items.some((i) => i.kind === "task" && i.text.includes("DEMO تانية")) === true, "…a closed task is its assignee's (Hermes)");
+    check(t.counts.done === t.done.reduce((n, g) => n + g.items.length, 0) && t.counts.done >= 4, "…the count is the lines", t.counts);
+    const text = summaryOfDay(t.title, t.done, t.planned);
+    check(text.includes("اللي انعمل") && text.includes("— المالك") && text.includes("DEMO رفع السقف"), "the Telegram summary reads the same lines");
+
+    const tomorrow = await loadDay(addDays(today, 1), now);
+    check(tomorrow.state === "future" && tomorrow.done.length === 0 && tomorrow.planned.some((g) => g.items.some((i) => i.kind === "scheduled")), "tomorrow: nothing done yet, the scheduled runs are planned");
+    check(tomorrow.planned.find((g) => g.key === "muse")?.items.some((i) => i.kind === "due" && i.text.includes("DEMO مهمة بكرا")) === true, "…and a task due tomorrow is in its person's group (Muse)");
+    const yesterday = await loadDay(addDays(today, -1), now);
+    check(yesterday.state === "past" && yesterday.planned.length === 0, "a past day plans nothing");
+    check(readDay("2026-02-30", now) === today && readDay("nonsense", now) === today && readDay("2026-11-20", now) === "2026-11-20" && readDay(undefined, now) === today, "a day in the address that is not a date is today");
   }
 
   // ── what the model gets when it is wrong ──
