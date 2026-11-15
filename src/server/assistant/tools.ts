@@ -18,6 +18,7 @@ import {
   ASSISTANT_AGENT, RANGE_CHOICES, calculate, rangeQuery, resolveProduct, toolData, toolError,
   type Artifact, type AssistantTool, type RangeQuery, type Resolved, type ToolOutput,
 } from "@/core/assistant";
+import { effectiveBoards } from "@/core/customize";
 import { addDays, ammanKey, isKey } from "@/core/dates";
 import { SET_KEYS } from "@/core/numbers";
 import { refuseIfPrivate } from "@/core/push-rows";
@@ -33,6 +34,7 @@ import { loadNumbers } from "@/lib/numbers-view";
 import { loadBoard, type BoardData } from "@/lib/videos-board";
 import type { Actor } from "../audit";
 import { HttpError, type Caller } from "../auth";
+import { getUiConfig } from "../ui-config";
 import { db } from "../db";
 import { propose } from "../changes";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask, type TaskView } from "../tasks";
@@ -70,6 +72,8 @@ export interface ToolDeps {
   board: (now: Date) => Promise<BoardData>;
   day: (day: string, now: Date) => Promise<DayData>;
   tasks: (f: Parameters<typeof listTasks>[0], now: Date) => Promise<TaskView[]>;
+  /** the boards of tasks (the owner's own too): key and name */
+  boards: () => Promise<{ key: string; label: string }[]>;
   workflows: (now: Date) => Promise<WorkflowCard[]>;
   overview: (now: Date) => Promise<string[]>;
   changes: (state: "pending" | "recent", limit: number) => Promise<ChangeRow[]>;
@@ -123,6 +127,7 @@ export const defaultDeps: ToolDeps = {
   board: (now) => loadBoard(now),
   day: (day, now) => loadDay(day, now),
   tasks: (f, now) => listTasks(f, now),
+  boards: async () => effectiveBoards(await getUiConfig()).filter((b) => !b.archived).map((b) => ({ key: b.key, label: b.label })),
   workflows: (now) => listWorkflows(now),
   overview: (now) => consultFacts(now),
   changes: async (state, limit) => {
@@ -267,14 +272,14 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
         .object({
           status: z.array(z.enum(TASK_STATUSES)).max(5).optional().describe("new · doing · waiting_approval · stalled · done"),
           assignee: z.string().trim().max(40).optional().describe("abdullah · hassan · laith · mohammad · hermes · muse · claude"),
-          board: z.string().trim().max(40).optional().describe("main · confirmation · leak · basha · stock"),
+          board: z.string().trim().max(40).optional().describe("مفتاح اللوحة (main · confirmation · leak · basha · stock، أو لوحة المالك — المفاتيح بنتيجة هالأداة)"),
           limit: z.number().int().min(1).max(30).optional(),
         })
         .strict(),
       run: (a, ctx) =>
         guarded(async () => {
           const f = a as { status?: string[]; assignee?: string; board?: string; limit?: number };
-          return tasksOutput(await deps.tasks({ status: f.status, assignee: f.assignee, board: f.board, limit: f.limit ?? 30, doneWithinDays: 14 }, ctx.now));
+          return tasksOutput(await deps.tasks({ status: f.status, assignee: f.assignee, board: f.board, limit: f.limit ?? 30, doneWithinDays: 14 }, ctx.now), await deps.boards());
         }),
     },
     {

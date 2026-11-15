@@ -9,6 +9,7 @@ import { refuseIfPrivate } from "@/core/push-rows";
 import { parseQuickAdd } from "@/core/tasks";
 import { db } from "./db";
 import { audit, type Actor } from "./audit";
+import { quickAddBoardWords, resolveBoardKey } from "./ui-config";
 
 export const TASK_STATUSES = ["new", "doing", "waiting_approval", "stalled", "done"] as const;
 export const TASK_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
@@ -109,8 +110,10 @@ export async function listTasks(f: { status?: string[]; assignee?: string; board
 export async function createTask(i: TaskCreateT, actor: Actor, source: "ui" | "mcp" | "workflow" | "assistant"): Promise<TaskView> {
   const refusal = refuseIfPrivate(i.title, i.note);
   if (refusal) throw new TaskRefused(refusal);
+  // a board that was merged into another is that other: a task made for the old key lands where its tasks went
+  const board = await resolveBoardKey(i.board ?? "main");
   const row = await db.task.create({
-    data: { title: i.title, note: i.note ?? null, assignee: i.assignee ?? null, executor: i.executor ?? null, dueAt: dueOf(i.due_at) ?? null, priority: i.priority ?? "normal", status: i.status ?? "new", board: i.board ?? "main", linkType: i.link_type ?? null, linkId: i.link_id ?? null, source },
+    data: { title: i.title, note: i.note ?? null, assignee: i.assignee ?? null, executor: i.executor ?? null, dueAt: dueOf(i.due_at) ?? null, priority: i.priority ?? "normal", status: i.status ?? "new", board, linkType: i.link_type ?? null, linkId: i.link_id ?? null, source },
   });
   await audit(actor, "task.create", { type: "task", id: row.id }, { after: { title: row.title, assignee: row.assignee, source } });
   return taskView(row);
@@ -142,7 +145,7 @@ export async function updateTask(i: TaskUpdateT, actor: Actor): Promise<TaskView
 
 /** «بكرا لميوز: …» → a task. The board the person is looking at is the default when the line names none. */
 export async function quickAddTask(text: string, actor: Actor, opts: { board?: string } = {}, now = new Date()): Promise<TaskView> {
-  const q = parseQuickAdd(text, now);
+  const q = parseQuickAdd(text, now, await quickAddBoardWords());
   if (!q) throw new TaskRefused("اكتب شو بدك (مثلاً «بكرا لميوز: اعمل 4 هوكات»)");
   return createTask({ title: q.title.slice(0, 200), ...(q.assignee ? { assignee: q.assignee } : {}), ...(q.due_at ? { due_at: q.due_at } : {}), ...(q.priority ? { priority: q.priority } : {}), board: q.board ?? opts.board ?? "main" }, actor, "ui");
 }
@@ -164,7 +167,7 @@ export type TaskBulkT = z.infer<typeof TaskBulkInput>;
 export async function bulkUpdateTasks(i: TaskBulkT, actor: Actor): Promise<{ updated: number }> {
   const r = await db.task.updateMany({
     where: { id: { in: i.ids } },
-    data: { ...(i.status ? { status: i.status } : {}), ...(i.assignee ? { assignee: i.assignee } : {}), ...(i.priority ? { priority: i.priority } : {}), ...(i.board ? { board: i.board } : {}), ...(i.archived === undefined ? {} : { archivedAt: i.archived ? new Date() : null }) },
+    data: { ...(i.status ? { status: i.status } : {}), ...(i.assignee ? { assignee: i.assignee } : {}), ...(i.priority ? { priority: i.priority } : {}), ...(i.board ? { board: await resolveBoardKey(i.board) } : {}), ...(i.archived === undefined ? {} : { archivedAt: i.archived ? new Date() : null }) },
   });
   await audit(actor, "task.bulk_update", { type: "task", id: String(i.ids.length) }, { after: { ids: i.ids.slice(0, 20), status: i.status, assignee: i.assignee, priority: i.priority, board: i.board, archived: i.archived, updated: r.count } });
   return { updated: r.count };

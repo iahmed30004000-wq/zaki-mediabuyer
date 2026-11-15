@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PAGE_GUIDE } from "@/lib/guide";
-import { PLACES, placeOf } from "@/lib/nav";
+import { PAGE_GUIDE, guideOf } from "@/lib/guide";
+import { BUILTIN_PAGES, PLACES, placeOf } from "@/lib/nav";
 
 type Redirect = { source: string; destination: string; permanent: boolean; has?: { type: string; key: string; value: string }[] };
 
@@ -65,5 +65,19 @@ describe("the old addresses (v3 · A)", () => {
     // the conditional one must come first, or the plain one would swallow it
     expect(list.findIndex((r) => r.source === "/reports" && r.has?.length)).toBeLessThan(list.findIndex((r) => r.source === "/reports" && !r.has));
     expect(list.find((r) => r.source === "/reports" && !r.has)?.destination).toBe("/done?tab=reports");
+  });
+});
+
+describe("the places as the customization layer reads them (v3 · K)", () => {
+  it("BUILTIN_PAGES is the seven places as plain data, in order", () => {
+    expect(BUILTIN_PAGES.map((p) => p.key)).toEqual(PLACES.map((p) => p.key));
+    expect(BUILTIN_PAGES.map((p) => p.href)).toEqual(PLACES.map((p) => p.href));
+    expect(BUILTIN_PAGES.filter((p) => p.mobile).map((p) => p.key)).toEqual(["today", "ads", "tasks", "workflow"]);
+    expect(JSON.parse(JSON.stringify(BUILTIN_PAGES))).toEqual(BUILTIN_PAGES);
+  });
+  it("a page of the owner's has a guide too, and the built-in ones keep theirs", () => {
+    expect(guideOf("pg-1a2b3c").what.length).toBeGreaterThan(10);
+    expect(guideOf("pg-1a2b3c").tour).toEqual([]);
+    expect(guideOf("ads")).toBe(PAGE_GUIDE.ads);
   });
 });

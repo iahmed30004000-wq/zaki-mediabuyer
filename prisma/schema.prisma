@@ -974,6 +974,23 @@ model Task {
   @@index([assignee])
 }
 
+/// «وضع التعديل» (v3 · K): what was typed into a field the owner added to a card (a task, a video). The fields themselves are
+/// config (the setting `ui.config`); this is only the values, kept by the card's id, so hiding, merging or archiving a field
+/// never touches them.
+model CustomValue {
+  /// task · video
+  entity    String
+  entityId  String
+  /// the field's id in `ui.config` (f-xxxxxx)
+  fieldId   String
+  value     Json
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  @@id([entity, entityId, fieldId])
+  @@index([entity, fieldId])
+}
+
 /// A phone or a browser that may be pushed to (an FCM token or a Web Push subscription). The token is a secret: never shown, never logged.
 model PushDevice {
   id         String    @id @default(cuid())

@@ -14,7 +14,8 @@ export function ammanKey(d: Date): string {
 const MS = 86_400_000;
 /** UTC midnight of a date key — only for arithmetic and for @db.Date columns, never for «what day is it». */
 export const keyMs = (key: string) => Date.parse(`${key}T00:00:00Z`);
-export const isKey = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(keyMs(s)).toISOString().slice(0, 10) === s;
+/** A real date written YYYY-MM-DD («2026-13-40» looks like one and is not: it must not throw — it may be a query string somebody typed). */
+export const isKey = (s: unknown): s is string => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(keyMs(s)) && new Date(keyMs(s)).toISOString().slice(0, 10) === s;
 
 export function addDays(key: string, n: number): string {
   return new Date(keyMs(key) + n * MS).toISOString().slice(0, 10);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { getValues } from "@/server/customize";
 import { TaskCreateInput, TaskRefused, createTask, listTasks, quickAddTask } from "@/server/tasks";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export async function GET(req: Request) {
   try {
     await requireCapability("view");
     const q = new URL(req.url).searchParams;
-    return NextResponse.json({ tasks: await listTasks({ board: q.get("board") ?? undefined, assignee: q.get("assignee") ?? undefined, limit: 300, doneWithinDays: 14 }) });
+    const tasks = await listTasks({ board: q.get("board") ?? undefined, assignee: q.get("assignee") ?? undefined, limit: 300, doneWithinDays: 14 });
+    return NextResponse.json({ tasks, values: await getValues("task", tasks.map((t) => t.id)) });
   } catch (e) {
     return errorResponse(e);
   }

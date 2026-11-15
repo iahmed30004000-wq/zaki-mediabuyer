@@ -29,7 +29,7 @@ import { duplicateGroups } from "../src/core/tasks";
 import { addDays, ammanKey } from "../src/core/dates";
 import { summaryOfDay } from "../src/core/day";
 import { loadDay, readDay } from "../src/lib/day-view";
-import { bulkUpdateTasks, listTasks, mergeTasks, quickAddTask, updateTask } from "../src/server/tasks";
+import { bulkUpdateTasks, createTask, listTasks, mergeTasks, quickAddTask, updateTask } from "../src/server/tasks";
 import { GET as hoList, POST as hoCreate } from "../src/app/api/v1/handoffs/route";
 import { POST as hoClaim } from "../src/app/api/v1/handoffs/[id]/claim/route";
 import { GET as vrList } from "../src/app/api/v1/video-requests/route";
@@ -40,13 +40,18 @@ import { syncDriveLibrary } from "../src/jobs/drive-library";
 import { WorkflowPatch, createWorkflow, listVersions, updateWorkflow } from "../src/server/workflows";
 import type { WfGraph } from "../src/core/workflow";
 import { addAfter, ensureLayout, isPlaced, setNode } from "../src/core/workflow-edit";
-import { getSetting, setSetting } from "../src/server/settings";
+import { getSetting, restoreSetting, setSetting } from "../src/server/settings";
 import { createVideoRequest, moveVideoRequest } from "../src/server/video-requests";
 import { askAssistant } from "../src/server/assistant";
 import { AssistantError, type Llm, type LlmRequest, type LlmResponse } from "../src/server/assistant/loop";
 import { GET as assistantGet, POST as assistantPost } from "../src/app/api/assistant/route";
 import { PrivacyRefusal } from "../src/gateway/privacy";
 import { STATS, formatStat } from "../src/core/numbers";
+import { applyOp, getValues, panelData, runButton, setValues } from "../src/server/customize";
+import { getUiConfig } from "../src/server/ui-config";
+import { buttonsFor, effectiveBoards, effectivePages, fieldsFor, type UiOp } from "../src/core/customize";
+import { BUILTIN_PAGES } from "../src/lib/nav";
+import { GET as uiGet_, POST as uiPost } from "../src/app/api/ui/route";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -104,7 +109,8 @@ async function clean() {
   await db.changeItem.deleteMany({ where: { changeSet: { sourceRef: "assistant:demo-mcp-user" } } });
   await db.changeSet.deleteMany({ where: { sourceRef: "assistant:demo-mcp-user" } });
   await db.agentRun.deleteMany({ where: { agent: "M12", model: "demo-model" } });
-  await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules", "videos.min_spend", "agents.daily_caps", "agents.monthly_cap"] } } });
+  await db.customValue.deleteMany({ where: { updatedBy: "demo-mcp-user" } });
+  await db.setting.deleteMany({ where: { key: { in: ["owner.mode", "owner.wake_kinds", "campaign.rules", "videos.min_spend", "agents.daily_caps", "agents.monthly_cap", "ui.config"] } } });
 }
 
 (async () => {
@@ -858,6 +864,114 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── وضع التعديل (v3 K): the owner's pages, boards, fields and buttons over the real database ──
+  {
+    const owner = { id: "demo-mcp-user", role: "OWNER" as const, demo: false };
+    const actor = { type: "user" as const, id: "demo-mcp-user" };
+    const op = (o: UiOp) => applyOp(o, owner);
+    const refused = (o: UiOp) => op(o).then(() => "", (e: Error) => e.message);
+    const find = <T,>(list: T[], f: (x: T) => boolean) => list.find(f)!;
+
+    // a board from a template brings its fields; a field for every board; a button that runs a workflow
+    const mk = await op({ op: "board.add", label: "DEMO شحنات", template: "shipments" });
+    const ship = find(mk.config.boards, (b) => b.label === "DEMO شحنات").key;
+    const shipFields = mk.config.fields.filter((f) => f.boards?.includes(ship));
+    check(/^bd-[0-9a-f]{6}$/.test(ship) && shipFields.map((f) => f.type).join() === "text,text,date" && mk.version >= 1, "a board from the «متابعة شحنات» template: its own key, and its three fields (text · text · date) on that board only", { ship, fields: shipFields.map((f) => f.label) });
+    const mk2 = await op({ op: "board.add", label: "DEMO توصيل" });
+    const deliv = find(mk2.config.boards, (b) => b.label === "DEMO توصيل").key;
+    const fNo = shipFields[0]!.id;
+    const fDate = shipFields[2]!.id;
+    const everywhere = await op({ op: "field.add", entity: "task", label: "DEMO ملاحظة", type: "text" });
+    const fNote = find(everywhere.config.fields, (f) => f.label === "DEMO ملاحظة").id;
+    const btn = await op({ op: "button.add", entity: "task", label: "DEMO ابعت للتأكيد", workflow: "daily-check" });
+    const btnId = btn.config.buttons[0]!.id;
+    check(btn.config.buttons[0]!.confirm === true && (await refused({ op: "button.add", entity: "task", label: "DEMO س", workflow: "no-such-flow" })).includes("الورك فلو"), "a button runs a workflow that exists (and asks «متأكد؟» by default); one for a workflow that does not is refused");
+
+    // cards on the boards, and what is typed into their fields
+    const t = [await createTask({ title: "DEMO شحنة 1", board: ship }, actor, "ui"), await createTask({ title: "DEMO شحنة 2", board: ship }, actor, "ui"), await createTask({ title: "DEMO شحنة 3", board: ship }, actor, "ui"), await createTask({ title: "DEMO توصيل 1", board: deliv }, actor, "ui"), await createTask({ title: "DEMO توصيل 2", board: deliv }, actor, "ui")];
+    await setValues("task", t[0]!.id, { [fNo]: "AB-123", [fDate]: "2026-11-20", [fNote]: "ممتازة" }, owner);
+    await setValues("task", t[1]!.id, { [fNo]: "AB-124" }, owner);
+    const badDate = await setValues("task", t[0]!.id, { [fDate]: "2026-13-40" }, owner).then(() => "", (e: Error) => e.message);
+    const phone = await setValues("task", t[0]!.id, { [fNote]: "كلّمه 0944123456" }, owner).then(() => "", (e: Error) => e.message);
+    const offBoard = await setValues("task", t[3]!.id, { [fNo]: "XX" }, owner).then(() => "", (e: Error) => e.message);
+    check(badDate.includes("YYYY-MM-DD") && phone.includes("رقم هاتف") && offBoard.includes("مش على هاللوحة"), "a value is checked against its field: an impossible date, a customer's number, and a field that is not on that card's board are all refused", { badDate, phone, offBoard });
+
+    // reload: it was all written to the database, not kept in a page
+    const fresh = await getUiConfig();
+    const vals = await getValues("task", t.map((x) => x.id));
+    check(fresh.fields.some((f) => f.id === fNote) && fresh.buttons.some((b) => b.id === btnId) && vals[t[0]!.id]![fNo] === "AB-123" && vals[t[0]!.id]![fDate] === "2026-11-20" && vals[t[1]!.id]![fNo] === "AB-124", "reload: the field, the button and the values are all still there (read back from the database)");
+    check(fieldsFor(fresh, "task", ship).map((f) => f.id).includes(fNote) && !fieldsFor(fresh, "task", deliv).map((f) => f.id).includes(fNo) && buttonsFor(fresh, "task", deliv).length === 1, "…a template field shows on its own board only, a field for every board on all of them, a button everywhere");
+
+    // what is used cannot be put away — it is merged or hidden
+    const a1 = await refused({ op: "board.archive", key: ship });
+    const a2 = await refused({ op: "field.archive", id: fNo });
+    check(a1.includes("3 مهمة") && a2.includes("2 قيمة"), "a board with 3 tasks and a field with 2 values cannot be archived — the reason says how many", { a1, a2 });
+
+    // THE GATE: merge two boards with no data loss
+    const mine = () => db.task.count({ where: { board: { in: [ship, deliv] } } });
+    const before = { tasks: await mine(), values: await db.customValue.count({ where: { updatedBy: "demo-mcp-user" } }) };
+    const merged = await op({ op: "board.merge", from: ship, into: deliv });
+    const after = { tasks: await mine(), values: await db.customValue.count({ where: { updatedBy: "demo-mcp-user" } }) };
+    check(merged.moved === 3 && (await db.task.count({ where: { board: deliv } })) === 5 && (await db.task.count({ where: { board: ship } })) === 0 && before.tasks === after.tasks && before.values === after.values && before.tasks === 5, "merging two boards moves all 3 tasks and loses nothing: 5 tasks and every value before = 5 and every value after", { before, after, merged: merged.moved });
+    const post = await getUiConfig();
+    const shipCfg = effectiveBoards(post).find((b) => b.key === ship)!;
+    check(shipCfg.archived && shipCfg.mergedInto === deliv && shipCfg.movedCount === 3 && shipCfg.canMoveBack && fieldsFor(post, "task", deliv).map((f) => f.id).includes(fNo), "…the old board is put away with a pointer (and the 3 ids), and its fields now show on the board it went into");
+    const later = await createTask({ title: "DEMO بعد الدمج", board: ship }, actor, "mcp");
+    check(later.board === deliv, "a task made later for the old board's key (by Claude, say) lands on the board it was merged into");
+    const hashtag = await quickAddTask("بكرا: DEMO مهمة بالهاشتاق #DEMO_توصيل", actor);
+    check(hashtag.board === deliv && hashtag.title === "DEMO مهمة بالهاشتاق", "«#DEMO_توصيل» in the quick add finds the board the owner made, by its name");
+    const undone = await op({ op: "board.restore", key: ship });
+    const back = await getUiConfig();
+    check(undone.movedBack === 3 && (await db.task.count({ where: { board: ship } })) === 3 && !effectiveBoards(back).find((b) => b.key === ship)!.archived && fieldsFor(back, "task", ship).map((f) => f.id).includes(fNo) && !fieldsFor(back, "task", deliv).map((f) => f.id).includes(fNo), "undoing the merge brings the board back, moves ITS 3 tasks back (not the ones made since) and puts its template fields back on it alone", undone.movedBack);
+
+    // two fields merged: the values are copied, the first keeps its own, and where both had one it says so
+    const fa = (await op({ op: "field.add", entity: "task", label: "DEMO رقم أ", type: "text" })).config.fields.find((f) => f.label === "DEMO رقم أ")!.id;
+    const fb = (await op({ op: "field.add", entity: "task", label: "DEMO رقم ب", type: "text" })).config.fields.find((f) => f.label === "DEMO رقم ب")!.id;
+    await setValues("task", t[0]!.id, { [fa]: "A0", [fb]: "B0" }, owner);
+    await setValues("task", t[1]!.id, { [fa]: "A1" }, owner);
+    const fm = await op({ op: "field.merge", from: fa, into: fb });
+    const mv = await getValues("task", [t[0]!.id, t[1]!.id]);
+    check(fm.copied === 1 && fm.conflicts === 1 && mv[t[0]!.id]![fb] === "B0" && mv[t[1]!.id]![fb] === "A1" && mv[t[0]!.id]![fa] === "A0", "merging two fields: the value only the first had is copied (A1), where both had one the second wins (B0) and the first's stays in the put-away field — nothing lost", { copied: fm.copied, conflicts: fm.conflicts });
+    check((await refused({ op: "field.merge", from: fNo, into: fDate })).includes("النوعين مختلفين"), "two fields of different types are not merged");
+
+    // a button is one hand-over per card, with the card's own words
+    const run1 = await runButton(btnId, "task", t[0]!.id, owner);
+    const run1b = await runButton(btnId, "task", t[0]!.id, owner);
+    const run2 = await runButton(btnId, "task", t[1]!.id, owner);
+    const inp = run1.handoff.context.inputs ?? {};
+    check(run1.created && !run1b.created && run1b.handoff.id === run1.handoff.id && run2.created && run2.handoff.id !== run1.handoff.id, "a button asks Claude to run the workflow on THAT card: pressing again returns the open request, another card gets its own");
+    check(inp.card_title === "DEMO شحنة 1" && inp.board === "DEMO شحنات" && inp.button === "DEMO ابعت للتأكيد" && inp["رقم الشحنة"] === "AB-123" && inp["موعد التسليم"] === "2026-11-20" && JSON.stringify(inp).indexOf("0944") < 0, "…carrying the card's title, board, button and its fields (no customer data exists in any of them)", inp);
+
+    // the sidebar: rename, hide, add (never past seven), reorder — and two edits at the same moment both land
+    await op({ op: "page.hide", key: "done", hidden: true });
+    const added = await op({ op: "page.add", kind: "link", label: "DEMO درايف", href: "https://drive.google.com/drive/folders/abc" });
+    const vis = effectivePages(added.config, BUILTIN_PAGES).filter((p) => !p.hidden && !p.archived);
+    check(vis.length === 7 && vis.at(-1)!.key === "settings" && vis.at(-2)!.label === "DEMO درايف", "a page of the owner's is added before «الإعدادات» — the sidebar holds seven");
+    check((await refused({ op: "page.add", kind: "link", label: "DEMO تاني", href: "/ads" })).includes("أقصى شي 7") && (await refused({ op: "page.hide", key: "settings", hidden: true })).includes("الإعدادات"), "an eighth is refused, and «الإعدادات» cannot be hidden");
+    await Promise.all([op({ op: "page.rename", key: "ads", label: "DEMO حملاتي" }), op({ op: "page.rename", key: "videos", label: "DEMO فيديوهاتي" })]);
+    const both = effectivePages(await getUiConfig(), BUILTIN_PAGES);
+    check(both.find((p) => p.key === "ads")!.label === "DEMO حملاتي" && both.find((p) => p.key === "videos")!.label === "DEMO فيديوهاتي", "two edits at the same moment both land (the setting is changed under a lock, one after the other)");
+
+    // history: every edit is a version of the setting, and one can be put back
+    const versions = await db.settingVersion.count({ where: { key: "ui.config" } });
+    const cur = (await db.setting.findUnique({ where: { key: "ui.config" } }))!.version;
+    await restoreSetting("ui.config", cur - 1, "demo-mcp-user");
+    check(versions >= 12 && effectivePages(await getUiConfig(), BUILTIN_PAGES).filter((p) => p.label.startsWith("DEMO ") && (p.key === "ads" || p.key === "videos")).length === 1, "every edit is a version of the setting, and putting the one before back works", { versions });
+
+    // the duplicates it suggests merging (two boards with one name; tasks that look alike)
+    const dupCfg = await getUiConfig();
+    await setSetting("ui.config", { ...dupCfg, boards: [...dupCfg.boards, { key: "bd-dup001", custom: true, label: "DEMO توصيل " }, { key: "bd-dup002", custom: true, label: "DEMO التوصيل" }] }, "demo-mcp-user");
+    const sug = (await panelData()).suggestions;
+    check(sug.some((s) => s.kind === "board" && s.op?.op === "board.merge"), "the detector suggests merging two boards named alike", sug.map((s) => s.text));
+
+    // the routes: the owner only, and on the demo nothing is written
+    const uiGet = await (await uiGet_()).json();
+    const uiPostDemo = await (await uiPost(new Request("http://localhost:3140/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "page.hide", key: "ads", hidden: true }) }))).json();
+    const uiBad = await uiPost(new Request("http://localhost:3140/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "page.delete", key: "ads" }) }));
+    check(uiGet.demo === true && uiPostDemo.demo === true && uiBad.status === 400, "GET/POST /api/ui: with sign-in off (the demo caller) nothing is read or written; an op that does not exist is a 400");
   }
 
   // ── what the model gets when it is wrong ──

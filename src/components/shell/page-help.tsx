@@ -5,15 +5,14 @@ import Link from "next/link";
 import { CircleHelp, Play } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { PAGE_GUIDE } from "@/lib/guide";
-import type { Place } from "@/lib/nav";
+import { guideOf } from "@/lib/guide";
 import "driver.js/dist/driver.css";
 import "@/components/ui/tour.css";
 
 /** Runs the page tour with driver.js (loaded only when somebody asks for it). Steps whose target is not on the page are skipped. */
-export async function runTour(key: Place["key"]) {
+export async function runTour(key: string) {
   const { driver } = await import("driver.js");
-  const steps = PAGE_GUIDE[key].tour
+  const steps = guideOf(key).tour
     .filter((s) => document.querySelector(`[data-tour="${s.target}"]`))
     .map((s) => ({ element: `[data-tour="${s.target}"]`, popover: { title: s.title, description: s.text } }));
   if (!steps.length) return;
@@ -21,9 +20,9 @@ export async function runTour(key: Place["key"]) {
 }
 
 /** The «؟» of every page: what this page is, the next step, and «فرجيني». */
-export function PageHelp({ place }: { place: Place }) {
+export function PageHelp({ place }: { place: { key: string; label: string } }) {
   const [open, setOpen] = useState(false);
-  const g = PAGE_GUIDE[place.key];
+  const g = guideOf(place.key);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label="شو هاي الصفحة؟" className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-fg-muted hover:bg-surface-2 hover:text-fg">
