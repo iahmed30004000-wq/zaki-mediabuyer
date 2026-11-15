@@ -9,6 +9,7 @@ import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { accountRestricted } from "@/jobs/account-safety";
 import { AGENT_NAMES, AGENTS } from "@/gateway";
 import type { SourceHealth } from "@/lib/mock/data";
+import { assistantConfigured, assistantModel, externalModelsOff } from "@/server/assistant/config";
 import { lastSuccess } from "@/jobs/runner";
 import { productTargets } from "@/server/launch";
 import { ROLE_AR, type RoleKey } from "@/core/roles";
@@ -101,6 +102,12 @@ function link(key: string, label: string, configured: boolean, at: Date | null, 
   return { key, label, state: late ? "late" : "ok", detail: `آخر ${what} ${ago(at)}` };
 }
 
+function assistantLink(): SourceHealth {
+  if (!assistantConfigured()) return { key: "assistant", label: "المساعد الذكي (Claude)", state: "off", detail: "مش مربوط — ضيف ANTHROPIC_API_KEY بـ Coolify" };
+  if (externalModelsOff()) return { key: "assistant", label: "المساعد الذكي (Claude)", state: "late", detail: "المفتاح موجود، بس PRIVACY_MODE=internal_only مقفّله — غيّره لـ off" };
+  return { key: "assistant", label: "المساعد الذكي (Claude)", state: "ok", detail: `موصول — ${assistantModel()}` };
+}
+
 export async function loadEditView(): Promise<EditView | null> {
   if (process.env.MOCK_MODE === "1") return null;
   const has = (k: string) => Boolean(process.env[k]?.trim());
@@ -112,6 +119,7 @@ export async function loadEditView(): Promise<EditView | null> {
     link("telegram", "تيليجرام", has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_OWNER_CHAT_ID"), lastTelegram, 26 * 60, "تقرير انبعت"),
     link("drive", "Google Drive", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTS_FOLDER_ID"), await lastSuccess("creative.intake"), 60, "فحص للوارد"),
     link("driveLibrary", "درايف — فيديوهات وسيناريوهات", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"), await lastSuccess("drive.library"), 90, "فحص"),
+    assistantLink(),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },
   ];
   const caps = (await getSetting("scale.product_caps")) as Record<string, number>;

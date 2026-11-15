@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { encryptionKeyConfigured } from "@/server/crypto";
 import { omsLinked } from "@/server/env";
+import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export async function GET() {
       driveLibrary: has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"),
       replies: has("REPLIES_BASE_URL") && has("REPLIES_TOKEN"),
       internalModel: has("INTERNAL_MODEL_BASE_URL"),
+      assistant: assistantConfigured() && !externalModelsOff(),
     },
     at: new Date().toISOString(),
   };
