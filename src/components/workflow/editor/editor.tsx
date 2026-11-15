@@ -6,7 +6,7 @@ import { ArrowRight, History as HistoryIcon, ListOrdered, Network, Plus, Radio, 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
-import type { Executor, NodeStates, NodeType, Permission, WfGraph, WfNode } from "@/core/workflow";
+import { GraphSchema, type Executor, type NodeStates, type NodeType, type Permission, type WfGraph, type WfNode } from "@/core/workflow";
 import {
   GRID,
   NODE_W,
@@ -181,6 +181,34 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
     },
     [doFit],
   );
+
+  // a draft the assistant handed over (a step it proposes): it opens as unsaved changes — the owner reviews it and saves, or undoes it
+  useEffect(() => {
+    if (!canEdit) return;
+    const key = `mb:wf-draft:${card.key}`;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(key);
+      sessionStorage.removeItem(key);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    try {
+      const d = JSON.parse(raw) as { graph?: unknown; note?: unknown };
+      const parsed = GraphSchema.safeParse(d.graph);
+      if (!parsed.success) return;
+      setHist((h) => pushHistory(h, ensureLayout(parsed.data)));
+      setNote(typeof d.note === "string" ? d.note.slice(0, 200) : "مسودة المساعد");
+      flash();
+      window.setTimeout(doFit, 120);
+      toast("فتحت مسودة المساعد — راجعها واحفظ، أو ارجع بـ «تراجع»", "info");
+    } catch {
+      // a draft that does not read is ignored: the board stays as it was
+    }
+    // once, when the board opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** One change, one undo step. A refusal is said in words and nothing changes. */
   const commit = useCallback(
