@@ -16,7 +16,9 @@ import { hashToken, newToken } from "../src/server/api-token";
 import { POST as mcp, GET as mcpGet } from "../src/app/mcp/route";
 import { computeTruthDays } from "../src/jobs/truth";
 import { loadDataset } from "../src/lib/source";
-import { decideApproval } from "../src/server/approvals";
+import { ApprovalInput, decideApproval, requestApproval } from "../src/server/approvals";
+import { countInbox, getInboxItem, loadInbox, loadInboxDone, loadInboxLater } from "../src/server/inbox";
+import { GET as inboxGet } from "../src/app/api/inbox/route";
 import { setMode, setWakeKinds } from "../src/server/mode";
 import { saveRules } from "../src/server/rules";
 import { DEFAULT_RULES } from "../src/core/rules-v2";
@@ -891,6 +893,44 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── بانتظارك (V5 · P3): one list over the three tables, the same decision card, the same count ──
+  {
+    const owner = { id: "demo-mcp-user", role: "OWNER" as const, demo: false };
+    const mark = "demo-inbox:";
+    const cs = await db.changeSet.create({ data: { state: "pending_approval", source: "rule", sourceRef: "scale", reasonCode: "S12", sentence: mark + " زيادة ميزانية", kind: "scale", spendDeltaDaily: 8 } });
+    const red = await requestApproval(ApprovalInput.parse({ title: mark + " قرار أحمر", why: "سبب", urgency: "red", amount: 25 }), { type: "agent", id: "claude" });
+    const yellow = await requestApproval(ApprovalInput.parse({ title: mark + " قرار عادي", why: "سبب", urgency: "yellow" }), { type: "agent", id: "claude" });
+    const ho = (await createHandoff({ workflow: "night-round", kind: "needs_input", title: mark + " واقفة", assignee: "ahmad" }, { type: "user", id: "demo-mcp-user" })).handoff;
+    const mine = async () => (await loadInbox(owner)).filter((i) => i.title.startsWith(mark));
+
+    const open = await mine();
+    check(open.length === 4, "the inbox has the change, the two requests and the handoff that waits for a person", open.map((i) => i.id));
+    check(open[0]!.id === "approval:" + red.approval.id, "the red request is first");
+    check(open.find((i) => i.id === "change:" + cs.id)?.actions.map((a) => a.key).join() === "approve,reject,open" && open.find((i) => i.id === "handoff:" + ho.id)?.kind === "stuck", "a change has yes / no / «try first», a handoff is «stuck»");
+    check((await loadInbox(owner, { domain: "work" })).some((i) => i.id === "handoff:" + ho.id) && !(await loadInbox(owner, { domain: "work" })).some((i) => i.id === "change:" + cs.id), "the domain filter keeps only that domain");
+    const count = await countInbox();
+    check(count === (await loadInbox(owner)).length, "the red number is the length of the list", { count });
+    const api = await (await inboxGet(new Request("http://localhost:3140/api/inbox"))).json();
+    check(api.count === count && Array.isArray(api.items), "GET /api/inbox answers the count and the items");
+
+    await decideApproval(red.approval.id, { action: "approve" }, owner);
+    check(!(await mine()).some((i) => i.id === "approval:" + red.approval.id), "an approved request leaves the inbox");
+    check((await loadInboxDone(owner)).some((d) => d.id === "approval:" + red.approval.id && d.outcome === "وافقت"), "…and shows in «قررتها» as «وافقت»");
+    const decided = await getInboxItem(owner, "approval:" + red.approval.id);
+    check(decided.state === "done" && decided.outcome === "وافقت", "its page says it is decided", decided.state);
+
+    await decideApproval(yellow.approval.id, { action: "postpone", until: "1h" }, owner);
+    check(!(await mine()).some((i) => i.id === "approval:" + yellow.approval.id) && (await loadInboxLater(owner)).some((i) => i.id === "approval:" + yellow.approval.id), "a postponed request moves to «مؤجّلة»");
+    check((await getInboxItem(owner, "approval:" + yellow.approval.id)).state === "later", "…and its page says so");
+    check((await getInboxItem(owner, "nonsense")).state === "missing" && (await getInboxItem(owner, "change:nope")).state === "missing", "an unknown id is «missing»");
+
+    await db.changeSet.deleteMany({ where: { id: cs.id } });
+    await db.approval.deleteMany({ where: { id: { in: [red.approval.id, yellow.approval.id] } } });
+    await db.handoff.deleteMany({ where: { id: ho.id } });
+    await db.auditLog.deleteMany({ where: { OR: [{ targetId: { in: [red.approval.id, yellow.approval.id, ho.id] } }, { targetId: cs.id }] } });
   }
 
 

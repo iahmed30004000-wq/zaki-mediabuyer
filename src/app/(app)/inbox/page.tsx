@@ -1,45 +1,46 @@
-import { ApprovalCard } from "@/components/approvals/approval-card";
-import { ChangeCard } from "@/components/mb/change-card";
-import { Section } from "@/components/mb/section";
-import { DecisionsLog } from "@/components/pages/decisions-log";
+import Link from "next/link";
+import { InboxCard } from "@/components/inbox/inbox-card";
+import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/card";
-import { isDemo } from "@/core/readiness";
-import { fmt } from "@/lib/format";
-import { loadChanges } from "@/lib/changes-view";
-import { listApprovals } from "@/server/approvals";
+import { DOMAIN_AR, type InboxDomain } from "@/core/inbox";
+import { loadInbox } from "@/server/inbox";
+import { currentCaller } from "@/server/auth";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "بانتظارك" };
 export const dynamic = "force-dynamic";
 
-/**
- * بانتظارك: every decision that waits for the owner — what Claude asked and every change to Meta (proposal → test → approval →
- * execution → verification → revert). Approved on the site only, never from Telegram. P3 rebuilds it around one decision card.
- */
-export default async function InboxPage() {
-  const [changes, requests] = await Promise.all([loadChanges(), isDemo(process.env) ? Promise.resolve([]) : listApprovals({ status: ["pending", "postponed"] })]);
-  const pending = changes.filter((c) => c.state === "pending_approval");
-  const delta = pending.reduce((s, c) => s + c.spendDeltaDaily, 0);
-  const waiting = pending.length + requests.length;
-  return (
-    <div className="space-y-8">
-      <Section
-        title="بدها قرارك"
-        hint={pending.length && delta !== 0 ? `لو وافقت على قرارات الإعلانات: ${delta > 0 ? "+" : ""}${fmt(delta, "$", 0)} باليوم` : "أي زيادة صرف أو إنشاء — بالموقع بس، أبداً من تيليجرام"}
-        tour="pending"
-      >
-        <div id="approval" className="scroll-mt-24">
-          {waiting ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {requests.map((a) => <ApprovalCard key={a.id} approval={a} />)}
-              {pending.map((c) => <ChangeCard key={c.id} change={c} />)}
-            </div>
-          ) : (
-            <EmptyState title="ما في شي بانتظارك ✓" hint="لما قاعدة أو وكيل يقترح صرف، بيوصلك هون وعلى تيليجرام كتنبيه." />
-          )}
-        </div>
-      </Section>
+const DOMAINS: readonly (InboxDomain | "all")[] = ["all", "ads", "ops", "work"];
 
-      <DecisionsLog changes={changes} />
+/**
+ * بانتظارك ← بدها قرارك: every decision that waits, as the same card — what Claude asked, every change to Meta, a job nobody can finish.
+ * Red first, then the one that runs out soonest, then the newest. Approved on the site only, never from Telegram.
+ */
+export default async function InboxPage({ searchParams }: { searchParams: { domain?: string } }) {
+  const caller = await currentCaller();
+  const domain = (DOMAINS as readonly string[]).includes(searchParams.domain ?? "") && searchParams.domain !== "all" ? (searchParams.domain as InboxDomain) : undefined;
+  const items = caller ? await loadInbox(caller, domain ? { domain } : {}) : [];
+  return (
+    <div className="space-y-4" data-tour="pending">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="المجال">
+        {DOMAINS.map((d) => {
+          const active = (d === "all" && !domain) || d === domain;
+          return (
+            <Link key={d} href={d === "all" ? "/inbox" : `/inbox?domain=${d}`} aria-current={active ? "true" : undefined}>
+              <Chip className={cn("h-8 px-3 text-sm", active && "border-accent bg-accent text-accent-fg")}>{d === "all" ? "الكل" : DOMAIN_AR[d]}</Chip>
+            </Link>
+          );
+        })}
+      </div>
+      {items.length ? (
+        <div id="approval" className="grid scroll-mt-24 gap-3 lg:grid-cols-2">
+          {items.map((i) => (
+            <InboxCard key={i.id} item={i} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="ما في شي بانتظارك ✓" hint="لما قاعدة أو Claude يقترح صرف أو سؤال، بيوصلك هون وعلى تيليجرام كتنبيه." />
+      )}
     </div>
   );
 }

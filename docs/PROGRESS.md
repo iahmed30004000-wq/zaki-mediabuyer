@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 30 · done-local-only 38 · blocked 20 · not-started 16 (المجموع 104).
+> **العدّ:** done-live 31 · done-local-only 38 · blocked 20 · not-started 15 (المجموع 104).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -93,7 +93,7 @@
 | V5-P0 | التحضير: السقّاطة (`tests/ui-rules.test.ts` + `npm run ui:baseline`) وقواعد المشروع وأحجام الصفحات المرجعية | `done-live` | الخطة معتمدة 16/11/2026 · `docs/rebuild/NOTES.md` · الأعداد الابتدائية: rawButtons 87 · arbitraryText 93 · offScaleText 17 · offScaleHeights 121 · hexColors 18 · decorImports 10 · mockChecks 57 · jargon 78 |
 | V5-P1 | نظام الشكل: الألوان والخط والأزرار والعدّة | `done-live` | ثيمين (فاتح/داكن) · Cairo · خمس مقاسات نص · عدّة جديدة بـ `/dev/kit` · الزخرفة بتبطّل ترسم · `docs/rebuild/NOTES.md` فيه الانحرافات |
 | V5-P2 | الهيكل: الخمس أماكن والعناوين والتحويلات | `done-live` | خمس أماكن (التشغيل مخفي لحد P9) · عناوين جديدة وتحويلات 307 · قائمة وشريط وهيدر جديد · الزخرفة صفر · `docs/rebuild/NOTES.md` فيه الانحرافات |
-| V5-P3 | بانتظارك: مكان واحد وبطاقة وحدة لكل قرار | `not-started` | |
+| V5-P3 | بانتظارك: مكان واحد وبطاقة وحدة لكل قرار | `done-live` | `src/core/inbox.ts` + `src/server/inbox.ts` · بطاقة قرار وحدة (`DecisionCard`) · `/inbox` `/inbox/later` `/inbox/done` `/inbox/[id]` · `GET /api/inbox` · شاشة الرنين على نفس البطاقة · روابط تيليجرام لـ `/inbox/<id>` · `docs/rebuild/NOTES.md` |
 | V5-P4 | الرئيسية + صفحات المنتجات | `not-started` | |
 | V5-P5 | الشغل ١: خريطة المهام وصفحة المهمة | `not-started` | |
 | V5-P6 | الشغل ٢: الخريطة من Claude · اليوم · التقارير · ورقة القرار | `not-started` | |

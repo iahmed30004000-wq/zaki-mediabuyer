@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
   if (cmd.kind === "site_only") {
-    await reply(`${cmd.what} من الموقع بس، بعد ما تشوف الأثر المالي: ${SITE()}/decisions`);
+    await reply(`${cmd.what} من الموقع بس، بعد ما تشوف الأثر المالي: ${SITE()}/inbox`);
     return NextResponse.json({ ok: true });
   }
   if (process.env.MOCK_MODE === "1") {

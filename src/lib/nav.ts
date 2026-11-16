@@ -51,8 +51,8 @@ export const PLACES: readonly Place[] = [
     icon: Inbox,
     tabs: [
       { href: "/inbox", label: "بدها قرارك" },
-      { href: "/inbox/later", label: "مؤجّلة", ready: false },
-      { href: "/inbox/done", label: "قررتها", ready: false },
+      { href: "/inbox/later", label: "مؤجّلة" },
+      { href: "/inbox/done", label: "قررتها" },
     ],
     ready: true,
   },
