@@ -47,7 +47,8 @@ export function starters(): Starter[] {
 const VERIFY_CODE = `// Checks that the site signed this call: HMAC-SHA256 over "<timestamp>.<body>", not older than 5 minutes.
 // Needs n8n to allow the built-in module: NODE_FUNCTION_ALLOW_BUILTIN=crypto
 const crypto = require('crypto');
-const SECRET = '${SECRET_PLACEHOLDER}';
+// the secret: the n8n server's own N8N_WEBHOOK_SECRET variable (nothing to edit here), else the placeholder below, which refuses everything
+const SECRET = (typeof $env !== 'undefined' && $env.N8N_WEBHOOK_SECRET) || '${SECRET_PLACEHOLDER}';
 const item = $input.first().json;
 const headers = item.headers || {};
 const ts = String(headers['x-mb-timestamp'] || '');
@@ -65,7 +66,7 @@ export function buildStarter(s: Starter, site = DEFAULT_SITE): Record<string, un
   const body = JSON.stringify({ workflow: s.key, kind: "manual_run", title: `شغّل «${s.name}» (من n8n)`, need: s.description.slice(0, 480), assignee: "claude" }, null, 2);
   const nodes = [
     {
-      parameters: { content: `## ${s.name}\nالساعة حسب الجدول (${s.cron} بتوقيت عمّان) هالفلو بيطلب من Claude يشغّل «${s.name}» عن طريق طابور التسليم. ما بيصرف ولا بيلمس ميتا.\n\n**قبل التفعيل:**\n1. اربط credential «${CREDENTIAL_NAME}» (Header Auth: Authorization = Bearer mbh_… من «الإعدادات ← الربط ← Claude»، اسم التوكن \`${N8N_TOKEN_NAME}\`).\n2. للمسار الموقّع: الصق السر بعقدة «تحقّق من توقيع الموقع» وضيف \`${s.key}\` لـ N8N_ALLOWED_PATHS بالموقع.\n3. فعّل الفلو.`, height: 300, width: 460 },
+      parameters: { content: `## ${s.name}\nالساعة حسب الجدول (${s.cron} بتوقيت عمّان) هالفلو بيطلب من Claude يشغّل «${s.name}» عن طريق طابور التسليم. ما بيصرف ولا بيلمس ميتا.\n\n**قبل التفعيل:**\n1. اربط credential «${CREDENTIAL_NAME}» (Header Auth: Authorization = Bearer mbh_… من «الإعدادات ← الربط ← Claude»، اسم التوكن \`${N8N_TOKEN_NAME}\`).\n2. للمسار الموقّع: حط N8N_WEBHOOK_SECRET كمتغيّر بيئة لسيرفر n8n (أو الصقه بعقدة «تحقّق من توقيع الموقع») وضيف \`${s.key}\` لـ N8N_ALLOWED_PATHS بالموقع.\n3. فعّل الفلو.`, height: 300, width: 460 },
       id: id("note"),
       name: "اقرأني",
       type: "n8n-nodes-base.stickyNote",

@@ -4,6 +4,7 @@
  */
 import { db } from "@/server/db";
 import { omsLinked } from "@/server/env";
+import { writeMode } from "@/meta/write";
 import { getSetting } from "@/server/settings";
 import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { N8N_CREATOR } from "@/core/n8n-starters";
@@ -181,7 +182,7 @@ export async function loadEditView(): Promise<EditView | null> {
   const users = await db.user.findMany({ orderBy: { createdAt: "asc" } });
   return {
     links,
-    writeMode: process.env.META_WRITE_MODE === "live" ? "live" : "dry_run",
+    writeMode: writeMode(),
     accounts: await Promise.all((await db.adAccount.findMany({ orderBy: { name: "asc" } })).map(async (a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "—", dailyCap: a.dailyCap ? Number(a.dailyCap) : null, monthlyCap: a.monthlyCap ? Number(a.monthlyCap) : null, payment: a.paymentStatus, safetyNet: await safetyNetState(a.metaId) }))),
     split: (await getSetting("budget.split")) as { scale: number; test: number; new: number },
     purchaseOn: String(await getSetting("capi.purchase_on")) === "delivered" ? "delivered" : "confirmed",

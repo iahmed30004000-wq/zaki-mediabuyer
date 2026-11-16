@@ -17,8 +17,13 @@ import type { Expectation } from "@/core/templates";
 
 export type WriteMode = "dry_run" | "live";
 
+/**
+ * «live» needs BOTH `META_WRITE_MODE=live` and `META_LIVE_VERIFIED=1` (the owner saw a write work on the test ad account).
+ * Asking for live without the second is not a quiet dry-run: `metaWriteGate` (src/core/readiness.ts) says so, and the callers that
+ * would have written stop with that sentence.
+ */
 export function writeMode(env: Record<string, string | undefined> = process.env): WriteMode {
-  return env.META_WRITE_MODE === "live" ? "live" : "dry_run";
+  return env.META_WRITE_MODE === "live" && env.META_LIVE_VERIFIED === "1" ? "live" : "dry_run";
 }
 
 /** What goes to Meta for one item: budgets are in the account's minor units (cents for USD). */
@@ -43,6 +48,8 @@ export interface ApplyResult {
 }
 
 export async function applyItem(item: ChangeItemDraft, mode: WriteMode, client: MetaClient | null): Promise<ApplyResult> {
+  // a live write with no client is never a quiet dry-run: it stops, saying what is missing
+  if (mode === "live" && !client) throw new Error("الكتابة على ميتا ما بتمشي — ناقص META_SYSTEM_USER_TOKEN (ضيفه بـ Coolify)");
   const payload = payloadOf(item);
   if (item.op === "create") {
     const ref = item.after.ref ?? "object";

@@ -142,6 +142,8 @@ async function deliver(payload: RequestPayload): Promise<{ via: "api" | "telegra
       error = [error, message(e)].filter(Boolean).join(" · ");
     }
   }
+  // nothing to send it through: say what is missing instead of leaving a request that looks sent
+  if (!api && !chat) error = "هيرمز مش مربوط — ناقص HERMES_BASE_URL و HERMES_TOKEN (أو TELEGRAM_HERMES_CHAT_ID). الطلب انحفظ بالمهام وبيستنى";
   return { via: "none", error };
 }
 
