@@ -366,7 +366,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
 
       {data.rulesMissing && !data.demo ? (
         <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">
-          لون «تكلفة الطلب الحقيقي» (أخضر / برتقالي / أحمر) بدّه «الهدف» و«نقطة التعادل» من <a href="/settings#campaign-rules" className="font-medium text-accent hover:underline">قواعد الحملات</a> — لسا ناقصة.
+          لون «تكلفة الطلب الحقيقي» (أخضر / برتقالي / أحمر) بدّه «الهدف» و«نقطة التعادل» من <a href="/settings/rules#campaign-rules" className="font-medium text-accent hover:underline">قواعد الحملات</a> — لسا ناقصة.
         </p>
       ) : null}
 

@@ -252,7 +252,7 @@ export function Consultant() {
                         <Play className="size-3.5" />
                         فرجيني
                       </button>
-                      <Link href="/settings#guide" onClick={close} className="hover:underline">
+                      <Link href="/settings/advanced/guide" onClick={close} className="hover:underline">
                         الدليل والمصطلحات
                       </Link>
                     </div>

@@ -1,12 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { TasksBoard } from "@/components/tasks/tasks-board";
 import { effectivePages } from "@/core/customize";
-import { can } from "@/core/roles";
 import { BUILTIN_PAGES } from "@/lib/nav";
-import { loadTasksCustom } from "@/lib/ui-view";
-import { currentCaller } from "@/server/auth";
-import { taskKeysFor } from "@/server/directory";
-import { listTasks } from "@/server/tasks";
 import { getUiConfig } from "@/server/ui-config";
 
 export const dynamic = "force-dynamic";
@@ -21,22 +15,12 @@ export async function generateMetadata({ params }: { params: { key: string } }) 
 }
 
 /**
- * A page the owner made in «وضع التعديل»: one board of tasks on its own (with its fields and buttons), or a link — which just goes
- * there. It lives at /p/<key>; the sidebar and the phone's bar point at it. Not a new place: it is the board, shown alone.
+ * A page the owner made in the old edit mode. A board of tasks is one more board of the team's tasks now: `/work/tasks` opened on it (the same cards, fields and
+ * buttons). A link just goes where it points. An old bookmark or a stored alert keeps working; new pages of this kind are not made any more.
  */
 export default async function CustomPage({ params }: { params: { key: string } }) {
   const page = await pageOf(params.key);
   if (!page) notFound();
   if (page.kind === "link") redirect(page.href);
-  const board = page.board ?? "main";
-  const now = new Date();
-  const me = await currentCaller();
-  const keys = me ? await taskKeysFor(me) : null;
-  const tasks = await listTasks({ board, limit: 300, doneWithinDays: 14, ...(keys ? { assigneeIn: keys } : {}) }, now);
-  const custom = await loadTasksCustom(tasks.map((t) => t.id));
-  return (
-    <div className="space-y-4">
-      <TasksBoard initial={tasks} canEdit={!!me && can(me.role, "tasks.manage") && !me.demo} nowIso={now.toISOString()} custom={custom} lockedBoard={board} />
-    </div>
-  );
+  redirect(`/work/tasks?board=${encodeURIComponent(page.board ?? "main")}`);
 }

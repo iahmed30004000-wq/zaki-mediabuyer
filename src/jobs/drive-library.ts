@@ -139,7 +139,7 @@ export async function syncDriveLibrary(o: DriveOptions, rootId: string, register
   if (unmapped.size) {
     const text = `مجلد درايف «${[...unmapped].join("، ")}» ما إله منتج معروف — ضيف اسم بديل للمنتج من الإعدادات وبينربط ملفه لحاله`;
     const dup = await db.alert.findFirst({ where: { kind: "drive.library_unmapped", text, createdAt: { gte: new Date(Date.now() - 86_400_000) } } });
-    if (!dup) await db.alert.create({ data: { kind: "drive.library_unmapped", tone: "warn", text, href: "/settings#products" } });
+    if (!dup) await db.alert.create({ data: { kind: "drive.library_unmapped", tone: "warn", text, href: "/settings/products" } });
   }
   return stats;
 }

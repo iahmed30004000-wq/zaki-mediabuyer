@@ -53,7 +53,7 @@ export function PageHelp({ place }: { place: { key: string; label: string } }) {
                 <Play className="size-4" />
                 فرجيني
               </Button>
-              <ButtonLink href="/settings#guide" variant="secondary" onClick={() => setOpen(false)}>
+              <ButtonLink href="/settings/advanced/guide" variant="secondary" onClick={() => setOpen(false)}>
                 الدليل والمصطلحات
               </ButtonLink>
             </div>

@@ -330,6 +330,6 @@ export function explainOutput(a: { place?: string; term?: string }, current: str
     if (!hits.length) return toolError(`ما لقيت مصطلح «${a.term}» بالدليل.`);
     result.terms = hits.map(([key, t]) => ({ key, name: t.name, formula: t.formula, meaning: t.meaning, source: SOURCE_AR[t.source] }));
   }
-  return toolData(result, { sources: [{ id: "guide", label: "الدليل والمصطلحات", href: "/settings#guide" }] });
+  return toolData(result, { sources: [{ id: "guide", label: "الدليل والمصطلحات", href: "/settings/advanced/guide" }] });
 }
 

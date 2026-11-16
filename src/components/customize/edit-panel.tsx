@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import type { PanelData } from "@/server/customize";
 
 const TABS: { key: PanelTab; label: string }[] = [
-  { key: "pages", label: "الصفحات" },
   { key: "boards", label: "اللوحات" },
   { key: "fields", label: "الحقول" },
   { key: "buttons", label: "الأزرار" },
@@ -184,115 +183,6 @@ function Suggestions({ data, run, busy }: { data: PanelData; run: Run; busy: boo
         ))}
       </ul>
     </details>
-  );
-}
-
-// ───────────────────────────── pages ─────────────────────────────
-
-function PagesTab({ data, run, busy }: { data: PanelData; run: Run; busy: boolean }) {
-  const list = data.pages.filter((p) => !p.archived);
-  const shown = list.filter((p) => !p.hidden).length;
-  const boards = data.boards.filter((b) => !b.archived);
-  const [kind, setKind] = useState<"board" | "link">("board");
-  const [label, setLabel] = useState("");
-  const [board, setBoard] = useState("");
-  const [href, setHref] = useState("");
-  const [into, setInto] = useState<Record<string, string>>({});
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs leading-5 text-fg-muted">
-        السايدبار بيسع {MAX_SIDEBAR} صفحات (ظاهر هلأ {shown}) وشريط الجوال {MAX_PHONE_BAR}. «الإعدادات» دايماً ظاهرة. الصفحة اللي بتخفيها بتضل موجودة وبترجّعها وقت ما بدك.
-      </p>
-      <ul className="space-y-2">
-        {list.map((p) => {
-          const others = list.filter((x) => x.key !== p.key);
-          return (
-            <Card key={p.key} dim={p.hidden} drag={p.hidden ? undefined : { list: "pages", id: p.key, onDrop: (from, onto) => void run({ op: "page.drop", key: from, onto }) }}>
-              <div className="flex items-center gap-1.5">
-                <NameInput value={p.label} onSave={(v) => void run({ op: "page.rename", key: p.key, label: v })} disabled={busy} />
-                <IconBtn label="فوق" disabled={busy || p.hidden} onClick={() => void run({ op: "page.move", key: p.key, dir: -1 })}>
-                  <ArrowUp className="size-4" />
-                </IconBtn>
-                <IconBtn label="تحت" disabled={busy || p.hidden} onClick={() => void run({ op: "page.move", key: p.key, dir: 1 })}>
-                  <ArrowDown className="size-4" />
-                </IconBtn>
-                <IconBtn label={p.hidden ? "اظهرها" : "اخفيها"} disabled={busy || p.locked} onClick={() => void run({ op: "page.hide", key: p.key, hidden: !p.hidden })}>
-                  {p.hidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </IconBtn>
-                <IconBtn label="على شريط الجوال" active={p.mobile} disabled={busy || p.hidden} onClick={() => void run({ op: "page.mobile", key: p.key, mobile: !p.mobile })}>
-                  <Smartphone className="size-4" />
-                </IconBtn>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Chip>{p.builtin ? "من النظام" : p.kind === "board" ? "لوحة مهام" : "رابط"}</Chip>
-                {p.hidden ? <Chip>مخفية</Chip> : null}
-                {p.locked ? <Chip>دايماً ظاهرة</Chip> : null}
-              </div>
-              {!p.builtin ? (
-                <More>
-                  <div className="flex items-center gap-2">
-                    <select aria-label="ادمجها بـ" value={into[p.key] ?? ""} onChange={(e) => setInto((m) => ({ ...m, [p.key]: e.target.value }))} className={control}>
-                      <option value="">ادمجها بصفحة…</option>
-                      {others.map((o) => (
-                        <option key={o.key} value={o.key}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                    <Button size="sm" variant="secondary" disabled={busy || !into[p.key]} onClick={() => void run({ op: "page.merge", from: p.key, into: into[p.key]! })}>
-                      ادمج
-                    </Button>
-                  </div>
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run({ op: "page.archive", key: p.key })}>
-                    <Trash2 className="size-3.5" />
-                    احذفها (بترجّعها من «المحذوفات»)
-                  </Button>
-                </More>
-              ) : null}
-            </Card>
-          );
-        })}
-      </ul>
-
-      <form
-        className="space-y-2 rounded-xl border border-dashed border-border p-3"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const ok = await run({ op: "page.add", kind, label, ...(kind === "board" ? { board } : { href }) });
-          if (ok) {
-            setLabel("");
-            setHref("");
-          }
-        }}
-      >
-        <p className="text-sm font-semibold text-fg">＋ صفحة جديدة</p>
-        <div role="tablist" className="inline-flex rounded-lg border border-border bg-surface-1 p-1">
-          {([["board", "لوحة مهام"], ["link", "رابط"]] as const).map(([k, l]) => (
-            <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={cn("min-h-9 rounded-md px-3 text-sm font-medium", kind === k ? "bg-accent text-accent-fg" : "text-fg-muted")}>
-              {l}
-            </button>
-          ))}
-        </div>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="اسم الصفحة" maxLength={40} dir="auto" className={control} />
-        {kind === "board" ? (
-          <select value={board} onChange={(e) => setBoard(e.target.value)} className={control} aria-label="اللوحة">
-            <option value="">أي لوحة؟</option>
-            {boards.map((b) => (
-              <option key={b.key} value={b.key}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input value={href} onChange={(e) => setHref(e.target.value)} placeholder="https://… أو /ads" dir="ltr" className={control} />
-        )}
-        <Button type="submit" disabled={busy || !label.trim() || (kind === "board" ? !board : !href.trim())}>
-          <Plus className="size-4" />
-          أضف
-        </Button>
-      </form>
-    </div>
   );
 }
 
@@ -741,7 +631,6 @@ export function EditPanel() {
           ) : (
             <>
               <Suggestions data={data} run={run} busy={busy} />
-              {panel.tab === "pages" ? <PagesTab data={data} run={run} busy={busy} /> : null}
               {panel.tab === "boards" ? <BoardsTab data={data} run={run} busy={busy} /> : null}
               {panel.tab === "fields" ? <FieldsTab data={data} run={run} busy={busy} /> : null}
               {panel.tab === "buttons" ? <ButtonsTab data={data} run={run} busy={busy} /> : null}
