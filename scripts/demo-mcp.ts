@@ -49,6 +49,8 @@ import { AssistantError, type Llm, type LlmRequest, type LlmResponse } from "../
 import { GET as assistantGet, POST as assistantPost } from "../src/app/api/assistant/route";
 import { PrivacyRefusal } from "../src/gateway/privacy";
 import { realDoorDeps, syncWorkspace } from "../src/server/workspace";
+import { loadToday } from "../src/lib/today-view";
+import { dayBounds } from "../src/core/day";
 import { STATS, formatStat } from "../src/core/numbers";
 import { applyOp, getValues, panelData, runButton, setValues } from "../src/server/customize";
 import { getUiConfig } from "../src/server/ui-config";
@@ -1080,6 +1082,19 @@ async function clean() {
     check(hto.length === 1 && hto[0]!.nodeId === "a" && sw1.created >= 1, "a step running past its timeout becomes a «timeout» handoff", hto.length);
     const sw2 = await sweepTimeouts(new Date());
     check((await db.handoff.count({ where: { workflowKey: wf6.key, kind: "timeout" } })) === 1 && sw2.created === 0, "…once, not again on the next sweep");
+  }
+
+  // ── the home summary counts an order on the Amman day it was made on, not the UTC day ──
+  {
+    const t0 = await loadToday();
+    const todayKey = ammanKey(new Date());
+    const startOfToday = dayBounds(todayKey).from.getTime();
+    const mk = (id: string, at: number) => db.attributedOrder.create({ data: { omsOrderId: id, productCode: "DEMO_NUM", market: "JO", channel: "website", method: "none", status: "new", createdAtOms: new Date(at), matureAt: new Date(at + 86_400_000), orderValue: 10, currency: "JOD" } });
+    await mk("mcp:tz:today", startOfToday + 90 * 60_000); // 01:30 Amman today — still «yesterday» on the UTC clock
+    await mk("mcp:tz:yesterday", startOfToday - 30 * 60_000); // 23:30 Amman yesterday
+    const t1 = await loadToday();
+    check((t1.today.orders ?? 0) === (t0.today.orders ?? 0) + 1, "an order made at 01:30 Amman time counts for today", { before: t0.today.orders, after: t1.today.orders });
+    check((t1.yesterday.orders ?? 0) === (t0.yesterday.orders ?? 0) + 1, "…and one made at 23:30 the night before counts for yesterday", { before: t0.yesterday.orders, after: t1.yesterday.orders });
   }
 
   // ── v3 W: Zaki Workspace's one-way door — tasks go out once, and «done» comes back ──
