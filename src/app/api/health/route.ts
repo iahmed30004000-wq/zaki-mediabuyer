@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { encryptionKeyConfigured } from "@/server/crypto";
 import { omsLinked } from "@/server/env";
 import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
+import { workspaceConfigFrom } from "@/core/workspace-door";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export async function GET() {
       replies: has("REPLIES_BASE_URL") && has("REPLIES_TOKEN"),
       internalModel: has("INTERNAL_MODEL_BASE_URL"),
       assistant: assistantConfigured() && !externalModelsOff(),
+      workspace: workspaceConfigFrom(process.env) !== null,
       stepRunner: has("N8N_BASE_URL") && has("N8N_WEBHOOK_SECRET") && (has("N8N_ALLOWED_PATHS") || has("STEP_HTTP_ALLOW")),
     },
     at: new Date().toISOString(),

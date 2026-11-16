@@ -48,6 +48,7 @@ import { askAssistant } from "../src/server/assistant";
 import { AssistantError, type Llm, type LlmRequest, type LlmResponse } from "../src/server/assistant/loop";
 import { GET as assistantGet, POST as assistantPost } from "../src/app/api/assistant/route";
 import { PrivacyRefusal } from "../src/gateway/privacy";
+import { realDoorDeps, syncWorkspace } from "../src/server/workspace";
 import { STATS, formatStat } from "../src/core/numbers";
 import { applyOp, getValues, panelData, runButton, setValues } from "../src/server/customize";
 import { getUiConfig } from "../src/server/ui-config";
@@ -1079,6 +1080,81 @@ async function clean() {
     check(hto.length === 1 && hto[0]!.nodeId === "a" && sw1.created >= 1, "a step running past its timeout becomes a «timeout» handoff", hto.length);
     const sw2 = await sweepTimeouts(new Date());
     check((await db.handoff.count({ where: { workflowKey: wf6.key, kind: "timeout" } })) === 1 && sw2.created === 0, "…once, not again on the next sweep");
+  }
+
+  // ── v3 W: Zaki Workspace's one-way door — tasks go out once, and «done» comes back ──
+  {
+    const calls: { method: string; path: string; headers: Record<string, string>; body: string | null }[] = [];
+    const created = new Map<string, string>(); // idempotency key → remote id
+    const finished = new Set<string>();
+    let shut: number | null = null;
+    const fakeFetch = (async (url: string, init: { method?: string; headers: Record<string, string>; body?: string }) => {
+      const path = url.replace("https://ws.example.com", "");
+      const method = init.method ?? "GET";
+      calls.push({ method, path, headers: init.headers, body: init.body ?? null });
+      const reply = (status: number, json: unknown) => new Response(JSON.stringify(json), { status, headers: { "content-type": "application/json" } });
+      if (shut) return reply(shut, { error: { code: "door.unauthorized" } });
+      if (init.headers.authorization !== "Bearer demo-door-token") return reply(401, { error: { code: "door.unauthorized" } });
+      if (method === "GET" && path === "/api/v1/boards") return reply(200, { data: [{ id: "demo-board", name: "Board", project: "P" }] });
+      if (method === "POST" && path === "/api/v1/tasks") {
+        const key = init.headers["idempotency-key"] ?? "";
+        if (!created.has(key)) created.set(key, "demo-ws-" + (created.size + 1));
+        return reply(201, { data: { id: created.get(key), status: "open" } });
+      }
+      const m = path.match(/^\/api\/v1\/tasks\/(.+)$/);
+      if (method === "GET" && m) return reply(200, { data: { id: m[1], status: finished.has(m[1]!) ? "done" : "open", finishedAt: finished.has(m[1]!) ? "2026-11-16T10:00:00.000Z" : null } });
+      return reply(404, { error: { code: "door.not_found" } });
+    }) as unknown as typeof fetch;
+    const door = realDoorDeps({ WORKSPACE_BASE_URL: "https://ws.example.com", WORKSPACE_API_TOKEN: "demo-door-token" })!;
+    door.fetch = fakeFetch;
+    check(!!door && (await syncWorkspace(null)).note !== undefined, "not linked → the sync says so and does nothing");
+
+    const a = await db.task.create({ data: { title: "DEMO ws جهّز التقرير", note: "ملاحظة", assignee: "laith", priority: "high", dueAt: new Date("2026-12-01T00:00:00Z") } });
+    const b = await db.task.create({ data: { title: "DEMO ws شغل وكيل", assignee: "claude" } });
+    const c = await db.task.create({ data: { title: "DEMO ws فيها رقم", note: "كلّمه على 0791234567", assignee: "hassan" } });
+    const d1 = await db.task.create({ data: { title: "DEMO ws خلصت", assignee: "laith", status: "done" } });
+    const s1 = await syncWorkspace(door);
+    const posts = calls.filter((x) => x.method === "POST");
+    const mine = (id: string) => db.task.findUnique({ where: { id } });
+    const ra = await mine(a.id);
+    check(s1.pushed >= 1 && !!ra?.wsId && ra.wsId.startsWith("demo-ws-"), "a person's open task goes out and keeps its Workspace id", s1);
+    check(!(await mine(b.id))?.wsId && !(await mine(d1.id))?.wsId, "an agent's task and a finished one stay here");
+    const rc = await mine(c.id);
+    check(!rc?.wsId && !!rc?.wsError && !posts.some((p) => (p.body ?? "").includes("0791234567")), "a task with a phone number is never sent, and says why");
+    const pa = posts.find((p) => (p.body ?? "").includes("DEMO ws جهّز"));
+    const body = JSON.parse(pa?.body ?? "{}");
+    check(JSON.stringify(Object.keys(body).sort()) === JSON.stringify(["boardId", "description", "dueDate", "externalRef", "priority", "title"]) && body.priority === "HIGH" && body.dueDate === "2026-12-01" && body.externalRef === "mb:task/" + a.id, "the body carries only the fields the contract declares", body);
+    check(pa?.headers["idempotency-key"] === "mb-task-" + a.id && pa?.headers.authorization === "Bearer demo-door-token", "one idempotency key per task, and the token is sent as a bearer");
+    check(ra?.updatedAt.getTime() === a.updatedAt.getTime(), "being sent is not an edit (updatedAt stays)");
+    const before = posts.length;
+    await syncWorkspace(door);
+    check(calls.filter((x) => x.method === "POST").length === before, "the next run sends nothing again");
+    check((await db.auditLog.count({ where: { action: "task.workspace.push", targetId: a.id } })) === 1, "the push is in the audit log");
+    check((await db.auditLog.count({ where: { action: "task.workspace.push", after: { string_contains: "Bearer" } } })) === 0, "no token in the audit log");
+
+    // the team finished it there → closed here, once
+    finished.add(ra!.wsId!);
+    const s2 = await syncWorkspace(door);
+    check(s2.closed >= 1 && (await mine(a.id))?.status === "done", "done in Workspace closes the task here", s2);
+    check((await db.auditLog.count({ where: { action: "task.workspace.close", targetId: a.id } })) === 1, "…and the close is in the audit log");
+    const gets = calls.filter((x) => x.method === "GET" && x.path.includes(ra!.wsId!)).length;
+    await syncWorkspace(door);
+    check(calls.filter((x) => x.method === "GET" && x.path.includes(ra!.wsId!)).length === gets, "a closed task is not asked about again");
+
+    // a shut door (revoked token) stops the run and does not mark the task as refused
+    const e = await db.task.create({ data: { title: "DEMO ws بعد القفل", assignee: "mohammad" } });
+    shut = 401;
+    const s3 = await syncWorkspace(door);
+    const re = await mine(e.id);
+    check(!!s3.note && !re?.wsId && !re?.wsError, "a refused token stops the run and leaves the task to be sent later", s3);
+    shut = null;
+    await syncWorkspace(door);
+    check(!!(await mine(e.id))?.wsId, "when the door opens again the task goes out");
+
+    // the fake ids belong to the fake door: put every other task back as it was
+    await db.task.updateMany({ where: { wsId: { startsWith: "demo-ws-" }, NOT: { title: { startsWith: "DEMO" } } }, data: { wsId: null, wsSyncedAt: null, wsError: null } });
+    await db.task.updateMany({ where: { title: { not: { startsWith: "DEMO" } }, wsError: { not: null } }, data: { wsError: null, wsSyncedAt: null } });
+    await db.auditLog.deleteMany({ where: { OR: [{ action: "task.workspace.push" }, { action: "task.workspace.close" }], actorId: "workspace.sync" } });
   }
 
   await clean();

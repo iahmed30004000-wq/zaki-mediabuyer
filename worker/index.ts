@@ -60,6 +60,7 @@ import { syncReplies } from "../src/jobs/replies";
 import { repliesFromEnv } from "../src/adapters/replies";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
 import { sweepTimeouts } from "../src/server/step-exec";
+import { realDoorDeps, syncWorkspace } from "../src/server/workspace";
 import { db } from "../src/server/db";
 
 const DAY = 86_400_000;
@@ -114,6 +115,7 @@ export async function tick(now = new Date()) {
   const five = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 5) * 5).padStart(2, "0")}`;
   await runOnce("alerts.send", five, () => sendAlerts(telegramFromEnv(), now));
   await runOnce("workflow.timeouts", five, () => sweepTimeouts(now));
+  await runOnce("workspace.sync", five, () => syncWorkspace(realDoorDeps(), now));
   await runOnce("capi.send", quarter, async () => {
     const queued = await enqueueCapi(now);
     const live = writeMode() === "live";

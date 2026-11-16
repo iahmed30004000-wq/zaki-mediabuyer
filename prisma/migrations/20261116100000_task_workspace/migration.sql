@@ -1,0 +1,5 @@
+ALTER TABLE "Task" ADD COLUMN "wsId" TEXT,
+ADD COLUMN "wsSyncedAt" TIMESTAMP(3),
+ADD COLUMN "wsError" TEXT;
+
+CREATE UNIQUE INDEX "Task_wsId_key" ON "Task"("wsId");
