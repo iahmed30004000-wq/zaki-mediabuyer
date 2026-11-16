@@ -4,7 +4,10 @@
  */
 import { dayBounds } from "@/core/day";
 import { isDemo } from "@/core/readiness";
+import { isMoneyKey } from "@/core/redact-money";
+import { can } from "@/core/roles";
 import { db } from "./db";
+import { viewerRole } from "./redact";
 
 export interface ReportRow {
   /** `run:<id>` or `report:<id>` */
@@ -50,7 +53,10 @@ export async function loadReports(opts: { limit?: number; jobKey?: string; domai
     ...runs.map((r) => ({ id: `run:${r.id}`, kind: "run" as const, title: r.workflow.name, jobKey: r.workflow.key, jobNumber: r.workflow.number, domain: r.workflow.domain === "ops" ? ("ops" as const) : ("ads" as const), status: r.status, at: r.startedAt.toISOString(), summary: clip(r.summary), hasFull: !!r.report, href: reportHref(`run:${r.id}`) })),
     ...periodic.map((p) => ({ id: `report:${p.id}`, kind: "periodic" as const, title: PERIODIC_AR[p.kind] ?? p.kind, jobKey: null, jobNumber: null, domain: null, status: null, at: p.createdAt.toISOString(), summary: clip(p.text), hasFull: true, href: reportHref(`report:${p.id}`) })),
   ];
-  return rows.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
+  // a role sees the reports of the areas it may look at; the general ones (morning, weekly, monthly) carry profit, so they need `money.view`
+  const role = await viewerRole();
+  const mine = role ? rows.filter((r) => (r.kind === "periodic" ? can(role, "money.view") : can(role, r.domain === "ops" ? "ops.view" : "ads.view"))) : rows;
+  return mine.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
 }
 
 export interface ReportDetail {
@@ -73,13 +79,16 @@ export async function getReport(id: string): Promise<ReportDetail | null> {
   if (isDemo(process.env)) return null;
   const m = /^(run|report):(.+)$/.exec(id);
   if (!m) return null;
+  const role = await viewerRole();
   if (m[1] === "report") {
+    if (role && !can(role, "money.view")) return null;
     const p = await db.report.findUnique({ where: { id: m[2]! } });
     return p ? { id, title: PERIODIC_AR[p.kind] ?? p.kind, jobKey: null, jobNumber: null, status: null, at: p.createdAt.toISOString(), finishedAt: null, summary: null, text: p.text, metrics: [], artifacts: [] } : null;
   }
-  const r = await db.workflowRun.findUnique({ where: { id: m[2]! }, include: { workflow: { select: { key: true, name: true, number: true } } } });
+  const r = await db.workflowRun.findUnique({ where: { id: m[2]! }, include: { workflow: { select: { key: true, name: true, number: true, domain: true } } } });
   if (!r) return null;
-  const metrics = r.metrics && typeof r.metrics === "object" && !Array.isArray(r.metrics) ? Object.entries(r.metrics as Record<string, unknown>).map(([label, value]) => ({ label, value: String(value) })) : [];
+  if (role && !can(role, r.workflow.domain === "ops" ? "ops.view" : "ads.view")) return null;
+  const metrics = r.metrics && typeof r.metrics === "object" && !Array.isArray(r.metrics) ? Object.entries(r.metrics as Record<string, unknown>).filter(([label]) => !role || can(role, "money.view") || !isMoneyKey(label)).map(([label, value]) => ({ label, value: String(value) })) : [];
   const artifacts = Array.isArray(r.artifacts) ? (r.artifacts as { label?: string; url?: string; text?: string }[]).filter((a) => a?.label).map((a) => ({ label: String(a.label), url: a.url ?? null, text: a.text ?? null })) : [];
   return { id, title: r.workflow.name, jobKey: r.workflow.key, jobNumber: r.workflow.number, status: r.status, at: r.startedAt.toISOString(), finishedAt: r.finishedAt?.toISOString() ?? null, summary: r.summary, text: r.report, metrics, artifacts };
 }

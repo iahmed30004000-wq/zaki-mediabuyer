@@ -12,6 +12,7 @@ import { effectiveMode, type Urgency } from "@/core/mode";
 import { missingText } from "@/core/readiness";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { db } from "./db";
+import { telegramOf } from "./directory";
 import { appOrigin } from "./env";
 import { getSetting } from "./settings";
 
@@ -66,7 +67,7 @@ export async function dispatchNotification(id: string, now = new Date()): Promis
     if (n.audience === "owner") {
       if (effectiveMode(await getSetting("owner.mode"), now) === "asleep") return { delivered: false, reason: "المالك نايم — بيطلع بكرت «صباح الخير»" };
     } else {
-      const contact = (await getSetting("notify.contacts"))[n.audience];
+      const contact = await telegramOf(n.audience);
       if (!contact) return { delivered: false, reason: `ما في رقم تيليجرام لـ ${n.audience} — حطه من الإعدادات` };
       chatId = contact;
     }

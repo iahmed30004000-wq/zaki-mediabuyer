@@ -5,6 +5,7 @@ import { can } from "@/core/roles";
 import { BUILTIN_PAGES } from "@/lib/nav";
 import { loadTasksCustom } from "@/lib/ui-view";
 import { currentCaller } from "@/server/auth";
+import { taskKeysFor } from "@/server/directory";
 import { listTasks } from "@/server/tasks";
 import { getUiConfig } from "@/server/ui-config";
 
@@ -29,11 +30,13 @@ export default async function CustomPage({ params }: { params: { key: string } }
   if (page.kind === "link") redirect(page.href);
   const board = page.board ?? "main";
   const now = new Date();
-  const [tasks, me] = await Promise.all([listTasks({ board, limit: 300, doneWithinDays: 14 }, now), currentCaller()]);
+  const me = await currentCaller();
+  const keys = me ? await taskKeysFor(me) : null;
+  const tasks = await listTasks({ board, limit: 300, doneWithinDays: 14, ...(keys ? { assigneeIn: keys } : {}) }, now);
   const custom = await loadTasksCustom(tasks.map((t) => t.id));
   return (
     <div className="space-y-4">
-      <TasksBoard initial={tasks} canEdit={!!me && can(me.role, "propose_change") && !me.demo} nowIso={now.toISOString()} custom={custom} lockedBoard={board} />
+      <TasksBoard initial={tasks} canEdit={!!me && can(me.role, "tasks.manage") && !me.demo} nowIso={now.toISOString()} custom={custom} lockedBoard={board} />
     </div>
   );
 }

@@ -92,11 +92,12 @@ function dueOf(s: string | undefined | null): Date | null | undefined {
   return d;
 }
 
-export async function listTasks(f: { status?: string[]; assignee?: string; board?: string; limit?: number; includeArchived?: boolean; /** finished tasks only when they finished this recently */ doneWithinDays?: number } = {}, now = new Date()): Promise<TaskView[]> {
+export async function listTasks(f: { status?: string[]; assignee?: string; /** only these people's tasks (a role that sees its own or its team's) */ assigneeIn?: string[]; board?: string; limit?: number; includeArchived?: boolean; /** finished tasks only when they finished this recently */ doneWithinDays?: number } = {}, now = new Date()): Promise<TaskView[]> {
   const rows = await db.task.findMany({
     where: {
       ...(f.status?.length ? { status: { in: f.status } } : {}),
       ...(f.assignee ? { assignee: f.assignee } : {}),
+      ...(f.assigneeIn ? { assignee: { in: f.assigneeIn } } : {}),
       ...(f.board ? { board: f.board } : {}),
       ...(f.includeArchived ? {} : { archivedAt: null }),
       ...(f.doneWithinDays ? { OR: [{ status: { not: "done" } }, { updatedAt: { gte: new Date(now.getTime() - f.doneWithinDays * 86_400_000) } }] } : {}),

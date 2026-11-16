@@ -562,5 +562,5 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
 }
 
 /** Used by the loop to check «may this person run a write tool». */
-export const canWrite = (caller: Caller) => can(caller.role, "propose_change");
+export const canWrite = (caller: Caller) => can(caller.role, "ads.propose");
 

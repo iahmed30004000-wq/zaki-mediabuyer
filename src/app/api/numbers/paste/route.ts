@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MAX_PASTE_CHARS, parsePaste } from "@/core/paste-parse";
 import { PASTE_LEVELS, checkRows } from "@/core/push-rows";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { directoryKeys } from "@/server/directory";
 import { applyMetrics } from "@/server/push";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم: " + parsed.error.issues.slice(0, 2).map((i) => i.message).join(" · "));
     const { text, day, level, apply } = parsed.data;
     const read = parsePaste(text, { day, level });
-    const checked = checkRows(read.rows.map((r) => r.row));
+    const checked = checkRows(read.rows.map((r) => r.row), await directoryKeys());
     const problems = [...read.issues, ...checked.problems.map((p) => ({ line: read.rows[p.index]?.line ?? 0, error: p.error }))].sort((a, b) => a.line - b.line);
     const summary = {
       delimiter: read.delimiter,

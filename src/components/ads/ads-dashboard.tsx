@@ -118,7 +118,7 @@ export async function NightRoundCard() {
 /** The standing orders that touch ads. */
 export async function AdsOrders() {
   const [orders, me] = await Promise.all([listOrders({ domain: "ads" }), currentCaller()]);
-  return <OrdersSection orders={orders} scope={{ domain: "ads" }} canCreate={!!me && !me.demo && can(me.role, "propose_change")} canEnd={!!me && !me.demo && can(me.role, "owner_only")} />;
+  return <OrdersSection orders={orders} scope={{ domain: "ads" }} canCreate={!!me && !me.demo && can(me.role, "orders.restrict")} canEnd={!!me && !me.demo && can(me.role, "owner_only")} />;
 }
 
 /** The video bank of each product: how many of 50, how many winners, how many tired. */

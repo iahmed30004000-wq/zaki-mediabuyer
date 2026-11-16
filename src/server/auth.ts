@@ -38,6 +38,13 @@ export async function requireCapability(capability: Capability): Promise<Caller>
   return caller;
 }
 
+/** Any signed-in person (the demo owner counts): for an answer that carries nothing a role may not see, or that filters itself by the caller's role. */
+export async function requireSignedIn(): Promise<Caller> {
+  const caller = await currentCaller();
+  if (!caller) throw new HttpError(401, "لازم تسجّل دخول");
+  return caller;
+}
+
 /** Turns an HttpError into a JSON answer in Arabic; anything else is a 500 without details. */
 export function errorResponse(e: unknown) {
   if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });

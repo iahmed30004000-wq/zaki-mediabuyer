@@ -109,7 +109,7 @@ export async function prepareLaunch(input: LaunchInput) {
 
 /** «أطلق»: the change set waits for the owner (or runs at level 3), the test is written next to it. */
 export async function launch(input: LaunchInput, caller: Caller) {
-  if (!can(caller.role, "propose_change")) throw new HttpError(403, "دورك ما بيسمح بالإطلاق");
+  if (!can(caller.role, "ads.propose")) throw new HttpError(403, "دورك ما بيسمح بالإطلاق");
   const prep = await prepareLaunch(input);
   if (!prep.ok) throw new HttpError(422, prep.problems.join(" · "));
   // the guard reads the text once more at the launch itself (dictionary first; the model may only add issues)

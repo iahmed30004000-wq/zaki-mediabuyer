@@ -141,7 +141,7 @@ export async function propose(p: Proposal, actor: Actor) {
 export async function approve(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
   const ownerOnly = ["above_cap", "test_campaign", "connect_asset", "customer_audience", "safety_net"].includes(cs.kind) || cs.error === "loop_guard";
-  if (!can(caller.role, ownerOnly ? "owner_only" : "approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
+  if (!can(caller.role, ownerOnly ? "owner_only" : "ads.approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
   const sim = cs.simulation as { ok?: boolean } | null;
   if (sim && sim.ok === false && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, "التجربة ما نجحت (سقف أو تعلّم أو تعارض) — شوف «جرّب»");
   await move(id, cs.state as ChangeState, "approved", { approvedBy: caller.id, approvedAt: new Date() });
@@ -151,7 +151,7 @@ export async function approve(id: string, caller: Caller) {
 
 export async function reject(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
-  if (!can(caller.role, "propose_change")) throw new HttpError(403, "دورك ما بيسمح");
+  if (!can(caller.role, "ads.propose")) throw new HttpError(403, "دورك ما بيسمح");
   await move(id, cs.state as ChangeState, "rejected");
   await audit({ type: "user", id: caller.id }, "change.reject", { type: "changeset", id });
   return db.changeSet.findUniqueOrThrow({ where: { id } });
@@ -213,7 +213,7 @@ export async function execute(id: string, actor: Actor) {
 
 /** «رجّع»: a new change with the inverse items, executed for the person who asked; the original becomes rolled_back. */
 export async function rollback(id: string, caller: Caller) {
-  if (!can(caller.role, "pause_or_reduce")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
+  if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   if (cs.state !== "executed") throw new HttpError(409, "بس التغيير المنفّذ بينرجع");
   // a launch is undone by pausing what it made (never deleting): the switches first, then the created objects
@@ -254,7 +254,7 @@ export async function rollback(id: string, caller: Caller) {
 
 /** The full stop (spec 10.3): every active campaign of one account, or of all, paused at once, logged. */
 export async function killSwitch(scope: string, caller: Caller) {
-  if (!can(caller.role, "kill_switch")) throw new HttpError(403, "دورك ما بيسمح بالإيقاف الكامل");
+  if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالإيقاف الكامل");
   const campaigns = await db.campaign.findMany({ where: { status: { notIn: ["PAUSED", "ARCHIVED", "DELETED"] }, ...(scope === "all" ? {} : { account: { metaId: scope } }) }, include: { account: true } });
   if (!campaigns.length) {
     await db.killSwitchEvent.create({ data: { scope, byUser: caller.id, objects: 0 } });

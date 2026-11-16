@@ -11,7 +11,7 @@ const n = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 /** GET /api/export — the truth as Excel. Real rows from the database when there are any; the demo numbers otherwise. */
 export async function GET() {
   try {
-    const caller = await requireCapability("view");
+    const caller = await requireCapability("money.view");
     const latest = await db.truthDaily.findFirst({ orderBy: { date: "desc" } }).catch(() => null);
     let rows: ExportRow[];
     let title: string;

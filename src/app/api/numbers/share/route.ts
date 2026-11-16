@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("view");
+    const caller = await requireCapability("money.view");
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const q = new URL(req.url).searchParams;
     const tg = telegramFromEnv();

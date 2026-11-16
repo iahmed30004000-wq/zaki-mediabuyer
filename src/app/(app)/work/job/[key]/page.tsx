@@ -32,7 +32,7 @@ export default async function JobPage({ params }: { params: { key: string } }) {
   if (!job) notFound();
   const orders = await listOrders({ job: { key: job.key, domain: job.domain } });
   const owner = !!me && !me.demo && can(me.role, "owner_only");
-  const canRun = !!me && !me.demo && can(me.role, "propose_change");
+  const canRun = !!me && !me.demo && can(me.role, "work.control");
   return (
     <div className="space-y-6">
       <Link href="/work" className="text-sm font-semibold text-info hover:underline">

@@ -20,7 +20,7 @@ const Body = z
  */
 export async function PUT(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("tasks.manage");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     if (caller.demo) return NextResponse.json({ ok: true, demo: true });

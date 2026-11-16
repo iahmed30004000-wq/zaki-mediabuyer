@@ -17,6 +17,10 @@ enum Role {
   ADS_MANAGER
   ANALYST
   VIEWER
+  MANAGER
+  OPS_MANAGER
+  TEAM_LEAD
+  MEMBER
 }
 
 model User {
@@ -34,6 +38,23 @@ model User {
   inviteExpiresAt DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+/// The team directory (docs/rebuild/05-permissions.md §4): people and agents as DATA. `key` is what Task.assignee and PersonDay.actorKey hold.
+model Actor {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  /// person | agent
+  kind      String
+  /// management | ads | confirm | stock | video | shipping
+  team      String?
+  userId    String?  @unique
+  /// the Telegram chat the notifications for this one go to
+  telegram  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 /// Who did what to what: a person, a rule or an agent. Append-only.
@@ -424,6 +445,8 @@ model ApiToken {
   tokenHash   String    @unique
   /// the first characters, so the owner can tell two tokens apart
   prefix      String
+  /// which agent of the team directory this token is (Actor.key); null for the older tokens
+  actorKey    String?
   createdById String?
   lastUsedAt  DateTime?
   revokedAt   DateTime?

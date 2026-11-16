@@ -5,6 +5,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { Scope } from "@/core/studio-contract";
+import { isMcpToken } from "@/core/token-scopes";
 import { db } from "./db";
 
 /**
@@ -38,8 +39,10 @@ export async function requireToken(req: Request, scope: Scope | "mcp" | "handoff
   const token = await db.apiToken.findUnique({ where: { tokenHash: hashToken(m[1]!) } });
   if (!token || token.revokedAt) throw new ContractError(401, "unauthorized", "التوكن مرفوض");
   // Claude's MCP token is Claude: it may read and answer the handoff queue as well; a token made only for the queue carries «handoff» alone
-  const accepted: string[] = scope === "handoff" ? ["handoff", "mcp"] : [scope];
-  if (!accepted.some((s) => token.scopes.includes(s))) throw new ContractError(403, "forbidden", "التوكن ما إله صلاحية لهالعملية");
+  // the door of the MCP server takes the old `mcp` and every finer `mcp:*` scope (which tools each may call is decided per call: src/core/token-scopes.ts)
+  const accepted: string[] = scope === "handoff" ? ["handoff", "mcp", "mcp:handoff"] : [scope];
+  const ok = scope === "mcp" ? isMcpToken(token.scopes) : accepted.some((s) => token.scopes.includes(s));
+  if (!ok) throw new ContractError(403, "forbidden", "التوكن ما إله صلاحية لهالعملية");
   // at most one write a minute per token, so a busy sync does not hammer the table
   if (!token.lastUsedAt || Date.now() - token.lastUsedAt.getTime() > 60_000) {
     await db.apiToken.update({ where: { id: token.id }, data: { lastUsedAt: new Date() } });

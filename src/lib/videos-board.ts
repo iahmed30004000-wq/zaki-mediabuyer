@@ -45,6 +45,7 @@ import { CREATIVES, targetsOf, viewOf, type Counts } from "@/lib/mock/data";
 import { demoSource, realSource, type Source } from "@/lib/ads-table";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
+import { forViewer } from "@/server/redact";
 
 // ───────────────────────────── what a screen reads ─────────────────────────────
 
@@ -335,7 +336,7 @@ async function loadOpenRequests(): Promise<RequestRowIn[]> {
   });
 }
 
-export async function loadBoard(now = new Date()): Promise<BoardData> {
+async function loadBoardRaw(now = new Date()): Promise<BoardData> {
   const today = ammanKey(now);
   const demo = process.env.MOCK_MODE === "1";
   const rules = readRules(await getSetting("campaign.rules"));
@@ -351,7 +352,7 @@ export async function loadBoard(now = new Date()): Promise<BoardData> {
 }
 
 /** One video of the board by its key (what a request is made about), or null. */
-export async function findBoardVideo(key: string, now = new Date()): Promise<BoardVideo | null> {
+async function findBoardVideoRaw(key: string, now = new Date()): Promise<BoardVideo | null> {
   const board = await loadBoard(now);
   for (const p of board.products) for (const v of [...p.winners, ...p.learning, ...p.rest]) if (v.key === key) return v;
   return null;
@@ -361,3 +362,9 @@ export async function findBoardVideo(key: string, now = new Date()): Promise<Boa
 export function numbersOf(v: BoardVideo): RequestNumbers {
   return { days: v.days, spend: v.spend === null ? null : r2(v.spend), orders: v.orders, costPerOrder: v.costPerOrder, hook: v.hook, hold: v.hold, ctr: v.ctr, fatigue: v.fatigue.state, fatigueRise: v.fatigue.rise };
 }
+
+/** loadBoard for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadBoard = async (...a: Parameters<typeof loadBoardRaw>) => forViewer(await loadBoardRaw(...a));
+
+/** findBoardVideo for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const findBoardVideo = async (...a: Parameters<typeof findBoardVideoRaw>) => forViewer(await findBoardVideoRaw(...a));

@@ -196,11 +196,15 @@ export async function morningAfter(now: Date): Promise<Date> {
   return nextRuns(`${m} ${h} * * *`, now, 1)[0]!;
 }
 
+/** Who may answer a request of this kind (docs/rebuild/05-permissions.md §8). */
+export const approvalCapability = (kind: string | null): "owner_only" | "ops.send" => (kind === "send_message" ? "ops.send" : "owner_only");
+
 /** The owner's answer. Throws HttpError (403 for anybody else, 409 when it is no longer open). */
 export async function decideApproval(id: string, d: DecisionInputT, caller: { id: string; role: Parameters<typeof can>[0] }, now = new Date()): Promise<ApprovalView> {
-  if (!can(caller.role, "owner_only")) throw new HttpError(403, "القرار للمالك");
   const found = await db.approval.findUnique({ where: { id } });
   if (!found) throw new HttpError(404, "الطلب مش موجود");
+  // a message to the team is the operations manager's to approve; everything else (money, stock, anything Claude asks) is the owner's
+  if (!can(caller.role, approvalCapability(found.kind))) throw new HttpError(403, found.kind === "send_message" ? "رسايل الفريق بتنوافق من مسؤول التشغيل أو المالك" : "القرار للمالك");
   await refreshApprovals(now);
 
   let until: Date | null = null;

@@ -11,9 +11,15 @@ const OPEN = [/^\/login/, /^\/api\/auth\//, /^\/api\/health/, /^\/api\/telegram\
 /** Signed-out visitors go to the door; an API call without a session gets 401 (spec 13.7: every route checks access). */
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  if (!authRequired() || OPEN.some((r) => r.test(path))) return NextResponse.next();
+  // the layout reads the address from this header, to answer «هالصفحة مش من صلاحياتك» for a role that may not open it (src/app/(app)/layout.tsx)
+  const pass = () => {
+    const h = new Headers(req.headers);
+    h.set("x-pathname", path);
+    return NextResponse.next({ request: { headers: h } });
+  };
+  if (!authRequired() || OPEN.some((r) => r.test(path))) return pass();
   const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value);
-  if (session) return NextResponse.next();
+  if (session) return pass();
   if (path.startsWith("/api/")) return NextResponse.json({ error: "لازم تسجّل دخول" }, { status: 401 });
   const url = req.nextUrl.clone();
   url.pathname = "/login";

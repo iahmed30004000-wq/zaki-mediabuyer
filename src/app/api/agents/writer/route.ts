@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "اختار منتج");
-    await requireCapability("propose_change");
+    await requireCapability("ads.propose");
     if (process.env.MOCK_MODE === "1") {
       const p = PRODUCTS.find((x) => x.code === parsed.data.productCode);
       return NextResponse.json({

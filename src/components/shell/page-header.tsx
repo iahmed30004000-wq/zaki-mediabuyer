@@ -10,11 +10,14 @@ import { EditBar } from "@/components/customize/edit-bar";
 import { PageHelp } from "./page-help";
 import { SEARCH_EVENT } from "./command-palette";
 import { CONSULTANT_EVENT } from "./consultant";
-import { useCurrentPlace } from "./shell-context";
+import { useCan, useCurrentPlace, useMyPlaces } from "./shell-context";
 
 /** The top of every page: the place's name (20/800) and its one question, then search, the assistant, «؟» and the full stop — always in reach (18.2). */
 export function PageHeader({ actions }: { actions?: ReactNode }) {
   const place = useCurrentPlace();
+  const mayAsk = useCan("assistant.use");
+  const mayStop = useCan("ads.pause");
+  const { settings } = useMyPlaces();
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface-1">
       <div className="mx-auto flex max-w-[1180px] items-center gap-2 px-4 py-3 md:px-6">
@@ -27,15 +30,19 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
         <IconButton aria-label="بحث (Ctrl K)" title="بحث (Ctrl K)" data-tour="search" onClick={() => window.dispatchEvent(new Event(SEARCH_EVENT))}>
           <Search className="size-5" aria-hidden />
         </IconButton>
-        <IconButton aria-label="اسأل المساعد" title="اسأل المساعد" onClick={() => window.dispatchEvent(new Event(CONSULTANT_EVENT))}>
-          <MessageCircleQuestion className="size-5" aria-hidden />
-        </IconButton>
+        {mayAsk ? (
+          <IconButton aria-label="اسأل المساعد" title="اسأل المساعد" onClick={() => window.dispatchEvent(new Event(CONSULTANT_EVENT))}>
+            <MessageCircleQuestion className="size-5" aria-hidden />
+          </IconButton>
+        ) : null}
         <PageHelp place={place} />
         {/* on a phone the settings are not in the bottom bar: they are here */}
-        <Link href="/settings" aria-label="الإعدادات" title="الإعدادات" className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg md:hidden">
-          <Settings className="size-5" aria-hidden />
-        </Link>
-        <KillSwitch />
+        {settings ? (
+          <Link href="/settings" aria-label="الإعدادات" title="الإعدادات" className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg md:hidden">
+            <Settings className="size-5" aria-hidden />
+          </Link>
+        ) : null}
+        {mayStop ? <KillSwitch /> : null}
       </div>
       <EditBar />
     </header>

@@ -4,6 +4,7 @@
  * card, the list, the red number in the menu and the Telegram link can never disagree. No database here: src/server/inbox.ts reads
  * the tables and calls these.
  */
+import { inboxDomainsOf, type Capability, type RoleKey } from "./roles";
 
 export const INBOX_KINDS = ["spend", "safety_net", "launch", "message", "order", "advice", "stuck", "creative", "stock", "other"] as const;
 export type InboxKind = (typeof INBOX_KINDS)[number];
@@ -20,7 +21,7 @@ export interface InboxAction {
   /** Asks «متأكد؟» first. */
   confirm?: boolean;
   /** The capability the person needs (docs/rebuild/05-permissions.md). */
-  capability: string;
+  capability: Capability;
 }
 
 export interface InboxItem {
@@ -111,9 +112,9 @@ export interface HandoffIn {
 }
 
 const A = {
-  approve: (label = "وافق"): InboxAction => ({ key: "approve", label, variant: "primary", capability: "inbox.decide" }),
-  reject: (label = "ارفض"): InboxAction => ({ key: "reject", label, variant: "secondary", capability: "inbox.decide" }),
-  later: (): InboxAction => ({ key: "later", label: "أجّل", variant: "ghost", capability: "inbox.decide" }),
+  approve: (label = "وافق", capability: Capability = "owner_only"): InboxAction => ({ key: "approve", label, variant: "primary", capability }),
+  reject: (label = "ارفض", capability: Capability = "owner_only"): InboxAction => ({ key: "reject", label, variant: "secondary", capability }),
+  later: (capability: Capability = "owner_only"): InboxAction => ({ key: "later", label: "أجّل", variant: "ghost", capability }),
   open: (label: string): InboxAction => ({ key: "open", label, variant: "ghost", capability: "inbox.view" }),
 };
 
@@ -133,7 +134,7 @@ export function fromChange(c: ChangeIn): InboxItem {
     at: c.atIso ?? new Date(0).toISOString(),
     urgency: urgencyOfChange(c),
     expiresAt: null,
-    actions: [A.approve(), A.reject(), A.open("جرّب أول")],
+    actions: [A.approve(undefined, c.launch ? "owner_only" : "ads.approve_within_cap"), A.reject(undefined, c.launch ? "owner_only" : "ads.approve_within_cap"), A.open("جرّب أول")],
     ...(c.live === false ? { demo: true } : {}),
   };
 }
@@ -154,7 +155,7 @@ export function fromApproval(a: ApprovalIn): InboxItem {
   const [first, second] = a.options;
   const actions: InboxAction[] =
     kind === "message"
-      ? [{ key: "send", label: first?.label ?? "ابعت", variant: "primary", capability: "inbox.decide" }, A.reject(second?.label ?? "لا"), A.later()]
+      ? [{ key: "send", label: first?.label ?? "ابعت", variant: "primary", capability: "ops.send" }, A.reject(second?.label ?? "لا", "ops.send"), A.later("ops.send")]
       : [A.approve(first?.label ?? "وافق"), A.reject(second?.label ?? "ارفض"), A.later()];
   return {
     id: itemId("approval", a.id),
@@ -265,8 +266,8 @@ export function fromHandoff(h: HandoffIn): InboxItem {
     urgency: h.waitingMin > 180 ? "red" : "orange",
     expiresAt: null,
     actions: [
-      { key: "complete", label: "خلصت", variant: "primary", capability: "inbox.decide" },
-      { key: "cancel", label: "ألغِها", variant: "ghost", confirm: true, capability: "inbox.decide" },
+      { key: "complete", label: "خلصت", variant: "primary", capability: "work.control" },
+      { key: "cancel", label: "ألغِها", variant: "ghost", confirm: true, capability: "work.control" },
     ],
   };
 }
@@ -292,8 +293,14 @@ export function sortInbox(items: readonly InboxItem[]): InboxItem[] {
 }
 
 /** The red number: the open items this person can decide on (an item with no action they may take is not counted). */
-export function inboxCount(items: readonly InboxItem[], can: (capability: string) => boolean = () => true): number {
+export function inboxCount(items: readonly InboxItem[], can: (capability: Capability) => boolean = () => true): number {
   return items.filter((i) => i.actions.some((a) => can(a.capability))).length;
+}
+
+/** What this role may see in the inbox: only the areas it can look at (§3 «المجال»), and only an item it holds an action for or may at least open. */
+export function inboxFor(items: readonly InboxItem[], role: RoleKey): InboxItem[] {
+  const domains = inboxDomainsOf(role);
+  return items.filter((i) => domains.includes(i.domain));
 }
 
 export const DOMAIN_AR: Record<InboxDomain, string> = { ads: "إعلانات", ops: "تشغيل", work: "الشغل" };

@@ -16,6 +16,7 @@ import { PUSH_LEVELS, StockRow, VideoRow, checkRows, insightPatch, normalizeStat
 import { stockAlertKey, stockAlertText, stockUrgency } from "@/core/stock-alerts";
 import { readRules } from "@/core/rules-v2";
 import { db } from "./db";
+import { directoryKeys } from "./directory";
 import { audit, type Actor } from "./audit";
 import { omsLinked } from "./env";
 import { createNotification } from "./notify";
@@ -62,7 +63,7 @@ async function productAliases(): Promise<ProductAlias[]> {
 /** Pushes rows of numbers (any mix of levels, days and fields). Returns what was applied and what was refused, and why. */
 export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source: "mcp" | "manual"; accountId?: string; now?: Date }): Promise<PushReport> {
   const now = opts.now ?? new Date();
-  const { rows, problems } = checkRows(raw);
+  const { rows, problems } = checkRows(raw, await directoryKeys());
   const report: PushReport = { received: raw.length, applied: 0, structure: 0, insights: 0, orderRows: 0, tallies: 0, productDays: 0, personDays: 0, rejected: problems, warnings: [] };
   const warn = (w: string) => !report.warnings.includes(w) && report.warnings.push(w);
 

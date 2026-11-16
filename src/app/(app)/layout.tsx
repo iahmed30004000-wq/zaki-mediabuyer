@@ -1,3 +1,6 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { NoAccess } from "@/components/shell/no-access";
 import { Sidebar } from "@/components/shell/sidebar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { PageHeader } from "@/components/shell/page-header";
@@ -7,7 +10,7 @@ import { ShellProvider } from "@/components/shell/shell-context";
 import { EditPanel } from "@/components/customize/edit-panel";
 import { ApprovalRinger } from "@/components/approvals/approval-ringer";
 import { MissionProvider } from "@/components/mb/mission";
-import { can } from "@/core/roles";
+import { ROLE_PLACES, ROLE_START, canOpenPath, can, capabilitiesOf, hasHome } from "@/core/roles";
 import { isDemo } from "@/core/readiness";
 import { countWaiting } from "@/lib/inbox-count";
 import { loadPages } from "@/lib/ui-view";
@@ -15,12 +18,17 @@ import { currentCaller } from "@/server/auth";
 
 /** Every screen: the side menu (desktop) or the bottom bar (phone), the page header, and ONE line when the site is on the demo data. */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [pages, me, inbox] = await Promise.all([loadPages(), currentCaller(), countWaiting()]);
+  const me = await currentCaller();
+  const [pages, inbox] = await Promise.all([loadPages(), countWaiting(me)]);
+  // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
+  const path = headers().get("x-pathname") ?? "/";
+  if (me && path === "/" && !hasHome(me.role)) redirect(ROLE_START[me.role]);
+  const body = me && !canOpenPath(me.role, path) ? <NoAccess home={ROLE_START[me.role]} /> : children;
   // «وضع التعديل» is the owner's, signed in: with sign-in switched off nothing can be saved, so nothing is offered
   const canEdit = !!me && !me.demo && can(me.role, "owner_only");
   return (
     <MissionProvider>
-      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox}>
+      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} caps={me ? capabilitiesOf(me.role) : undefined}>
         <div className="flex min-h-dvh">
           <Sidebar />
           <div className="min-w-0 flex-1">
@@ -30,10 +38,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 وضع تجريبي — الأرقام أمثلة
               </p>
             ) : null}
-            <main className="mx-auto max-w-[1180px] px-4 pb-28 pt-4 md:px-6 md:pb-12">{children}</main>
+            <main className="mx-auto max-w-[1180px] px-4 pb-28 pt-4 md:px-6 md:pb-12">{body}</main>
           </div>
         </div>
-        <Consultant />
+        {!me || can(me.role, "assistant.use") ? <Consultant /> : null}
         <CommandPalette />
         <ApprovalRinger />
         <BottomNav />

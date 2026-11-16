@@ -87,7 +87,7 @@ export default async function ProductPage({ params, searchParams }: { params: { 
         </div>
       </section>
 
-      <OrdersSection title="أوامر سارية عليه" orders={orders} scope={{ domain: "all", products: [code] }} canCreate={!!me && !me.demo && can(me.role, "propose_change")} canEnd={!!me && !me.demo && can(me.role, "owner_only")} />
+      <OrdersSection title="أوامر سارية عليه" orders={orders} scope={{ domain: "all", products: [code] }} canCreate={!!me && !me.demo && can(me.role, "orders.restrict")} canEnd={!!me && !me.demo && can(me.role, "owner_only")} />
 
       <div>
         <ButtonLink href="/products" variant="secondary">

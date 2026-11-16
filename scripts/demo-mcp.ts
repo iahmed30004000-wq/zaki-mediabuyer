@@ -75,6 +75,9 @@ import { getUiConfig } from "../src/server/ui-config";
 import { buttonsFor, effectiveBoards, effectivePages, fieldsFor, type UiOp } from "../src/core/customize";
 import { BUILTIN_PAGES } from "../src/lib/nav";
 import { GET as uiGet_, POST as uiPost } from "../src/app/api/ui/route";
+import { directoryKeys, loadDirectory, taskKeysFor } from "../src/server/directory";
+import { stripMoney } from "../src/core/redact-money";
+import { teamChange } from "../src/server/team";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -1636,6 +1639,109 @@ async function clean() {
     await db.task.updateMany({ where: { wsId: { startsWith: "demo-ws-" }, NOT: { title: { startsWith: "DEMO" } } }, data: { wsId: null, wsSyncedAt: null, wsError: null } });
     await db.task.updateMany({ where: { title: { not: { startsWith: "DEMO" } }, wsError: { not: null } }, data: { wsError: null, wsSyncedAt: null } });
     await db.auditLog.deleteMany({ where: { OR: [{ action: "task.workspace.push" }, { action: "task.workspace.close" }], actorId: "workspace.sync" } });
+  }
+
+  // ── P10: the team directory, the eight roles, and the finer token scopes (docs/rebuild/05-permissions.md) ──
+  {
+    const asTool = async (token: string, name: string, args: unknown = {}) => {
+      const r = await call(rpc("tools/call", { name, arguments: args }), token);
+      const res = r.json?.result as { content: { text: string }[]; structuredContent?: Record<string, any>; isError?: boolean } | undefined;
+      return { text: res?.content?.[0]?.text ?? JSON.stringify(r.json), data: res?.structuredContent, isError: !!res?.isError, status: r.status };
+    };
+    const mkToken = async (name: string, scopes: string[], actorKey?: string) => {
+      const t = newToken("mbm_");
+      await db.apiToken.create({ data: { name, scopes, actorKey: actorKey ?? null, tokenHash: hashToken(t), prefix: t.slice(0, 10) } });
+      return t;
+    };
+    const dayP = Y;
+
+    // the directory: seeded by the migration with the seven who always existed
+    const dir = await loadDirectory();
+    check(["abdullah", "hassan", "laith", "mohammad", "hermes", "muse", "claude"].every((k) => dir.some((e) => e.key === k)), "the directory holds the seven who always existed (the migration seeded them)", dir.map((e) => e.key));
+    check(dir.filter((e) => e.kind === "agent").map((e) => e.key).sort().join() === "claude,hermes,muse", "…three of them are agents");
+    check((await directoryKeys()).includes("muse"), "directoryKeys() is what a push of person rows is checked against");
+
+    // a token with finer scopes sees only its tools
+    const museTk = await mkToken("demo-mcp-p10-muse", ["mcp:read", "mcp:ask", "mcp:tasks"], "muse");
+    const museList = ((await call(rpc("tools/list"), museTk)).json?.result?.tools ?? []) as { name: string }[];
+    check(museList.length === 12 && !museList.some((t) => t.name === "push_metrics") && museList.some((t) => t.name === "get_rules") && museList.some((t) => t.name === "create_task"), "a token with read + ask + tasks lists 12 tools, and push_metrics is not one of them", museList.map((t) => t.name));
+    const denied = await asTool(museTk, "push_metrics", { rows: [{ date: dayP, level: "product", id: "TRF01", spend: 1 }] });
+    check(denied.isError && denied.text.includes("mcp:push"), "…calling push_metrics anyway is refused, in words, naming the scope it lacks", denied.text);
+    check(!(await asTool(museTk, "get_rules")).isError, "…and get_rules (its own scope) works");
+    check((await asTool(museTk, "log_run", { workflow: "demo-mcp-flow", status: "ok" })).isError, "…log_run (mcp:run) is refused too");
+    check(((await call(rpc("tools/list"))).json?.result?.tools ?? []).length === 22, "the old `mcp` token still lists all twenty-two tools");
+    const stored = await db.apiToken.findFirst({ where: { name: "demo-mcp-p10-muse" } });
+    check(stored?.actorKey === "muse" && stored.scopes.join() === "mcp:read,mcp:ask,mcp:tasks", "the token knows which agent it is (actorKey) and which scopes it holds");
+    const hoTk = await mkToken("demo-mcp-p10-queue", ["handoff"]);
+    check((await call(rpc("ping"), hoTk)).status === 403, "a queue-only token (handoff) does not open /mcp → 403");
+
+    // a push token lands person rows for a key of the directory, and no other
+    const pushTk = await mkToken("demo-mcp-p10-push", ["mcp:push"], "claude");
+    const landed = await asTool(pushTk, "push_metrics", { rows: [{ date: dayP, level: "person", id: "abdullah", claims: 20, confirmed: 14, rejected: 3, no_answer: 4, stuck_48h: 1 }] });
+    check(!landed.isError && landed.data?.personDays === 1, "a mcp:push token pushes a person row for a key of the directory", landed.data);
+    const stranger = await asTool(pushTk, "push_metrics", { rows: [{ date: dayP, level: "person", id: "nobody-here", claims: 3 }] });
+    check(((stranger.data?.rejected ?? []) as unknown[]).length === 1, "…and a key that is not in the directory is refused");
+    check((await asTool(pushTk, "log_run", { workflow: "demo-mcp-flow", status: "ok" })).isError, "…while the same token cannot log a run (not its scope)");
+
+    // names only with ops.people: the loader decides, not the screen
+    const withNames = await loadTeam(7, new Date(), { people: true });
+    const without = await loadTeam(7, new Date(), { people: false });
+    check(withNames.rows.length >= 1 && without.rows.length === 0 && without.total.claims !== null && without.total.claims === withNames.total.claims, "loadTeam without ops.people returns the totals and no row (no name leaves the server)", { a: withNames.rows.length, b: without.rows.length });
+    await db.personDay.deleteMany({ where: { date: new Date(dayP + "T00:00:00Z") } });
+
+    // tasks: a member sees only their own, a team lead their team's, an unlinked account nothing, the others everything
+    const mkUser = async (email: string, role: "MEMBER" | "TEAM_LEAD") => db.user.create({ data: { email, name: "DEMO " + email, passwordHash: "x", role } });
+    const uMem = await mkUser("demo-mcp-p10-member@local.test", "MEMBER");
+    const uLead = await mkUser("demo-mcp-p10-lead@local.test", "TEAM_LEAD");
+    await db.actor.create({ data: { key: "demo-p10-mem", name: "DEMO member", kind: "person", team: "confirm", userId: uMem.id } });
+    await db.actor.create({ data: { key: "demo-p10-lead", name: "DEMO lead", kind: "person", team: "confirm", userId: uLead.id } });
+    await db.actor.create({ data: { key: "demo-p10-other", name: "DEMO other", kind: "person", team: "stock" } });
+    const callerOf = (u: { id: string }, role: "MEMBER" | "TEAM_LEAD" | "ADS_MANAGER") => ({ id: u.id, role, demo: false });
+    check(JSON.stringify(await taskKeysFor(callerOf(uMem, "MEMBER"))) === JSON.stringify(["demo-p10-mem"]), "taskKeysFor: a member → their own key only");
+    const leadKeys = (await taskKeysFor(callerOf(uLead, "TEAM_LEAD"))) ?? [];
+    check(leadKeys.includes("demo-p10-mem") && leadKeys.includes("demo-p10-lead") && !leadKeys.includes("demo-p10-other"), "…a team lead → their team (same team only)", leadKeys);
+    check(JSON.stringify(await taskKeysFor(callerOf({ id: "no-such-user" }, "MEMBER"))) === "[]", "…an account not linked to the directory → no task at all (never «all» by default)");
+    check((await taskKeysFor(callerOf({ id: "x" }, "ADS_MANAGER"))) === null, "…an ads manager → everybody's (null)");
+    await db.task.create({ data: { title: "DEMO مهمة العضو", assignee: "demo-p10-mem" } });
+    await db.task.create({ data: { title: "DEMO مهمة غيره", assignee: "demo-p10-other" } });
+    const seen = await listTasks({ assigneeIn: ["demo-p10-mem"], limit: 50 });
+    check(seen.length === 1 && seen[0]!.title === "DEMO مهمة العضو", "listTasks({assigneeIn}) returns only that person's task", seen.map((t) => t.title));
+
+    // decisions by area: an ops manager sees the message to the team, not the money; an ads manager the opposite; a viewer and a team lead none
+    const msg = await requestApproval(ApprovalInput.parse({ title: "DEMO رسالة للفريق", why: "سبب", urgency: "yellow", kind: "send_message" }), { type: "agent", id: "claude" });
+    const money = await requestApproval(ApprovalInput.parse({ title: "DEMO رفع سقف", why: "سبب", urgency: "orange", amount: 30 }), { type: "agent", id: "claude" });
+    const c = (role: "OWNER" | "OPS_MANAGER" | "ADS_MANAGER" | "VIEWER" | "TEAM_LEAD" | "MANAGER") => ({ id: "demo-mcp-p10-" + role, role, demo: false });
+    const ids = async (role: Parameters<typeof c>[0]) => (await loadInbox(c(role))).map((i) => i.id);
+    const both = [`approval:${msg.approval.id}`, `approval:${money.approval.id}`];
+    const ownerIds = await ids("OWNER");
+    check(ownerIds.includes(both[0]!) && ownerIds.includes(both[1]!), "the owner's inbox holds both decisions");
+    const opsIds = await ids("OPS_MANAGER");
+    check(opsIds.includes(both[0]!) && !opsIds.includes(both[1]!), "an ops manager sees the message to the team, not the money decision", opsIds);
+    const adsIds = await ids("ADS_MANAGER");
+    check(!adsIds.includes(both[0]!) && adsIds.includes(both[1]!), "an ads manager sees the money decision, not the message");
+    check((await ids("VIEWER")).length === 0 && (await ids("TEAM_LEAD")).length === 0, "a viewer and a team lead have no inbox");
+    check((await countInbox(c("TEAM_LEAD"))) === 0 && (await countInbox(c("OWNER"))) >= 2, "the red number follows the same rule (a team lead 0, the owner at least 2)");
+    // who may answer: the message — an ops manager; the money — only the owner
+    let moneyRefused = 0;
+    await decideApproval(money.approval.id, { action: "reject" }, c("OPS_MANAGER")).catch((e) => { if (e instanceof HttpError && e.status === 403) moneyRefused = 1; });
+    check(moneyRefused === 1, "an ops manager may NOT answer a money decision (403)");
+    const answered = await decideApproval(msg.approval.id, { action: "reject" }, c("OPS_MANAGER")).then(() => true, () => false);
+    check(answered, "…but may answer the message to the team");
+    let adsRefused = 0;
+    await decideApproval(money.approval.id, { action: "reject" }, c("ADS_MANAGER")).catch((e) => { if (e instanceof HttpError && e.status === 403) adsRefused = 1; });
+    check(adsRefused === 1, "…and an ads manager may not answer it either: money above the cap is the owner's alone");
+    check((await decideApproval(money.approval.id, { action: "reject" }, c("OWNER")).then(() => true, () => false)) === true, "…the owner answers it");
+
+    // the last owner cannot be removed
+    check(!teamChange({ actorId: "a", targetId: "b", targetRole: "OWNER", owners: 1, to: { role: "MANAGER" } }).ok && teamChange({ actorId: "a", targetId: "b", targetRole: "OWNER", owners: 2, to: { role: "MANAGER" } }).ok, "the last owner cannot be demoted; with two owners it can");
+
+    // reports: outside a request nothing is filtered (the night round reads everything), and a stripped number is null, never zero
+    check(stripMoney({ spend: 5, profit: 3 }).profit === null && stripMoney({ spend: 5, profit: 3 }).spend === 5, "stripMoney: profit → null, spend kept");
+
+    await db.task.deleteMany({ where: { assignee: { startsWith: "demo-p10" } } });
+    await db.actor.deleteMany({ where: { key: { startsWith: "demo-p10" } } });
+    await db.user.deleteMany({ where: { email: { startsWith: "demo-mcp-p10" } } });
+    await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp-p10" } } });
   }
 
   await clean();

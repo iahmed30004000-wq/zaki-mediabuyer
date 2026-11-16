@@ -5,8 +5,8 @@
 import { ammanKey, addDays } from "@/core/dates";
 import { isDemo } from "@/core/readiness";
 import { median, noAnswerRate, personFlag, readOpsRules, type OpsRules, type PersonFlag } from "@/core/ops";
-import { assigneeName } from "@/core/tasks";
 import { db } from "./db";
+import { directoryNames } from "./directory";
 import { getSetting } from "./settings";
 
 export interface SeriesPoint {
@@ -75,12 +75,16 @@ export interface TeamData {
 
 const sum = (xs: (number | null)[]): number | null => (xs.every((x) => x === null) ? null : xs.reduce<number>((s, x) => s + (x ?? 0), 0));
 
-/** The confirmation team over the last `days` days: a row per person (summed), the flag by the owner's limits, the reasons for rejection. */
-export async function loadTeam(days = 7, now = new Date()): Promise<TeamData> {
+/**
+ * The confirmation team over the last `days` days: a row per person (summed), the flag by the owner's limits, the reasons for rejection. Without
+ * `people` (the caller lacks `ops.people`) no row is returned — the team's totals only, decided HERE on the server, never hidden by the screen.
+ */
+export async function loadTeam(days = 7, now = new Date(), opts: { people?: boolean } = {}): Promise<TeamData> {
+  const people = opts.people !== false;
   const empty: TeamData = { days, rows: [], reasons: [], total: { claims: null, confirmed: null, rejected: null, noAnswer: null, stuck48h: null }, medianNoAnswer: null };
   if (isDemo(process.env)) return empty;
   const from = new Date(`${addDays(ammanKey(now), -(days - 1))}T00:00:00Z`);
-  const [rows, rules] = await Promise.all([db.personDay.findMany({ where: { date: { gte: from } }, orderBy: { date: "asc" } }), loadOpsRules()]);
+  const [rows, rules, names] = await Promise.all([db.personDay.findMany({ where: { date: { gte: from } }, orderBy: { date: "asc" } }), loadOpsRules(), directoryNames()]);
   const by = new Map<string, typeof rows>();
   for (const r of rows) by.set(r.actorKey, [...(by.get(r.actorKey) ?? []), r]);
   const reasonSum = new Map<string, number>();
@@ -91,7 +95,7 @@ export async function loadTeam(days = 7, now = new Date()): Promise<TeamData> {
     const fcs = list.map((r) => r.firstClaimSec).filter((x): x is number => x !== null);
     return {
       key,
-      name: assigneeName(key) ?? key,
+      name: names[key] ?? key,
       claims,
       confirmed: sum(list.map((r) => r.confirmed)),
       rejected: sum(list.map((r) => r.rejected)),
@@ -106,7 +110,7 @@ export async function loadTeam(days = 7, now = new Date()): Promise<TeamData> {
   const med = median(team.map((t) => t.noAnswerRate).filter((x): x is number => x !== null));
   return {
     days,
-    rows: team.map((t) => ({ ...t, flag: personFlag({ claims: t.claims, noAnswer: t.noAnswer, stuck48h: t.stuck48h, daysOfData: t.daysOfData }, med, rules) })).sort((a, b) => a.name.localeCompare(b.name)),
+    rows: !people ? [] : team.map((t) => ({ ...t, flag: personFlag({ claims: t.claims, noAnswer: t.noAnswer, stuck48h: t.stuck48h, daysOfData: t.daysOfData }, med, rules) })).sort((a, b) => a.name.localeCompare(b.name)),
     reasons: [...reasonSum.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count).slice(0, 8),
     total: { claims: sum(team.map((t) => t.claims)), confirmed: sum(team.map((t) => t.confirmed)), rejected: sum(team.map((t) => t.rejected)), noAnswer: sum(team.map((t) => t.noAnswer)), stuck48h: sum(team.map((t) => t.stuck48h)) },
     medianNoAnswer: med,

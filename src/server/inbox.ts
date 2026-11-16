@@ -3,8 +3,9 @@
  * decision into one `InboxItem` (src/core/inbox.ts). The ACTIONS stay on the endpoints that already do them
  * (/api/changes/[id], /api/approvals/[id], /api/handoffs/[id]) — nothing new can spend money.
  */
-import { handoffNeedsOwner, fromAdvice, fromApproval, fromOrder, fromChange, fromHandoff, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
+import { handoffNeedsOwner, fromAdvice, fromApproval, fromOrder, fromChange, fromHandoff, inboxFor, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
 import { isDemo } from "@/core/readiness";
+import { can } from "@/core/roles";
 import { loadChanges, type ChangeView } from "@/lib/changes-view";
 import type { Caller } from "./auth";
 import { db } from "./db";
@@ -33,8 +34,8 @@ async function orderItems(): Promise<InboxItem[]> {
   return rows.map((o) => fromOrder({ id: o.id, text: o.text, domain: o.domain, pending: o.status === "pending", endRequested: !!o.endRequestedAt, source: o.source, createdAt: (o.endRequestedAt ?? o.createdAt).toISOString() }));
 }
 
-/** Every open decision, in the order it should be read. `caller` is for the permission filter P10 adds; today the owner sees everything. */
-export async function loadInbox(_caller: Caller, opts: { limit?: number; domain?: InboxDomain } = {}): Promise<InboxItem[]> {
+/** Every open decision, in the order it should be read, for the areas this caller's role may look at (docs/rebuild/05-permissions.md §3). */
+export async function loadInbox(caller: Caller, opts: { limit?: number; domain?: InboxDomain } = {}): Promise<InboxItem[]> {
   const [changes, approvals, handoffs, advice, orders] = await Promise.all([
     loadChanges(),
     demo() ? Promise.resolve([]) : listApprovals({ status: ["pending"] }),
@@ -49,15 +50,16 @@ export async function loadInbox(_caller: Caller, opts: { limit?: number; domain?
     ...advice,
     ...orders,
   ];
-  const sorted = sortInbox(opts.domain ? items.filter((i) => i.domain === opts.domain) : items);
+  const mine = inboxFor(items, caller.role);
+  const sorted = sortInbox(opts.domain ? mine.filter((i) => i.domain === opts.domain) : mine);
   return opts.limit ? sorted.slice(0, opts.limit) : sorted;
 }
 
 /** What the owner put off, and when it comes back. */
-export async function loadInboxLater(_caller: Caller): Promise<InboxItem[]> {
+export async function loadInboxLater(caller: Caller): Promise<InboxItem[]> {
   if (demo()) return [];
   const rows = await listApprovals({ status: ["postponed"] });
-  return rows.map((a) => fromApproval(approvalIn(a))).sort((a, b) => (a.postponedUntil ?? "").localeCompare(b.postponedUntil ?? ""));
+  return inboxFor(rows.map((a) => fromApproval(approvalIn(a))), caller.role).sort((a, b) => (a.postponedUntil ?? "").localeCompare(b.postponedUntil ?? ""));
 }
 
 export interface DoneItem {
@@ -138,8 +140,11 @@ export async function getInboxItem(caller: Caller, id: string): Promise<InboxLoo
 }
 
 /** The red number beside «بانتظارك»: cheap (counts, no rows), the same conditions as `loadInbox`. */
-export async function countInbox(): Promise<number> {
+export async function countInbox(caller?: Caller | null): Promise<number> {
   try {
+    if (caller && !can(caller.role, "inbox.view")) return 0;
+    // a role that sees only some areas gets the exact count of what it sees (the cheap count below is for the ones that see all three)
+    if (caller && !(can(caller.role, "ads.view") && can(caller.role, "ops.view") && can(caller.role, "work.view"))) return (await loadInbox(caller)).length;
     if (demo()) return (await loadChanges()).filter((c) => c.state === "pending_approval").length;
     const [changes, asks, handoffs, advice, orders] = await Promise.all([
       db.changeSet.count({ where: { state: { in: ["pending_approval", "simulated"] } } }),

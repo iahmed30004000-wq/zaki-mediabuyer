@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(_req: Request, { params }: { params: { key: string } }) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("work.control");
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
     try {
       const r = await requestRun(params.key, { type: "user", id: caller.id });

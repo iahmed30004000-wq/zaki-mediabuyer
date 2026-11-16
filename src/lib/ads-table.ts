@@ -14,6 +14,7 @@ import { DEMO, targetsOf, viewOf, type Product, type RowStatus, type RowView } f
 import { statusOf, toProduct } from "@/lib/source";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
+import { forViewer } from "@/server/redact";
 
 // ───────────────────────────── what a screen row is ─────────────────────────────
 
@@ -370,7 +371,7 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
   };
 }
 
-export async function loadAdsTable(q: { d?: string | null; from?: string | null; to?: string | null }, now = new Date()): Promise<AdsTableData> {
+async function loadAdsTableRaw(q: { d?: string | null; from?: string | null; to?: string | null }, now = new Date()): Promise<AdsTableData> {
   const range = parseRange(q, now);
   const today = ammanKey(now);
   const rules = readRules(await getSetting("campaign.rules"));
@@ -386,3 +387,6 @@ export async function loadAdsTable(q: { d?: string | null; from?: string | null;
     rulesMissing: !demo && (rules.targetCost === null || !Object.keys(rules.breakeven).length),
   });
 }
+
+/** loadAdsTable for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadAdsTable = async (...a: Parameters<typeof loadAdsTableRaw>) => forViewer(await loadAdsTableRaw(...a));

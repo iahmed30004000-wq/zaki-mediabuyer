@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { READY_PLACES } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { CountBadge } from "./sidebar";
-import { useCurrentPlace, useInboxCount } from "./shell-context";
+import { useCurrentPlace, useInboxCount, useMyPlaces } from "./shell-context";
 
 /** The phone's bottom bar (60px): the five places, an icon and a name each; the active one has the gold line above it. The settings are in the header's «⋯». */
 export function BottomNav() {
   const current = useCurrentPlace();
   const inbox = useInboxCount();
+  const { places } = useMyPlaces();
   return (
     <nav aria-label="الأماكن" className="fixed inset-x-0 bottom-0 z-30 flex h-[60px] border-t border-border bg-surface-1 pb-[env(safe-area-inset-bottom)] md:hidden">
-      {READY_PLACES.map((p) => {
+      {places.map((p) => {
         const active = p.key === current.key;
         const Icon = p.icon;
         return (
