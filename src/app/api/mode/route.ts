@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { NightPermissionSchema } from "@/core/mode";
-import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { errorResponse, HttpError, requireCapability, requireSignedIn } from "@/server/auth";
 import { currentMode, setMode, setNightPermissions, setWakeKinds } from "@/server/mode";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ const Body = z
 /** GET /api/mode — صاحي / نايم (the clock may overrule the switch), the night permissions, the kinds that wake him. */
 export async function GET() {
   try {
-    await requireCapability("view");
+    await requireSignedIn();
     return NextResponse.json(await currentMode());
   } catch (e) {
     return errorResponse(e);

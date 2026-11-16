@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { MediaBuyerMark } from "@/components/logo";
-import { READY_PLACES, SETTINGS } from "@/lib/nav";
+import { SETTINGS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { useCurrentPlace, useInboxCount } from "./shell-context";
+import { useCurrentPlace, useInboxCount, useMyPlaces } from "./shell-context";
 
 /** The count of what waits for the owner, as a red badge (the one place red is used for a number). */
 export function CountBadge({ count, className }: { count: number; className?: string }) {
@@ -23,6 +23,7 @@ export function CountBadge({ count, className }: { count: number; className?: st
 export function Sidebar() {
   const current = useCurrentPlace();
   const inbox = useInboxCount();
+  const { places, settings } = useMyPlaces();
   const row = (active: boolean) =>
     cn("flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-bold transition-colors", active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg");
   return (
@@ -35,7 +36,7 @@ export function Sidebar() {
         </div>
       </div>
       <nav aria-label="الأماكن" className="flex-1 space-y-1 overflow-y-auto p-3">
-        {READY_PLACES.map((p) => {
+        {places.map((p) => {
           const active = p.key === current.key;
           const Icon = p.icon;
           return (
@@ -47,7 +48,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-border p-3">
+      <div className={cn("border-t border-border p-3", !settings && "hidden")}>
         <Link href={SETTINGS.href} aria-current={current.key === "settings" ? "page" : undefined} className={row(current.key === "settings")}>
           <SETTINGS.icon className="size-5 shrink-0" aria-hidden />
           <span>{SETTINGS.label}</span>

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/orders?active=1&domain=ads&job=<key>&product=<code>&archive=1 — the standing orders (the active ones by default plus the pending). */
 export async function GET(req: Request) {
   try {
-    await requireCapability("view");
+    await requireCapability("work.view");
     const q = new URL(req.url).searchParams;
     const domain = q.get("domain");
     const orders = await listOrders({ active: q.get("active") === "1", archive: q.get("archive") === "1", ...(domain === "ads" || domain === "ops" ? { domain } : {}), ...(q.get("product") ? { product: q.get("product")! } : {}) });
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 /** POST /api/orders — a new standing order from the site. A tightening one is in force at once; a loosening one is the owner's alone (anyone else's waits for him). */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("orders.restrict");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = OrderInput.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "الأمر مش مفهوم: " + parsed.error.issues.slice(0, 2).map((i) => i.message).join(" · "));

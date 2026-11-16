@@ -5,6 +5,7 @@
  */
 import { db } from "@/server/db";
 import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type Product, type RowStatus } from "@/lib/mock/data";
+import { forViewer } from "@/server/redact";
 
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
 const SHIPPED = new Set(["shipped", "delivered", "returned"]);
@@ -24,7 +25,7 @@ export function toProduct(p: { productCode: string; name: string; market: string
   };
 }
 
-export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> {
+async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
   if (process.env.MOCK_MODE === "1") return DEMO;
   const since = new Date(now.getTime() - days * 86_400_000);
 
@@ -88,3 +89,6 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
 
   return { products, accounts, campaigns, demo: false };
 }
+
+/** loadDataset for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadDataset = async (...a: Parameters<typeof loadDatasetRaw>) => forViewer(await loadDatasetRaw(...a));

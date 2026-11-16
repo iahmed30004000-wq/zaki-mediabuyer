@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "في خانة ناقصة أو غلط بالإطلاق");
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("ads.propose");
     if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
     const { preview, ...input } = parsed.data;
     if (preview) {

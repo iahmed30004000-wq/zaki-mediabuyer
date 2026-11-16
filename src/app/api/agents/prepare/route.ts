@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "اكتب شو بدك يتغيّر");
-    await requireCapability("propose_change");
+    await requireCapability("ads.propose");
     if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true, refused: [], items: [] });
     try {
       const r = await prepareChange(parsed.data.text);

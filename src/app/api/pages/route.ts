@@ -16,7 +16,7 @@ const Body = z.object({
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("connect_meta");
+    const caller = await requireCapability("ads.connect");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "في خانة ناقصة");
     if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });

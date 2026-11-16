@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/workflow/:key/versions — every saved version of the drawing, newest first, each with its graph (the editor opens one as a draft). */
 export async function GET(_req: Request, { params }: { params: { key: string } }) {
   try {
-    await requireCapability("view");
+    await requireCapability("work.view");
     const versions = await listVersions(params.key);
     if (!versions) throw new HttpError(404, "الورك فلو مش موجود");
     return NextResponse.json({ versions });

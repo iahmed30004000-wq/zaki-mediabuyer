@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("ads.propose");
     // the demo's videos are made up: nothing is asked of anyone for them
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = VideoRequestCreate.safeParse(await req.json().catch(() => null));

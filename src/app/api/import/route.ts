@@ -39,7 +39,7 @@ async function tableOf(b: z.infer<typeof Body>): Promise<string[][]> {
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("connect_meta");
+    const caller = await requireCapability("ads.connect");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "الملف كبير أو مش مفهوم");
     const b = parsed.data;

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/workflow/:key?status=failed — the run history of one workflow. */
 export async function GET(req: Request, { params }: { params: { key: string } }) {
   try {
-    await requireCapability("view");
+    await requireCapability("work.view");
     const status = new URL(req.url).searchParams.get("status") ?? undefined;
     return NextResponse.json({ runs: await runsOf(params.key, { status }) });
   } catch (e) {

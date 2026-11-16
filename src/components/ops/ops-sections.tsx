@@ -12,7 +12,7 @@ import { fmt } from "@/lib/format";
 import { loadJobs } from "@/lib/jobs-view";
 import { loadNumbers } from "@/lib/numbers-view";
 import { currentCaller } from "@/server/auth";
-import { lastStockAlert, latestMetric, loadOpsRules, loadTeam, metricSeries, type TeamRow } from "@/server/ops";
+import { lastStockAlert, latestMetric, loadOpsRules, loadTeam, metricSeries, type TeamData, type TeamRow } from "@/server/ops";
 import { listOrders } from "@/server/orders";
 import { OpsRulesForm } from "./ops-rules-form";
 
@@ -63,7 +63,7 @@ export async function LeakSection() {
 
 const flagPill = (f: PersonFlag | null) => (f ? <Pill tone={f.tone}>{f.label}</Pill> : <span className="text-fg-muted">—</span>);
 
-/** The team table (names and numbers — the owner's until the permissions of P10). */
+/** The team table: a row per person, or one row for the whole team when the caller may not see names (the loader decides, not this table). */
 export function TeamTable({ rows }: { rows: TeamRow[] }) {
   const cols: Column<TeamRow>[] = [
     { key: "name", header: "الموظف", cell: (r) => <span className="font-bold text-fg">{r.name}</span> },
@@ -76,16 +76,27 @@ export function TeamTable({ rows }: { rows: TeamRow[] }) {
   return <DataTable columns={cols} rows={rows} rowKey={(r) => r.key} label="فريق التأكيد" />;
 }
 
+/** May this caller see a person by name? (`ops.people`; the demo caller is an owner.) */
+async function mayNames(): Promise<boolean> {
+  const me = await currentCaller();
+  return !!me && can(me.role, "ops.people");
+}
+
+/** One row for the whole team, for a role that may not see names. */
+const wholeTeam = (t: TeamData): TeamRow[] =>
+  t.total.claims === null && t.total.confirmed === null ? [] : [{ key: "all", name: "كل الفريق", claims: t.total.claims, confirmed: t.total.confirmed, rejected: t.total.rejected, noAnswer: t.total.noAnswer, noAnswerRate: t.medianNoAnswer, firstClaimSec: null, stuck48h: t.total.stuck48h, reactivated: null, daysOfData: 0, flag: null }];
+
 /** The confirmation team on the dashboard: the totals and a row each. */
 export async function TeamSummary() {
-  const team = await loadTeam(7);
+  const people = await mayNames();
+  const team = await loadTeam(7, new Date(), { people });
   return (
     <section className="space-y-3">
       <SectionTitle href="/ops/confirm" linkLabel="تفاصيل الفريق" hint="آخر 7 أيام">
         فريق التأكيد
       </SectionTitle>
-      {team.rows.length ? (
-        <TeamTable rows={team.rows} />
+      {(people ? team.rows : wholeTeam(team)).length ? (
+        <TeamTable rows={people ? team.rows : wholeTeam(team)} />
       ) : (
         <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق (بصف push_metrics مستواه person). لما يبعتها بتظهر هون.</p>
       )}
@@ -168,17 +179,19 @@ export async function OpsJobs() {
 
 export async function OpsOrders() {
   const [orders, me] = await Promise.all([listOrders({ domain: "ops" }), currentCaller()]);
-  return <OrdersSection orders={orders} scope={{ domain: "ops" }} canCreate={!!me && !me.demo && can(me.role, "propose_change")} canEnd={!!me && !me.demo && can(me.role, "owner_only")} />;
+  return <OrdersSection orders={orders} scope={{ domain: "ops" }} canCreate={!!me && !me.demo && can(me.role, "orders.restrict")} canEnd={!!me && !me.demo && can(me.role, "owner_only")} />;
 }
 
 /** The confirmation page: the team, the reasons for rejection, the manager's comment, and the owner's limits for the flags. */
 export async function ConfirmPage() {
-  const [team, rules, comment, me] = await Promise.all([loadTeam(7), loadOpsRules(), latestComment(), currentCaller()]);
+  const people = await mayNames();
+  const [team, rules, comment, me] = await Promise.all([loadTeam(7, new Date(), { people }), loadOpsRules(), latestComment(), currentCaller()]);
+  const shown = people ? team.rows : wholeTeam(team);
   return (
     <div className="space-y-6">
       <section className="space-y-3">
         <SectionTitle hint="آخر 7 أيام">فريق التأكيد</SectionTitle>
-        {team.rows.length ? <TeamTable rows={team.rows} /> : <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق.</p>}
+        {shown.length ? <TeamTable rows={shown} /> : <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق.</p>}
       </section>
       {team.reasons.length ? (
         <section className="space-y-3">

@@ -11,7 +11,7 @@ const Body = z.object({ objectType: z.enum(["campaign", "adset"]), objectId: z.s
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("ads.propose");
     // demo numbers are not real campaigns (their ids are not Meta ids either): say so, change nothing
     if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));

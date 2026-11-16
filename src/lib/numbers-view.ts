@@ -12,6 +12,7 @@ import { computeSet, coverUrgency, emptyRaw, scaleFlows, sumRaw, topReasons, tot
 import { breakevenOf, readRules, type CampaignRules } from "@/core/rules-v2";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
+import { forViewer } from "@/server/redact";
 
 const LEVELS = ["ad", "adset", "campaign"] as const;
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -61,7 +62,7 @@ interface PD {
   stockUnits: number | null;
 }
 
-export async function loadNumbers(q: { d?: string | null; from?: string | null; to?: string | null }, now = new Date()): Promise<NumbersData> {
+async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?: string | null }, now = new Date()): Promise<NumbersData> {
   const range = parseRange(q, now);
   if (process.env.MOCK_MODE === "1") return demoNumbers(range);
 
@@ -266,3 +267,6 @@ function demoNumbers(range: Range): NumbersData {
   }));
   return { demo: true, range, label: rangeLabel(range), totals: { current: totalSet(cur, fx), prev: totalSet(prev, fx), avg7: totalSet(avg, fx) }, products, target: 3, stockLevels: rules.stock, rulesMissing: false };
 }
+
+/** loadNumbers for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadNumbers = async (...a: Parameters<typeof loadNumbersRaw>) => forViewer(await loadNumbersRaw(...a));

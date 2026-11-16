@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** GET /api/rules — the campaign rules v2 as they are now: the numbers, the 14 sentences, what is still missing. */
 export async function GET() {
   try {
-    await requireCapability("view");
+    await requireCapability("ads.view");
     return NextResponse.json(await getRules());
   } catch (e) {
     return errorResponse(e);

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("owner_only");
+    const caller = await requireCapability("work.control");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = DecisionsInput.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "ورقة القرار مش مفهومة: " + parsed.error.issues.slice(0, 2).map((i) => i.message).join(" · "));

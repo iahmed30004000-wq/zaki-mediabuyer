@@ -19,7 +19,7 @@ const Body = z.object({
 /** What the panel needs to know before the first question: is the assistant connected, and may this person save its drafts. */
 export async function GET() {
   try {
-    const caller = await requireCapability("view");
+    const caller = await requireCapability("assistant.use");
     const demo = process.env.MOCK_MODE === "1";
     const on = (await assistantConfigured()) && !externalModelsOff();
     return NextResponse.json({
@@ -52,7 +52,7 @@ function failure(e: unknown): { status: number; message: string; code?: string }
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("view");
+    const caller = await requireCapability("assistant.use");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, `اكتب سؤالك (لحد ${LIMITS.question} حرف)`);
     const { question, history = [], place = null } = parsed.data;

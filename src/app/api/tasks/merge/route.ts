@@ -10,7 +10,7 @@ const Body = z.object({ keep: z.string().trim().min(1).max(40), drop: z.array(z.
 /** POST /api/tasks/merge — `{ keep, drop: [...] }`: the same job written twice becomes one card; the others are archived, nothing is lost. */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("tasks.manage");
     if (caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");

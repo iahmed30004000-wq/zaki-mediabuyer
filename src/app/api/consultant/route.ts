@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "اكتب سؤالك");
-    await requireCapability("view");
+    await requireCapability("assistant.use");
     if (process.env.MOCK_MODE === "1") {
       return NextResponse.json({ answer: "بالوضع التجريبي ما في موديل موصول. بعد الربط بجاوبك من أرقامك، وكل رقم بمصدره (ميتا · حقيقي · تقدير)، ومسودات بس — ولا تنفيذ.", by: "code", facts: [] });
     }

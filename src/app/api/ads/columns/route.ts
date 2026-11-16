@@ -11,7 +11,7 @@ export async function PUT(req: Request) {
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
-    const caller = await requireCapability("view");
+    const caller = await requireCapability("ads.view");
     // the demo caller has no account to save for: the page keeps the choice for the session
     if (caller.demo) return NextResponse.json({ ok: true, demo: true, columns: sanitizeColumns(parsed.data.columns) });
     return NextResponse.json({ ok: true, columns: await saveColumns(caller.id, parsed.data.columns) });

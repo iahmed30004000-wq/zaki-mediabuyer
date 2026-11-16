@@ -14,7 +14,7 @@ const Body = z.object({ buttonId: z.string().trim().min(1).max(40), entity: z.en
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("tasks.manage");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });

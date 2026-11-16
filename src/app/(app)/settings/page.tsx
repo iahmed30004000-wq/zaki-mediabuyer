@@ -179,7 +179,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         </div>
       </Section>
 
-      <Section title="الفريق والتدقيق" hint="مين عمل شو ومتى: إنسان · قاعدة · وكيل">
+      <Section title="الفريق والتدقيق" hint="مين عمل شو ومتى: إنسان · قاعدة · وكيل" link={{ href: "/settings/team", label: "الفريق والصلاحيات ←" }}>
         {edit && audit ? (
           <div id="team" className="scroll-mt-24 space-y-4">
             <TeamPanel team={edit.team} me={me && !me.demo ? me.id : null} />

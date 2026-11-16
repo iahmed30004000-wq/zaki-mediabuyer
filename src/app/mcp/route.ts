@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { handleRpc } from "@/core/mcp-rpc";
 import { makeLimiter, originAllowed } from "@/core/rate-limit";
+import { toolAllowed, TOOL_SCOPE } from "@/core/token-scopes";
 import { ContractError, requireToken } from "@/server/api-token";
 import { audit } from "@/server/audit";
 import { appOrigin } from "@/server/env";
@@ -45,8 +46,15 @@ export async function POST(req: Request) {
     return rpcError(400, -32700, "JSON مش صحيح");
   }
 
+  // a token with finer scopes sees only its tools; asking for another one is answered in words, so the agent knows which scope it lacks
+  const one0 = Array.isArray(body) ? null : (body as { id?: unknown; method?: string; params?: { name?: string } });
+  if (one0?.method === "tools/call" && typeof one0.params?.name === "string" && TOOLS.some((t) => t.name === one0.params!.name) && !toolAllowed(token.scopes, one0.params.name)) {
+    const need = TOOL_SCOPE[one0.params.name] ?? "mcp";
+    return NextResponse.json({ jsonrpc: "2.0", id: one0.id ?? null, result: { content: [{ type: "text", text: `هالتوكن ما إله صلاحية لهالأداة (بدها ${need}). المالك بيعطيه إياها من الإعدادات ← الفريق.` }], isError: true } }, { status: 200, headers: NO_STORE });
+  }
+  const visible = TOOLS.filter((t) => toolAllowed(token.scopes, t.name));
   const ctx: McpCtx = { tokenId: token.id, tokenName: token.name, actor: { type: "agent", id: `mcp:${token.name}`.slice(0, 60) } };
-  const reply = await handleRpc(body, TOOLS, ctx, { name: "zaki-mediabuyer", version: process.env.APP_VERSION ?? "dev", instructions: SERVER_INSTRUCTIONS });
+  const reply = await handleRpc(body, visible, ctx, { name: "zaki-mediabuyer", version: process.env.APP_VERSION ?? "dev", instructions: SERVER_INSTRUCTIONS });
 
   // every tool call is in the audit log (name and token — never the arguments: the tools audit what they changed)
   const one = Array.isArray(body) ? null : (body as { method?: string; params?: { name?: string } });

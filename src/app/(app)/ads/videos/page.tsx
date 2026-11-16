@@ -35,7 +35,7 @@ export default async function VideosPage({ searchParams }: { searchParams: { vie
     return (
       <div className="space-y-4">
         {switcher}
-        <BoardView data={board} custom={custom} canEdit={!!me && !me.demo && can(me.role, "propose_change")} />
+        <BoardView data={board} custom={custom} canEdit={!!me && !me.demo && can(me.role, "ads.propose")} />
       </div>
     );
   }

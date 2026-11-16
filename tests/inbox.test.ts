@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { can } from "@/core/roles";
 import { fromAdvice, fromApproval, fromChange, fromHandoff, fromOrder, handoffNeedsOwner, inboxCount, inboxHref, itemId, kindOfApproval, sortInbox, splitItemId, type ApprovalIn, type ChangeIn, type HandoffIn } from "@/core/inbox";
 
 const change = (over: Partial<ChangeIn> = {}): ChangeIn => ({ id: "c1", state: "pending_approval", by: "قاعدة التكبير", reasonCode: "S12", sentence: "نزيد الميزانية 20%", target: "X", before: "40$ باليوم", after: "48$ باليوم", spendDeltaDaily: 8, atIso: "2026-11-16T08:00:00.000Z", ...over });
@@ -108,7 +109,8 @@ describe("order and count", () => {
   it("the count is the open items this person can decide on", () => {
     const items = [fromChange(change()), fromApproval(approval()), fromHandoff(handoff())];
     expect(inboxCount(items)).toBe(3);
-    expect(inboxCount(items, (cap) => cap !== "inbox.decide")).toBe(1); // only the «open» action of the change needs a lesser capability
+    expect(inboxCount(items, (cap) => cap === "inbox.view")).toBe(1); // only the change has an «open» action that needs nothing more
+    expect(inboxCount(items, (cap) => can("OPS_MANAGER", cap))).toBe(1);
     expect(inboxCount([])).toBe(0);
   });
 

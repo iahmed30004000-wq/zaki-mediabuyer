@@ -91,7 +91,7 @@ export default async function RulesPage() {
       </RuleCard>
 
       <RuleCard id="orders" title="الأوامر السارية" summary={`${active.filter((o) => o.status === "active").length} فعّال · ${ended.length} بالأرشيف`}>
-        <OrdersSection orders={active} scope={{ domain: "all" }} title="الفعّالة" canCreate={!!me && !me.demo && can(me.role, "propose_change")} canEnd={owner} />
+        <OrdersSection orders={active} scope={{ domain: "all" }} title="الفعّالة" canCreate={!!me && !me.demo && can(me.role, "orders.restrict")} canEnd={owner} />
         <div className="space-y-2">
           <h3 className="text-base font-extrabold text-fg">الأرشيف</h3>
           {ended.length ? (

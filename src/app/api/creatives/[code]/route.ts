@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: { code: string } 
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
-    const caller = await requireCapability(parsed.data.action === "approve" ? "approve_within_cap" : "propose_change");
+    const caller = await requireCapability(parsed.data.action === "approve" ? "ads.approve_within_cap" : "ads.propose");
     if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
     const asset = await db.creativeAsset.findUnique({ where: { crCode: params.code } });
     if (!asset) throw new HttpError(404, "الفيديو مش موجود");

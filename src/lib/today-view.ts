@@ -19,6 +19,7 @@ import { listApprovals, type ApprovalView } from "@/server/approvals";
 import { currentMode, readMode } from "@/server/mode";
 import { getSetting } from "@/server/settings";
 import { listTasks, type TaskView } from "@/server/tasks";
+import { forViewer } from "@/server/redact";
 
 const DAY = 86_400_000;
 /** The Amman day of an instant, as the UTC midnight of its date (the same number a spend row's date has). */
@@ -69,7 +70,7 @@ const DEMO: TodayView = {
   name: null,
 };
 
-export async function loadToday(now = new Date()): Promise<TodayView> {
+async function loadTodayRaw(now = new Date()): Promise<TodayView> {
   if (process.env.MOCK_MODE === "1") return DEMO;
 
   const rules = readRules(await getSetting("campaign.rules"));
@@ -230,8 +231,14 @@ async function morningOf(now: Date, awake: boolean): Promise<MorningCard | null>
 }
 
 /** Just the «صباح الخير» card — for the page's header, whichever tab is open. */
-export async function loadMorning(now = new Date()): Promise<MorningCard | null> {
+async function loadMorningRaw(now = new Date()): Promise<MorningCard | null> {
   if (process.env.MOCK_MODE === "1") return null;
   const mode = await currentMode(now);
   return morningOf(now, mode.mode === "awake");
 }
+
+/** loadToday for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadToday = async (...a: Parameters<typeof loadTodayRaw>) => forViewer(await loadTodayRaw(...a));
+
+/** loadMorning for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadMorning = async (...a: Parameters<typeof loadMorningRaw>) => forViewer(await loadMorningRaw(...a));

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const caller = await requireCapability("owner_only");
+    const caller = await requireCapability("inbox.view");
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = DecisionInput.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
