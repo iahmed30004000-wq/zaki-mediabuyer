@@ -54,12 +54,12 @@ function Groups({ groups }: { groups: DayGroup[] }) {
  * (today's rest and any day ahead): the scheduled runs, the tasks due, the decisions that will lapse. All written by
  * the code from rows that already exist.
  */
-export function DayView({ data }: { data: DayData }) {
+export function DayView({ data, hideControls = false }: { data: DayData; hideControls?: boolean }) {
   const showDone = data.state !== "future";
   const showPlan = data.state !== "past";
   return (
     <div className="space-y-5">
-      <DayControls day={data.day} today={data.today} />
+      {hideControls ? null : <DayControls day={data.day} today={data.today} />}
       <div>
         <h2 className="text-base font-bold text-fg">{data.title}</h2>
         <p className="text-xs text-fg-muted">

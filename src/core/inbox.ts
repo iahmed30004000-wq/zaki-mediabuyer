@@ -10,7 +10,7 @@ export type InboxKind = (typeof INBOX_KINDS)[number];
 export type InboxDomain = "ads" | "ops" | "work";
 export type InboxUrgency = "red" | "orange" | "yellow";
 
-export type InboxActionKey = "approve" | "reject" | "later" | "send" | "edit" | "keep" | "cancel" | "retry" | "reassign" | "open" | "complete";
+export type InboxActionKey = "approve" | "reject" | "later" | "send" | "edit" | "keep" | "cancel" | "retry" | "reassign" | "open" | "complete" | "merge";
 
 export interface InboxAction {
   key: InboxActionKey;
@@ -50,11 +50,11 @@ export interface InboxItem {
   demo?: boolean;
 }
 
-export type InboxSource = "change" | "approval" | "handoff";
+export type InboxSource = "change" | "approval" | "handoff" | "advice";
 
 export const itemId = (source: InboxSource, rowId: string): string => `${source}:${rowId}`;
 export function splitItemId(id: string): { source: InboxSource; rowId: string } | null {
-  const m = /^(change|approval|handoff):(.+)$/.exec(id);
+  const m = /^(change|approval|handoff|advice):(.+)$/.exec(id);
   return m ? { source: m[1] as InboxSource, rowId: m[2]! } : null;
 }
 
@@ -171,6 +171,46 @@ export function fromApproval(a: ApprovalIn): InboxItem {
     actions,
     numbers: a.numbers,
     postponedUntil: a.postponedUntil,
+  };
+}
+
+export interface AdviceIn {
+  /** the job's key */
+  key: string;
+  number: number | null;
+  name: string;
+  domain: "ads" | "ops";
+  /** keep · merge · cancel · lighten · think */
+  advice: string;
+  adviceText: string | null;
+  runsFrom: string | null;
+  /** ISO — when the advice arrived (the job's last update) */
+  at: string;
+}
+
+const ADVICE_VERB: Record<string, string> = { cancel: "ألغيها", merge: "ادمجها", keep: "خلّيها", lighten: "خفّفها", think: "فكّر فيها" };
+
+/**
+ * A job whose agent advised something the owner has not decided on. The advice comes first: «ألغيها» → [ألغيها · خلّيها], «ادمجها» → [ادمجها · خلّيها];
+ * any other advice → [خلّيها · ألغيها]. The press goes to /api/work/decisions.
+ */
+export function fromAdvice(a: AdviceIn): InboxItem {
+  const first: InboxAction = a.advice === "merge" ? { key: "merge", label: "ادمجها", variant: "primary", confirm: true, capability: "work.control" } : a.advice === "cancel" ? { key: "cancel", label: "ألغيها", variant: "primary", confirm: true, capability: "work.control" } : { key: "keep", label: "خلّيها", variant: "primary", capability: "work.control" };
+  const keep: InboxAction = { key: "keep", label: "خلّيها", variant: first.key === "keep" ? "secondary" : "secondary", capability: "work.control" };
+  const cancel: InboxAction = { key: "cancel", label: "ألغيها", variant: "ghost", confirm: true, capability: "work.control" };
+  const actions = first.key === "keep" ? [first, cancel] : [first, keep];
+  return {
+    id: itemId("advice", a.key),
+    kind: "advice",
+    domain: a.domain === "ops" ? "ops" : "ads",
+    title: `${a.number ? `${a.number} · ` : ""}${a.name} — توصية الوكيل: ${ADVICE_VERB[a.advice] ?? a.advice}`,
+    why: a.adviceText,
+    effect: null,
+    from: { label: a.runsFrom ?? "Claude", jobKey: a.key },
+    at: a.at,
+    urgency: "yellow",
+    expiresAt: null,
+    actions,
   };
 }
 

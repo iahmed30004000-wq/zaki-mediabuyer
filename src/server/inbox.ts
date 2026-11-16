@@ -3,7 +3,7 @@
  * decision into one `InboxItem` (src/core/inbox.ts). The ACTIONS stay on the endpoints that already do them
  * (/api/changes/[id], /api/approvals/[id], /api/handoffs/[id]) — nothing new can spend money.
  */
-import { handoffNeedsOwner, fromApproval, fromChange, fromHandoff, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
+import { handoffNeedsOwner, fromAdvice, fromApproval, fromChange, fromHandoff, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
 import { isDemo } from "@/core/readiness";
 import { loadChanges, type ChangeView } from "@/lib/changes-view";
 import type { Caller } from "./auth";
@@ -19,17 +19,25 @@ function changeIn(c: ChangeView) {
 
 const approvalIn = (a: ApprovalView) => a;
 
+/** The jobs whose agent gave advice the owner has not answered (switched off, finished and archived ones are not asked about). */
+async function adviceItems(): Promise<InboxItem[]> {
+  const rows = await db.workflow.findMany({ where: { advice: { not: null }, decision: null, enabled: true, finishedAt: null, archivedAt: null }, orderBy: { number: "asc" } });
+  return rows.map((r) => fromAdvice({ key: r.key, number: r.number, name: r.name, domain: r.domain === "ops" ? "ops" : "ads", advice: r.advice!, adviceText: r.adviceText, runsFrom: r.runsFrom, at: r.updatedAt.toISOString() }));
+}
+
 /** Every open decision, in the order it should be read. `caller` is for the permission filter P10 adds; today the owner sees everything. */
 export async function loadInbox(_caller: Caller, opts: { limit?: number; domain?: InboxDomain } = {}): Promise<InboxItem[]> {
-  const [changes, approvals, handoffs] = await Promise.all([
+  const [changes, approvals, handoffs, advice] = await Promise.all([
     loadChanges(),
     demo() ? Promise.resolve([]) : listApprovals({ status: ["pending"] }),
     demo() ? Promise.resolve([]) : listHandoffs({ status: ["open", "claimed"] }),
+    demo() ? Promise.resolve([]) : adviceItems(),
   ]);
   const items = [
     ...changes.filter((c) => c.state === "pending_approval").map((c) => fromChange(changeIn(c))),
     ...approvals.map((a) => fromApproval(approvalIn(a))),
     ...handoffs.filter(handoffNeedsOwner).map((h) => fromHandoff(h)),
+    ...advice,
   ];
   const sorted = sortInbox(opts.domain ? items.filter((i) => i.domain === opts.domain) : items);
   return opts.limit ? sorted.slice(0, opts.limit) : sorted;
@@ -108,6 +116,10 @@ export async function getInboxItem(caller: Caller, id: string): Promise<InboxLoo
     const [a] = await listApprovals({ ids: [parts.rowId] });
     if (a) return { state: "done", item: fromApproval(approvalIn(a)), outcome: OUTCOME[a.status]?.text ?? a.status };
   }
+  if (parts.source === "advice" && !demo()) {
+    const done = await db.workflow.findUnique({ where: { key: parts.rowId } });
+    if (done && done.decision) return { state: "done", item: fromAdvice({ key: done.key, number: done.number, name: done.name, domain: done.domain === "ops" ? "ops" : "ads", advice: done.advice ?? "keep", adviceText: done.adviceText, runsFrom: done.runsFrom, at: done.updatedAt.toISOString() }), outcome: done.decision === "cancel" ? "ألغيتها" : done.decision === "merge" ? "دمجتها" : "خلّيتها" };
+  }
   if (parts.source === "change") {
     const c = (await loadChanges()).find((x) => x.id === parts.rowId);
     if (c) return { state: "done", item: fromChange(changeIn(c)), outcome: OUTCOME[c.state]?.text ?? c.state };
@@ -119,12 +131,13 @@ export async function getInboxItem(caller: Caller, id: string): Promise<InboxLoo
 export async function countInbox(): Promise<number> {
   try {
     if (demo()) return (await loadChanges()).filter((c) => c.state === "pending_approval").length;
-    const [changes, asks, handoffs] = await Promise.all([
+    const [changes, asks, handoffs, advice] = await Promise.all([
       db.changeSet.count({ where: { state: { in: ["pending_approval", "simulated"] } } }),
       db.approval.count({ where: { status: "pending" } }),
       listHandoffs({ status: ["open", "claimed"], limit: 200 }),
+      db.workflow.count({ where: { advice: { not: null }, decision: null, enabled: true, finishedAt: null, archivedAt: null } }),
     ]);
-    return changes + asks + handoffs.filter(handoffNeedsOwner).length;
+    return changes + asks + handoffs.filter(handoffNeedsOwner).length + advice;
   } catch {
     // a database that does not answer must not break every page: no number is shown
     return 0;

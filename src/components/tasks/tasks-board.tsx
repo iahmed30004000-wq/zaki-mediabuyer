@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Archive, CalendarClock, Combine, Flame, Link2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { FieldChips, FieldInput, RunButton, type CardValues } from "@/components/customize/card-fields";
@@ -236,7 +237,8 @@ function Editor({
  * on a big screen (a phone shows one column at a time). The fields and buttons the owner added show on the cards and in the sheet.
  * Nothing is deleted: «أرشف» hides a card, and a merge keeps what the others said. `lockedBoard`: a page of the owner's that is one board.
  */
-export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string }) {
+/** «حسب الشخص» groups the open tasks of the team by who does them (the late ones first); «كانبان» is the five columns. */
+export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defaultView }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string; defaultView?: "person" | "board" }) {
   const { toast } = useToast();
   const { editing, openPanel } = useShell();
   const now = useMemo(() => new Date(nowIso), [nowIso]);
@@ -249,6 +251,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard }: { 
   const [open, setOpen] = useState<TaskView | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<"person" | "board">(defaultView ?? (lockedBoard ? "board" : "person"));
 
   // after the owner changes something (a merge moved tasks, a field was added) the page is read again and the board follows
   useEffect(() => setTasks(initial), [initial]);
@@ -285,6 +288,15 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard }: { 
   const shown = useMemo(() => tasks.filter((t) => (board === "all" || t.board === board) && (!who || t.assignee === who)), [tasks, board, who]);
   const grouped = useMemo(() => groupByStatus(shown), [shown]);
   const dups = useMemo(() => duplicateGroups(shown), [shown]);
+  const people = useMemo(() => {
+    const open = shown.filter((t) => t.status !== "done");
+    const rank = (t: TaskView) => (dueState(t.dueAt, t.status, now) === "late" ? 0 : dueState(t.dueAt, t.status, now) === "today" ? 1 : 2);
+    const by = new Map<string, TaskView[]>();
+    for (const t of open) by.set(t.assignee ?? "", [...(by.get(t.assignee ?? "") ?? []), t]);
+    return [...by.entries()]
+      .map(([key, list]) => ({ key, label: key ? assigneeName(key) ?? key : "بلا مسؤول", list: [...list].sort((a, b) => rank(a) - rank(b) || (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9")) }))
+      .sort((a, b) => (a.key === "" ? 1 : b.key === "" ? -1 : a.label.localeCompare(b.label)));
+  }, [shown, now]);
   const countOf = (b: string) => tasks.filter((t) => t.status !== "done" && (b === "all" || t.board === b)).length;
 
   async function quickAdd(e: React.FormEvent) {
@@ -460,6 +472,27 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard }: { 
         </div>
       ) : null}
 
+      <Segmented label="العرض" value={view} onChange={setView} options={[{ value: "person", label: "حسب الشخص" }, { value: "board", label: "كانبان" }]} />
+
+      {view === "person" ? (
+        <div className="space-y-4">
+          {people.map((g) => (
+            <section key={g.key || "none"} aria-label={g.label} className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-extrabold text-fg">
+                {g.label}
+                <span className="rounded-full bg-surface-2 px-2 text-xs font-bold text-fg-muted">{g.list.length}</span>
+              </h3>
+              <div className="grid gap-2 md:grid-cols-2">
+                {g.list.map((t) => (
+                  <Card key={t.id} t={t} canEdit={canEdit} selected={sel.has(t.id)} now={now} boardLabel={boardLabel} custom={customOf(t)} onToggle={() => toggle(t.id)} onOpen={() => setOpen(t)} />
+                ))}
+              </div>
+            </section>
+          ))}
+          {!people.length ? <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-fg-muted">ما في مهام مفتوحة.</p> : null}
+        </div>
+      ) : (
+        <>
       <div role="tablist" aria-label="الأعمدة" className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-1 p-1 lg:hidden">
         {TASK_COLUMNS.map((c) => (
           <button key={c.key} role="tab" aria-selected={col === c.key} onClick={() => setCol(c.key)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", col === c.key ? "bg-accent text-accent-fg" : "text-fg-muted")}>
@@ -500,6 +533,8 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard }: { 
           </section>
         ))}
       </div>
+        </>
+      )}
 
       {!tasks.length ? <p className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في مهام لسا. اكتب أول وحدة فوق بسطر وحد: مين وإمتى وشو — «بكرا لميوز: اعمل 4 هوكات». أي مهمة بيطلبها Claude (أو هيرمز) بتنزل هون كمان.</p> : null}
 

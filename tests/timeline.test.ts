@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayLine, workdayBounds, workdayOf, type LineJob, type LineRun } from "@/core/timeline";
+import { busiestSlot, dayLine, workdayBounds, workdayOf, type LineJob, type LineRun } from "@/core/timeline";
 
 // Amman is UTC+3: 06:00 there is 03:00Z
 const at = (iso: string) => new Date(iso);
@@ -84,5 +84,15 @@ describe("the line of the day", () => {
   it("runs outside the working day are not drawn", () => {
     const l = dayLine(jobs, [run("old", "daily-check", "2026-11-15T06:00:00Z")], bounds, at("2026-11-16T10:00:00Z"));
     expect(l.dots.some((d) => d.runId === "old")).toBe(false);
+  });
+});
+
+describe("the busiest half hour", () => {
+  it("the half hour with the most dots; ties go to the earliest; an empty day has none", () => {
+    expect(busiestSlot([])).toBeNull();
+    const d = (at: string) => ({ at });
+    const dots = [d("2026-11-16T07:01:00Z"), d("2026-11-16T07:20:00Z"), d("2026-11-16T07:29:00Z"), d("2026-11-16T09:00:00Z"), d("2026-11-16T09:10:00Z"), d("2026-11-16T09:20:00Z")];
+    expect(busiestSlot(dots)).toEqual({ from: "2026-11-16T07:00:00.000Z", count: 3 });
+    expect(busiestSlot([d("2026-11-16T10:31:00Z"), d("2026-11-16T10:40:00Z"), d("2026-11-16T05:00:00Z"), d("2026-11-16T05:10:00Z")])).toEqual({ from: "2026-11-16T05:00:00.000Z", count: 2 });
   });
 });

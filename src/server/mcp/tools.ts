@@ -23,6 +23,7 @@ import { applyMetrics, applyStock, applyVideos } from "../push";
 import { getRules } from "../rules";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask } from "../tasks";
 import { LogRunInput, RunRefused, UnknownJob, logRun } from "../workflows";
+import { PushJobsInput, upsertJobs, type PushJobsInputT } from "../jobs";
 import { HANDOFF_STATUSES } from "@/core/handoff";
 import { REQUEST_STATUSES } from "@/core/video-board";
 import { VideoRequestComplete, claimVideoRequest, completeVideoRequest, listVideoRequests } from "../video-requests";
@@ -107,6 +108,19 @@ export const TOOLS: ToolDef<McpCtx>[] = [
         if (e instanceof RunRefused) return fail(e.message);
         throw e;
       }
+    },
+  },
+  {
+    name: "push_jobs",
+    title: "ابعت خريطة مهامك",
+    description:
+      "ابعت جدولتك كلها (من 1 لـ 40 مهمة): لكل مهمة مفتاحها (نفس مفتاح log_run)، رقمها، اسمها، المجال (ads/ops)، نوعها، موعدها (cron أو كلام)، وفروعها. مفتاح المالك بيغلب: مهمة أو فرع طفّاه ما بيرجع يشتغل، وقراره عليها ما بينمسح. الجواب بيقلك لكل مهمة: enabled (إذا false وقّف) وحالة فروعها وقرار المالك. replace=true بيعلّم اللي غاب عن القائمة «خلصت» (ولا شي بينحذف).",
+    input: PushJobsInput,
+    readOnly: false,
+    run: async (a, ctx) => {
+      const r = await upsertJobs(a as PushJobsInputT, ctx.actor);
+      const bad = r.jobs.filter((j) => !j.ok);
+      return ok(`خريطة المهام: ${r.jobs.filter((j) => j.ok).length} انسجّلت${bad.length ? `، ${bad.length} انرفضت (${bad.map((b) => `${b.key}: ${b.error}`).join(" · ")})` : ""}${r.finished.length ? `، وانعلّم «خلصت»: ${r.finished.join("، ")}` : ""}.`, { jobs: r.jobs, finished: r.finished });
     },
   },
   {
@@ -370,6 +384,7 @@ export const SERVER_INSTRUCTIONS = [
   "لا بتبعت أبداً اسم زبون أو هاتفه أو عنوانه (بينرفض). الصرف والتصنيع ورفع السقف وأي شي برّا القواعد: قرار المالك — اطلبه بـ request_approval ولا تنفّذه قبل ما يوافق.",
   "المالك بيضغط «شغّل هلق» على ورك فلو، وأي خطوة بتوقف: بتنزل بطابور التسليم. اقرا get_handoffs بأول كل تشغيل، خذ البند (claim_handoff)، نفّذه وسجّله بـ log_run، وجاوب بـ complete_handoff. خطوة وقفت عندك: create_handoff بدل ما تخليها.",
   "طلبات الفيديوهات (هوكات · سيناريو · تيست · فيديو تعبان): get_video_requests ← claim_video_request ← complete_video_request (مع new_videos لما يطلع فيديو جاهز).",
+  "خريطة مهامك: ابعتها بـ push_jobs (replace=true) بعد أي تغيير بجدولتك، والجواب بيقلك أي مهمة طفّاها المالك. اقرا enabled بجواب log_run كمان.",
   "كل نداء مسجّل. استعمل ref/key ثابت حتى لو أعدت المحاولة ما يتكرر شي.",
 ].join("\n");
 
