@@ -33,7 +33,7 @@ export async function GET() {
       driveLibrary: has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"),
       replies: has("REPLIES_BASE_URL") && has("REPLIES_TOKEN"),
       internalModel: has("INTERNAL_MODEL_BASE_URL"),
-      assistant: assistantConfigured() && !externalModelsOff(),
+      assistant: (await assistantConfigured()) && !externalModelsOff(),
       workspace: workspaceConfigFrom(process.env) !== null,
       scheduler: schedulerOn(process.env),
       stepRunner: has("N8N_BASE_URL") && has("N8N_WEBHOOK_SECRET") && (has("N8N_ALLOWED_PATHS") || has("STEP_HTTP_ALLOW")),

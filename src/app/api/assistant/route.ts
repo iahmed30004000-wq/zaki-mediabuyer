@@ -21,7 +21,7 @@ export async function GET() {
   try {
     const caller = await requireCapability("view");
     const demo = process.env.MOCK_MODE === "1";
-    const on = assistantConfigured() && !externalModelsOff();
+    const on = (await assistantConfigured()) && !externalModelsOff();
     return NextResponse.json({
       mode: demo ? "demo" : on ? "assistant" : "consultant",
       model: on && !demo ? assistantModel() : null,
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ mode: "demo", answer: "هاد الموقع على البيانات التجريبية، فالمساعد ما بيجاوب عن أرقام حقيقية. لما يشتغل على أرقامك (MOCK_MODE=0) ويتوصل مفتاح Claude، بجاوبك من أرقامك: كل رقم بمصدره، وبعمل مهام ومسودات، وما بنفّذ صرف أبداً. هلأ جرّب «اشرح لي هالشاشة».", facts: [], sources: [], artifacts: [], verified: true, unsupported: [] });
     }
 
-    if (!assistantConfigured() || externalModelsOff()) {
+    if (!(await assistantConfigured()) || externalModelsOff()) {
       const c = await consult(question, place?.label ?? "");
       return NextResponse.json({
         mode: "consultant",

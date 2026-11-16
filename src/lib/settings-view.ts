@@ -107,8 +107,8 @@ function link(key: string, label: string, configured: boolean, at: Date | null, 
   return { key, label, state: late ? "late" : "ok", detail: `آخر ${what} ${ago(at)}` };
 }
 
-function assistantLink(): SourceHealth {
-  if (!assistantConfigured()) return { key: "assistant", label: "المساعد الذكي (Claude)", state: "off", detail: "مش مربوط — ضيف ANTHROPIC_API_KEY بـ Coolify" };
+async function assistantLink(): Promise<SourceHealth> {
+  if (!(await assistantConfigured())) return { key: "assistant", label: "المساعد الذكي (Claude)", state: "off", detail: "مش مربوط — اربط المفتاح من «ربط مفتاح Claude» تحت، أو ضيف ANTHROPIC_API_KEY بـ Coolify" };
   if (externalModelsOff()) return { key: "assistant", label: "المساعد الذكي (Claude)", state: "late", detail: "المفتاح موجود، بس PRIVACY_MODE=internal_only مقفّله — غيّره لـ off" };
   return { key: "assistant", label: "المساعد الذكي (Claude)", state: "ok", detail: `موصول — ${assistantModel()}` };
 }
@@ -163,7 +163,7 @@ export async function loadEditView(): Promise<EditView | null> {
     link("telegram", "تيليجرام", has("TELEGRAM_BOT_TOKEN") && has("TELEGRAM_OWNER_CHAT_ID"), lastTelegram, 26 * 60, "تقرير انبعت"),
     link("drive", "Google Drive", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTS_FOLDER_ID"), await lastSuccess("creative.intake"), 60, "فحص للوارد"),
     link("driveLibrary", "درايف — فيديوهات وسيناريوهات", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"), await lastSuccess("drive.library"), 90, "فحص"),
-    assistantLink(),
+    await assistantLink(),
     stepRunnerLink(),
     await workspaceLink(),
     await schedulerLink(),
