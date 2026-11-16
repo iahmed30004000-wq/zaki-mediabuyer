@@ -33,9 +33,9 @@ describe("the map (v5 · P2)", () => {
     }
   });
 
-  it("«التشغيل» is not in the menu until its screens exist", () => {
-    expect(PLACES.find((p) => p.key === "ops")?.ready).toBe(false);
-    expect(READY_PLACES.map((p) => p.key)).toEqual(["home", "inbox", "work", "ads"]);
+  it("all five places are in the menu (التشغيل came with P9)", () => {
+    expect(PLACES.every((p) => p.ready)).toBe(true);
+    expect(READY_PLACES.map((p) => p.key)).toEqual(["home", "inbox", "work", "ads", "ops"]);
   });
 
   it("every place has at most four tabs and its first tab IS the place", () => {

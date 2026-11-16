@@ -12,9 +12,12 @@
  */
 import { z } from "zod";
 import { privacyHits } from "@/gateway/privacy";
+import { PEOPLE } from "./tasks";
 
-export const PUSH_LEVELS = ["account", "campaign", "adset", "ad", "product"] as const;
+export const PUSH_LEVELS = ["account", "campaign", "adset", "ad", "product", "person"] as const;
 export type PushLevel = (typeof PUSH_LEVELS)[number];
+/** The levels the paste screen offers (a team member's day is Claude's to push, not a table to paste). */
+export const PASTE_LEVELS = ["account", "campaign", "adset", "ad", "product"] as const;
 
 const count = z.number().int().nonnegative().max(1_000_000_000);
 const money = z.number().nonnegative().max(1_000_000_000);
@@ -31,7 +34,7 @@ const ReasonLine = z.object({ reason: text(80), count }).strict();
 export const MetricRow = z
   .object({
     date: day.describe("يوم الرقم — يوم العمل بتوقيت عمّان (Asia/Amman)، مثلاً 2026-11-14"),
-    level: z.enum(PUSH_LEVELS).describe("مستوى الصف: account | campaign | adset | ad | product"),
+    level: z.enum(PUSH_LEVELS).describe("مستوى الصف: account | campaign | adset | ad | product | person (أرقام موظف ليوم)"),
     id: ident.describe("رقم ميتا للعنصر (act_… أو رقم الحملة/المجموعة/الإعلان)، أو رمز المنتج لما يكون المستوى product"),
     hour: count.max(23).optional().describe("ساعة اللقطة (0–23) إذا الأرقام تراكمية لحد هالساعة. نفس اليوم بيتحدّث، ما بيتكرر"),
     name: text(200).optional().describe("اسم العنصر كما هو بميتا"),
@@ -81,9 +84,21 @@ export const MetricRow = z
     offer_breakdown: z.array(OfferLine).max(12).optional().describe("الطلبات لكل عرض: [{offer, orders, pieces?, revenue?}]"),
     aov: money.optional().describe("متوسط قيمة الطلب بهاليوم"),
     stock_units: count.optional().describe("القطع الباقية بالمخزون"),
+    // ── موظف ليوم (مستوى person فقط): id = مفتاح الموظف من دليل الفريق ──
+    claims: count.optional().describe("person: المسكات (الطلبات اللي مسكها)"),
+    no_answer: count.optional().describe("person: ما ردّ"),
+    no_answer_fast: count.optional().describe("person: ما ردّ بأقل من دقيقة"),
+    first_claim_sec: count.optional().describe("person: سرعة أول مسكة بالثواني"),
+    stuck_48h: count.optional().describe("person: عالق فوق 48 ساعة"),
+    reactivated: count.optional().describe("person: الطلبات اللي رجّعها للحياة"),
   })
   .strict();
 export type MetricRowT = z.infer<typeof MetricRow>;
+
+/** What a «person» row may carry (a team member's numbers for one day — employees, never customers). `confirmed` `rejected` `delivered` `reject_reasons` are shared with the product day. */
+export const PERSON_FIELDS = ["claims", "confirmed", "rejected", "no_answer", "no_answer_fast", "first_claim_sec", "stuck_48h", "reactivated", "delivered", "reject_reasons"] as const;
+const PERSON_ONLY = ["claims", "no_answer", "no_answer_fast", "first_claim_sec", "stuck_48h", "reactivated"] as const;
+const ROW_BASE = ["date", "level", "id", "name"] as const;
 
 /** Fields that describe a whole product's day: they only make sense on a «product» row. */
 export const PRODUCT_DAY_ONLY = ["orders_in", "unique_customers", "rejected", "cancelled", "waiting", "reject_reasons", "shipped_orders", "shipped_pieces", "out_for_delivery", "stuck", "revenue_shipped", "expected_revenue", "offer_breakdown", "aov", "stock_units"] as const;
@@ -94,7 +109,7 @@ export interface RowProblem {
 }
 
 /** Splits what was sent into rows that can be stored and rows that cannot, each refusal saying why (in Arabic). */
-export function checkRows(raw: unknown[]): { rows: { index: number; row: MetricRowT }[]; problems: RowProblem[] } {
+export function checkRows(raw: unknown[], people: readonly string[] = PEOPLE.map((p) => p.key)): { rows: { index: number; row: MetricRowT }[]; problems: RowProblem[] } {
   const rows: { index: number; row: MetricRowT }[] = [];
   const problems: RowProblem[] = [];
   raw.forEach((r, index) => {
@@ -116,6 +131,25 @@ export function checkRows(raw: unknown[]): { rows: { index: number; row: MetricR
     }
     if (p.data.real_orders !== undefined && p.data.level !== "ad" && p.data.level !== "product") {
       problems.push({ index, error: "real_orders: الطلبات الحقيقية بتنبعت على مستوى ad أو product بس" });
+      return;
+    }
+    if (p.data.level === "person") {
+      // a team member's day: the id must be a key of the team directory (never a guess), and nothing of ads or products rides along
+      if (!people.includes(p.data.id)) {
+        problems.push({ index, error: `id: «${p.data.id}» مش معروف بدليل الفريق — المفاتيح: ${people.join("، ")}` });
+        return;
+      }
+      const stray = Object.keys(p.data).find((k) => p.data[k as keyof MetricRowT] !== undefined && !(ROW_BASE as readonly string[]).includes(k) && !(PERSON_FIELDS as readonly string[]).includes(k));
+      if (stray) {
+        problems.push({ index, error: `${stray}: مش من أرقام الموظف (${PERSON_FIELDS.join(" · ")})` });
+        return;
+      }
+      rows.push({ index, row: p.data });
+      return;
+    }
+    const personOnly = PERSON_ONLY.find((k) => p.data[k] !== undefined);
+    if (personOnly) {
+      problems.push({ index, error: `${personOnly}: هالحقل لأرقام الموظف — ابعته بصف مستواه person` });
       return;
     }
     const misplaced = PRODUCT_DAY_ONLY.find((k) => p.data[k] !== undefined);

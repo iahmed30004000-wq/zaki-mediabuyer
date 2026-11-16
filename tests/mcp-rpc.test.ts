@@ -120,7 +120,7 @@ describe("zod → JSON Schema", () => {
     const s = toJsonSchema(MetricRow) as { required: string[]; additionalProperties: boolean; properties: Record<string, { type?: string; enum?: string[]; description?: string; minimum?: number; pattern?: string }> };
     expect(s.required).toEqual(["date", "level", "id"]);
     expect(s.additionalProperties).toBe(false);
-    expect(s.properties.level!.enum).toEqual(["account", "campaign", "adset", "ad", "product"]);
+    expect(s.properties.level!.enum).toEqual(["account", "campaign", "adset", "ad", "product", "person"]);
     expect(s.properties.impressions).toMatchObject({ type: "integer", minimum: 0 });
     expect(s.properties.spend!.type).toBe("number");
     expect(s.properties.date!.pattern).toBe("^\\d{4}-\\d{2}-\\d{2}$");

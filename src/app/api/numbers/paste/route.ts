@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_PASTE_CHARS, parsePaste } from "@/core/paste-parse";
-import { PUSH_LEVELS, checkRows } from "@/core/push-rows";
+import { PASTE_LEVELS, checkRows } from "@/core/push-rows";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { applyMetrics } from "@/server/push";
 
@@ -11,7 +11,7 @@ const Body = z
   .object({
     text: z.string().max(MAX_PASTE_CHARS + 1000),
     day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ بصيغة YYYY-MM-DD"),
-    level: z.enum(PUSH_LEVELS),
+    level: z.enum(PASTE_LEVELS),
     /** false (the default): only read the paste and say what it holds; true: store the rows that are fine */
     apply: z.boolean().optional(),
   })
