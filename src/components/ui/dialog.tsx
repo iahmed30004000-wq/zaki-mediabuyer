@@ -147,7 +147,7 @@ export const DialogPanel = React.forwardRef<ContentElement, DialogPanelProps>(
         aria-modal="true"
         onCloseAutoFocus={returnFocus.onCloseAutoFocus}
         className={cn(
-          "zk-pop fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col overflow-y-auto rounded-xl border border-border bg-surface-1 text-fg shadow-lg focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+          "zk-pop fixed inset-0 z-50 m-auto flex h-fit max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] flex-col overflow-y-auto rounded-card border border-border bg-surface-1 text-fg shadow-lg focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
           SIZES[size],
           className,
         )}

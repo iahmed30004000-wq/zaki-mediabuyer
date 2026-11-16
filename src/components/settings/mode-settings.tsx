@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Input, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import type { NightPermission, OwnerMode } from "@/core/mode";
@@ -71,9 +72,9 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
               <span className="flex-1 text-fg">{p.label}</span>
               <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.key}</span>
               <span className="text-xs text-fg-muted">{p.cap ? `حد ${p.cap}$` : "بلا صرف"}</span>
-              <Button size="icon" variant="ghost" aria-label={`شيل ${p.label}`} disabled={busy} onClick={() => { const next = perms.filter((x) => x.key !== p.key); setPerms(next); void save({ nightPermissions: next }); }}>
+              <IconButton aria-label={`شيل ${p.label}`} disabled={busy} onClick={() => { const next = perms.filter((x) => x.key !== p.key); setPerms(next); void save({ nightPermissions: next }); }}>
                 <X className="size-4" />
-              </Button>
+              </IconButton>
             </li>
           ))}
           {!perms.length ? <li className="text-xs text-fg-muted">ولا مهمة مسموحة بالليل.</li> : null}

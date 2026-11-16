@@ -53,7 +53,9 @@
  * The product is Arabic and right-to-left only (`<html dir="rtl">`): "start" is the RIGHT edge. The corners are
  * drawn at the top right and turned for the left; a veil is heaviest at the right, where the words begin.
  */
-import { THEME_KEYS, type ThemeKey } from "./registry";
+/** The four retired themes (kept only so this dead module still type-checks until P12 deletes it). */
+const THEME_KEYS = ["iznik", "observatory", "sunset-city", "wudooh"] as const;
+type ThemeKey = (typeof THEME_KEYS)[number];
 
 // ───────────────────────────────────────── the places ─────────────────────────────────────────
 
