@@ -3,7 +3,7 @@
  * boards, fields and buttons. The rules are src/core/customize.ts; this only gathers (and never lets a database that does not
  * answer take the shell down: the built-ins are the fallback).
  */
-import { activeFields, effectiveBoards, effectivePages, type ButtonCfgT, type EffBoard, type EffPage, type FieldCfgT } from "@/core/customize";
+import { activeFields, effectiveBoards, effectivePages, type ButtonCfgT, type EffBoard, type EffPage, type Entity, type FieldCfgT } from "@/core/customize";
 import { getValues, type ValueMap } from "@/server/customize";
 import { getUiConfig } from "@/server/ui-config";
 import { BUILTIN_PAGES } from "./nav";
@@ -28,5 +28,15 @@ export async function loadTasksCustom(taskIds: string[]): Promise<TasksCustom> {
     fields: activeFields(cfg, "task").filter((f) => !f.hidden),
     buttons: cfg.buttons.filter((b) => b.entity === "task" && !b.archivedAt && !b.hidden),
     values: await getValues("task", taskIds),
+  };
+}
+
+/** The owner's fields, buttons and typed values for one kind of card that has no sheet of its own (a video, a workflow). */
+export async function loadEntityCustom(entity: Exclude<Entity, "task">, ids: string[]): Promise<{ fields: FieldCfgT[]; buttons: ButtonCfgT[]; values: ValueMap }> {
+  const cfg = await getUiConfig();
+  return {
+    fields: activeFields(cfg, entity).filter((f) => !f.hidden),
+    buttons: cfg.buttons.filter((b) => b.entity === entity && !b.archivedAt && !b.hidden),
+    values: await getValues(entity, ids),
   };
 }

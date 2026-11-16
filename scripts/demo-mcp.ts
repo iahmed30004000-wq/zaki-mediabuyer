@@ -36,6 +36,8 @@ import { GET as vrList } from "../src/app/api/v1/video-requests/route";
 import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/route";
 import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
 import { loadBoard } from "../src/lib/videos-board";
+import { runScheduled } from "../src/server/scheduler";
+import { clearChat, loadChat, saveChat } from "../src/server/assistant/chat";
 import { syncDriveLibrary } from "../src/jobs/drive-library";
 import { WorkflowPatch, createWorkflow, listVersions, logRun, updateWorkflow } from "../src/server/workflows";
 import { ExecRefused, executeWorkflow, sweepTimeouts, type ExecDeps } from "../src/server/step-exec";
@@ -985,6 +987,49 @@ async function clean() {
     const sug = (await panelData()).suggestions;
     check(sug.some((s) => s.kind === "board" && s.op?.op === "board.merge"), "the detector suggests merging two boards named alike", sug.map((s) => s.text));
 
+    // fields and buttons on videos and workflows, a field changing type, and a row dropped onto another
+    const board = await loadBoard();
+    const vid = board.products.flatMap((p) => [...p.winners, ...p.learning, ...p.rest])[0];
+    check(!!vid, "the video board has a video to hang a field on (the demo bank's)");
+    if (vid) {
+      const fv = (await op({ op: "field.add", entity: "video", label: "DEMO ملاحظة فيديو", type: "text" })).config.fields.find((f) => f.label === "DEMO ملاحظة فيديو")!.id;
+      const fw = (await op({ op: "field.add", entity: "workflow", label: "DEMO مسؤول", type: "person" })).config.fields.find((f) => f.label === "DEMO مسؤول")!.id;
+      await setValues("video", vid.key, { [fv]: "هوك أقوى بالثانية 3" }, owner);
+      await setValues("workflow", "daily-check", { [fw]: "laith" }, owner);
+      const got = { v: (await getValues("video", [vid.key]))[vid.key]?.[fv], w: (await getValues("workflow", ["daily-check"]))["daily-check"]?.[fw] };
+      check(got.v === "هوك أقوى بالثانية 3" && got.w === "laith", "a video and a workflow keep what is typed into their fields", got);
+      check((await setValues("video", "no-such-video", { [fv]: "x" }, owner).then(() => "", (e: Error) => e.message)).includes("مش موجود") && (await setValues("workflow", "no-such-flow", { [fw]: "laith" }, owner).then(() => "", (e: Error) => e.message)).includes("مش موجود"), "a card that does not exist takes no value");
+      check((await setValues("video", vid.key, { [fw]: "laith" }, owner).then(() => "", (e: Error) => e.message)).includes("مش معروف"), "a field of one kind of card is not written on another");
+      const bv = (await op({ op: "button.add", entity: "video", label: "DEMO اسأل عن الفيديو", workflow: "daily-check" })).config.buttons.find((b) => b.label === "DEMO اسأل عن الفيديو")!.id;
+      const bw = (await op({ op: "button.add", entity: "workflow", label: "DEMO راجعه", workflow: "daily-check" })).config.buttons.find((b) => b.label === "DEMO راجعه")!.id;
+      const rv = await runButton(bv, "video", vid.key, owner);
+      const rw = await runButton(bw, "workflow", "daily-check", owner);
+      const ivp = rv.handoff.context.inputs ?? {};
+      const iwp = rw.handoff.context.inputs ?? {};
+      check(rv.created && ivp.card === "video" && ivp.card_id === vid.key && ivp.card_title === vid.label && ivp["DEMO ملاحظة فيديو"] === "هوك أقوى بالثانية 3", "a button on a video hands Claude that video's own words and fields", ivp);
+      check(rw.created && iwp.card === "workflow" && iwp.card_id === "daily-check" && iwp["DEMO مسؤول"] === "laith", "a button on a workflow hands Claude that workflow's words and fields", iwp);
+      check((await runButton(bv, "workflow", "daily-check", owner).then(() => "", (e: Error) => e.message)).includes("الزر مش موجود"), "a video's button does not run on a workflow card");
+      await db.handoff.updateMany({ where: { workflowKey: "daily-check", status: "open" }, data: { status: "cancelled" } });
+    }
+
+    // a text field whose values are all numbers becomes a number: each stored value is rewritten as one
+    const fq = (await op({ op: "field.add", entity: "task", label: "DEMO كمية", type: "text" })).config.fields.find((f) => f.label === "DEMO كمية")!.id;
+    await setValues("task", t[0]!.id, { [fq]: "12" }, owner);
+    await setValues("task", t[1]!.id, { [fq]: " 7.5 " }, owner);
+    const cv = await op({ op: "field.convert", id: fq, to: "number" });
+    const qv = await getValues("task", [t[0]!.id, t[1]!.id]);
+    check(cv.converted === 2 && qv[t[0]!.id]![fq] === 12 && qv[t[1]!.id]![fq] === 7.5 && (await getUiConfig()).fields.find((f) => f.id === fq)!.type === "number", "changing a field's type rewrites every stored value for the new type («12» → 12)", { converted: cv.converted, qv });
+    const bad = await refused({ op: "field.convert", id: fq, to: "date" });
+    const still = await getValues("task", [t[0]!.id]);
+    check(bad.includes("قيمة من 2") && still[t[0]!.id]![fq] === 12 && (await getUiConfig()).fields.find((f) => f.id === fq)!.type === "number", "…and one whose values do not fit stops, saying how many; nothing changed", bad);
+
+    // dropping a field onto another puts it in its place
+    const d1 = (await op({ op: "field.add", entity: "task", label: "DEMO سحب 1", type: "text" })).config.fields.find((f) => f.label === "DEMO سحب 1")!.id;
+    const d2 = (await op({ op: "field.add", entity: "task", label: "DEMO سحب 2", type: "text" })).config.fields.find((f) => f.label === "DEMO سحب 2")!.id;
+    await op({ op: "field.drop", id: d2, onto: d1 });
+    const ord = (await getUiConfig()).fields.filter((f) => f.entity === "task" && [d1, d2].includes(f.id)).map((f) => f.id);
+    check(ord[0] === d2 && ord[1] === d1, "a field dropped onto another takes its place", ord);
+
     // the routes: the owner only, and on the demo nothing is written
     const uiGet = await (await uiGet_()).json();
     const uiPostDemo = await (await uiPost(new Request("http://localhost:3140/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "page.hide", key: "ads", hidden: true }) }))).json();
@@ -1095,6 +1140,55 @@ async function clean() {
     const t1 = await loadToday();
     check((t1.today.orders ?? 0) === (t0.today.orders ?? 0) + 1, "an order made at 01:30 Amman time counts for today", { before: t0.today.orders, after: t1.today.orders });
     check((t1.yesterday.orders ?? 0) === (t0.yesterday.orders ?? 0) + 1, "…and one made at 23:30 the night before counts for yesterday", { before: t0.yesterday.orders, after: t1.yesterday.orders });
+  }
+
+  // ── v3 S: the site's own clock for scheduled workflows, and the assistant's kept conversation ──
+  {
+    const me = { type: "user" as const, id: "demo-mcp-user" };
+    const cfg = siteConfigFrom({ N8N_BASE_URL: "https://n8n.example.com", N8N_WEBHOOK_SECRET: "demo-secret-value", N8N_ALLOWED_PATHS: "daily-ops" });
+    const reached: string[] = [];
+    const deps: ExecDeps = { cfg, fetch: (async (u: URL | string) => (reached.push(String(u)), new Response('{"ok":true}', { status: 200 }))) as typeof fetch, resolve: async () => ["93.184.216.34"], sleep: async () => undefined, now: () => new Date(), telegram: null };
+    const chain = (executor: "claude_mcp" | "n8n", target?: string) => ({
+      nodes: [
+        { id: "t", type: "trigger" as const, label: "بداية" },
+        { id: "a", type: "step" as const, label: "خطوة", executor, permission: "green" as const, ...(target ? { target, prompt: "اقرا أرقام" } : {}) },
+      ],
+      edges: [{ from: "t", to: "a" }],
+    });
+    const wfClaude = await createWorkflow({ name: "DEMO جدولة Claude", graph: chain("claude_mcp") }, me);
+    const wfSite = await createWorkflow({ name: "DEMO جدولة موقع", graph: chain("n8n", "daily-ops") }, me);
+    const wfOff = await createWorkflow({ name: "DEMO جدولة مطفية", graph: chain("claude_mcp") }, me);
+    const mine = [wfClaude.key, wfSite.key, wfOff.key];
+    await db.workflow.updateMany({ where: { key: { in: mine } }, data: { schedule: "7 3 * * *", enabled: true } });
+    await db.workflow.update({ where: { key: wfOff.key }, data: { enabled: false } });
+    const at = new Date(Date.UTC(2026, 10, 16, 0, 7, 30)); // 03:07 in Amman: only these three are due
+
+    const off = await runScheduled(at, deps, {});
+    check(!!off.note && !off.fired.length && !(await db.handoff.count({ where: { workflowKey: { in: mine } } })), "SITE_SCHEDULER off: the clock does nothing");
+    const on = { SITE_SCHEDULER: "1" };
+    const r1 = await runScheduled(at, deps, on);
+    const fired = r1.fired.filter((f) => mine.includes(f.key));
+    check(fired.find((f) => f.key === wfClaude.key)?.how === "claude" && fired.find((f) => f.key === wfSite.key)?.how === "site" && !fired.some((f) => f.key === wfOff.key), "on: a Claude-only workflow becomes a «run now» request, one with n8n steps runs from the site, a switched-off one is left alone", fired);
+    const open = await db.handoff.findFirst({ where: { workflowKey: wfClaude.key, kind: "manual_run", status: "open" } });
+    check(!!open && reached.includes("https://n8n.example.com/webhook/daily-ops"), "…the request is in the handoff queue, and the n8n webhook was called, signed");
+    const r2 = await runScheduled(new Date(at.getTime() + 60_000), deps, on);
+    check(!r2.fired.some((f) => mine.includes(f.key)) && reached.length === 1, "the same due minute is never fired twice (a tick a minute later finds it done)");
+    const r3 = await runScheduled(new Date(at.getTime() + 30 * 60_000), deps, on);
+    check(!r3.fired.some((f) => mine.includes(f.key)), "a time that was missed long ago is not replayed");
+    check((await db.auditLog.count({ where: { action: "workflow.scheduled", targetId: { in: mine } } })) === 2, "each firing is in the audit log");
+    await db.jobRun.deleteMany({ where: { job: { in: mine.map((k) => `workflow.fire:${k}`) } } });
+    await db.auditLog.deleteMany({ where: { action: "workflow.scheduled", targetId: { in: mine } } });
+
+    // the kept conversation: saved as shown, one per person, and nothing private is kept
+    const uid = "demo-mcp-chat";
+    await clearChat(uid);
+    const saved = await saveChat(uid, [{ me: true, text: "كم الصرف؟" }, { me: false, text: "150$ من «الأرقام»", facts: [{ label: "الصرف", value: "150$" }] }]);
+    const back = await loadChat(uid);
+    check(saved && back.length === 2 && back[1]!.text.startsWith("150$") && Array.isArray((back[1] as { facts?: unknown }).facts), "the conversation comes back as the panel showed it, with its numbers", back);
+    const phone = await saveChat(uid, [{ me: true, text: "كلّم الزبون على 0944123456" }]);
+    check(!phone && (await loadChat(uid)).length === 2, "a message with a phone number is not kept, and what was kept stays");
+    await clearChat(uid);
+    check((await loadChat(uid)).length === 0, "«محادثة جديدة» clears it");
   }
 
   // ── v3 W: Zaki Workspace's one-way door — tasks go out once, and «done» comes back ──

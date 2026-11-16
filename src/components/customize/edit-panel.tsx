@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Combine, Eye, EyeOff, LayoutList, Plus, RotateCcw, Smartphone, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Combine, Eye, EyeOff, GripVertical, LayoutList, Plus, RotateCcw, Smartphone, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
-import { BOARD_TEMPLATES, FIELD_TYPES, FIELD_TYPE_AR, MAX_PHONE_BAR, MAX_SIDEBAR, type FieldType, type UiOpShape } from "@/core/customize";
+import { BOARD_TEMPLATES, ENTITIES, ENTITY_AR, FIELD_TYPES, FIELD_TYPE_AR, MAX_PHONE_BAR, MAX_SIDEBAR, type Entity, type FieldType, type UiOpShape } from "@/core/customize";
 import { useShell, type PanelTab } from "@/components/shell/shell-context";
 import { cn } from "@/lib/utils";
 import type { PanelData } from "@/server/customize";
@@ -79,8 +79,35 @@ function NameInput({ value, onSave, max = 40, disabled }: { value: string; onSav
   );
 }
 
-function Card({ children, dim }: { children: React.ReactNode; dim?: boolean }) {
-  return <li className={cn("space-y-2 rounded-xl border border-border bg-surface-1 p-2.5", dim && "opacity-60")}>{children}</li>;
+/**
+ * A row of a list. With `drag` it can be picked up by its grip and dropped on another row of the same list (`list` keeps one
+ * list from dropping on another): the dropped row takes the place of the one it lands on. The arrows beside it do the same by one
+ * step — they are the way on a phone, where a finger cannot drag a row.
+ */
+function Card({ children, dim, drag }: { children: React.ReactNode; dim?: boolean; drag?: { list: string; id: string; onDrop: (from: string, onto: string) => void } }) {
+  const [over, setOver] = useState(false);
+  return (
+    <li
+      onDragOver={drag ? (e) => { if (e.dataTransfer.types.includes(`mb/${drag.list}`)) { e.preventDefault(); setOver(true); } } : undefined}
+      onDragLeave={drag ? () => setOver(false) : undefined}
+      onDrop={drag ? (e) => { e.preventDefault(); setOver(false); const from = e.dataTransfer.getData(`mb/${drag.list}`); if (from && from !== drag.id) drag.onDrop(from, drag.id); } : undefined}
+      className={cn("space-y-2 rounded-xl border border-border bg-surface-1 p-2.5", dim && "opacity-60", over && "border-accent bg-accent/5")}
+    >
+      {drag ? (
+        <span
+          draggable
+          role="img"
+          aria-label="اسحب لتغيّر الترتيب"
+          title="اسحب لتغيّر الترتيب"
+          onDragStart={(e) => { e.dataTransfer.setData(`mb/${drag.list}`, drag.id); e.dataTransfer.effectAllowed = "move"; }}
+          className="float-end hidden cursor-grab text-fg-muted active:cursor-grabbing sm:inline-flex"
+        >
+          <GripVertical className="size-4" />
+        </span>
+      ) : null}
+      {children}
+    </li>
+  );
 }
 
 const Chip = ({ children, tone }: { children: React.ReactNode; tone?: "accent" }) => <span className={cn("rounded-md px-1.5 py-0.5 text-[11px]", tone === "accent" ? "bg-accent/10 text-accent" : "bg-surface-2 text-fg-muted")}>{children}</span>;
@@ -114,6 +141,21 @@ function ScopePicker({ boards, value, onChange }: { boards: { key: string; label
     </fieldset>
   );
 }
+
+/** Which kind of card the fields or buttons below are for: a task, a video or a workflow. */
+function EntityPick({ value, onChange }: { value: Entity; onChange: (e: Entity) => void }) {
+  return (
+    <div role="radiogroup" aria-label="نوع البطاقة" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
+      {ENTITIES.map((e) => (
+        <button key={e} type="button" role="radio" aria-checked={value === e} onClick={() => onChange(e)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", value === e ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+          {ENTITY_AR[e]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const ENTITY_ONE: Record<Entity, string> = { task: "المهمة", video: "الفيديو", workflow: "الورك فلو" };
 
 const optionLines = (text: string) => text.split(/\n|،|,/).map((x) => x.trim()).filter(Boolean);
 
@@ -166,7 +208,7 @@ function PagesTab({ data, run, busy }: { data: PanelData; run: Run; busy: boolea
         {list.map((p) => {
           const others = list.filter((x) => x.key !== p.key);
           return (
-            <Card key={p.key} dim={p.hidden}>
+            <Card key={p.key} dim={p.hidden} drag={p.hidden ? undefined : { list: "pages", id: p.key, onDrop: (from, onto) => void run({ op: "page.drop", key: from, onto }) }}>
               <div className="flex items-center gap-1.5">
                 <NameInput value={p.label} onSave={(v) => void run({ op: "page.rename", key: p.key, label: v })} disabled={busy} />
                 <IconBtn label="فوق" disabled={busy || p.hidden} onClick={() => void run({ op: "page.move", key: p.key, dir: -1 })}>
@@ -268,7 +310,7 @@ function BoardsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
         {list.map((b) => {
           const others = list.filter((x) => x.key !== b.key);
           return (
-            <Card key={b.key} dim={b.hidden}>
+            <Card key={b.key} dim={b.hidden} drag={b.hidden ? undefined : { list: "boards", id: b.key, onDrop: (from, onto) => void run({ op: "board.drop", key: from, onto }) }}>
               <div className="flex items-center gap-1.5">
                 <NameInput value={b.label} onSave={(v) => void run({ op: "board.rename", key: b.key, label: v })} disabled={busy} />
                 <IconBtn label="فوق" disabled={busy || b.hidden} onClick={() => void run({ op: "board.move", key: b.key, dir: -1 })}>
@@ -343,11 +385,13 @@ function BoardsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
 // ───────────────────────────── fields ─────────────────────────────
 
 function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boolean }) {
-  const list = data.fields.filter((f) => f.entity === "task" && !f.archivedAt);
+  const [entity, setEntity] = useState<Entity>("task");
+  const list = data.fields.filter((f) => f.entity === entity && !f.archivedAt);
   const boards = data.boards.filter((b) => !b.archived);
   const labelOf = (key: string) => boards.find((b) => b.key === key)?.label ?? key;
   const [label, setLabel] = useState("");
   const [type, setType] = useState<FieldType>("text");
+  const [convert, setConvert] = useState<Record<string, { to: FieldType; options: string }>>({});
   const [options, setOptions] = useState("");
   const [scope, setScope] = useState<string[]>([]);
   const [onCard, setOnCard] = useState(true);
@@ -355,13 +399,14 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
   const [into, setInto] = useState<Record<string, string>>({});
   return (
     <div className="space-y-3">
-      <p className="text-xs leading-5 text-fg-muted">حقول بطاقات المهام: نص · رقم · تاريخ · اختيار · شخص · رابط. الحقل اللي فيه قيم ما بينحذف — بتخفيه (بتضل القيم محفوظة) أو بتدمجه بحقل تاني من نفس النوع.</p>
+      <EntityPick value={entity} onChange={setEntity} />
+      <p className="text-xs leading-5 text-fg-muted">حقول بطاقات {ENTITY_AR[entity]}: نص · رقم · تاريخ · اختيار · شخص · رابط. الحقل اللي فيه قيم ما بينحذف — بتخفيه (بتضل القيم محفوظة) أو بتدمجه بحقل تاني من نفس النوع، أو بتغيّر نوعه لو كل قيمه بتنفع للنوع الجديد.</p>
       <ul className="space-y-2">
         {list.map((f) => {
           const others = list.filter((x) => x.id !== f.id && x.type === f.type);
           const d = draft[f.id] ?? {};
           return (
-            <Card key={f.id} dim={f.hidden}>
+            <Card key={f.id} dim={f.hidden} drag={{ list: `fields-${entity}`, id: f.id, onDrop: (from, onto) => void run({ op: "field.drop", id: from, onto }) }}>
               <div className="flex items-center gap-1.5">
                 <NameInput value={f.label} onSave={(v) => void run({ op: "field.update", id: f.id, label: v })} disabled={busy} />
                 <IconBtn label="فوق" disabled={busy} onClick={() => void run({ op: "field.move", id: f.id, dir: -1 })}>
@@ -380,7 +425,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
               <div className="flex flex-wrap items-center gap-1.5">
                 <Chip tone="accent">{FIELD_TYPE_AR[f.type]}</Chip>
                 <Chip>{f.values} قيمة</Chip>
-                <Chip>{f.boards?.length ? f.boards.map(labelOf).join("، ") : "كل اللوحات"}</Chip>
+                {entity === "task" ? <Chip>{f.boards?.length ? f.boards.map(labelOf).join("، ") : "كل اللوحات"}</Chip> : null}
                 {f.hidden ? <Chip>مخفي</Chip> : null}
               </div>
               <More>
@@ -395,10 +440,31 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
                     </Button>
                   </div>
                 ) : null}
-                <ScopePicker boards={boards} value={d.scope ?? f.boards ?? []} onChange={(v) => setDraft((m) => ({ ...m, [f.id]: { ...m[f.id], scope: v } }))} />
-                <Button size="sm" variant="secondary" disabled={busy || d.scope === undefined} onClick={() => void run({ op: "field.update", id: f.id, boards: d.scope!.length ? d.scope! : null })}>
-                  احفظ المكان
-                </Button>
+                {entity === "task" ? (
+                  <>
+                    <ScopePicker boards={boards} value={d.scope ?? f.boards ?? []} onChange={(v) => setDraft((m) => ({ ...m, [f.id]: { ...m[f.id], scope: v } }))} />
+                    <Button size="sm" variant="secondary" disabled={busy || d.scope === undefined} onClick={() => void run({ op: "field.update", id: f.id, boards: d.scope!.length ? d.scope! : null })}>
+                      احفظ المكان
+                    </Button>
+                  </>
+                ) : null}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <select aria-label="غيّر النوع" value={convert[f.id]?.to ?? ""} onChange={(e) => setConvert((m) => ({ ...m, [f.id]: { to: e.target.value as FieldType, options: m[f.id]?.options ?? "" } }))} className={control}>
+                      <option value="">غيّر النوع لـ…</option>
+                      {FIELD_TYPES.filter((t) => t !== f.type).map((t) => (
+                        <option key={t} value={t}>
+                          {FIELD_TYPE_AR[t]}
+                        </option>
+                      ))}
+                    </select>
+                    <Button size="sm" variant="secondary" disabled={busy || !convert[f.id]?.to} onClick={() => void run({ op: "field.convert", id: f.id, to: convert[f.id]!.to, ...(convert[f.id]!.to === "select" ? { options: optionLines(convert[f.id]!.options) } : {}) })}>
+                      غيّر
+                    </Button>
+                  </div>
+                  {convert[f.id]?.to === "select" ? <textarea value={convert[f.id]!.options} onChange={(e) => setConvert((m) => ({ ...m, [f.id]: { to: "select", options: e.target.value } }))} rows={3} placeholder="الخيارات: واحد بكل سطر — لازم تغطّي كل القيم المكتوبة" className={cn(control, "py-2 leading-6")} /> : null}
+                  <p className="text-[11px] leading-5 text-fg-muted">بينغيّر بس لو كل القيم المكتوبة ({f.values}) بتنفع للنوع الجديد؛ وإلا بيوقف وبيقلّك كم قيمة ما بتنفع.</p>
+                </div>
                 {others.length ? (
                   <div className="flex items-center gap-2">
                     <select aria-label="ادمجه بـ" value={into[f.id] ?? ""} onChange={(e) => setInto((m) => ({ ...m, [f.id]: e.target.value }))} className={control}>
@@ -429,14 +495,14 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
         className="space-y-2 rounded-xl border border-dashed border-border p-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          const ok = await run({ op: "field.add", entity: "task", label, type, ...(type === "select" ? { options: optionLines(options) } : {}), boards: scope.length ? scope : null, onCard });
+          const ok = await run({ op: "field.add", entity, label, type, ...(type === "select" ? { options: optionLines(options) } : {}), boards: entity === "task" && scope.length ? scope : null, onCard });
           if (ok) {
             setLabel("");
             setOptions("");
           }
         }}
       >
-        <p className="text-sm font-semibold text-fg">＋ حقل جديد على بطاقة المهمة</p>
+        <p className="text-sm font-semibold text-fg">＋ حقل جديد على بطاقة {ENTITY_ONE[entity]}</p>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="اسم الحقل (مثلاً: رقم الشحنة)" maxLength={40} dir="auto" className={control} />
         <select value={type} onChange={(e) => setType(e.target.value as FieldType)} className={control} aria-label="النوع">
           {FIELD_TYPES.map((t) => (
@@ -446,7 +512,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
           ))}
         </select>
         {type === "select" ? <textarea value={options} onChange={(e) => setOptions(e.target.value)} rows={3} placeholder="الخيارات: واحد بكل سطر (اتنين على الأقل)" className={cn(control, "py-2 leading-6")} /> : null}
-        <ScopePicker boards={boards} value={scope} onChange={setScope} />
+        {entity === "task" ? <ScopePicker boards={boards} value={scope} onChange={setScope} /> : null}
         <label className="flex min-h-9 items-center gap-2 text-sm text-fg">
           <input type="checkbox" checked={onCard} onChange={(e) => setOnCard(e.target.checked)} className="size-4 accent-[var(--accent,#2563eb)]" />
           يطلع على البطاقة نفسها (مش بس جوّاها)
@@ -463,7 +529,8 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
 // ───────────────────────────── buttons ─────────────────────────────
 
 function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boolean }) {
-  const list = data.buttons.filter((b) => b.entity === "task" && !b.archivedAt);
+  const [entity, setEntity] = useState<Entity>("task");
+  const list = data.buttons.filter((b) => b.entity === entity && !b.archivedAt);
   const boards = data.boards.filter((b) => !b.archived);
   const labelOf = (key: string) => boards.find((b) => b.key === key)?.label ?? key;
   const [label, setLabel] = useState("");
@@ -473,10 +540,11 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
   const [draft, setDraft] = useState<Record<string, string[]>>({});
   return (
     <div className="space-y-3">
-      <p className="text-xs leading-5 text-fg-muted">زر على بطاقة المهمة بيطلب من Claude يشغّل ورك فلو على هالبطاقة (متل «شغّل هلق»)، وبيبعتله عنوانها ولوحتها وحقولها. ما بيصرف ولا بيلمس ميتا.</p>
+      <EntityPick value={entity} onChange={setEntity} />
+      <p className="text-xs leading-5 text-fg-muted">زر على بطاقة {ENTITY_ONE[entity]} بيطلب من Claude يشغّل ورك فلو على هالبطاقة (متل «شغّل هلق»)، وبيبعتله عنوانها وحقولها. ما بيصرف ولا بيلمس ميتا.</p>
       <ul className="space-y-2">
         {list.map((b) => (
-          <Card key={b.id} dim={b.hidden}>
+          <Card key={b.id} dim={b.hidden} drag={{ list: `buttons-${entity}`, id: b.id, onDrop: (from, onto) => void run({ op: "button.drop", id: from, onto }) }}>
             <div className="flex items-center gap-1.5">
               <NameInput value={b.label} max={30} onSave={(v) => void run({ op: "button.update", id: b.id, label: v })} disabled={busy} />
               <IconBtn label="فوق" disabled={busy} onClick={() => void run({ op: "button.move", id: b.id, dir: -1 })}>
@@ -491,7 +559,7 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <Chip tone="accent">{data.workflows.find((w) => w.key === b.workflow)?.name ?? b.workflow}</Chip>
-              <Chip>{b.boards?.length ? b.boards.map(labelOf).join("، ") : "كل اللوحات"}</Chip>
+              {entity === "task" ? <Chip>{b.boards?.length ? b.boards.map(labelOf).join("، ") : "كل اللوحات"}</Chip> : null}
               {b.confirm === false ? <Chip>بلا تأكيد</Chip> : null}
             </div>
             <More>
@@ -506,10 +574,14 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
                 <input type="checkbox" checked={b.confirm !== false} onChange={(e) => void run({ op: "button.update", id: b.id, confirm: e.target.checked })} className="size-4 accent-[var(--accent,#2563eb)]" />
                 يسأل «متأكد؟» قبل ما يشتغل
               </label>
-              <ScopePicker boards={boards} value={draft[b.id] ?? b.boards ?? []} onChange={(v) => setDraft((m) => ({ ...m, [b.id]: v }))} />
-              <Button size="sm" variant="secondary" disabled={busy || draft[b.id] === undefined} onClick={() => void run({ op: "button.update", id: b.id, boards: draft[b.id]!.length ? draft[b.id]! : null })}>
-                احفظ المكان
-              </Button>
+              {entity === "task" ? (
+                <>
+                  <ScopePicker boards={boards} value={draft[b.id] ?? b.boards ?? []} onChange={(v) => setDraft((m) => ({ ...m, [b.id]: v }))} />
+                  <Button size="sm" variant="secondary" disabled={busy || draft[b.id] === undefined} onClick={() => void run({ op: "button.update", id: b.id, boards: draft[b.id]!.length ? draft[b.id]! : null })}>
+                    احفظ المكان
+                  </Button>
+                </>
+              ) : null}
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run({ op: "button.archive", id: b.id })}>
                 <Trash2 className="size-3.5" />
                 احذفه (بترجّعه من «المحذوفات»)
@@ -524,10 +596,10 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
         className="space-y-2 rounded-xl border border-dashed border-border p-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (await run({ op: "button.add", entity: "task", label, workflow, boards: scope.length ? scope : null, confirm })) setLabel("");
+          if (await run({ op: "button.add", entity, label, workflow, boards: entity === "task" && scope.length ? scope : null, confirm })) setLabel("");
         }}
       >
-        <p className="text-sm font-semibold text-fg">＋ زر جديد على بطاقة المهمة</p>
+        <p className="text-sm font-semibold text-fg">＋ زر جديد على بطاقة {ENTITY_ONE[entity]}</p>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="اسم الزر (مثلاً: ابعت للتأكيد)" maxLength={30} dir="auto" className={control} />
         <select value={workflow} onChange={(e) => setWorkflow(e.target.value)} className={control} aria-label="الورك فلو">
           <option value="">أي ورك فلو بيشغّل؟</option>
@@ -537,7 +609,7 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
             </option>
           ))}
         </select>
-        <ScopePicker boards={boards} value={scope} onChange={setScope} />
+        {entity === "task" ? <ScopePicker boards={boards} value={scope} onChange={setScope} /> : null}
         <label className="flex min-h-9 items-center gap-2 text-sm text-fg">
           <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} className="size-4 accent-[var(--accent,#2563eb)]" />
           يسأل «متأكد؟» قبل ما يشتغل

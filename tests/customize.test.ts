@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BOARD_TEMPLATES, LIMITS, MAX_PHONE_BAR, MAX_SIDEBAR, UiConfigSchema, UiOpSchema, activeFields, addBoard, addButton, addField, addPage, archiveBoard, archiveButton, archiveField, archivePage,
   boardWords, buttonsFor, cleanHref, cleanLabel, effectiveBoards, effectivePages, emptyUi, fieldsFor, mergeBoards, mergeFields, mergePages, moveBoard, moveButton, moveField, movePage,
+  convertField, moveBoardTo, moveButtonTo, moveFieldTo, movePageTo, ENTITIES,
   parseUiConfig, renameBoard, renamePage, resolveBoard, restoreBoard, restoreButton, restoreField, restorePage, setBoardHidden, setPageHidden, setPageMobile, suggestMerges, updateButton, updateField,
   validateValue, valueText, visibleBoards, visiblePages, type BuiltinPage, type UiConfig, type UiEdit,
 } from "@/core/customize";
@@ -452,5 +453,99 @@ describe("the edit API and the stored document", () => {
     expect(UiConfigSchema.safeParse(c).success).toBe(true);
     expect(parseUiConfig(JSON.parse(JSON.stringify(c)))).toEqual(c);
     for (const garbage of [null, 5, "x", {}, { v: 2 }, { v: 1, pages: "no" }, { v: 1, pages: [], boards: [], fields: [{ id: "f" }], buttons: [] }]) expect(parseUiConfig(garbage)).toEqual(emptyUi());
+  });
+});
+
+describe("dragging a row onto another", () => {
+  const three = () => {
+    let c = emptyUi();
+    for (const [id, label] of [["f-1", "أول"], ["f-2", "تاني"], ["f-3", "تالت"]] as const) c = ok(addField(c, { id, entity: "task", label, type: "text" }));
+    c = ok(addField(c, { id: "v-1", entity: "video", label: "فيديو", type: "text" }));
+    return c;
+  };
+  const order = (c: UiConfig, entity = "task") => c.fields.filter((f) => f.entity === entity).map((f) => f.id);
+
+  it("the dropped field takes the place of the one it lands on, the rest keep their order", () => {
+    const c = three();
+    expect(order(ok(moveFieldTo(c, "f-1", "f-3")))).toEqual(["f-2", "f-3", "f-1"]);
+    expect(order(ok(moveFieldTo(c, "f-3", "f-1")))).toEqual(["f-3", "f-1", "f-2"]);
+    expect(order(ok(moveFieldTo(c, "f-2", "f-3")))).toEqual(["f-1", "f-3", "f-2"]);
+    expect(err(moveFieldTo(c, "f-1", "f-1"))).toContain("ترتيب");
+  });
+
+  it("never across kinds of card, never onto a put-away or missing one", () => {
+    const c = three();
+    expect(err(moveFieldTo(c, "f-1", "v-1"))).toContain("نفس نوع");
+    expect(err(moveFieldTo(c, "f-1", "nope"))).toContain("مش موجود");
+    const gone = ok(archiveField(c, "f-3", 0, AT));
+    expect(err(moveFieldTo(gone, "f-1", "f-3"))).toContain("ترتيب");
+    // the other kind of card keeps its place in the list
+    expect(order(ok(moveFieldTo(c, "f-1", "f-3")), "video")).toEqual(["v-1"]);
+  });
+
+  it("buttons, boards and pages move the same way; a hidden page cannot be dropped on", () => {
+    let c = ok(addButton(emptyUi(), { id: "bt-1", entity: "video", label: "أ", workflow: "daily", workflowKeys: ["daily", "night"] }));
+    c = ok(addButton(c, { id: "bt-2", entity: "video", label: "ب", workflow: "night", workflowKeys: ["daily", "night"] }));
+    expect(ok(moveButtonTo(c, "bt-1", "bt-2")).buttons.map((b) => b.id)).toEqual(["bt-2", "bt-1"]);
+    expect(err(moveButtonTo(c, "bt-1", "nope"))).toContain("مش موجود");
+
+    const p = ok(movePageTo(emptyUi(), B, "settings", "ads"));
+    expect(keys(p)).toEqual(["today", "settings", "ads", "videos", "tasks", "workflow", "done"]);
+    const hidden = ok(setPageHidden(emptyUi(), B, "ads", true));
+    expect(err(movePageTo(hidden, B, "done", "ads"))).toContain("اظهرها");
+
+    const bd = ok(moveBoardTo(emptyUi(), "leak", "main"));
+    expect(visibleBoards(effectiveBoards(bd)).map((b) => b.key)[0]).toBe("leak");
+  });
+
+  it("the new kinds of card and the new ops are part of the edit API", () => {
+    expect(ENTITIES).toEqual(["task", "video", "workflow"]);
+    for (const op of [{ op: "page.drop", key: "a", onto: "b" }, { op: "board.drop", key: "a", onto: "b" }, { op: "field.drop", id: "a", onto: "b" }, { op: "button.drop", id: "a", onto: "b" }, { op: "field.convert", id: "a", to: "number" }, { op: "field.add", entity: "workflow", label: "x", type: "text" }, { op: "button.add", entity: "workflow", label: "x", workflow: "daily" }]) expect(UiOpSchema.safeParse(op).success, JSON.stringify(op)).toBe(true);
+    expect(UiOpSchema.safeParse({ op: "field.drop", id: "a" }).success).toBe(false);
+    expect(UiOpSchema.safeParse({ op: "field.add", entity: "ad", label: "x", type: "text" }).success).toBe(false);
+  });
+});
+
+describe("changing a field to another type", () => {
+  const withField = (type: "text" | "number" | "select" | "date", options?: string[]) => ok(addField(emptyUi(), { id: "f-1", entity: "task", label: "الرقم", type, options }));
+
+  it("a text whose values are all numbers becomes a number; one that is not stops and says how many", () => {
+    const c = withField("text");
+    const e = convertField(c, "f-1", "number", ["12", "7.5", " 3 "]);
+    expect(e.ok && e.convert).toEqual({ fieldId: "f-1" });
+    expect(ok(e).fields[0]).toMatchObject({ type: "number", label: "الرقم" });
+    expect(err(convertField(c, "f-1", "number", ["12", "سلام", "x"]))).toContain("2 قيمة من 3");
+    // nothing stored yet: always fine
+    expect(convertField(c, "f-1", "date", []).ok).toBe(true);
+  });
+
+  it("a number becomes text; text to a date needs real dates", () => {
+    expect(convertField(withField("number"), "f-1", "text", [12, 7.5]).ok).toBe(true);
+    expect(err(convertField(withField("text"), "f-1", "date", ["2026-11-20", "غدا"]))).toContain("1 قيمة من 2");
+    expect(convertField(withField("text"), "f-1", "date", ["2026-11-20"]).ok).toBe(true);
+  });
+
+  it("to a select it needs options that cover every value; from a select the options go", () => {
+    const t = withField("text");
+    expect(err(convertField(t, "f-1", "select", ["a"]))).toContain("خيارين");
+    expect(err(convertField(t, "f-1", "select", ["a", "c"], ["a", "b"]))).toContain("1 قيمة من 2");
+    const s = ok(convertField(t, "f-1", "select", ["a"], ["a", "b"]));
+    expect(s.fields[0]).toMatchObject({ type: "select", options: ["a", "b"] });
+    const back = ok(convertField(s, "f-1", "text", ["a"]));
+    expect(back.fields[0]?.options).toBeUndefined();
+  });
+
+  it("same type, a put-away field, a missing one, and a clash with a field of the new type are refused", () => {
+    const c = withField("text");
+    expect(err(convertField(c, "f-1", "text", []))).toContain("أصلاً");
+    expect(err(convertField(c, "nope", "number", []))).toContain("مش موجود");
+    expect(err(convertField(ok(archiveField(c, "f-1", 0, AT)), "f-1", "number", []))).toContain("بالمحذوفات");
+    const two = ok(addField(c, { id: "f-2", entity: "task", label: "الرقم", type: "number" }));
+    expect(err(convertField(two, "f-1", "number", []))).toContain("بنفس الاسم");
+  });
+
+  it("a phone number in a text never becomes a value of another type by accident", () => {
+    // the value is checked as the new type: «0944123456» is a number, not a secret, so a number field keeps it — but a text field refuses it
+    expect(validateValue({ type: "text", label: "x" }, "0944123456").ok).toBe(false);
   });
 });

@@ -9,6 +9,7 @@ import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { N8N_CREATOR } from "@/core/n8n-starters";
 import { siteConfigFrom } from "@/core/step-exec";
 import { workspaceConfigFrom } from "@/core/workspace-door";
+import { schedulerOn } from "@/core/scheduler";
 import { accountRestricted } from "@/jobs/account-safety";
 import { AGENT_NAMES, AGENTS } from "@/gateway";
 import type { SourceHealth } from "@/lib/mock/data";
@@ -111,6 +112,16 @@ function assistantLink(): SourceHealth {
   return { key: "assistant", label: "المساعد الذكي (Claude)", state: "ok", detail: `موصول — ${assistantModel()}` };
 }
 
+/** The site's own clock for scheduled workflows (D44): on or off, and when it last ran. Off while n8n is the clock. */
+async function schedulerLink(): Promise<SourceHealth> {
+  const label = "الجدولة من الموقع (بدل n8n)";
+  if (!schedulerOn(process.env)) return { key: "scheduler", label, state: "off", detail: "مقفولة — الورك فلو بمواعيدها بيصحّيها n8n. لتشغيلها: SITE_SCHEDULER=1 بـ Coolify (وطفّي مواعيد n8n)" };
+  const at = await lastSuccess("workflow.schedule");
+  if (!at) return { key: "scheduler", label, state: "late", detail: "شغّالة — لسا ما صارت أول دقيقة" };
+  const late = Date.now() - at.getTime() > 5 * 60_000;
+  return { key: "scheduler", label, state: late ? "late" : "ok", detail: `آخر دقيقة فحصت ${ago(at)}` };
+}
+
 /** Zaki Workspace's one-way door (D41): linked, when it was last asked, and what it refused (never a token or a title). */
 async function workspaceLink(): Promise<SourceHealth> {
   const label = "Zaki Workspace — مهام الفريق";
@@ -154,6 +165,7 @@ export async function loadEditView(): Promise<EditView | null> {
     assistantLink(),
     stepRunnerLink(),
     await workspaceLink(),
+    await schedulerLink(),
     await n8nPulse(),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },
   ];

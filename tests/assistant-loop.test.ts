@@ -326,7 +326,7 @@ describe("what it may do", () => {
   it("the real tool list has no tool that approves, executes, rolls back, deletes, pushes or reaches Meta", () => {
     const tools = makeTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(["calculate", "create_task", "draft_node", "draft_prompt", "draft_workflow", "explain", "get_ads", "get_changes", "get_day", "get_numbers", "get_overview", "get_tasks", "get_videos", "get_workflows", "propose_change", "update_task"]);
+    expect(names).toEqual(["calculate", "create_task", "draft_node", "draft_prompt", "draft_workflow", "edit_node", "explain", "get_ads", "get_changes", "get_day", "get_numbers", "get_overview", "get_summary", "get_tasks", "get_videos", "get_workflows", "propose_change", "update_task"]);
     expect(names.join(" ")).not.toMatch(/approve|execute|rollback|delete|remove|push|meta|spend|launch|pause|budget/);
     expect(tools.filter((t) => t.access === "write").map((t) => t.name).sort()).toEqual(["create_task", "propose_change", "update_task"]);
     // every description is Arabic (what the model reads) and every tool says what the panel shows while it runs
@@ -447,6 +447,69 @@ describe("drafts: nothing is saved", () => {
     expect(art.graph.edges).toContainEqual({ from: "judge", to: expect.stringMatching(/^notify/) });
     expect(art.issues).toEqual([]);
     expect(art.summary).toContain("بعد «حكم»");
+  });
+
+  const EDIT_CARD = () => ({ key: "wf-e", name: "فحص", graph: { nodes: [{ id: "start", type: "trigger", label: "بداية", executor: "system" }, { id: "read", type: "step", label: "قراءة", executor: "claude_mcp", prompt: "اقرا الأرقام" }], edges: [{ from: "start", to: "read" }] } });
+
+  it("an existing step is edited by words: only what was named changes, the stored drawing is untouched, and it comes back as a draft", async () => {
+    const card = EDIT_CARD();
+    const tools = makeTools({ workflows: async () => [card as never] });
+    const llm = script(call("edit_node", { workflow_key: "wf-e", node_id: "read", changes: { label: "اقرا أرقام امبارح", prompt: "اقرا أرقام امبارح بس" } }), say("جهّزت التعديل"));
+    const r = await runLoop(base(llm, tools), ask("غيّر اسم خطوة القراءة"));
+    const art = r.artifacts[0] as Extract<Artifact, { kind: "node_draft" }>;
+    expect(art).toMatchObject({ kind: "node_draft", workflowKey: "wf-e" });
+    expect(art.graph.nodes.find((n) => n.id === "read")).toMatchObject({ label: "اقرا أرقام امبارح", prompt: "اقرا أرقام امبارح بس", executor: "claude_mcp", type: "step" });
+    expect(art.graph.nodes).toHaveLength(2);
+    expect(art.summary).toContain("label");
+    expect(card.graph.nodes[1]).toMatchObject({ label: "قراءة", prompt: "اقرا الأرقام" });
+    expect(results(llm.calls[1]!)[0]!.data).toMatchObject({ ok: true, saved: false });
+  });
+
+  it("edit_node says what is wrong: no change, a step that is not there, the same values, a customer's number", async () => {
+    const tools = makeTools({ workflows: async () => [EDIT_CARD() as never] });
+    const llm = script(
+      call("edit_node", { workflow_key: "wf-e", node_id: "read", changes: {} }, "empty"),
+      call("edit_node", { workflow_key: "wf-e", node_id: "nope", changes: { label: "س" } }, "missing"),
+      call("edit_node", { workflow_key: "wf-e", node_id: "read", changes: { label: "قراءة" } }, "same"),
+      call("edit_node", { workflow_key: "wf-e", node_id: "read", changes: { prompt: "كلّم الزبون على 0944123456" } }, "phone"),
+      call("edit_node", { workflow_key: "other", node_id: "read", changes: { label: "س" } }, "nokey"),
+      call("edit_node", { workflow_key: "wf-e", node_id: "read", changes: { type: "approval" } }, "retype"),
+      say("خلص"),
+    );
+    const r = await runLoop(base(llm, tools), ask("؟"));
+    expect(r.artifacts).toEqual([]);
+    expect(r.tools.map((t) => t.ok)).toEqual([false, false, false, false, false, false]);
+    expect(results(llm.calls[2]!)[0]!.data.error).toContain("nope");
+    expect(results(llm.calls[3]!)[0]!.data.error).toContain("نفسها");
+    expect(results(llm.calls[4]!)[0]!.data.error).toContain("رقم هاتف");
+  });
+
+  it("get_summary: a week or a month in one answer, with the products ranked by what an order cost (only those with enough orders)", async () => {
+    const set = (over: Record<string, number | null>) => ({ ...Object.fromEntries(STATS.map((st) => [st.key, null])), ...over });
+    const prod = (code: string, name: string, orders: number, cost: number | null) => ({ code, name, hasData: true, current: set({ ordersIn: orders, costPerOrder: cost, spend: orders * (cost ?? 0) }), prev: set({}), avg7: set({}), rejectReasons: [], offers: [], breakeven: null, stockUrgency: null });
+    const data = {
+      demo: false,
+      range: { key: "7d", from: "2026-11-09", to: "2026-11-15", days: 7 },
+      label: "7 أيام",
+      totals: { current: set({ spend: 700, ordersIn: 120, costPerOrder: 5.83 }), prev: set({ spend: 640, ordersIn: 100, costPerOrder: 6.4 }), avg7: set({}) },
+      products: [prod("A", "أ", 40, 4.1), prod("B", "ب", 30, 5.2), prod("C", "ج", 25, 6.3), prod("D", "د", 12, 7.9), prod("E", "هـ", 9, 9.4), prod("F", "و", 2, 1.1)],
+      target: 6,
+    };
+    const asked: unknown[] = [];
+    const tools = makeTools({ numbers: (async (q: unknown) => (asked.push(q), data)) as never });
+    const llm = script(call("get_summary", { period: "week" }), call("get_summary", { period: "month" }, "m"), say("ملخّص"));
+    const r = await runLoop(base(llm, tools), ask("لخّصلي الأسبوع"));
+    const week = results(llm.calls[1]!)[0]!.data;
+    expect(week.period).toBe("آخر 7 أيام");
+    expect(week.ranking.cheapest.map((x: { code: string }) => x.code)).toEqual(["A", "B", "C"]);
+    expect(week.ranking.dearest.map((x: { code: string }) => x.code)).toEqual(["E", "D"]);
+    expect(week.ranking.not_ranked).toContain("1 منتج");
+    expect(week.ranking.cheapest[0].cost_per_real_order).toEqual({ value: 4.1, display: expect.stringContaining("4.10") });
+    expect(week.scopes[0].stats.find((x: { key: string }) => x.key === "spend")).toMatchObject({ previous_window: expect.any(String) });
+    expect(r.facts.some((f) => f.label.includes("تكلفة الطلب الحقيقي · أ"))).toBe(true);
+    expect(asked[0]).toMatchObject({ d: "7d" });
+    expect(asked[1]).toMatchObject({ d: "custom", from: "2026-10-17", to: "2026-11-15" });
+    expect(results(llm.calls[2]!)[0]!.data.period).toBe("آخر 30 يوم");
   });
 
   it("a workflow that does not exist lists the keys that do", async () => {

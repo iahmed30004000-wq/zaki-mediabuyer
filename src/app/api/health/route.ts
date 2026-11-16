@@ -4,6 +4,7 @@ import { encryptionKeyConfigured } from "@/server/crypto";
 import { omsLinked } from "@/server/env";
 import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
 import { workspaceConfigFrom } from "@/core/workspace-door";
+import { schedulerOn } from "@/core/scheduler";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function GET() {
       internalModel: has("INTERNAL_MODEL_BASE_URL"),
       assistant: assistantConfigured() && !externalModelsOff(),
       workspace: workspaceConfigFrom(process.env) !== null,
+      scheduler: schedulerOn(process.env),
       stepRunner: has("N8N_BASE_URL") && has("N8N_WEBHOOK_SECRET") && (has("N8N_ALLOWED_PATHS") || has("STEP_HTTP_ALLOW")),
     },
     at: new Date().toISOString(),

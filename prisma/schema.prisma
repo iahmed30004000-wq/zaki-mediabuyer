@@ -1132,3 +1132,11 @@ model VideoRequest {
   @@index([status, createdAt])
   @@index([videoKey, status])
 }
+
+/// «محادثة المساعد» (v3 · H): one rolling conversation per signed-in person, so closing the panel, a refresh or another device does not lose it.
+/// What is kept is what the panel showed (the person's questions and the answers, with their sources and drafts); it passed the privacy check on the way in.
+model AssistantChat {
+  userId    String   @id
+  messages  Json
+  updatedAt DateTime @updatedAt
+}
