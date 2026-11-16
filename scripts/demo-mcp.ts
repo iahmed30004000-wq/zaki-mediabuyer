@@ -51,6 +51,11 @@ import { createVideoRequest, moveVideoRequest } from "../src/server/video-reques
 import { askAssistant } from "../src/server/assistant";
 import { AssistantError, type Llm, type LlmRequest, type LlmResponse } from "../src/server/assistant/loop";
 import { GET as assistantGet, POST as assistantPost } from "../src/app/api/assistant/route";
+import { GET as connectionGet, POST as connectionPost } from "../src/app/api/assistant/connection/route";
+import { connectionStatus, recheckKey, removeKey, saveKey, verifyAnthropicKey } from "../src/server/assistant/connection";
+import { HttpError } from "../src/server/auth";
+import { forgetKeyCache, resolveKey } from "../src/server/assistant/key";
+import { assistantConfigured } from "../src/server/assistant/config";
 import { PrivacyRefusal } from "../src/gateway/privacy";
 import { realDoorDeps, syncWorkspace } from "../src/server/workspace";
 import { loadToday } from "../src/lib/today-view";
@@ -886,6 +891,95 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── ربط مفتاح Claude من الموقع: the key is tested, stored encrypted, shown as its last four, and the Coolify variable wins ──
+  {
+    const owner = { id: "demo-mcp-user", role: "OWNER" as const, demo: false };
+    const was = { key: process.env.ANTHROPIC_API_KEY, claude: process.env.CLAUDE_API_KEY, privacy: process.env.PRIVACY_MODE, enc: process.env.ENCRYPTION_KEY };
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.CLAUDE_API_KEY;
+    process.env.PRIVACY_MODE = "off";
+    process.env.ENCRYPTION_KEY = "demo-mcp-encryption-key-0123456789abcdef";
+    await db.modelConnection.deleteMany({});
+    forgetKeyCache();
+    // built piece by piece so no key-looking literal sits in the repo
+    const fake = "sk-ant-" + "api03-" + "q".repeat(36) + "WXYZ";
+    const refuse = async (f: () => Promise<unknown>) => f().then(() => null, (e: { status?: number; message?: string }) => ({ status: e.status, message: String(e.message) }));
+
+    check((await assistantConfigured()) === false && (await resolveKey()) === null, "no key anywhere: the assistant is not configured");
+
+    const bad = await refuse(() => saveKey(owner, fake, { verify: async () => { throw new HttpError(400, "رفض"); } }));
+    check(bad?.status === 400 && (await db.modelConnection.count()) === 0, "a key Anthropic refuses is not stored", bad);
+    check((await refuse(() => saveKey(owner, "not-a-key")))?.status === 400 && (await refuse(() => saveKey({ ...owner, demo: true }, fake)))?.status === 403, "a wrong shape is a 400, and a demo caller cannot link (403)");
+    delete process.env.ENCRYPTION_KEY;
+    check((await refuse(() => saveKey(owner, fake, { verify: async () => undefined })))?.status === 409, "without ENCRYPTION_KEY it refuses to store a key (409)");
+    process.env.ENCRYPTION_KEY = "demo-mcp-encryption-key-0123456789abcdef";
+
+    const st = await saveKey(owner, "  " + fake + "\n", { verify: async () => undefined });
+    check(st.source === "site" && st.hint === "…WXYZ" && st.canStore && !!st.checkedAt, "link: the status says «from the site», shows only the last four", st);
+    const row = await db.modelConnection.findUnique({ where: { provider: "anthropic" } });
+    check(!!row && row.status === "active" && row.keyEnc.startsWith("v2:") && !JSON.stringify(row).includes(fake) && !JSON.stringify(row).includes("q".repeat(20)), "the row holds the encrypted blob — not the key, not a piece of it");
+    check((await resolveKey())?.key === fake && (await resolveKey())?.source === "site" && (await assistantConfigured()) === true, "the assistant now resolves the key from the database");
+    const logs = JSON.stringify(await db.auditLog.findMany({ where: { action: { startsWith: "assistant.key_" } } }));
+    check(logs.includes("assistant.key_link") && logs.includes("WXYZ") && !logs.includes("q".repeat(20)), "the audit records who linked it and the last four — never the key");
+
+    const g = await connectionGet();
+    const gt = await g.text();
+    check(g.status === 200 && gt.includes("…WXYZ") && !gt.includes("q".repeat(20)), "GET /api/assistant/connection: status without the key", gt.slice(0, 160));
+    const demoLink = await connectionPost(new Request("http://localhost:3140/api/assistant/connection", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "link", apiKey: fake }) }));
+    check([400, 401, 403].includes(demoLink.status), "POST link without a real owner login is refused", demoLink.status);
+    check((await connectionPost(new Request("http://localhost:3140/api/assistant/connection", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }))).status === 400, "an unknown action is a 400");
+
+    const ready = await loadReadiness();
+    const arow = ready.rows.find((r) => r.key === "assistant");
+    check(!!arow && arow.linked && arow.missing.length === 0, "the readiness panel counts the site key as linked", arow);
+
+    // the Coolify variable wins, and a second link is refused while it is there
+    process.env.ANTHROPIC_API_KEY = "env-key-not-a-real-one";
+    forgetKeyCache();
+    check((await resolveKey())?.source === "env" && (await connectionStatus()).source === "env", "ANTHROPIC_API_KEY (Coolify) wins over the site key");
+    check((await refuse(() => saveKey(owner, fake, { verify: async () => undefined })))?.status === 409, "linking while the Coolify variable is set is refused (409)");
+    delete process.env.ANTHROPIC_API_KEY;
+    forgetKeyCache();
+
+    // PRIVACY_MODE=internal_only keeps every external model off — linking included
+    process.env.PRIVACY_MODE = "internal_only";
+    check((await refuse(() => saveKey(owner, fake, { verify: async () => undefined })))?.status === 403, "PRIVACY_MODE=internal_only refuses to link (403)");
+    process.env.PRIVACY_MODE = "off";
+
+    // «check» asks Anthropic again; «unlink» erases the secret and keeps the row as history
+    let asked = "";
+    await recheckKey(owner, { verify: async (k) => { asked = k; } });
+    check(asked === fake, "check: asks Anthropic with the stored key");
+    const gone = await removeKey(owner);
+    const row2 = await db.modelConnection.findUnique({ where: { provider: "anthropic" } });
+    check(gone.source === "none" && row2?.status === "removed" && row2.keyEnc === "" && (await resolveKey()) === null && (await assistantConfigured()) === false, "unlink: secret erased, row kept as history, assistant off again");
+    check((await refuse(() => removeKey(owner)))?.status === 404, "unlinking twice is a 404");
+    const again = await saveKey(owner, fake, { verify: async () => undefined });
+    check(again.source === "site", "it can be linked again after an unlink");
+
+    // the real SDK call, against a local stand-in for Anthropic
+    let code = 200;
+    const stand = createServer((_q, r) => {
+      r.writeHead(code, { "content-type": "application/json" });
+      r.end(code === 200 ? JSON.stringify({ data: [], has_more: false, first_id: null, last_id: null }) : JSON.stringify({ type: "error", error: { type: "authentication_error", message: "bad" } }));
+    });
+    await new Promise<void>((ok) => stand.listen(0, "127.0.0.1", ok));
+    const base = `http://127.0.0.1:${(stand.address() as { port: number }).port}`;
+    check((await refuse(() => verifyAnthropicKey(fake, base))) === null, "verify: a 200 from the stand-in is a good key");
+    code = 401;
+    check((await refuse(() => verifyAnthropicKey(fake, base)))?.status === 400, "verify: a 401 is «Anthropic refused the key» (400)");
+    await new Promise<void>((ok) => stand.close(() => ok()));
+
+    await db.modelConnection.deleteMany({});
+    await db.auditLog.deleteMany({ where: { action: { startsWith: "assistant.key_" } } });
+    forgetKeyCache();
+    for (const [k, v] of [["ANTHROPIC_API_KEY", was.key], ["CLAUDE_API_KEY", was.claude], ["PRIVACY_MODE", was.privacy], ["ENCRYPTION_KEY", was.enc]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 
 

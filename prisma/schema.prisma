@@ -90,6 +90,19 @@ model MetaConnection {
   updatedAt DateTime  @updatedAt
 }
 
+/// the Claude API key the owner linked from the site (encrypted; one row per provider). The environment variable, when set, wins.
+model ModelConnection {
+  id          String    @id @default(cuid())
+  provider    String    @unique // anthropic
+  keyEnc      String // AES-256-GCM (src/server/crypto.ts); empty once removed
+  keyHint     String // …last four, safe to show
+  status      String    @default("active") // active | removed
+  createdById String?
+  checkedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
 model AdAccount {
   id            String     @id @default(cuid())
   metaId        String     @unique // act_…

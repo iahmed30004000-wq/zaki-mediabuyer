@@ -3,7 +3,8 @@
  * owner's limits. `askAssistant` is what the route calls; everything it needs from outside (the model, the tools, the clock) can
  * be handed in, so tests and the demo run it without a key.
  *
- *   key        ANTHROPIC_API_KEY, or CLAUDE_API_KEY beside it (Coolify only — never in the repo, never in a prompt, never in the browser)
+ *   key        ANTHROPIC_API_KEY, or CLAUDE_API_KEY beside it (Coolify), else the key the owner linked from the settings (encrypted in the
+ *            database) — never in the repo, never in a prompt, never in the browser
  *   model      ASSISTANT_MODEL, default claude-opus-5-5
  *   caps       agents.daily_caps.M12 (default $3 a day) and agents.monthly_cap for every agent together: at a cap it stops,
  *              and the numbers, rules and screens keep working
@@ -15,14 +16,14 @@ import { ASSISTANT_AGENT, DEFAULT_DAILY_CAP_USD, systemPrompt, tokensIn, type Ar
 import { ammanKey } from "@/core/dates";
 import { dayBounds } from "@/core/day";
 import { fmt } from "@/lib/format";
-import { anthropicKey } from "../env";
 import { PrivacyRefusal, privacyHits } from "@/gateway/privacy";
 import { audit } from "../audit";
 import type { Caller } from "../auth";
 import { db } from "../db";
 import { getSetting } from "../settings";
 import { AssistantError, runLoop, type Llm, type LlmResponse } from "./loop";
-import { NO_KEY, OFF_BY_PRIVACY, assistantConfigured, assistantModel, externalModelsOff } from "./config";
+import { NO_KEY, OFF_BY_PRIVACY, assistantModel, externalModelsOff } from "./config";
+import { resolveKey } from "./key";
 import { canWrite, defaultDeps, makeTools, type Tool, type ToolCtx } from "./tools";
 
 export { AssistantError } from "./loop";
@@ -41,8 +42,9 @@ export function makeLlm(apiKey: string, baseURL?: string): Llm {
   };
 }
 
-function realLlm(): Llm {
-  const apiKey = anthropicKey()!;
+async function realLlm(): Promise<Llm | null> {
+  const apiKey = (await resolveKey())?.key;
+  if (!apiKey) return null;
   if (cached?.key === apiKey) return cached.llm;
   const llm = makeLlm(apiKey);
   cached = { key: apiKey, llm };
@@ -119,7 +121,7 @@ export async function askAssistant(input: AskInput, caller: Caller, hooks: AskHo
     throw new PrivacyRefusal(hits);
   }
   if (externalModelsOff()) throw new AssistantError(403, OFF_BY_PRIVACY, "off");
-  const llm = hooks.llm ?? (assistantConfigured() ? realLlm() : null);
+  const llm = hooks.llm ?? (await realLlm());
   if (!llm) throw new AssistantError(503, NO_KEY, "off");
 
   const products = await (hooks.products ?? defaultDeps.products)();

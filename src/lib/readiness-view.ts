@@ -6,7 +6,7 @@
 import { INTEGRATIONS, isDemo, metaWriteGate, missingGroups, type Integration } from "@/core/readiness";
 import { N8N_CREATOR } from "@/core/n8n-starters";
 import { metaToken } from "@/jobs/meta-sync";
-import { externalModelsOff } from "@/server/assistant/config";
+import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
 import { db } from "@/server/db";
 
 export interface LastCall {
@@ -102,6 +102,8 @@ export async function loadReadiness(env: Record<string, string | undefined> = pr
       if (env.META_WRITE_MODE !== "live") missing.push("META_WRITE_MODE=live");
       if (env.META_LIVE_VERIFIED !== "1") missing.push("META_LIVE_VERIFIED=1");
     }
+    // the Claude key may be the one linked from the site (encrypted in the database)
+    if (i.key === "assistant" && missing.length && (await assistantConfigured())) missing = [];
     if (i.key === "assistant" && !missing.length && externalModelsOff()) missing = ["PRIVACY_MODE=off (هلأ internal_only)"];
     let last: LastCall = NONE;
     try {
