@@ -223,7 +223,7 @@ async function clean() {
 
     await saveColumns("demo-mcp-user", ["orders", "zzz", "spend"]);
     check(JSON.stringify(await loadColumns("demo-mcp-user")) === JSON.stringify(["name", "orders", "spend"]), "a person's columns are saved for them and read back clean (unknown keys dropped, the name first)");
-    check((await loadColumns("demo-mcp-someone-else")).length === 16 && (await loadColumns(null)).length === 16, "…everybody else still has the 16 default columns");
+    check((await loadColumns("demo-mcp-someone-else")).length === 6 && (await loadColumns(null)).length === 6, "…everybody else has the 6 default columns");
 
     // «اقترح زيادة»: one step of the ladder on the ad set's own budget — recorded as a suggestion on an advisor account, waiting for a yes on level 1
     const advisor = await proposeRaise({ objectType: "adset", objectId: "DEMO_MCP_S1" }, { id: "demo-mcp-user" });
