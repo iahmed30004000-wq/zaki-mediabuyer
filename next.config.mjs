@@ -4,8 +4,7 @@
  * Not permanent (307): the owner may still move things around. A request's query string is carried over. The order matters:
  * the one with a condition (`has`) comes before the plain one of the same source. tests/nav.test.ts holds this table.
  *
- * Left out on purpose: `/?tab=summary` and `/ads?tab=products` (their destination IS the source: Next would loop — the pages ignore
- * `tab`), and `/ads?product=<code>` → `/products/<code>` (that page is built in P4; until then `/ads?product=` filters the table).
+ * Left out on purpose: `/?tab=summary` and `/ads?tab=products` — their destination IS the source, so Next would loop (the pages ignore `tab`).
  */
 const tab = (value) => [{ type: "query", key: "tab", value }];
 
@@ -18,6 +17,7 @@ export const LEGACY_REDIRECTS = [
   { source: "/done", destination: "/work/today", permanent: false },
   { source: "/videos", has: tab("flow"), destination: "/ads/videos?view=flow", permanent: false },
   { source: "/videos", destination: "/ads/videos", permanent: false },
+  { source: "/ads", has: [{ type: "query", key: "product", value: "(?<code>[A-Za-z0-9_-]+)" }], destination: "/products/:code", permanent: false },
   { source: "/ads", has: tab("campaigns"), destination: "/ads/campaigns", permanent: false },
   { source: "/ads", has: tab("tests"), destination: "/ads/tests", permanent: false },
   { source: "/ads", has: tab("(health|safety|data|naming)"), destination: "/ads/health", permanent: false },
