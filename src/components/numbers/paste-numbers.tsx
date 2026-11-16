@@ -6,10 +6,10 @@ import { ClipboardPaste } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
-import { PUSH_LEVELS, type PushLevel } from "@/core/push-rows";
+import { PASTE_LEVELS, type PushLevel } from "@/core/push-rows";
 import { cn } from "@/lib/utils";
 
-const LEVEL_AR: Record<PushLevel, string> = { account: "حساب", campaign: "حملات", adset: "مجموعات", ad: "إعلانات", product: "منتجات" };
+const LEVEL_AR: Record<PushLevel, string> = { account: "حساب", campaign: "حملات", adset: "مجموعات", ad: "إعلانات", product: "منتجات", person: "موظفين" };
 
 interface Preview {
   delimiter: string;
@@ -89,7 +89,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
               <label className="block space-y-1">
                 <span className="text-xs font-semibold text-fg">مستوى الأسطر</span>
                 <select value={level} onChange={(e) => { setLevel(e.target.value as PushLevel); setPre(null); }} className={field}>
-                  {PUSH_LEVELS.map((l) => (
+                  {PASTE_LEVELS.map((l) => (
                     <option key={l} value={l}>{LEVEL_AR[l]}</option>
                   ))}
                 </select>

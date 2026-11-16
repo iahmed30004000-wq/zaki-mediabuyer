@@ -54,6 +54,8 @@ export const DEFAULT_SETTINGS = {
   "videos.min_spend": null as number | null,
   /** v3 · K — «وضع التعديل»: the owner's pages, boards, fields and buttons over the built-in ones (src/core/customize.ts) */
   "ui.config": emptyUi() as UiConfig,
+  /** v5 · P9 — the limits for the flags beside a team member (src/core/ops.ts). Empty until the owner writes them: no limit = no flag */
+  "ops.rules": { stuckMax: null, noAnswerMargin: null, newDays: null } as { stuckMax: number | null; noAnswerMargin: number | null; newDays: number | null },
 } as const;
 
 export type SettingKey = keyof typeof DEFAULT_SETTINGS;

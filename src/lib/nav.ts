@@ -6,7 +6,7 @@
  *   بانتظارك   «شو بدّه قراري؟»                            كل قرار، ببطاقة وحدة
  *   الشغل      «مين عم يشتغل شو، وإمتى؟»                  خريطة المهام المجدولة · اليوم · مهام الفريق · التقارير
  *   الإعلانات  «كيف ماشية الإعلانات بالحقيقة؟»            لوحة · حملات · فيديوهات · اختبارات
- *   التشغيل    «كيف ماشي التأكيد والشحن والمخزون؟»        (بيظهر بعد ما تنبني شاشاته: `ready`)
+ *   التشغيل    «كيف ماشي التأكيد والشحن والمخزون؟»        (read only)
  *   الإعدادات  الربط، الفريق، القواعد، المنتجات، المظهر، متقدّم
  *
  * Old addresses still work: next.config.mjs redirects them (tests/nav.test.ts holds the table).
@@ -99,8 +99,7 @@ export const PLACES: readonly Place[] = [
       { href: "/ops/shipping", label: "الشحن" },
       { href: "/ops/stock", label: "المخزون" },
     ],
-    // P9 builds the screens and turns this on; before that there is no «قريباً» page
-    ready: false,
+    ready: true,
   },
 ];
 

@@ -22,7 +22,7 @@ import { createNotification } from "./notify";
 import { getSetting } from "./settings";
 
 const DAY = 86_400_000;
-const RANK: Record<PushLevel, number> = { account: 0, campaign: 1, adset: 2, ad: 3, product: 4 };
+const RANK: Record<PushLevel, number> = { account: 0, campaign: 1, adset: 2, ad: 3, product: 4, person: 5 };
 
 export interface PushReport {
   received: number;
@@ -33,6 +33,8 @@ export interface PushReport {
   tallies: number;
   /** product-days written (v4.1) */
   productDays: number;
+  /** team members' days written (v5 · P9) */
+  personDays: number;
   rejected: RowProblem[];
   warnings: string[];
 }
@@ -61,7 +63,7 @@ async function productAliases(): Promise<ProductAlias[]> {
 export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source: "mcp" | "manual"; accountId?: string; now?: Date }): Promise<PushReport> {
   const now = opts.now ?? new Date();
   const { rows, problems } = checkRows(raw);
-  const report: PushReport = { received: raw.length, applied: 0, structure: 0, insights: 0, orderRows: 0, tallies: 0, productDays: 0, rejected: problems, warnings: [] };
+  const report: PushReport = { received: raw.length, applied: 0, structure: 0, insights: 0, orderRows: 0, tallies: 0, productDays: 0, personDays: 0, rejected: problems, warnings: [] };
   const warn = (w: string) => !report.warnings.includes(w) && report.warnings.push(w);
 
   const [aliases, econ, window, confirmH] = await Promise.all([
@@ -76,6 +78,12 @@ export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source:
 
   for (const { index, row } of ordered) {
     try {
+      if (row.level === "person") {
+        await upsertPersonDay(row, opts.source);
+        report.personDays++;
+        report.applied++;
+        continue;
+      }
       if (await structureOf(row, opts.accountId, aliases)) report.structure++;
       const patch = row.level === "product" ? null : insightPatch(row);
       if (patch) {
@@ -113,6 +121,25 @@ export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source:
 }
 
 class ParentMissing extends Error {}
+
+/** One team member's day. What the push did not say stays as it was. Employees only: there is no customer column on this table. */
+async function upsertPersonDay(row: MetricRowT, source: string): Promise<void> {
+  const data = {
+    ...(row.claims !== undefined ? { claims: row.claims } : {}),
+    ...(row.confirmed !== undefined ? { confirmed: row.confirmed } : {}),
+    ...(row.rejected !== undefined ? { rejected: row.rejected } : {}),
+    ...(row.no_answer !== undefined ? { noAnswer: row.no_answer } : {}),
+    ...(row.no_answer_fast !== undefined ? { noAnswerFast: row.no_answer_fast } : {}),
+    ...(row.first_claim_sec !== undefined ? { firstClaimSec: row.first_claim_sec } : {}),
+    ...(row.stuck_48h !== undefined ? { stuck48h: row.stuck_48h } : {}),
+    ...(row.reactivated !== undefined ? { reactivated: row.reactivated } : {}),
+    ...(row.delivered !== undefined ? { delivered: row.delivered } : {}),
+    ...(row.reject_reasons !== undefined ? { rejectReasons: row.reject_reasons as Prisma.InputJsonValue } : {}),
+    source,
+  };
+  const key = { actorKey: row.id, date: new Date(`${row.date}T00:00:00Z`) };
+  await db.personDay.upsert({ where: { actorKey_date: key }, create: { ...key, ...data }, update: data });
+}
 
 /** Writes (or fills in) one product's day. What the push did not say stays as it was. */
 async function upsertProductDay(productCode: string, date: string, p: ProductDayPatch, source: string): Promise<void> {

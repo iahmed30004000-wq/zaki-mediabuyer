@@ -20,6 +20,7 @@ import { ApprovalInput, decideApproval, requestApproval } from "../src/server/ap
 import { loadJobs } from "../src/lib/jobs-view";
 import { applyDecisions } from "../src/server/jobs";
 import { decideOrder, listOrders } from "../src/server/orders";
+import { loadTeam, metricSeries } from "../src/server/ops";
 import { busiestSlot } from "../src/core/timeline";
 import { getReport, loadReports } from "../src/server/reports";
 import { runsOf } from "../src/server/workflows";
@@ -899,6 +900,38 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── التشغيل (V5 · P9): a team member's day, the metric series, the team page ──
+  {
+    const day = "2026-11-10";
+    const push = (rows: unknown[]) => tool("push_metrics", { rows });
+    const ok = await push([{ date: day, level: "person", id: "abdullah", claims: 20, confirmed: 14, rejected: 3, no_answer: 4, stuck_48h: 1, reject_reasons: [{ reason: "السعر", count: 2 }] }]);
+    check(!ok.isError && (ok.data as { personDays?: number } | undefined)?.personDays === 1, "push_metrics: a person row lands (personDays = 1)", ok.data);
+    const stored = await db.personDay.findUnique({ where: { actorKey_date: { actorKey: "abdullah", date: new Date(day + "T00:00:00Z") } } });
+    check(stored?.claims === 20 && stored.confirmed === 14 && stored.noAnswer === 4, "…stored in PersonDay with its numbers");
+    await push([{ date: day, level: "person", id: "abdullah", stuck_48h: 5 }]);
+    const merged = await db.personDay.findUnique({ where: { actorKey_date: { actorKey: "abdullah", date: new Date(day + "T00:00:00Z") } } });
+    check(merged?.stuck48h === 5 && merged.claims === 20, "…a second push of the same day fills in only what it said");
+    const bad = await push([{ date: day, level: "person", id: "stranger", claims: 3 }]);
+    const rej = ((bad.data as { rejected?: { error: string }[] } | undefined)?.rejected ?? [])[0]?.error ?? "";
+    check(rej.includes("stranger") && rej.includes("abdullah"), "an unknown team key is refused, with the known keys", rej);
+    check((((await push([{ date: day, level: "person", id: "abdullah", spend: 3 }])).data as { rejected?: unknown[] } | undefined)?.rejected ?? []).length === 1, "ad numbers on a person row are refused");
+
+    // a job's metric by day
+    await tool("log_run", { job: "leak-plan", ref: "demo-p9-leak", status: "ok", summary: "x", metrics: { open_over_24h: 12 } });
+    const series = await metricSeries("leak-plan", "open_over_24h", 7);
+    check(series.length === 7 && series[6]!.value === 12 && series.slice(0, 6).every((p) => p.value === null), "metricSeries: today has the value, the days with none are null (no guess)", series.map((p) => p.value));
+    check((await metricSeries("leak-plan", "no_such_key", 3)).every((p) => p.value === null), "…and a metric the job never sent is null on every day");
+
+    const team = await loadTeam(7, new Date(day + "T12:00:00Z"));
+    const row = team.rows.find((r) => r.key === "abdullah");
+    check(!!row && row.claims === 20 && row.noAnswerRate === 0.2 && row.flag === null, "the team page: the row, the «ما ردّ» rate, and no flag while the owner has written no limits", row);
+    check(team.reasons[0]?.reason === "السعر" && team.reasons[0].count === 2, "…and the reasons for rejection are summed");
+
+    await db.personDay.deleteMany({ where: { date: new Date(day + "T00:00:00Z") } });
+    await db.workflowRun.deleteMany({ where: { ref: "demo-p9-leak" } });
   }
 
 

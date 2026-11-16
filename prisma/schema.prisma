@@ -1217,3 +1217,33 @@ model StandingOrder {
 
   @@index([status, domain])
 }
+
+/// One team member's numbers for one day (v5 · P9). Employees only — there is no customer column here, and a test holds it. `actorKey` is a key
+/// of the team directory; Claude fills it with `push_metrics` rows of level `person`.
+model PersonDay {
+  id            String   @id @default(cuid())
+  actorKey      String
+  date          DateTime @db.Date
+  /// claims — the orders the person took
+  claims        Int?
+  confirmed     Int?
+  rejected      Int?
+  /// «ما ردّ»
+  noAnswer      Int?
+  /// «ما ردّ» in under a minute
+  noAnswerFast  Int?
+  /// how quickly the first claim came, in seconds
+  firstClaimSec Int?
+  /// stuck for over 48 hours
+  stuck48h      Int?
+  reactivated   Int?
+  delivered     Int?
+  /// [{ reason, count }]
+  rejectReasons Json?
+  source        String   @default("mcp")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([actorKey, date])
+  @@index([date])
+}
