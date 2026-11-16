@@ -59,6 +59,7 @@ export const NodeSchema = z
     inputs: z.string().max(500).optional(),
     outputs: z.string().max(500).optional(),
     destination: z.string().max(300).optional().describe("وين بتوصل النتيجة وعلى شو"),
+    desc: z.string().trim().max(300).optional().describe("شو بيعمل هالفرع بكلام المالك"),
     timeoutS: z.number().int().min(1).max(86_400).optional(),
     retries: z.number().int().min(0).max(10).optional(),
     fallback: z.string().max(300).optional(),

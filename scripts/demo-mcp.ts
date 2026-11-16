@@ -17,6 +17,8 @@ import { POST as mcp, GET as mcpGet } from "../src/app/mcp/route";
 import { computeTruthDays } from "../src/jobs/truth";
 import { loadDataset } from "../src/lib/source";
 import { ApprovalInput, decideApproval, requestApproval } from "../src/server/approvals";
+import { loadJobs } from "../src/lib/jobs-view";
+import { runsOf } from "../src/server/workflows";
 import { countInbox, getInboxItem, loadInbox, loadInboxDone, loadInboxLater } from "../src/server/inbox";
 import { GET as inboxGet } from "../src/app/api/inbox/route";
 import { setMode, setWakeKinds } from "../src/server/mode";
@@ -893,6 +895,30 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── خريطة المهام (V5 · P5): numbers, badges, branch numbers, and the full report of a run ──
+  {
+    const { jobs, counters, demo } = await loadJobs();
+    const night = jobs.find((j) => j.key === "night-round");
+    check(!demo && jobs.length >= 16 && night?.number === 1 && night.domain === "ads" && night.kind === "recurring", "the seeded jobs sit on the map with their numbers (night round is 1, ads)", night && { n: night.number, d: night.domain });
+    check(jobs.find((j) => j.key === "team-round")?.domain === "ops" && jobs.find((j) => j.key === "basha-parcels")?.kind === "manual", "the team round is ops, the parcels job is on request");
+    const nums = jobs.filter((j) => j.number !== null && j.number <= 16).map((j) => j.number);
+    check(new Set(nums).size === nums.length && nums.length >= 16, "the numbers 1..16 are each used once");
+    check(night!.branches.length > 0 && night!.branches[0]!.number === "1.1" && night!.branches.every((b, i) => b.number === `1.${i + 1}`), "the branches of job 1 are 1.1, 1.2 …", night!.branches.map((b) => b.number));
+    check(counters.total === jobs.length && counters.running + counters.problem + counters.upcoming + counters.manual + counters.off === counters.total, "the five counters add up to the jobs", counters);
+    check(jobs.find((j) => j.key === "basha-parcels")!.badge.key === "manual", "a job on request has the «عند الطلب» badge");
+
+    // a run with a full report, and one with a phone number in it
+    const ok = await tool("log_run", { job: "stock-alerts", ref: "demo-p5-report", status: "ok", summary: "خلص", report: "التقرير الكامل: 3 منتجات، واحد ناقص مخزون." });
+    check(!ok.isError, "log_run takes a full report");
+    const runs = await runsOf("stock-alerts", { limit: 5 });
+    check(runs.some((r) => r.ref === "demo-p5-report" && r.report === "التقرير الكامل: 3 منتجات، واحد ناقص مخزون."), "…and the run keeps it");
+    const bad = await tool("log_run", { job: "stock-alerts", ref: "demo-p5-bad", status: "ok", report: "كلّم الزبون 0791234567" });
+    check(bad.isError === true, "a report with a phone number is refused");
+    check((await tool("log_run", { job: "stock-alerts", ref: "demo-p5-long", report: "x".repeat(6001) })).isError === true, "a report over 6000 characters is refused");
+    await db.workflowRun.deleteMany({ where: { ref: { in: ["demo-p5-report", "demo-p5-bad", "demo-p5-long"] } } });
   }
 
 

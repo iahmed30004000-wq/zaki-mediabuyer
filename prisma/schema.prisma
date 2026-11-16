@@ -830,27 +830,54 @@ model VideoBankItem {
 
 /// A workflow as the owner sees it on الورك فلو: nodes and edges, a schedule, who runs it, how risky it is.
 model Workflow {
-  id          String            @id @default(cuid())
+  id           String            @id @default(cuid())
   /// the id Claude's log_run uses (daily-check, night-round …)
-  key         String            @unique
-  name        String
-  description String?
+  key          String            @unique
+  name         String
+  description  String?
   /// a 5-field cron in Asia/Amman, or null (manual / by event)
-  schedule    String?
+  schedule     String?
   /// claude_mcp · claude_task · claude_desktop · claude_api · hermes · muse · n8n · telegram · http · person · system
-  executor    String            @default("claude_mcp")
+  executor     String            @default("claude_mcp")
   /// where its numbers come from: api · mcp · manual — the canvas looks the same for all three
-  dataSource  String            @default("mcp")
+  dataSource   String            @default("mcp")
   /// green · yellow · red · black
-  permission  String            @default("green")
-  enabled     Boolean           @default(true)
-  graph       Json
-  version     Int               @default(1)
-  archivedAt  DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  runs        WorkflowRun[]
-  versions    WorkflowVersion[]
+  permission   String            @default("green")
+  enabled      Boolean           @default(true)
+  graph        Json
+  version      Int               @default(1)
+  archivedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  /// the number on the map (null = not numbered yet: it goes last)
+  number       Int?
+  /// ads · ops
+  domain       String            @default("ads")
+  /// recurring · once · window · manual
+  kind         String            @default("recurring")
+  /// the schedule in words when there is no cron («الليلة 12:30»)
+  scheduleText String?
+  runsAt       DateTime?
+  endsAt       DateTime?
+  /// a one-off that ran, or a window that ended
+  finishedAt   DateTime?
+  /// which agent / session runs it
+  runsFrom     String?
+  /// where it came from: the date and the owner's words
+  origin       String?
+  touches      String[]          @default([])
+  talksTo      String[]          @default([])
+  note         String?
+  /// keep · merge · cancel · lighten · think
+  advice       String?
+  adviceText   String?
+  /// the owner's decision: keep · cancel · merge
+  decision     String?
+  decidedAt    DateTime?
+  /// seed · ui · mcp — who defined it
+  source       String            @default("seed")
+  runs         WorkflowRun[]
+  versions     WorkflowVersion[]
 }
 
 /// Every saved version of a workflow's drawing (v3 · F): the graph as it was, who saved it, and what changed in a line.
@@ -888,6 +915,8 @@ model WorkflowRun {
   artifacts  Json?
   /// the live state of each node: { nodeId: { status, at, note } }
   nodeStates Json      @default("{}")
+  /// the run's full report (up to 6000 characters), when its job sent one
+  report     String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
