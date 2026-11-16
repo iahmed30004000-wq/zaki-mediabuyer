@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z, type ZodType } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { setSetting, type SettingKey } from "@/server/settings";
+import { isDemo } from "@/core/readiness";
 
 const money = z.number().finite().min(0).max(100_000);
 const code = z.string().regex(/^[A-Z]{3}\d{2}$/);
@@ -31,7 +32,7 @@ export async function POST(req: Request, { params }: { params: { key: string } }
     const body = (await req.json().catch(() => null)) as { value?: unknown } | null;
     const parsed = schema.safeParse(body?.value);
     if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "القيمة مش صحيحة");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const version = await setSetting(key, parsed.data, caller.id);
     return NextResponse.json({ ok: true, version });
   } catch (e) {

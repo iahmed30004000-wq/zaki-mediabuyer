@@ -27,14 +27,14 @@ export default async function WorkReportsPage({ searchParams }: { searchParams: 
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="المجال">
         {([undefined, "ads", "ops"] as const).map((d) => (
           <Link key={d ?? "all"} href={href(d)} aria-current={d === domain ? "true" : undefined}>
-            <Chip className={cn("h-8 px-3 text-sm", d === domain && "border-accent bg-accent text-accent-fg")}>{d ? DOMAIN_AR[d] : "الكل"}</Chip>
+            <Chip className={cn("h-10 max-md:h-[44px] px-3 text-sm", d === domain && "border-accent bg-accent text-accent-fg")}>{d ? DOMAIN_AR[d] : "الكل"}</Chip>
           </Link>
         ))}
         <form method="get" className="ms-auto flex items-center gap-2 text-sm">
           {domain ? <input type="hidden" name="domain" value={domain} /> : null}
           <label className="flex items-center gap-2 text-fg-muted">
             يوم
-            <input type="date" name="day" defaultValue={day} className="h-10 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
+            <input type="date" name="day" defaultValue={day} className="h-10 max-md:h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
           </label>
           <Button type="submit" variant="secondary">
             اعرض

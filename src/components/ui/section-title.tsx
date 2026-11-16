@@ -11,7 +11,7 @@ export function SectionTitle({ children, hint, href, linkLabel, className }: { c
         {hint ? <p className="text-xs text-fg-muted">{hint}</p> : null}
       </div>
       {href && linkLabel ? (
-        <Link href={href} className="shrink-0 text-sm font-semibold text-info hover:underline">
+        <Link href={href} className="inline-flex min-h-10 min-w-[44px] shrink-0 items-center justify-center text-sm font-semibold text-info hover:underline max-md:min-h-[44px]">
           {linkLabel}
         </Link>
       ) : null}

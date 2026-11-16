@@ -25,7 +25,7 @@ export function Sidebar() {
   const inbox = useInboxCount();
   const { places, settings } = useMyPlaces();
   const row = (active: boolean) =>
-    cn("flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-bold transition-colors", active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg");
+    cn("flex h-10 max-md:h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-bold transition-colors", active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg");
   return (
     <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-e border-border bg-surface-1 md:flex">
       <div className="flex h-[72px] items-center gap-2.5 border-b border-border px-4">

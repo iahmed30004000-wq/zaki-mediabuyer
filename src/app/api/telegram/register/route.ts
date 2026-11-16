@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { registerWebhook, telegramFromEnv, webhookInfo } from "@/adapters/telegram";
-import { missingText } from "@/core/readiness";
+import { missingText, isDemo } from "@/core/readiness";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { appOrigin } from "@/server/env";
 import { audit } from "@/server/audit";
@@ -23,7 +23,7 @@ function keys() {
 export async function GET() {
   try {
     await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const { tg } = keys();
     const info = await webhookInfo(tg).catch(() => {
       throw new HttpError(502, "تيليجرام ما ردّ — جرّب كمان شوي");
@@ -38,7 +38,7 @@ export async function GET() {
 export async function POST() {
   try {
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const { tg, secret } = keys();
     await registerWebhook(tg, hookUrl(), secret).catch(() => {
       throw new HttpError(502, "تيليجرام رفض التسجيل — اتأكد من TELEGRAM_BOT_TOKEN");

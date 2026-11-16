@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({
   metaId: z.string().regex(/^[A-Za-z0-9_-]{3,40}$/, "رقم الصفحة من ميتا"),
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     const caller = await requireCapability("ads.connect");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "في خانة ناقصة");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const taken = await db.page.findFirst({ where: { code: parsed.data.code, metaId: { not: parsed.data.metaId } } });
     if (taken) throw new HttpError(409, `الرمز ${parsed.data.code} مستعمل لصفحة «${taken.name}»`);
     const before = await db.page.findUnique({ where: { metaId: parsed.data.metaId } });

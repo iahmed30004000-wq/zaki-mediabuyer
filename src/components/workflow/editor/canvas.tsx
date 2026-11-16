@@ -265,7 +265,7 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
     <div
       ref={root}
       role="application"
-      aria-label="لوحة رسم الورك فلو: اسحب الخطوات، وصّلها من النقطة تحتها، و«+» على الخط بيضيف خطوة"
+      aria-label="لوحة رسم المهمة: اسحب الخطوات، وصّلها من النقطة تحتها، و«+» على الخط بيضيف فرع"
       tabIndex={0}
       dir="ltr"
       data-panning={panning}
@@ -334,12 +334,12 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
                 <span className="block truncate text-xs font-semibold text-fg">{n.label}</span>
                 <span className="mt-1 flex items-center gap-1">
                   <PermBadge permission={n.permission} />
-                  <span className="min-w-0 truncate text-[10px] text-fg-muted">{executorShort(n.executor)}</span>
+                  <span className="min-w-0 truncate text-xs text-fg-muted">{executorShort(n.executor)}</span>
                 </span>
               </span>
               <StateIcon status={st?.status} />
               <span className="wfe-handle wfe-in" aria-hidden />
-              {readOnly ? null : <span className="wfe-handle wfe-out" data-handle={n.id} role="presentation" title="اسحب لخطوة تانية لتوصلها" />}
+              {readOnly ? null : <span className="wfe-handle wfe-out" data-handle={n.id} role="presentation" title="اسحب لفرع تانية لتوصلها" />}
             </div>
           );
         })}
@@ -355,7 +355,7 @@ export function Canvas({ graph, states, selection, view, onView, onFit, onSize, 
               ) : null}
               {readOnly ? null : (
                 <span className="wfe-mid" style={{ left: mid.x, top: mid.y }}>
-                  <button type="button" aria-label={`ضيف خطوة بين ${nodes.get(e.from)?.label} و${nodes.get(e.to)?.label}`} title="ضيف خطوة هون" onClick={() => onInsert({ from: e.from, to: e.to })}>
+                  <button type="button" aria-label={`ضيف فرع بين ${nodes.get(e.from)?.label} و${nodes.get(e.to)?.label}`} title="ضيف فرع هون" onClick={() => onInsert({ from: e.from, to: e.to })}>
                     <Plus className="size-3.5" />
                   </button>
                   {sel ? (

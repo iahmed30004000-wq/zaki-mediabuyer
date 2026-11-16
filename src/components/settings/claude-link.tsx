@@ -66,13 +66,13 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
         </span>
         <div>
           <p className="text-sm font-semibold text-fg">Claude — طريق الأرقام لحد ما تنربط الـ APIs الرسمية</p>
-          <p className="text-xs leading-5 text-fg-muted">Claude بيقرا مدير الإعلانات والـ OMS من متصفحك وبيبعت الأرقام والتشغيلات والطلبات هون. الموقع بيتصرف نفس تصرفه لو كان على الـ API: نفس الشاشات ونفس السجل. وبيطلب موافقتك على أي شي برّا القواعد، والتلفون بيرنّ.</p>
+          <p className="text-xs leading-5 text-fg-muted">Claude بيقرا مدير الإعلانات والـ OMS من متصفحك وبيبعت الأرقام والتشغيلات والطلبات هون. الموقع بيتصرف نفس تصرفه لو كان مربوط مباشرة: نفس الشاشات ونفس السجل. وبيطلب موافقتك على أي شي برّا القواعد، والتلفون بيرنّ.</p>
         </div>
       </div>
 
       {mock ? (
         <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs leading-5 text-warn">
-          الموقع لسا بالوضع التجريبي (<span dir="ltr" className="font-mono">MOCK_MODE=1</span>): الأرقام اللي بيبعتها Claude بتنحفظ بس الشاشات بتضل تعرض الأرقام التجريبية. لما تربط Claude، غيّر <span dir="ltr" className="font-mono">MOCK_MODE</span> لـ <span dir="ltr" className="font-mono">0</span> بـ Coolify.
+          الموقع لسا بالوضع التجريبي: الأرقام اللي بيبعتها Claude بتنحفظ بس الشاشات بتضل تعرض الأرقام التجريبية. لما تربط Claude، وقّف الوضع التجريبي من Coolify.
         </p>
       ) : null}
 
@@ -98,7 +98,7 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
             <KeyRound className="size-4 text-fg-muted" />
             <span className="text-fg">{t.name}</span>
             <span dir="ltr" className="font-mono text-xs text-fg-muted">{t.prefix}…</span>
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">{t.scopes.includes("mcp") ? "Claude (MCP)" : "طابور التسليم بس"}</span>
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg-muted">{t.scopes.includes("mcp") ? "Claude (MCP)" : "طابور المتوقفة بس"}</span>
             <span className="ms-auto text-xs text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
             <Button size="sm" variant="ghost" onClick={async () => (await call(`/api/mcp/tokens/${t.id}`, { method: "DELETE" })) && load()}>
               وقّفه
@@ -109,7 +109,7 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
       </div>
 
       <p className="text-xs leading-5 text-fg-muted">
-        <span className="font-semibold text-fg">طابور التسليم:</span> لما تضغط «شغّل هلق» أو تقف خطوة، بتنزل هناك. Claude بيقراه بـ <code dir="ltr" className="font-mono">get_handoffs</code> (توكن الـ MCP نفسه)، وClaude Desktop أو أي وكيل بيقدر يقراه من <code dir="ltr" className="break-all font-mono">{handoffUrl || "…/api/v1/handoffs"}</code> بتوكن «طابور التسليم بس» (<code dir="ltr" className="font-mono">Authorization: Bearer …</code>).
+        <span className="font-semibold text-fg">طابور المتوقفة:</span> لما تضغط «شغّل هلق» أو تقف فرع، بتنزل هناك. Claude بيقراه بـ <code dir="ltr" className="font-mono">get_handoffs</code> (نفس مفتاح الربط)، وClaude Desktop أو أي وكيل بيقدر يقراه من <code dir="ltr" className="break-all font-mono">{handoffUrl || "…/api/v1/handoffs"}</code> بمفتاح «طابور المتوقفة بس» (<code dir="ltr" className="font-mono">Authorization: Bearer …</code>).
       </p>
 
       {fresh ? (

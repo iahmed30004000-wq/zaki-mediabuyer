@@ -158,7 +158,7 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
               <p className="font-semibold text-fg">{p.name}</p>
               <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span>
               <span className="text-xs text-fg-muted">· {p.market === "SY" ? "سوريا" : "الأردن"}</span>
-              <span className={cn("ms-auto rounded-md px-1.5 py-0.5 text-[11px] font-semibold", winner ? "bg-ok/10 text-ok" : p.view.delivered ? "bg-warn/10 text-warn" : "bg-surface-2 text-fg-muted")}>
+              <span className={cn("ms-auto rounded-md px-1.5 py-0.5 text-xs font-semibold", winner ? "bg-ok/10 text-ok" : p.view.delivered ? "bg-warn/10 text-warn" : "bg-surface-2 text-fg-muted")}>
                 {winner ? "رابح" : p.view.delivered ? "خاسر لهلأ" : "بيانات غير كافية"}
               </span>
             </div>
@@ -167,7 +167,7 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
               <div><dt className="text-fg-muted">تكلفة المؤكد</dt><dd><Num value={p.view.costPerConfirmed} unit="$" term="costPerConfirmed" /></dd></div>
               <div><dt className="text-fg-muted">السقف</dt><dd><Num value={p.view.ceiling} unit="$" term="ceiling" /></dd></div>
               <div><dt className="text-fg-muted">التأكيد</dt><dd><Num value={p.view.confirmRate} unit="%" term="confirmRate" /></dd></div>
-              <div><dt className="text-fg-muted">التسليم</dt><dd><Num value={p.view.deliveryRate} unit="%" term="deliveryRate" /></dd></div>
+              <div><dt className="text-fg-muted">التوصيل</dt><dd><Num value={p.view.deliveryRate} unit="%" term="deliveryRate" /></dd></div>
               <div><dt className="text-fg-muted">ربح المُسلَّم</dt><dd><Num value={p.view.profitPerDelivered} unit="$" term="profitDelivered" tone={winner ? "ok" : undefined} /></dd></div>
             </dl>
             <p className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs text-fg-muted">
@@ -220,7 +220,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
               <div className="flex flex-wrap items-center gap-2">
                 <StatusChip status={row.status} />
                 {row.learning ? (
-                  <span className="rounded-md bg-info/10 px-1.5 py-0.5 text-[11px] font-semibold text-info">
+                  <span className="rounded-md bg-info/10 px-1.5 py-0.5 text-xs font-semibold text-info">
                     تعلّم {row.learning.events} من {row.learning.of}
                   </span>
                 ) : null}

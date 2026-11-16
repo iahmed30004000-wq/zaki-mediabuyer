@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { isDemo } from "@/core/readiness";
 
 const Body = z
   .object({ dailyCap: z.number().finite().min(0).max(100_000), monthlyCap: z.number().finite().min(0).max(3_000_000) })
@@ -17,7 +18,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const caller = await requireCapability("owner_only");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "الأرقام مش صحيحة");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const a = await db.adAccount.findUnique({ where: { metaId: params.id } });
     if (!a) throw new HttpError(404, "الحساب مش موجود");
     await db.adAccount.update({ where: { id: a.id }, data: { dailyCap: parsed.data.dailyCap, monthlyCap: parsed.data.monthlyCap } });

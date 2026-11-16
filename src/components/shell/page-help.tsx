@@ -40,7 +40,7 @@ export function PageHelp({ place }: { place: { key: string; label: string } }) {
               <p className="text-sm leading-6 text-fg">{g.what}</p>
             </section>
             <section className="rounded-xl border border-accent/30 bg-accent/5 p-3">
-              <h3 className="mb-1 text-xs font-semibold text-accent">الخطوة الجاية</h3>
+              <h3 className="mb-1 text-xs font-semibold text-accent">شو بعدها</h3>
               <p className="text-sm leading-6 text-fg">{g.next}</p>
             </section>
             <div className="flex flex-wrap gap-2">

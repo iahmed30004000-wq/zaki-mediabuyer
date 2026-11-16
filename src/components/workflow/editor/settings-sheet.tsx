@@ -17,7 +17,7 @@ export interface Meta {
   enabled: boolean;
 }
 
-const field = "min-h-10 w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg disabled:opacity-60";
+const field = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg disabled:opacity-60";
 const PRESETS: [string, string][] = [
   ["كل يوم 10:00", "0 10 * * *"],
   ["كل ساعة", "0 * * * *"],
@@ -36,7 +36,7 @@ export function SettingsSheet({ open, onClose, workflowKey, meta, canEdit, demo,
   const next = useMemo(() => (m.schedule.trim() && isValidCron(m.schedule.trim()) ? nextRuns(m.schedule.trim(), new Date(), 3) : []), [m.schedule]);
 
   async function save() {
-    if (!m.name.trim()) return toast("اكتب اسم للورك فلو", "error");
+    if (!m.name.trim()) return toast("اكتب اسم للمهمة", "error");
     if (!cronOk) return toast("الجدولة لازم cron من 5 خانات", "error");
     if (demo) return toast("بالوضع التجريبي ما انحفظ شي", "info");
     setBusy(true);
@@ -57,7 +57,7 @@ export function SettingsSheet({ open, onClose, workflowKey, meta, canEdit, demo,
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>إعدادات الورك فلو</SheetTitle>
+          <SheetTitle>إعدادات المهمة</SheetTitle>
           <SheetDescription>الاسم والجدولة والصلاحية — مش جزء من الرسم، فما بتعمل نسخة جديدة</SheetDescription>
         </SheetHeader>
         <SheetBody className="space-y-4">
@@ -75,7 +75,7 @@ export function SettingsSheet({ open, onClose, workflowKey, meta, canEdit, demo,
             <input id="wf-cron" dir="ltr" value={m.schedule} disabled={!canEdit} placeholder="دقيقة ساعة يوم شهر يوم-بالأسبوع  مثل: 0 10 * * *" onChange={(e) => setM({ ...m, schedule: e.target.value })} className={cn(field, "font-mono", !cronOk && "border-danger")} />
             <div className="flex flex-wrap gap-1.5">
               {PRESETS.map(([label, cron]) => (
-                <button key={label} type="button" disabled={!canEdit} onClick={() => setM({ ...m, schedule: cron })} className={cn("min-h-8 rounded-full border px-3 text-xs", m.schedule.trim() === cron ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
+                <button key={label} type="button" disabled={!canEdit} onClick={() => setM({ ...m, schedule: cron })} className={cn("min-h-10 max-md:min-h-[44px] rounded-full border px-3 text-xs", m.schedule.trim() === cron ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
                   {label}
                 </button>
               ))}
@@ -102,8 +102,8 @@ export function SettingsSheet({ open, onClose, workflowKey, meta, canEdit, demo,
             </label>
           </div>
 
-          <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-fg">
-            <input type="checkbox" checked={m.enabled} disabled={!canEdit} onChange={(e) => setM({ ...m, enabled: e.target.checked })} className="size-4 accent-[var(--accent,#2563eb)]" />
+          <label className="flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 text-sm text-fg">
+            <input type="checkbox" checked={m.enabled} disabled={!canEdit} onChange={(e) => setM({ ...m, enabled: e.target.checked })} className="size-4 accent-accent" />
             شغّال (إذا انطفى Claude بيعرف من جواب log_run)
           </label>
         </SheetBody>

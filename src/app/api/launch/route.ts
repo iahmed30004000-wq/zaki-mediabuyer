@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { launch, prepareLaunch } from "@/server/launch";
 import { MARKETS } from "@/core/naming";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({
   preview: z.boolean().optional(),
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "في خانة ناقصة أو غلط بالإطلاق");
     const caller = await requireCapability("ads.propose");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const { preview, ...input } = parsed.data;
     if (preview) {
       const p = await prepareLaunch(input);

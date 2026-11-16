@@ -10,7 +10,7 @@ export function GuideBody() {
     <div className="space-y-8">
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
         <div>
-          <h3 className="text-lg font-bold text-fg">أهلين بالميديا باير</h3>
+          <h3 className="text-base font-bold text-fg">أهلين بالميديا باير</h3>
           <p className="mt-1 max-w-prose text-sm leading-6 text-fg-muted">
             النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. خمس أماكن بس، وبكل صفحة زر «؟» بيشرحها وبيفرجيك، والمساعد (الزر العائم) بيشرح أي شاشة بضغطة.
           </p>
@@ -37,7 +37,7 @@ export function GuideBody() {
         <div className="grid gap-3 md:grid-cols-2">
           {ARTICLES.map((a) => (
             <details key={a.slug} id={a.slug} className="group rounded-card border border-border bg-surface-1 p-4 shadow-card">
-              <summary className="cursor-pointer list-none text-sm font-semibold text-fg group-open:text-accent">{a.title}</summary>
+              <summary className="flex min-h-10 cursor-pointer list-none items-center text-sm font-semibold text-fg group-open:text-accent max-md:min-h-[44px]">{a.title}</summary>
               {a.body.map((b, i) => (
                 <p key={i} className="mt-2 text-sm leading-6 text-fg">{b}</p>
               ))}
@@ -47,7 +47,7 @@ export function GuideBody() {
       </section>
 
       <details className="group space-y-3 rounded-card border border-border bg-surface-1 p-4">
-        <summary className="cursor-pointer list-none text-base font-bold text-fg group-open:text-accent">كل رقم من وين</summary>
+        <summary className="flex min-h-10 cursor-pointer list-none items-center text-base font-bold text-fg group-open:text-accent max-md:min-h-[44px]">كل رقم من وين</summary>
         <Panel className="mt-3 overflow-x-auto p-0">
           <table className="w-full min-w-[34rem] text-sm">
             <tbody className="divide-y divide-border">

@@ -36,7 +36,7 @@ export function VersionsSheet({ open, onClose, workflowKey, canEdit, demo, onLoa
           <SheetDescription>كل حفظ نسخة جديدة. الرجوع لنسخة قديمة بيعمل نسخة جديدة منها — ما في شي بينحذف.</SheetDescription>
         </SheetHeader>
         <SheetBody>
-          {demo ? <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-6 text-fg-muted">هاد الموقع على البيانات التجريبية: ما في نسخ محفوظة. لما يشتغل على الحقيقي (MOCK_MODE=0) كل حفظ بيعمل نسخة هون.</p> : failed ? <p className="text-sm text-danger">ما قدرت أجيب النسخ — جرّب كمان مرة.</p> : list === null ? <p className="text-sm text-fg-muted">…</p> : (
+          {demo ? <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-6 text-fg-muted">هاد الموقع على البيانات التجريبية: ما في نسخ محفوظة. لما يشتغل على الأرقام الحقيقية كل حفظ بيعمل نسخة هون.</p> : failed ? <p className="text-sm text-danger">ما قدرت أجيب النسخ — جرّب كمان مرة.</p> : list === null ? <p className="text-sm text-fg-muted">…</p> : (
             <ol className="space-y-2">
               {list.map((v, i) => {
                 const older = list[i + 1];
@@ -45,13 +45,13 @@ export function VersionsSheet({ open, onClose, workflowKey, canEdit, demo, onLoa
                   <li key={v.version} className="space-y-1.5 rounded-xl border border-border bg-surface-1 p-3">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-bold text-fg">النسخة {v.version}</span>
-                      {v.current ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-[11px] font-semibold text-accent">الحالية</span> : null}
+                      {v.current ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent">الحالية</span> : null}
                       <span className="ms-auto text-xs text-fg-muted">{when(v.createdAt)}</span>
                     </div>
                     {change ? <p className="text-xs leading-5 text-fg">{change}</p> : null}
-                    <p className="text-[11px] text-fg-muted">{v.graph.nodes.length} خطوة · {v.graph.edges.length} وصلة{v.createdBy ? ` · ${who(v.createdBy)}` : ""}</p>
+                    <p className="text-xs text-fg-muted">{v.graph.nodes.length} خطوة · {v.graph.edges.length} وصلة{v.createdBy ? ` · ${who(v.createdBy)}` : ""}</p>
                     {canEdit && !v.current ? (
-                      <Button size="sm" variant="secondary" className="min-h-9" onClick={() => onLoad(v.graph, v.version)}>
+                      <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={() => onLoad(v.graph, v.version)}>
                         افتحها كمسودة
                       </Button>
                     ) : null}

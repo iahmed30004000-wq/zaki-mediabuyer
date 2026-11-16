@@ -13,11 +13,8 @@ describe("the type scale (docs/rebuild/03-look.md §3)", () => {
     expect(sizes["3xl"]).toEqual(["28px", "36px"]);
   });
 
-  it("the three old names are synonyms of the nearest size until P12 removes them — and nothing else exists", () => {
-    expect(sizes.lg).toEqual(sizes.base);
-    expect(sizes["2xl"]).toEqual(sizes.xl);
-    expect(sizes["4xl"]).toEqual(sizes["3xl"]);
-    expect(Object.keys(sizes).sort()).toEqual(["2xl", "3xl", "4xl", "base", "lg", "sm", "xl", "xs"]);
+  it("the old synonyms (lg, 2xl, 4xl) are gone: the five sizes are the only sizes that exist", () => {
+    expect(Object.keys(sizes).sort()).toEqual(["3xl", "base", "sm", "xl", "xs"]);
   });
 
   it("the control radius is 10px", () => {

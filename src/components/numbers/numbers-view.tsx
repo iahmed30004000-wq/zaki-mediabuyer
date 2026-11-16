@@ -21,13 +21,13 @@ function Stat({ def, set, prev, avg, compare, tone, prevLabel }: { def: StatDef;
   const v = set[def.key];
   return (
     <div className="min-w-0 rounded-lg bg-surface-2/50 px-2.5 py-2">
-      <p className="truncate text-[11px] text-fg-muted">{def.label}</p>
+      <p className="truncate text-xs text-fg-muted">{def.label}</p>
       <div className="mt-0.5 flex items-baseline gap-1">
         <Num value={v} unit={def.unit === "يوم" ? "" : def.unit} term={def.term as TermKey} tone={tone} />
-        {def.unit === "يوم" && v !== null ? <span className="text-[11px] text-fg-muted">يوم</span> : null}
+        {def.unit === "يوم" && v !== null ? <span className="text-xs text-fg-muted">يوم</span> : null}
       </div>
       {compare ? (
-        <div className="mt-1 space-y-0.5 whitespace-nowrap text-[10px] text-fg-muted">
+        <div className="mt-1 space-y-0.5 whitespace-nowrap text-xs text-fg-muted">
           <div className="flex items-center justify-between gap-1">
             <span>{prevLabel}</span>
             <Delta now={v} base={prev[def.key]} good={def.good} />
@@ -106,10 +106,10 @@ function ProductCard({ p, compare, target, prevLabel }: { p: ProductNumbers; com
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="truncate text-sm font-semibold text-fg">{p.name}</span>
-            <span dir="ltr" className="font-mono text-[11px] text-fg-muted">{p.code}</span>
+            <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span>
             {p.stockUrgency ? <span title="المخزون">{URGENCY_ICON[p.stockUrgency]}</span> : null}
           </span>
-          <span className="mt-1 grid grid-cols-4 gap-2 text-[11px]">
+          <span className="mt-1 grid grid-cols-4 gap-2 text-xs">
             {([["الصرف", s.spend, "$"], ["الطلبات", s.ordersIn, ""], ["تكلفة الطلب", s.costPerOrder, "$"], ["تأكيد", s.confirmRate, "%"]] as const).map(([l, v, u]) => (
               <span key={l} className="min-w-0">
                 <span className="block truncate text-fg-muted">{l}</span>
@@ -153,16 +153,16 @@ function Share({ query }: { query: string }) {
   }
   return (
     <div className="relative">
-      <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="min-h-9">
+      <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="min-h-10 max-md:min-h-[44px]">
         <Send className="size-3.5" />
         شارك
       </Button>
       {open ? (
         <div className="absolute end-0 top-full z-30 mt-2 w-60 space-y-1.5 rounded-xl border border-border bg-surface-1 p-2 shadow-card">
-          <a href={`/print/numbers?${query}`} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm text-fg hover:bg-surface-2">
+          <a href={`/print/numbers?${query}`} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 rounded-lg px-3 text-sm text-fg hover:bg-surface-2">
             <Printer className="size-4" /> PDF — صفحة للطباعة والحفظ
           </a>
-          <button type="button" disabled={busy} onClick={telegram} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-start text-sm text-fg hover:bg-surface-2 disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={telegram} className="flex min-h-10 max-md:min-h-[44px] w-full items-center gap-2 rounded-lg px-3 text-start text-sm text-fg hover:bg-surface-2 disabled:opacity-50">
             <Send className="size-4" /> ملخص على تيليجرام
           </button>
         </div>
@@ -188,8 +188,8 @@ export function NumbersView({ data, query, pasteDay }: { data: NumbersData; quer
     <div className="space-y-4">
       {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">بيانات تجريبية — أرقام مثال بنفس الحسابات. لما يبعت Claude أرقامك (أو ينربط الـ OMS وميتا) وتشغّل الموقع على الحقيقي، بتطلع أرقامك الفعلية.</p> : null}
       <div className="flex flex-wrap items-center gap-3" data-tour="toolbar">
-        <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm text-fg">
-          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="size-4 accent-[var(--accent,#2563eb)]" />
+        <label className="inline-flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 text-sm text-fg">
+          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="size-4 accent-accent" />
           قارن
         </label>
         <span className="text-xs text-fg-muted">{data.label}</span>
@@ -204,11 +204,11 @@ export function NumbersView({ data, query, pasteDay }: { data: NumbersData; quer
         <Strip s={current} prev={prev} avg={avg7} compare={compare} tone={tone} prevLabel={prevLabel} />
         {compare ? (
           // Under the strip, not above it: the strip is the part that has to stay on the first phone screen.
-          <p className="text-[11px] leading-4 text-fg-muted">
+          <p className="text-xs leading-4 text-fg-muted">
             كل رقم مقابل {data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "اليوم اللي قبله") : "الفترة اللي قبلها"} («{prevLabel}») ومقابل معدّل آخر 7 أيام («7 أيام»). السهم الأخضر = أحسن، الأحمر = أسوأ.
           </p>
         ) : null}
-        <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all} className="text-xs font-medium text-accent hover:underline">
+        <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all} className="inline-flex min-h-10 items-center max-md:min-h-[44px] text-xs font-medium text-accent hover:underline">
           {all ? "سكّر أرقام الإجمالي" : "كل أرقام الإجمالي"}
         </button>
         {all ? (
@@ -226,7 +226,7 @@ export function NumbersView({ data, query, pasteDay }: { data: NumbersData; quer
         {!data.products.length ? <Panel className="text-sm text-fg-muted">ما في أرقام للفترة هاي لسا. أول ما يبعتها Claude (أو ينربط الـ OMS وميتا) بتطلع هون.</Panel> : null}
       </section>
 
-      {data.rulesMissing && !data.demo ? <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">الألوان (أخضر / برتقالي / أحمر) بتحتاج «الهدف» و«نقطة التعادل» من <a href="/settings/rules#campaign-rules" className="font-medium text-accent hover:underline">قواعد الحملات</a> — لسا ناقصة.</p> : null}
+      {data.rulesMissing && !data.demo ? <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">الألوان (أخضر / برتقالي / أحمر) بتحتاج «الهدف» و«نقطة التعادل» من <a href="/settings/rules#campaign-rules" className="inline-flex min-h-10 items-center font-medium text-accent max-md:min-h-[44px] hover:underline">قواعد الحملات</a> — لسا ناقصة.</p> : null}
     </div>
   );
 }

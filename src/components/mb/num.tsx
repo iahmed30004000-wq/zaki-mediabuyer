@@ -80,7 +80,7 @@ export function Num({
         aria-controls={id}
         aria-label={`${label ?? t.name}: ${fmt(value, unit)} — ليش؟`}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-md px-0.5 underline decoration-dotted decoration-fg-muted/40 underline-offset-4 hover:decoration-accent"
+        className="inline-flex items-center gap-1.5 rounded-md px-0.5 underline decoration-dotted max-md:min-h-[44px] decoration-fg-muted/40 underline-offset-4 hover:decoration-accent"
       >
         {body}
       </button>

@@ -176,8 +176,8 @@ export function KitShowcase() {
           <ErrorState hint="الاتصال ضعيف" onRetry={() => toast("عم نعيد المحاولة")} />
           <div className="space-y-2 rounded-card border border-border p-4">
             <Skeleton className="h-5 w-1/2" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-3/4" />
+            <Skeleton className="h-10 max-md:h-[44px] w-full" />
+            <Skeleton className="h-10 max-md:h-[44px] w-3/4" />
           </div>
         </div>
       </section>

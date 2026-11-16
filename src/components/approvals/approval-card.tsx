@@ -51,7 +51,7 @@ export function Why({ a }: { a: ApprovalView }) {
 export function AnswerButtons({ id, big = false, after }: { id: string; big?: boolean; after?: Parameters<typeof useDecide>[1] }) {
   const { busy, decide } = useDecide(id, after);
   const [later, setLater] = useState(false);
-  const size = big ? "min-h-14 text-base" : "min-h-11";
+  const size = big ? "min-h-16 text-base" : "min-h-10 max-md:min-h-[44px]";
   return (
     <div className="space-y-2">
       <div className="grid grid-cols-2 gap-2">
@@ -76,7 +76,7 @@ export function AnswerButtons({ id, big = false, after }: { id: string; big?: bo
       {later ? (
         <div className="flex flex-wrap gap-2" role="group" aria-label="أجّل لـ">
           {([["15m", "15 دقيقة"], ["1h", "ساعة"], ["morning", "الصبح"]] as const).map(([until, label]) => (
-            <Button key={until} disabled={busy} variant="secondary" size="sm" onClick={() => decide("postpone", { until })} className="min-h-10 flex-1">
+            <Button key={until} disabled={busy} variant="secondary" size="sm" onClick={() => decide("postpone", { until })} className="min-h-10 max-md:min-h-[44px] flex-1">
               {label}
             </Button>
           ))}
@@ -99,7 +99,7 @@ export function ApprovalCard({ approval, compact = false }: { approval: Approval
           {u.icon} {u.label}
         </span>
         {approval.source === "mcp" ? (
-          <span className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-fg-muted" title="الطلب جاي من Claude عبر MCP">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-fg-muted" title="الطلب جاي من Claude عبر الربط">
             <Bot className="size-3" />
             Claude
           </span>

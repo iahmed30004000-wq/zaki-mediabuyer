@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { METRICS, addCounts, countRepo, countSource, emptyCounts, overBaseline, type Counts } from "../scripts/ui-rules";
+import { METRICS, RAW_BUTTON_EXCEPTIONS, addCounts, countRepo, countSource, emptyCounts, overBaseline, type Counts } from "../scripts/ui-rules";
 
 const root = path.resolve(__dirname, "..");
 const none = (over: Partial<Counts> = {}): Counts => ({ ...emptyCounts(), ...over });
@@ -51,6 +51,15 @@ describe("what the ratchet counts", () => {
 describe("the ratchet: a number only goes down", () => {
   const baseline = JSON.parse(readFileSync(path.join(root, "tests/ui-rules.baseline.json"), "utf8")) as Partial<Counts>;
   const { total } = countRepo(root);
+
+  it("every raw-button exception is real: the file exists, holds at least that many, and says why", () => {
+    for (const [file, e] of Object.entries(RAW_BUTTON_EXCEPTIONS)) {
+      const held = (readFileSync(path.join(root, file), "utf8").match(/<button\b/g) ?? []).length;
+      expect(held, file).toBeGreaterThanOrEqual(e.allowed);
+      expect(e.allowed, file).toBeGreaterThan(0);
+      expect(e.why.length, file).toBeGreaterThan(20);
+    }
+  });
 
   it("the baseline names every metric", () => {
     expect(Object.keys(baseline).sort()).toEqual([...METRICS].sort());

@@ -33,7 +33,7 @@ export function StepsView({
   const nameOf = (id: string) => graph.nodes.find((n) => n.id === id)?.label ?? id;
   return (
     <div className="h-full overflow-y-auto p-3" data-tour="steps">
-      {!chain ? <p className="mb-3 rounded-lg border border-dashed border-border p-2.5 text-xs leading-5 text-fg-muted">الرسم بيتفرّع أو بيلتقي — الأسهم معطّلة. اضغط على الخطوة بتشوف شو قبلها وشو بعدها وبتغيّرها، أو افتح اللوحة.</p> : null}
+      {!chain ? <p className="mb-3 rounded-lg border border-dashed border-border p-2.5 text-xs leading-5 text-fg-muted">الرسم بيتفرّع أو بيلتقي — الأسهم معطّلة. اضغط على الفرع بتشوف شو قبلها وشو بعدها وبتغيّرها، أو افتح اللوحة.</p> : null}
       <ol className="space-y-2">
         {order.map((n, i) => {
           const st = states[n.id];
@@ -43,7 +43,7 @@ export function StepsView({
           return (
             <li key={n.id} className={cn("rounded-xl border bg-surface-1", selected === n.id ? "border-accent" : "border-border", n.disabled && "border-dashed opacity-60")}>
               <div className="flex items-stretch">
-                <button type="button" onClick={() => onOpen(n.id)} data-state={st?.status ?? "idle"} className="wf-node flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-start" aria-label={`${n.label} — ${TYPE_AR[n.type]}${st ? ` — ${NODE_STATE_AR[st.status]}` : ""}`}>
+                <button type="button" onClick={() => onOpen(n.id)} data-state={st?.status ?? "idle"} className="wf-node flex min-h-16 min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-start" aria-label={`${n.label} — ${TYPE_AR[n.type]}${st ? ` — ${NODE_STATE_AR[st.status]}` : ""}`}>
                   <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-semibold text-fg-muted">{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 text-sm font-medium text-fg">
@@ -53,7 +53,7 @@ export function StepsView({
                     <span className="mt-1 flex flex-wrap items-center gap-1">
                       <PermBadge permission={n.permission} />
                       <ExecutorBadge executor={n.executor} />
-                      {n.disabled ? <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] text-fg-muted">معطّلة</span> : null}
+                      {n.disabled ? <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">معطّلة</span> : null}
                     </span>
                   </span>
                   <StateIcon status={st?.status} />
@@ -74,7 +74,7 @@ export function StepsView({
                 )}
               </div>
               {!chain && (before.length || after.length) ? (
-                <p className="border-t border-border px-3 py-1.5 text-[11px] leading-5 text-fg-muted">
+                <p className="border-t border-border px-3 py-1.5 text-xs leading-5 text-fg-muted">
                   {before.length ? `بعد: ${before.join("، ")}` : "بداية"}
                   {after.length ? ` · بتوصّل: ${after.join("، ")}` : ""}
                 </p>

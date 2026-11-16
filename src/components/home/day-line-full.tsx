@@ -46,7 +46,7 @@ export function DayLineFull({ line, rows, now = new Date() }: { line: DayLine; r
           </div>
           {shown.map((r) => (
             <div key={r.key} className="flex items-center gap-3">
-              <Link href={`/work/job/${encodeURIComponent(r.key)}`} className="w-36 shrink-0 truncate text-sm font-bold text-fg hover:underline">
+              <Link href={`/work/job/${encodeURIComponent(r.key)}`} className="inline-flex min-h-10 w-36 shrink-0 items-center truncate text-sm font-bold text-fg hover:underline max-md:min-h-[44px]">
                 {r.number ? <span dir="ltr" className="me-1.5 tabular-nums text-fg-muted">{r.number}</span> : null}
                 {r.name}
               </Link>
@@ -54,17 +54,14 @@ export function DayLineFull({ line, rows, now = new Date() }: { line: DayLine; r
                 <span aria-hidden className="absolute inset-y-0 rounded-md bg-surface-2" style={{ insetInlineStart: `${NIGHT_FROM}%`, insetInlineEnd: 0 }} />
                 <span aria-hidden className="absolute top-0 h-full w-0.5 bg-accent-2" style={{ insetInlineStart: `${here}%` }} />
                 {(by.get(r.key) ?? []).map((d, i) => (
-                  <Link
+                  <span
                     key={`${d.at}-${i}`}
-                    href={d.runId ? `/work/job/${encodeURIComponent(d.jobKey)}` : `/work/job/${encodeURIComponent(d.jobKey)}`}
+                    role="img"
+                    aria-label={`${d.name} ${clock(d.at)} ${DOT_AR[d.state]}`}
                     title={`${d.name} · ${clock(d.at)} · ${DOT_AR[d.state]}`}
                     className={cn("absolute top-1/2 block size-3.5 -translate-y-1/2 rounded-full", DOT[d.state])}
                     style={{ insetInlineStart: `calc(${pct(d.at, line)}% - 7px)` }}
-                  >
-                    <span className="sr-only">
-                      {d.name} {clock(d.at)} {DOT_AR[d.state]}
-                    </span>
-                  </Link>
+                  />
                 ))}
               </div>
             </div>

@@ -14,7 +14,7 @@ const PERM_SHORT: Record<Permission, string> = { green: "أخضر", yellow: "أ�
 export function PermBadge({ permission, className }: { permission: Permission | undefined; className?: string }) {
   if (!permission) return null;
   return (
-    <span title={PERMISSION_AR[permission]} className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold", PERM[permission], className)}>
+    <span title={PERMISSION_AR[permission]} className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-semibold", PERM[permission], className)}>
       {PERM_SHORT[permission]}
     </span>
   );
@@ -25,7 +25,7 @@ export function ExecutorBadge({ executor, className }: { executor: Executor | st
   const label = EXECUTOR_AR[executor as Executor] ?? executor;
   const claude = executor.startsWith("claude");
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-fg-muted", className)}>
+    <span className={cn("inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg-muted", className)}>
       {claude ? <Bot className="size-3" /> : null}
       {label}
     </span>

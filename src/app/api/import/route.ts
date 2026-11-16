@@ -7,6 +7,7 @@ import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { getSetting } from "@/server/settings";
 import { FIELDS, guessMapping, parseCsv, readRows, type Field } from "@/io/import";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({
   fileName: z.string().min(1).max(200),
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     const resolved = rows.map((r) => ({ ...r, objectId: r.adId ? (byId.has(r.adId) ? r.adId : null) : byName.get(r.adName!) ?? null }));
     const unknown = resolved.filter((r) => !r.objectId).length;
 
-    if (!b.commit || process.env.MOCK_MODE === "1") {
+    if (!b.commit || isDemo(process.env)) {
       return NextResponse.json({
         headers,
         mapping,

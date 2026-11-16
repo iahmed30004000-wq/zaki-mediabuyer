@@ -18,7 +18,7 @@ const STARTERS: Record<string, string[]> = {
   ads: ["أي إعلان أغلى طلب حقيقي هالأسبوع؟", "شو الإعلانات اللي لازم تتوقف؟"],
   videos: ["كم فيديو ناقص بالبنك لكل منتج؟", "مين الفيديوهات الرابحة؟"],
   tasks: ["شو المهام المفتوحة؟", "اعملي مهمة: متابعة الكرتون بكرا"],
-  workflow: ["شو آخر تشغيل خلص؟", "ارسملي ورك فلو لمتابعة الشحنات العالقة"],
+  workflow: ["شو آخر تشغيل خلص؟", "ارسملي مهمة لمتابعة الشحنات العالقة"],
   done: ["لخّصلي امبارح بتلات أسطر"],
   settings: ["شو الفرق بين المستوى 1 و 2؟"],
 };
@@ -106,7 +106,7 @@ export function Consultant() {
   /** «اشرح لي هالشاشة» (it replaced the guide page): this place's own explanation, from the guide — no model, no numbers. */
   const explain = () => {
     const g = guideOf(place.key);
-    setLog((l) => [...l, { me: true, text: "اشرح لي هالشاشة" }, { me: false, text: `${g.what}\n\nالخطوة الجاية: ${g.next}`, by: "guide", tour: true }]);
+    setLog((l) => [...l, { me: true, text: "اشرح لي هالشاشة" }, { me: false, text: `${g.what}\n\nشو بعدها: ${g.next}`, by: "guide", tour: true }]);
   };
 
   // The button lives in the page header (no floating button over the content): it sends this event.
@@ -209,18 +209,18 @@ export function Consultant() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               المساعد
-              {info ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-[11px] font-semibold text-accent">{MODE_CHIP[info.mode]}</span> : null}
+              {info ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent">{MODE_CHIP[info.mode]}</span> : null}
             </SheetTitle>
             <SheetDescription>بيفهم إنك هلأ بـ «{place.label}». بيجاوب من أرقام الشاشات وبيعمل مهام ومسودات، وما بينفّذ صرف — أي تغيير بيستنى موافقتك.</SheetDescription>
           </SheetHeader>
           <SheetBody className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={explain} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 text-sm font-medium text-accent hover:bg-accent/10">
+              <button type="button" onClick={explain} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 text-sm font-medium text-accent hover:bg-accent/10">
                 <CircleHelp className="size-4" />
                 اشرح لي هالشاشة
               </button>
               {log.length ? (
-                <button type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg">
+                <button type="button" onClick={reset} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg">
                   <RotateCcw className="size-3.5" />
                   محادثة جديدة
                 </button>
@@ -286,7 +286,7 @@ export function Consultant() {
                     )
                   ) : null}
                   {!m.me && (m.facts?.length || m.sources?.length) ? <FactsList facts={m.facts ?? []} sources={m.sources ?? []} onNavigate={close} /> : null}
-                  {!m.me && m.notice ? <p className="text-[11px] leading-5 text-fg-muted">{m.notice}</p> : null}
+                  {!m.me && m.notice ? <p className="text-xs leading-5 text-fg-muted">{m.notice}</p> : null}
                 </div>
               ))
             )}
@@ -305,7 +305,7 @@ export function Consultant() {
                 ask(q);
               }}
             >
-              <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={1000} placeholder="اكتب سؤالك…" dir="auto" className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-fg" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={1000} placeholder="اكتب سؤالك…" dir="auto" className="h-10 max-md:h-[44px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-fg" />
               <button type="submit" disabled={busy} aria-label="ابعت" className="inline-flex size-11 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-50">
                 <Send className="size-4 rtl:-scale-x-100" />
               </button>

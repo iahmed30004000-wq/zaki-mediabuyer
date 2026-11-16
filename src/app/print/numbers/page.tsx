@@ -50,7 +50,7 @@ export default async function PrintNumbersPage({ searchParams }: { searchParams:
       {data.products.map((p) => (
         <Table key={p.code} title={`${p.name} (${p.code})`} set={p.current} extra={p.rejectReasons.length ? `أسباب الرفض: ${p.rejectReasons.map((r) => `${r.reason} (${r.count})`).join("، ")}` : undefined} />
       ))}
-      <p className="border-t border-neutral-300 pt-3 text-[11px] text-neutral-500">كل رقم محسوب بالكود من أرقام ميتا والـ OMS. الصرف = صرف ميتا + رسوم البطاقة 1%. الإيراد المتوقع = مجموع قيمة الشحنات × نسبة التسليم آخر 30 يوم.</p>
+      <p className="border-t border-neutral-300 pt-3 text-xs text-neutral-500">كل رقم محسوب بالكود من أرقام ميتا والـ OMS. الصرف = صرف ميتا + رسوم البطاقة 1%. الإيراد المتوقع = مجموع قيمة الشحنات × نسبة التوصيل آخر 30 يوم.</p>
     </main>
   );
 }

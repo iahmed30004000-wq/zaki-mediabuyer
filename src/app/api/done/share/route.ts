@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { missingText } from "@/core/readiness";
+import { missingText, isDemo } from "@/core/readiness";
 import { summaryOfDay } from "@/core/day";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { loadDay, readDay } from "@/lib/day-view";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const caller = await requireCapability("money.view");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const tg = telegramFromEnv();
     if (!tg) throw new HttpError(409, missingText("telegram") ?? "تيليجرام مش مربوط");
     const data = await loadDay(readDay(new URL(req.url).searchParams.get("day") ?? undefined));

@@ -17,7 +17,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>((
     ref={ref}
     type={type}
     className={cn(
-      "inline-flex size-10 shrink-0 items-center justify-center rounded-lg transition-[colors,transform] duration-150 active:scale-[.98] disabled:pointer-events-none disabled:opacity-[.45] max-md:size-11 motion-reduce:transition-none",
+      "inline-flex size-10 max-md:size-11 shrink-0 items-center justify-center rounded-lg transition-[colors,transform] duration-150 active:scale-[.98] disabled:pointer-events-none disabled:opacity-[.45] max-md:size-11 motion-reduce:transition-none",
       tone === "danger" ? "bg-danger text-danger-fg hover:bg-danger/90" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
       className,
     )}

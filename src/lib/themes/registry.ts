@@ -61,23 +61,9 @@ export function themeMoodKey(key: ThemeKey): string {
  */
 export const THEME_COOKIE = "mb_theme";
 
-/** How much decoration is drawn: nothing, a light touch (default) or the full effect with slow motion. */
-export const DECOR_LEVELS = ["off", "light", "full"] as const;
-export type DecorLevel = (typeof DECOR_LEVELS)[number];
-export const DEFAULT_DECOR: DecorLevel = "light";
-export const DECOR_COOKIE = "mb-decor";
-
-export function isDecorLevel(value: unknown): value is DecorLevel {
-  return typeof value === "string" && (DECOR_LEVELS as readonly string[]).includes(value);
-}
-
-export function decorLevelOf(value: unknown): DecorLevel {
-  return isDecorLevel(value) ? value : DEFAULT_DECOR;
-}
-
-/** What <html> carries for a theme and a decoration level (the root layout and the client provider agree through this). */
-export function rootThemeAttributes(theme: ThemeKey, decor: DecorLevel): { "data-theme": ThemeKey; "data-decor": DecorLevel; dark: boolean } {
-  return { "data-theme": theme, "data-decor": decor, dark: isDarkTheme(theme) };
+/** What <html> carries for a theme (the root layout and the client provider agree through this). */
+export function rootThemeAttributes(theme: ThemeKey): { "data-theme": ThemeKey; dark: boolean } {
+  return { "data-theme": theme, dark: isDarkTheme(theme) };
 }
 
 /** Both preference cookies live a year. */

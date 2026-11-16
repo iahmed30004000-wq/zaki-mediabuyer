@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { HandoffRefused, requestRun } from "@/server/handoffs";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function POST(_req: Request, { params }: { params: { key: string } }) {
   try {
     const caller = await requireCapability("work.control");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     try {
       const r = await requestRun(params.key, { type: "user", id: caller.id });
       return NextResponse.json({ ok: true, created: r.created, handoff: r.handoff });

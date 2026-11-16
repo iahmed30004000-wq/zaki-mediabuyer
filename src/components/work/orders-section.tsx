@@ -96,7 +96,7 @@ export function OrdersSection({ orders, scope, title = "أوامر سارية", 
                 </Field>
               )}
               <Field label="لحد إيمتى" hint="فاضي = لحد ما تقول «ارجع»">
-                <input type="datetime-local" dir="ltr" value={until} onChange={(e) => setUntil(e.target.value)} className="h-10 rounded-lg border border-border bg-surface-1 px-2 text-base text-fg" />
+                <input type="datetime-local" dir="ltr" value={until} onChange={(e) => setUntil(e.target.value)} className="h-10 max-md:h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-base text-fg" />
               </Field>
             </div>
             <div className="flex items-center gap-2">

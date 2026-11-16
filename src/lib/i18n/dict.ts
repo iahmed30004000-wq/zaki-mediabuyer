@@ -16,10 +16,4 @@ export const AR: Record<string, string> = {
   "theme.zaki-dark.mood": "نفس الشكل على خلفية ليلية، والذهبي هو الأساسي. للمسا.",
   "theme.kind_light": "فاتح",
   "theme.kind_dark": "داكن",
-  "theme.decor": "الزخرفة",
-  "theme.decor_hint": "بتظهر بس بالدخول والصفحات الفاضية ورأس القائمة، وأبداً مش ورا رقم أو جدول.",
-  "theme.decor.off": "بدون",
-  "theme.decor.light": "خفيفة",
-  "theme.decor.full": "كاملة",
-  "theme.decor_motion": "«كاملة» فيها حركة هادية، وبتوقف لحالها إذا جهازك طالب تقليل الحركة.",
 };

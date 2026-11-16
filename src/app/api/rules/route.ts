@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { getRules, saveRules } from "@/server/rules";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const body = await req.json().catch(() => null);
     try {
       return NextResponse.json({ ok: true, ...(await saveRules(body, caller.id)) });

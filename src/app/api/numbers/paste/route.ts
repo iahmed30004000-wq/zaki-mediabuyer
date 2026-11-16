@@ -5,6 +5,7 @@ import { PASTE_LEVELS, checkRows } from "@/core/push-rows";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { directoryKeys } from "@/server/directory";
 import { applyMetrics } from "@/server/push";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
       sample: checked.rows.slice(0, 5).map((r) => r.row),
     };
     if (!apply) return NextResponse.json({ ok: true, ...summary });
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true, ...summary });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true, ...summary });
     if (!checked.rows.length) throw new HttpError(400, "ما في صف صالح للإدخال — شوف المشاكل تحت");
     const report = await applyMetrics(checked.rows.map((r) => r.row), { actor: { type: "user", id: caller.id }, source: "manual" });
     return NextResponse.json({ ok: true, applied: report.applied, insights: report.insights, structure: report.structure, rejected: report.rejected.length, rejectedList: report.rejected.slice(0, 5).map((r) => ({ line: read.rows[r.index]?.line ?? 0, error: r.error })), warnings: report.warnings.slice(0, 5), ...summary });

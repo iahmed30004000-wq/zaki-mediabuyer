@@ -65,8 +65,8 @@ function EdgeBar({ graph, edge, canEdit, onLabel, onRemove }: { graph: WfGraph; 
       </span>
       {canEdit ? (
         <>
-          <input value={text} dir="auto" placeholder="سمّيها (نعم / لا…)" onChange={(e) => setText(e.target.value)} onBlur={() => text !== (cur?.label ?? "") && onLabel(text)} className="min-h-9 w-40 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" aria-label="اسم الوصلة" />
-          <Button size="sm" variant="ghost" className="ms-auto min-h-9 text-danger hover:text-danger" onClick={onRemove}>
+          <input value={text} dir="auto" placeholder="سمّيها (نعم / لا…)" onChange={(e) => setText(e.target.value)} onBlur={() => text !== (cur?.label ?? "") && onLabel(text)} className="min-h-10 max-md:min-h-[44px] w-40 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" aria-label="اسم الوصلة" />
+          <Button size="sm" variant="ghost" className="ms-auto min-h-10 max-md:min-h-[44px] text-danger hover:text-danger" onClick={onRemove}>
             <Trash2 className="size-4" /> احذفها
           </Button>
         </>
@@ -327,9 +327,10 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
     if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
     if (d.demo) return toast("بالوضع التجريبي ما انحفظ شي", "info");
     setBaseline(saving_);
-    setVersion(d.workflow?.version ?? version + 1);
+    const next = d.workflow?.version ?? version + 1;
+    setVersion(next);
     setNote("");
-    toast(`انحفظ — النسخة ${d.workflow?.version ?? version + 1}`, "success");
+    toast(`انحفظ — النسخة ${next}`, "success");
   };
 
   const loadDraft = (gr: WfGraph, v: number) => {
@@ -384,22 +385,22 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
   return (
     <div className="space-y-3" onKeyDown={onKey}>
       <header className="flex flex-wrap items-center gap-2">
-        <Link href="/work" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg">
+        <Link href="/work" className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 rounded-lg border border-border px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg">
           <ArrowRight className="size-4" /> الورك فلو
         </Link>
         <h2 className="flex min-w-[9rem] flex-1 items-center gap-2 text-base font-bold text-fg">
           {liveNow ? <Radio className="size-4 shrink-0 animate-pulse text-accent motion-reduce:animate-none" aria-label="شغّال هلأ" /> : null}
           <span className="truncate">{meta.name}</span>
-          <span dir="ltr" className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted">v{version}</span>
+          <span dir="ltr" className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted">v{version}</span>
         </h2>
         <span className="flex shrink-0 items-center gap-1.5">
           <PermBadge permission={meta.permission} />
           <ExecutorBadge executor={meta.executor} />
         </span>
-        <Button variant="secondary" size="sm" className="min-h-9" onClick={() => setSettingsOpen(true)}>
+        <Button variant="secondary" size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={() => setSettingsOpen(true)}>
           <Settings className="size-4" /> الإعدادات
         </Button>
-        <Button variant="secondary" size="sm" className="min-h-9" onClick={() => setVersionsOpen(true)} data-tour="versions">
+        <Button variant="secondary" size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={() => setVersionsOpen(true)} data-tour="versions">
           <HistoryIcon className="size-4" /> النسخ
         </Button>
       </header>
@@ -407,14 +408,14 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
       <div className="flex flex-wrap items-center gap-2" data-tour="toolbar">
         <div role="group" aria-label="طريقة العرض" className="inline-flex rounded-lg border border-border bg-surface-1 p-1">
           {([["canvas", "اللوحة", Network], ["steps", "الخطوات", ListOrdered]] as const).map(([k, label, Icon]) => (
-            <button key={k} type="button" aria-pressed={mode === k} onClick={() => setMode(k)} className={cn("inline-flex min-h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium", mode === k ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+            <button key={k} type="button" aria-pressed={mode === k} onClick={() => setMode(k)} className={cn("inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1.5 rounded-md px-3 text-sm font-medium", mode === k ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
               <Icon className="size-4" /> {label}
             </button>
           ))}
         </div>
         {canEdit ? (
           <>
-            <Button size="sm" className="min-h-10" onClick={() => setPicker({ mode: "add" })} data-tour="add">
+            <Button size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={() => setPicker({ mode: "add" })} data-tour="add">
               <Plus className="size-4" /> خطوة
             </Button>
             <span className="inline-flex gap-1.5">
@@ -426,7 +427,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
               </button>
             </span>
             {mode === "canvas" ? (
-              <Button size="sm" variant="secondary" className="min-h-10" onClick={tidy} title="رتّب الخطوات لحالها">
+              <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={tidy} title="رتّب الخطوات لحالها">
                 <Wand2 className="size-4" /> ترتيب تلقائي
               </Button>
             ) : null}
@@ -434,11 +435,11 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
         ) : (
           <span className="rounded-lg bg-surface-2 px-3 py-1.5 text-xs text-fg-muted">للمشاهدة بس — التعديل للمالك</span>
         )}
-        <button type="button" aria-pressed={replayOn} onClick={() => setReplayOn((v) => !v)} className={cn("ms-auto inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs", replayOn ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
+        <button type="button" aria-pressed={replayOn} onClick={() => setReplayOn((v) => !v)} className={cn("ms-auto inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1.5 rounded-lg border px-3 text-xs", replayOn ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
           <Film className="size-3.5" /> إعادة عرض
         </button>
         {hasRun ? (
-          <button type="button" aria-pressed={showRun} onClick={() => setShowRun((v) => !v)} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs", showRun ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
+          <button type="button" aria-pressed={showRun} onClick={() => setShowRun((v) => !v)} className={cn("inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1.5 rounded-lg border px-3 text-xs", showRun ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
             <Radio className="size-3.5" /> {liveNow ? "التشغيل الحالي" : "آخر تشغيل"}
           </button>
         ) : null}
@@ -450,11 +451,11 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/40 bg-warn/5 p-2" role="status" data-tour="save">
           <span className="text-sm font-medium text-fg">تغييرات ما انحفظت</span>
           <span className="text-xs text-fg-muted">{diffText(diff)}</span>
-          <input value={note} dir="auto" onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة للنسخة (اختياري)" aria-label="ملاحظة للنسخة" className="min-h-9 min-w-0 flex-1 basis-40 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
-          <Button size="sm" variant="ghost" className="min-h-9" onClick={discard}>
+          <input value={note} dir="auto" onChange={(e) => setNote(e.target.value)} placeholder="ملاحظة للنسخة (اختياري)" aria-label="ملاحظة للنسخة" className="min-h-10 max-md:min-h-[44px] min-w-0 flex-1 basis-40 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
+          <Button size="sm" variant="ghost" className="min-h-10 max-md:min-h-[44px]" onClick={discard}>
             <RotateCcw className="size-4" /> ارجع للمحفوظ
           </Button>
-          <Button size="sm" className="min-h-9" onClick={save} disabled={saving}>
+          <Button size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={save} disabled={saving}>
             <Save className="size-4" /> {saving ? "لحظة…" : `احفظ نسخة ${version + 1}`}
           </Button>
         </div>
@@ -502,7 +503,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
         </div>
 
         {wide ? (
-          <aside className="max-h-[calc(100dvh-17rem)] min-h-[12rem] overflow-y-auto rounded-card border border-border bg-surface-1 p-3" aria-label="بطاقة الخطوة">
+          <aside className="max-h-[calc(100dvh-17rem)] min-h-[12rem] overflow-y-auto rounded-card border border-border bg-surface-1 p-3" aria-label="بطاقة الفرع">
             {form ? (
               <>
                 <h3 className="mb-3 text-sm font-bold text-fg">{node?.label}</h3>
@@ -512,10 +513,10 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
               <div className="space-y-2 text-sm leading-6 text-fg-muted">
                 <h3 className="text-sm font-bold text-fg">كيف بتشتغل اللوحة</h3>
                 <ul className="list-disc space-y-1 ps-5">
-                  <li>اضغط على خطوة: بتنفتح بطاقتها وبتعدّلها.</li>
-                  <li>اسحب الخطوة لمكانها.</li>
-                  <li>للتوصيل: اسحب من النقطة تحت الخطوة لخطوة تانية. إذا فلتّها بمكان فاضي بتعمل خطوة جديدة هناك.</li>
-                  <li>«+» على الخط بيحط خطوة عليه. اضغط على الخط لتسمّيه أو تحذفه.</li>
+                  <li>اضغط على فرع: بتنفتح بطاقتها وبتعدّلها.</li>
+                  <li>اسحب الفرع لمكانها.</li>
+                  <li>للتوصيل: اسحب من النقطة تحت الفرع لفرع تانية. إذا فلتّها بمكان فاضي بتعمل فرع جديدة هناك.</li>
+                  <li>«+» على الخط بيحط فرع عليه. اضغط على الخط لتسمّيه أو تحذفه.</li>
                   <li>Ctrl + عجلة الماوس أو قرصة بإصبعين للتكبير.</li>
                   <li>ما بينحفظ شي لحد ما تضغط «احفظ» — وكل حفظ نسخة تقدر ترجع لها.</li>
                 </ul>
@@ -539,7 +540,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
         <SheetContent>
           <SheetHeader>
             <SheetTitle>{node?.label ?? ""}</SheetTitle>
-            <SheetDescription>بطاقة الخطوة — كل تعديل بينحسب لما تطلع من الخانة</SheetDescription>
+            <SheetDescription>بطاقة الفرع — كل تعديل بينحسب لما تطلع من الخانة</SheetDescription>
           </SheetHeader>
           <SheetBody>{form}</SheetBody>
         </SheetContent>
@@ -547,7 +548,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
 
       <NodePicker
         open={!!picker}
-        title={picker?.mode === "edge" ? "ضيف خطوة على الخط" : picker?.mode === "drop" ? "خطوة جديدة هون" : picker?.mode === "after" ? "ضيف خطوة بعدها" : sel?.kind === "node" ? "ضيف خطوة بعد المحدّدة" : "ضيف خطوة"}
+        title={picker?.mode === "edge" ? "ضيف فرع على الخط" : picker?.mode === "drop" ? "فرع جديدة هون" : picker?.mode === "after" ? "ضيف فرع بعدها" : sel?.kind === "node" ? "ضيف فرع بعد المحدّدة" : "ضيف فرع"}
         onPick={pick}
         onClose={() => setPicker(null)}
       />

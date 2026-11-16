@@ -5,6 +5,7 @@ import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { accountRestricted } from "@/jobs/account-safety";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({ level: z.number().int() });
 
@@ -17,7 +18,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const account = await db.adAccount.findUnique({ where: { metaId: params.id } });
     if (!account) throw new HttpError(404, "الحساب مش موجود");
     // two weeks of decisions = the first change the system proposed on this account is at least 14 days old

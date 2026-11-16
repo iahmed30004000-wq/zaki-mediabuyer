@@ -7,6 +7,7 @@ import { PrivacyRefusal } from "@/gateway/privacy";
 import { AssistantError, askAssistant } from "@/server/assistant";
 import { NO_KEY, OFF_BY_PRIVACY, assistantConfigured, assistantModel, externalModelsOff } from "@/server/assistant/config";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ const Body = z.object({
 export async function GET() {
   try {
     const caller = await requireCapability("assistant.use");
-    const demo = process.env.MOCK_MODE === "1";
+    const demo = isDemo(process.env);
     const on = (await assistantConfigured()) && !externalModelsOff();
     return NextResponse.json({
       mode: demo ? "demo" : on ? "assistant" : "consultant",
@@ -57,8 +58,8 @@ export async function POST(req: Request) {
     if (!parsed.success) throw new HttpError(400, `اكتب سؤالك (لحد ${LIMITS.question} حرف)`);
     const { question, history = [], place = null } = parsed.data;
 
-    if (process.env.MOCK_MODE === "1") {
-      return NextResponse.json({ mode: "demo", answer: "هاد الموقع على البيانات التجريبية، فالمساعد ما بيجاوب عن أرقام حقيقية. لما يشتغل على أرقامك (MOCK_MODE=0) ويتوصل مفتاح Claude، بجاوبك من أرقامك: كل رقم بمصدره، وبعمل مهام ومسودات، وما بنفّذ صرف أبداً. هلأ جرّب «اشرح لي هالشاشة».", facts: [], sources: [], artifacts: [], verified: true, unsupported: [] });
+    if (isDemo(process.env)) {
+      return NextResponse.json({ mode: "demo", answer: "هاد الموقع على البيانات التجريبية، فالمساعد ما بيجاوب عن أرقام حقيقية. لما المالك يوقف الوضع التجريبي ويشتغل على أرقامك ويتوصل مفتاح Claude، بجاوبك من أرقامك: كل رقم بمصدره، وبعمل مهام ومسودات، وما بنفّذ صرف أبداً. هلأ جرّب «اشرح لي هالشاشة».", facts: [], sources: [], artifacts: [], verified: true, unsupported: [] });
     }
 
     if (!(await assistantConfigured()) || externalModelsOff()) {

@@ -5,6 +5,7 @@ import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { writeVariants } from "@/agents/writer";
 import { AgentUnavailable } from "@/gateway";
 import { PRODUCTS } from "@/lib/mock/data";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({ productCode: z.string().regex(/^[A-Z]{3}\d{2}$/), angle: z.string().max(60).optional() });
 
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "اختار منتج");
     await requireCapability("ads.propose");
-    if (process.env.MOCK_MODE === "1") {
+    if (isDemo(process.env)) {
       const p = PRODUCTS.find((x) => x.code === parsed.data.productCode);
       return NextResponse.json({
         demo: true,

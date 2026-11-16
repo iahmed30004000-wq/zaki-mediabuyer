@@ -3,6 +3,7 @@ import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { HandoffRefused } from "@/server/handoffs";
 import { ExecRefused, executeWorkflow } from "@/server/step-exec";
 import { UnknownJob } from "@/server/workflows";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -15,13 +16,13 @@ export const maxDuration = 300;
 export async function POST(_req: Request, { params }: { params: { key: string } }) {
   try {
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     try {
       const r = await executeWorkflow(params.key, { type: "user", id: caller.id });
       return NextResponse.json({ ok: true, ...r });
     } catch (e) {
       if (e instanceof ExecRefused || e instanceof HandoffRefused) throw new HttpError(e.status, e.message);
-      if (e instanceof UnknownJob) throw new HttpError(404, "الورك فلو مش موجود");
+      if (e instanceof UnknownJob) throw new HttpError(404, "المهمة مش موجود");
       throw e;
     }
   } catch (e) {

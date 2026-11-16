@@ -53,7 +53,7 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
           <fieldset className="space-y-2">
             <legend className="mb-1 text-xs font-medium text-fg-muted">شو بدك توقف؟</legend>
             {[{ id: "all", name: "كل الحسابات" }, ...ACCOUNTS.map((a) => ({ id: a.id, name: a.name }))].map((o) => (
-              <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5">
+              <label key={o.id} className="flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5">
                 <input type="radio" name="scope" value={o.id} checked={scope === o.id} onChange={() => setScope(o.id)} className="accent-[rgb(var(--danger))]" />
                 <span className="text-sm text-fg">{o.name}</span>
               </label>
@@ -61,7 +61,7 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
           </fieldset>
           <label className="block space-y-1">
             <span className="text-xs font-medium text-fg-muted">للتأكيد اكتب «اوقف»</span>
-            <input value={typed} onChange={(e) => setTyped(e.target.value)} className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+            <input value={typed} onChange={(e) => setTyped(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
           </label>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>

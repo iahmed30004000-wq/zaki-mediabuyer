@@ -27,7 +27,7 @@ export default async function InboxPage({ searchParams }: { searchParams: { doma
           const active = (d === "all" && !domain) || d === domain;
           return (
             <Link key={d} href={d === "all" ? "/inbox" : `/inbox?domain=${d}`} aria-current={active ? "true" : undefined}>
-              <Chip className={cn("h-8 px-3 text-sm", active && "border-accent bg-accent text-accent-fg")}>{d === "all" ? "الكل" : DOMAIN_AR[d]}</Chip>
+              <Chip className={cn("h-10 max-md:h-[44px] px-3 text-sm", active && "border-accent bg-accent text-accent-fg")}>{d === "all" ? "الكل" : DOMAIN_AR[d]}</Chip>
             </Link>
           );
         })}

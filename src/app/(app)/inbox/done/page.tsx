@@ -28,10 +28,10 @@ export default async function InboxDonePage({ searchParams }: { searchParams: { 
     <div className="space-y-4">
       <div className="flex gap-2" role="group" aria-label="مين قرّر">
         <Link href="/inbox/done" aria-current={!autoOnly ? "true" : undefined}>
-          <Chip className={cn("h-8 px-3 text-sm", !autoOnly && "border-accent bg-accent text-accent-fg")}>الكل</Chip>
+          <Chip className={cn("h-10 max-md:h-[44px] px-3 text-sm", !autoOnly && "border-accent bg-accent text-accent-fg")}>الكل</Chip>
         </Link>
         <Link href="/inbox/done?auto=1" aria-current={autoOnly ? "true" : undefined}>
-          <Chip className={cn("h-8 px-3 text-sm", autoOnly && "border-accent bg-accent text-accent-fg")}>صار لحاله</Chip>
+          <Chip className={cn("h-10 max-md:h-[44px] px-3 text-sm", autoOnly && "border-accent bg-accent text-accent-fg")}>صار لحاله</Chip>
         </Link>
       </div>
       {rows.length ? (
@@ -39,7 +39,7 @@ export default async function InboxDonePage({ searchParams }: { searchParams: { 
           {rows.map((d) => (
             <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
               <Pill tone={d.tone === "ok" ? "ok" : d.tone === "danger" ? "danger" : "neutral"}>{d.outcome}</Pill>
-              <Link href={d.href} className="min-w-0 flex-1 text-sm font-semibold text-fg hover:underline">
+              <Link href={d.href} className="inline-flex min-h-10 min-w-0 flex-1 items-center text-sm font-semibold text-fg hover:underline max-md:min-h-[44px]">
                 {d.title}
               </Link>
               <span className="text-xs text-fg-muted">
@@ -54,11 +54,11 @@ export default async function InboxDonePage({ searchParams }: { searchParams: { 
       )}
       {all.length > PAGE ? (
         <div className="flex items-center justify-between text-sm">
-          {page > 1 ? <Link href={qs(page - 1)} className="font-semibold text-info hover:underline">السابق</Link> : <span />}
+          {page > 1 ? <Link href={qs(page - 1)} className="inline-flex min-h-10 items-center font-semibold text-info hover:underline max-md:min-h-[44px]">السابق</Link> : <span />}
           <span className="text-fg-muted">
             {page} / {Math.ceil(all.length / PAGE)}
           </span>
-          {page * PAGE < all.length ? <Link href={qs(page + 1)} className="font-semibold text-info hover:underline">التالي</Link> : <span />}
+          {page * PAGE < all.length ? <Link href={qs(page + 1)} className="inline-flex min-h-10 items-center font-semibold text-info hover:underline max-md:min-h-[44px]">التالي</Link> : <span />}
         </div>
       ) : null}
     </div>

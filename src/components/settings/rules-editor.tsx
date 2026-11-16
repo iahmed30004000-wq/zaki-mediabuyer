@@ -183,7 +183,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
 
       <Panel className="space-y-3">
         <details open>
-          <summary className="cursor-pointer text-sm font-semibold text-fg">نقطة التعادل لكل منتج (دولار للطلب الحقيقي)</summary>
+          <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold text-fg max-md:min-h-[44px]">نقطة التعادل لكل منتج (دولار للطلب الحقيقي)</summary>
           <div className="mt-3 space-y-2">
             {be.map(([p, v]) => (
               <div key={p} className="flex items-center gap-2 text-sm">
@@ -221,15 +221,15 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
       {GROUPS.map((g) => (
         <Panel key={g.title}>
           <details open={g.open}>
-            <summary className="cursor-pointer text-sm font-semibold text-fg">{g.title}</summary>
+            <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold text-fg max-md:min-h-[44px]">{g.title}</summary>
             <div className="mt-3 grid gap-x-6 gap-y-2.5 md:grid-cols-2">
               {g.fields.map((f) => {
                 const v = getIn(rules, f.path);
                 return (
-                  <label key={f.path} className="flex items-center justify-between gap-3 text-sm text-fg">
+                  <label key={f.path} className="flex min-h-10 items-center justify-between gap-3 text-sm text-fg max-md:min-h-[44px]">
                     <span className="leading-5">{f.label}</span>
                     {f.kind === "bool" ? (
-                      <input type="checkbox" checked={!!v} onChange={(e) => edit(f.path, e.target.checked)} className="size-5 shrink-0 accent-[var(--accent,#2563eb)]" />
+                      <input type="checkbox" checked={!!v} onChange={(e) => edit(f.path, e.target.checked)} className="size-5 shrink-0 accent-accent" />
                     ) : f.kind === "time" ? (
                       <Input type="time" dir="ltr" value={String(v)} onChange={(e) => e.target.value && edit(f.path, e.target.value)} className="w-28 shrink-0" />
                     ) : (
@@ -250,7 +250,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
       ))}
 
       <div className="sticky bottom-20 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface-1/95 p-3 shadow-card backdrop-blur md:bottom-4">
-        <Button disabled={busy || !dirty} onClick={save} className="min-h-11">
+        <Button disabled={busy || !dirty} onClick={save} className="min-h-10 max-md:min-h-[44px]">
           احفظ القواعد
         </Button>
         <span className="text-xs text-fg-muted">{demo ? "تجريبي: ما بينحفظ" : version ? `النسخة الحالية ${version}` : "لسا ما انحفظت نسخة"}{dirty ? " · فيه تعديل ما انحفظ" : ""}</span>
@@ -258,7 +258,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
 
       <Panel>
         <details>
-          <summary className="cursor-pointer text-sm font-semibold text-fg">القواعد الـ 14 بكلامها (هيك بيقراها Claude)</summary>
+          <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold text-fg max-md:min-h-[44px]">القواعد الـ 14 بكلامها (هيك بيقراها Claude)</summary>
           <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm leading-6 text-fg">
             {sentences.map((s, i) => (
               <li key={i}>{s}</li>

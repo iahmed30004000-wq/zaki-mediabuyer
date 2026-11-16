@@ -9,7 +9,7 @@ export async function GET(_req: Request, { params }: { params: { key: string } }
   try {
     await requireCapability("work.view");
     const versions = await listVersions(params.key);
-    if (!versions) throw new HttpError(404, "الورك فلو مش موجود");
+    if (!versions) throw new HttpError(404, "المهمة مش موجود");
     return NextResponse.json({ versions });
   } catch (e) {
     return errorResponse(e);

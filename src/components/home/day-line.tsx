@@ -24,7 +24,7 @@ export function DayLineMini({ line, now = new Date() }: { line: DayLineData; now
   const here = pct(now.toISOString(), line);
   return (
     <div className="space-y-3">
-      <div className="relative h-8" role="img" aria-label={`اليوم على الخط: ${line.dots.length} تشغيلة`}>
+      <div className="relative h-10 max-md:h-[44px]" role="img" aria-label={`اليوم على الخط: ${line.dots.length} تشغيلة`}>
         <span aria-hidden className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border" />
         <span aria-hidden className="absolute top-0 h-full w-0.5 rounded-full bg-accent-2" style={{ insetInlineStart: `${here}%` }} title="هلأ" />
         {line.dots.map((d: DayDot, i) => (
@@ -32,9 +32,10 @@ export function DayLineMini({ line, now = new Date() }: { line: DayLineData; now
             key={`${d.jobKey}:${d.at}:${i}`}
             href={d.runId ? `/work/job/${encodeURIComponent(d.jobKey)}` : "/work/today"}
             title={`${d.name} · ${clock(d.at)} · ${DOT_AR[d.state]}`}
-            className={cn("absolute top-1/2 block size-3 -translate-y-1/2 rounded-full", DOT[d.state])}
-            style={{ insetInlineStart: `calc(${pct(d.at, line)}% - 6px)` }}
+            className="absolute top-1/2 grid size-11 -translate-y-1/2 place-items-center"
+            style={{ insetInlineStart: `calc(${pct(d.at, line)}% - 22px)` }}
           >
+            <span aria-hidden className={cn("block size-3 rounded-full", DOT[d.state])} />
             <span className="sr-only">
               {d.name} {clock(d.at)} {DOT_AR[d.state]}
             </span>

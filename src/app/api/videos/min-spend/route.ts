@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { setSetting } from "@/server/settings";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ const Body = z.object({ value: z.number().positive().max(100_000).nullable() }).
 export async function PUT(req: Request) {
   try {
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "رقم مش صحيح");
     await setSetting("videos.min_spend", parsed.data.value, caller.id);

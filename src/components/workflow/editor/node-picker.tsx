@@ -21,7 +21,7 @@ export function NodePicker({ open, title, onPick, onClose }: { open: boolean; ti
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
-          <SheetDescription>اختار نوع الخطوة</SheetDescription>
+          <SheetDescription>اختار نوع الفرع</SheetDescription>
         </SheetHeader>
         <SheetBody>
           <ul className="space-y-2">
@@ -29,7 +29,7 @@ export function NodePicker({ open, title, onPick, onClose }: { open: boolean; ti
               const Icon = TYPE_ICON[t];
               return (
                 <li key={t}>
-                  <button type="button" onClick={() => onPick(t)} className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-surface-1 px-3 text-start hover:border-accent hover:bg-surface-2">
+                  <button type="button" onClick={() => onPick(t)} className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-border bg-surface-1 px-3 text-start hover:border-accent hover:bg-surface-2">
                     <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-fg-muted">
                       <Icon className="size-5" />
                     </span>

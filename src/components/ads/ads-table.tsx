@@ -87,7 +87,7 @@ function NameCell({ row, depth, hasKids, open, onToggle, onOpen }: { row: TableR
   return (
     <div className="flex items-start gap-1.5">
       {hasKids ? (
-        <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? "سكّر" : "افتح"} className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2">
+        <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? "سكّر" : "افتح"} className="relative mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted after:absolute after:-inset-2 after:content-[''] hover:bg-surface-2">
           <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90 rtl:rotate-90")} />
         </button>
       ) : (
@@ -96,12 +96,12 @@ function NameCell({ row, depth, hasKids, open, onToggle, onOpen }: { row: TableR
       {depth === 2 && row.creativeCode ? <Thumb code={row.creativeCode} /> : null}
       <button type="button" onClick={() => onOpen(row)} className="min-w-0 flex-1 text-start">
         <span className="flex items-center gap-1.5">
-          {row.needsNaming ? <span className="shrink-0 rounded-md bg-warn/10 px-1 py-0.5 text-[10px] font-semibold text-warn">بدها تسمية</span> : null}
-          <span dir="ltr" className={cn("block truncate font-mono text-fg hover:text-accent", depth === 0 ? "text-[13px] font-semibold" : "text-xs")}>{row.name}</span>
+          {row.needsNaming ? <span className="shrink-0 rounded-md bg-warn/10 px-1 py-0.5 text-xs font-semibold text-warn">بدها تسمية</span> : null}
+          <span dir="ltr" className={cn("block truncate font-mono text-fg hover:text-accent", depth === 0 ? "text-xs font-semibold" : "text-xs")}>{row.name}</span>
         </span>
-        {row.decoded ? <span className="block truncate text-[11px] text-fg-muted">{row.decoded.join(" · ")}</span> : null}
-        {depth === 2 && row.codes ? <span dir="ltr" className="block truncate font-mono text-[10px] text-fg-muted">{row.codes}</span> : null}
-        {row.note ? <span className="block truncate text-[11px] text-warn">{row.note}</span> : null}
+        {row.decoded ? <span className="block truncate text-xs text-fg-muted">{row.decoded.join(" · ")}</span> : null}
+        {depth === 2 && row.codes ? <span dir="ltr" className="block truncate font-mono text-xs text-fg-muted">{row.codes}</span> : null}
+        {row.note ? <span className="block truncate text-xs text-warn">{row.note}</span> : null}
       </button>
     </div>
   );
@@ -157,7 +157,7 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
               const d = DEF.get(k)!;
               return (
                 <li key={k} className="flex items-center gap-2 rounded-lg bg-surface-2/60 px-2 py-1.5">
-                  <input type="checkbox" checked disabled={k === "name"} onChange={() => onChange(cols.filter((x) => x !== k))} aria-label={d.label} className="size-4 accent-[var(--accent,#2563eb)]" />
+                  <input type="checkbox" checked disabled={k === "name"} onChange={() => onChange(cols.filter((x) => x !== k))} aria-label={d.label} className="size-4 accent-accent" />
                   <span className="flex-1 text-sm text-fg">{d.label}</span>
                   {k !== "name" ? (
                     <>
@@ -179,7 +179,7 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
               <ul className="space-y-1">
                 {off.map((d) => (
                   <li key={d.key} className="flex items-center gap-2 px-2 py-1">
-                    <input type="checkbox" checked={false} onChange={() => onChange([...cols, d.key])} aria-label={d.label} className="size-4 accent-[var(--accent,#2563eb)]" />
+                    <input type="checkbox" checked={false} onChange={() => onChange([...cols, d.key])} aria-label={d.label} className="size-4 accent-accent" />
                     <span className="text-sm text-fg">{d.label}</span>
                   </li>
                 ))}
@@ -198,7 +198,7 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
   );
 }
 
-const select = "min-h-9 shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg";
+const select = "min-h-10 max-md:min-h-[44px] shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg";
 
 /** The test-share gauge: how much of the spend went into tests, against the limit. */
 function Gauge({ share }: { share: AdsTableData["share"] }) {
@@ -302,22 +302,22 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
           {namingCount ? <option value="naming">بدها تسمية ({namingCount})</option> : null}
         </select>
         {active ? (
-          <button type="button" onClick={() => setF({ product: null, page: null, kind: "all", status: null, market: null })} className="min-h-9 shrink-0 whitespace-nowrap rounded-lg px-2 text-sm text-accent hover:underline">
+          <button type="button" onClick={() => setF({ product: null, page: null, kind: "all", status: null, market: null })} className="min-h-10 max-md:min-h-[44px] shrink-0 whitespace-nowrap rounded-lg px-2 text-sm text-accent hover:underline">
             شيل الفلاتر
           </button>
         ) : null}
       </div>
       <div className="flex items-center gap-3">
-        <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-sm text-fg">
-          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="size-4 accent-[var(--accent,#2563eb)]" />
+        <label className="inline-flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 text-sm text-fg">
+          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="size-4 accent-accent" />
           قارن
         </label>
-        <Button variant="secondary" size="sm" onClick={() => setPicker(true)} className="ms-auto min-h-9">
+        <Button variant="secondary" size="sm" onClick={() => setPicker(true)} className="ms-auto min-h-10 max-md:min-h-[44px]">
           <SlidersHorizontal className="size-3.5" />
           الأعمدة
         </Button>
       </div>
-      {compare ? <p className="text-[11px] leading-4 text-fg-muted">كل رقم مقابل {data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "اليوم اللي قبله") : "الفترة اللي قبلها"}. السهم الأخضر = أحسن، الأحمر = أسوأ. الصرف مقابل أمس.</p> : null}
+      {compare ? <p className="text-xs leading-4 text-fg-muted">كل رقم مقابل {data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "اليوم اللي قبله") : "الفترة اللي قبلها"}. السهم الأخضر = أحسن، الأحمر = أسوأ. الصرف مقابل أمس.</p> : null}
 
       {lines.length ? (
         <div data-tour="tree" className="overflow-x-auto rounded-card border border-border bg-surface-1">
@@ -329,7 +329,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
                     <span className="inline-flex items-center gap-1">
                       {d.label}
                       {d.term ? (
-                        <button type="button" onClick={() => setHelp(d)} aria-label={`قاعدة احتساب ${d.label}`} className="inline-flex size-5 items-center justify-center rounded text-fg-muted/70 hover:text-accent">
+                        <button type="button" onClick={() => setHelp(d)} aria-label={`قاعدة احتساب ${d.label}`} className="relative inline-flex size-5 items-center justify-center rounded text-fg-muted/70 after:absolute after:-inset-3 after:content-[''] hover:text-accent">
                           <Info className="size-3.5" />
                         </button>
                       ) : null}

@@ -26,10 +26,10 @@ export function EditBar() {
         <Pencil className="size-4 text-accent" />
         <span className="font-semibold text-fg">وضع التعديل شغّال</span>
         <span className="hidden text-xs text-fg-muted sm:inline">الصفحات واللوحات والحقول والأزرار — كل تعديل بيتحفظ فوراً</span>
-        <Button size="sm" className="ms-auto min-h-9" onClick={() => openPanel()}>
+        <Button size="sm" className="ms-auto min-h-10 max-md:min-h-[44px]" onClick={() => openPanel()}>
           افتح لوحة التعديل
         </Button>
-        <Button size="sm" variant="secondary" className="min-h-9" onClick={() => setEditing(false)}>
+        <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={() => setEditing(false)}>
           خلصت
         </Button>
       </div>
