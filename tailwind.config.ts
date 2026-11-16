@@ -14,16 +14,27 @@ const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
+    // FIVE text sizes only (docs/rebuild/03-look.md §3). This REPLACES Tailwind's scale, so any other size does not exist.
+    // lg / 2xl / 4xl are TEMPORARY synonyms of the nearest size so the old screens do not break; P12 removes them.
+    fontSize: {
+      xs: ["12px", "18px"],
+      sm: ["14px", "22px"],
+      base: ["16px", "26px"],
+      xl: ["20px", "28px"],
+      "3xl": ["28px", "36px"],
+      lg: ["16px", "26px"],
+      "2xl": ["20px", "28px"],
+      "4xl": ["28px", "36px"],
+    },
     extend: {
       colors: themeColors,
       fontFamily: {
-        // the body face, loaded by the root layout through next/font (--font-plex)
-        sans: ["var(--font-plex)", '"Segoe UI"', "Tahoma", "system-ui", "sans-serif"],
-        // titles: Reem Kufi on the Islamic themes, IBM Plex on the others (h1-h3 use it by default)
+        // one face: Cairo (the root layout loads it through next/font as --font-cairo), IBM Plex as the fallback
+        sans: ["var(--font-cairo)", "var(--font-plex)", '"Segoe UI"', "Tahoma", "system-ui", "sans-serif"],
         display: ["var(--font-display)"],
       },
       borderRadius: {
-        lg: "8px",
+        lg: "10px",
         xl: "12px",
         "2xl": "16px",
         card: "var(--radius-card)",

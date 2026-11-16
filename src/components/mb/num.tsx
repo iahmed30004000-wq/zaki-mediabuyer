@@ -15,7 +15,7 @@ const SOURCE_STYLE: Record<Source, string> = {
 
 /** The badge beside a number: ميتا · حقيقي · تقدير (spec 3.9). */
 export function SourceBadge({ source, className }: { source: Source; className?: string }) {
-  return <span className={cn("inline-flex items-center rounded-md border px-1 text-[10px] font-semibold leading-4", SOURCE_STYLE[source], className)}>{SOURCE_AR[source]}</span>;
+  return <span className={cn("inline-flex items-center rounded-md border px-1 text-xs font-semibold", SOURCE_STYLE[source], className)}>{SOURCE_AR[source]}</span>;
 }
 
 /**
@@ -63,7 +63,7 @@ export function Num({
   const toneClass = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : "text-fg";
   const body = (
     <>
-      <span dir="ltr" className={cn("tabular-nums font-semibold", big ? "text-2xl" : "text-sm", toneClass)}>
+      <span dir="ltr" className={cn("tabular-nums font-semibold", big ? "text-3xl font-extrabold" : "text-sm", toneClass)}>
         {fmt(value, unit)}
       </span>
       {src ? <SourceBadge source={src} /> : null}
@@ -90,7 +90,7 @@ export function Num({
           <span className="mt-1 block rounded-md bg-surface-2 px-2 py-1 text-xs text-fg-muted">{t.formula}</span>
           <span className="mt-2 block text-xs leading-5 text-fg">{t.meaning}</span>
           {src ? (
-            <span className="mt-2 flex items-start gap-1.5 text-[11px] leading-4 text-fg-muted">
+            <span className="mt-2 flex items-start gap-1.5 text-xs text-fg-muted">
               <SourceBadge source={src} />
               {SOURCE_HINT[src]}
             </span>

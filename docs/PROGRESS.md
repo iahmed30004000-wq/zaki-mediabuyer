@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 28 · done-local-only 38 · blocked 20 · not-started 18 (المجموع 104).
+> **العدّ:** done-live 29 · done-local-only 38 · blocked 20 · not-started 17 (المجموع 104).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -91,7 +91,7 @@
 | V3-H3 | المساعد: «ربط مفتاح Claude» من الإعدادات — لصق المفتاح ← فحص مع Anthropic ← تخزين مشفّر (`ModelConnection`) ← آخر 4 حروف بس؛ مفتاح Coolify بيغلب | `done-live` | D48 · `tests/model-key.test.ts` + `demo:mcp` · الفحص بمفتاح حقيقي = L3 (المالك بيلصقه) |
 | V5-PLAN | خطة إعادة الهيكلة الشاملة v5 (الشكل والسلاسة · الشغل · الصلاحيات · لوحات التحكم) + نماذج الشكل | `done-live` | D47 · `docs/rebuild/` · **بانتظار اعتماد المالك** — البناء لنموذج تاني |
 | V5-P0 | التحضير: السقّاطة (`tests/ui-rules.test.ts` + `npm run ui:baseline`) وقواعد المشروع وأحجام الصفحات المرجعية | `done-live` | الخطة معتمدة 16/11/2026 · `docs/rebuild/NOTES.md` · الأعداد الابتدائية: rawButtons 87 · arbitraryText 93 · offScaleText 17 · offScaleHeights 121 · hexColors 18 · decorImports 10 · mockChecks 57 · jargon 78 |
-| V5-P1 | نظام الشكل: الألوان والخط والأزرار والعدّة | `not-started` | |
+| V5-P1 | نظام الشكل: الألوان والخط والأزرار والعدّة | `done-live` | ثيمين (فاتح/داكن) · Cairo · خمس مقاسات نص · عدّة جديدة بـ `/dev/kit` · الزخرفة بتبطّل ترسم · `docs/rebuild/NOTES.md` فيه الانحرافات |
 | V5-P2 | الهيكل: الخمس أماكن والعناوين والتحويلات | `not-started` | |
 | V5-P3 | بانتظارك: مكان واحد وبطاقة وحدة لكل قرار | `not-started` | |
 | V5-P4 | الرئيسية + صفحات المنتجات | `not-started` | |

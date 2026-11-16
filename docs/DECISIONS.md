@@ -398,3 +398,11 @@ Workspace نشر عقد مكتوب (`docs/contracts/workspace-door.v1.md` بري
 - **فك الربط** بيمسح السر (`keyEnc` فاضي) وبيخلّي السطر تاريخ (ولا حذف نهائي). «افحصه» بيسأل Anthropic كمان مرة (المفتاح ممكن ينلغى).
 - **ما تغيّر:** الموديل بيفسّر بس، والكود بيحسب كل رقم؛ فلتر الخصوصية قبل أي طلب؛ السقوف. المفتاح بيتقرا غير متزامن (`resolveKey`، مخزّن 30 ثانية) فصارت `assistantConfigured()` بتعيد Promise.
 - **ما اتفحص:** مفتاح حقيقي مع Anthropic (المالك بيلصقه، ثم L3 بـ `docs/LIVE_CHECKS.md`).
+
+## D49 — V5 · P1: نظام الشكل (16/11/2026)
+المالك قال «نفذ الخطة كاملة» فصار البناء كل المراحل بالترتيب، كل وحدة PR لحالها (قاعدة «مرحلة بالجلسة» بـ `07-phases.md` اتخففت بقرار المالك؛ ترتيب المراحل والفحوصات ما تغيّروا).
+- **ثيمين بس:** «فاتح» (`zaki`، الافتراضي) و«داكن» (`zaki-dark`). أي اسم قديم (كوكيز أو تفضيل محفوظ) بيرجع للافتراضي لحاله (`themeOf`).
+- **خط واحد Cairo** (400/600/700/800) والاحتياط IBM Plex. Reem Kufi بطّل يتحمّل (ملفه بينشال بـ P12).
+- **خمس مقاسات نص** تستبدل مقياس Tailwind. `lg` و`2xl` و`4xl` مرادفات مؤقتة لأقرب مقاس لحد P12.
+- **عدّة جديدة** `src/components/ui`: `Button` (primary/secondary/ghost/danger × lg 48/md 40/sm 32، `loading`, `block`, `confirm`) · `IconButton` · `ButtonLink` · `Pill` · `Chip` · `Stat` · `SectionTitle` · `Tabs` · `Segmented` · `DataTable` · `Field` · `Switch` · `Checkbox` · `FactsTable` · `ErrorState` · `PageShell`، وإعادة تلبيس `Card`/`EmptyState`/`Input`/`Dialog`/`Toast`. معاينة كاملة بـ `/dev/kit` (للمالك).
+- **الزخرفة:** `ThemeDecor` و`ArtSlot` و`DecorVisibility` بترجّع `null`. التفاصيل والانحرافات بـ `docs/rebuild/NOTES.md`.

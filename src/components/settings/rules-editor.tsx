@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { describeRules, missingRules, type CampaignRules } from "@/core/rules-v2";
@@ -188,9 +189,9 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
               <div key={p} className="flex items-center gap-2 text-sm">
                 <span dir="ltr" className="w-28 font-mono text-xs text-fg">{p}</span>
                 <NumberField f={{ path: `breakeven.${p}`, label: `تعادل ${p}`, kind: "money", hint: "$" }} value={v} onChange={(n) => n !== null && edit("breakeven", { ...rules.breakeven, [p]: n })} />
-                <Button size="icon" variant="ghost" aria-label={`شيل ${p}`} onClick={() => { const { [p]: _gone, ...rest } = rules.breakeven; edit("breakeven", rest); }}>
+                <IconButton aria-label={`شيل ${p}`} onClick={() => { const { [p]: _gone, ...rest } = rules.breakeven; edit("breakeven", rest); }}>
                   <X className="size-4" />
-                </Button>
+                </IconButton>
               </div>
             ))}
             {!be.length ? <p className="text-xs text-fg-muted">ما في منتج لسا. اكتب رمز المنتج (مثل <span dir="ltr" className="font-mono">TRF01</span>) ورقم التعادل.</p> : null}
