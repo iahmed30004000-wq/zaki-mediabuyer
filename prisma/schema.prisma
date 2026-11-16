@@ -1182,3 +1182,38 @@ model AssistantChat {
   messages  Json
   updatedAt DateTime @updatedAt
 }
+
+/// A standing order (v5 · P7): a temporary instruction from the owner that touches jobs («لا في فيديو جديد لحد ما أقلك ارجع»). Every job reads
+/// the active ones at the start of its run (`get_rules` → standing_orders). Nothing is deleted: «ارجع» ends it and it stays in the archive.
+model StandingOrder {
+  id             String    @id @default(cuid())
+  /// the owner's words (up to 300; the customer-data filter reads it)
+  text           String
+  /// restrict (tightens: stop, don't, lower) · allow (loosens: raise, allow, go back)
+  effect         String
+  /// ads · ops · all
+  domain         String    @default("ads")
+  /// empty = every job of the domain
+  jobKeys        String[]  @default([])
+  /// empty = every product
+  products       String[]  @default([])
+  startsAt       DateTime  @default(now())
+  /// empty = until the owner says «ارجع»
+  endsAt         DateTime?
+  /// pending · active · ended · rejected
+  status         String    @default("active")
+  endedAt        DateTime?
+  endedBy        String?
+  /// Claude asked to end it; the owner has not answered (ending a tightening order is a loosening)
+  endRequestedAt DateTime?
+  endRequestedBy String?
+  /// ui · mcp (Claude carried the owner's words)
+  source         String    @default("ui")
+  /// when the owner said it
+  saidAt         DateTime?
+  createdBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, domain])
+}

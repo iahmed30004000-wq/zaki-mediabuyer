@@ -83,7 +83,7 @@ export async function AlertsSection() {
   const more = view.alerts.length - 3;
   return (
     <section className="space-y-3">
-      <SectionTitle hint={view.missingRules ? `ناقص ${view.missingRules} رقم بقواعد الحملات — بعض الفحوصات صامتة لحد ما تكتبهم` : undefined} {...(view.missingRules ? { href: "/settings#campaign-rules", linkLabel: "اكتبهم" } : {})}>
+      <SectionTitle hint={view.missingRules ? `ناقص ${view.missingRules} رقم بقواعد الحملات — بعض الفحوصات صامتة لحد ما تكتبهم` : undefined} {...(view.missingRules ? { href: "/settings/rules#campaign-rules", linkLabel: "اكتبهم" } : {})}>
         لازم تنتبه
       </SectionTitle>
       <AlertStrip alerts={view.alerts.slice(0, 3)} />

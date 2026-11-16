@@ -50,11 +50,11 @@ export interface InboxItem {
   demo?: boolean;
 }
 
-export type InboxSource = "change" | "approval" | "handoff" | "advice";
+export type InboxSource = "change" | "approval" | "handoff" | "advice" | "order";
 
 export const itemId = (source: InboxSource, rowId: string): string => `${source}:${rowId}`;
 export function splitItemId(id: string): { source: InboxSource; rowId: string } | null {
-  const m = /^(change|approval|handoff|advice):(.+)$/.exec(id);
+  const m = /^(change|approval|handoff|advice|order):(.+)$/.exec(id);
   return m ? { source: m[1] as InboxSource, rowId: m[2]! } : null;
 }
 
@@ -211,6 +211,36 @@ export function fromAdvice(a: AdviceIn): InboxItem {
     urgency: "yellow",
     expiresAt: null,
     actions,
+  };
+}
+
+export interface OrderIn {
+  id: string;
+  text: string;
+  domain: string;
+  /** a loosening order Claude carried, waiting for the owner's yes */
+  pending: boolean;
+  /** Claude asked to end this one (it is in force until the owner answers) */
+  endRequested: boolean;
+  source: string;
+  createdAt: string;
+}
+
+/** A standing order that waits for the owner: a loosening one Claude carried (وافق · ارفض), or Claude's request to end a tightening one (انهِه · خلّيه). */
+export function fromOrder(o: OrderIn): InboxItem {
+  const end = o.endRequested && !o.pending;
+  return {
+    id: itemId("order", o.id),
+    kind: "order",
+    domain: o.domain === "ops" ? "ops" : o.domain === "all" ? "work" : "ads",
+    title: end ? `Claude بدّه ينهي الأمر: «${o.text}»` : `أمر جديد بيرخّي: «${o.text}»`,
+    why: end ? "إنهاء أمر بيشدّد ترخية، فبدّه موافقتك. الأمر فعّال لحد ما توافق." : "أمر بيرخّي (زيد/اسمح/ارجع) نقله Claude عن كلامك — ما بيشتغل إلا بموافقتك.",
+    effect: null,
+    from: { label: o.source === "mcp" ? "Claude" : "الموقع" },
+    at: o.createdAt,
+    urgency: "orange",
+    expiresAt: null,
+    actions: end ? [A.approve("انهِه"), A.reject("خلّيه")] : [A.approve(), A.reject()],
   };
 }
 

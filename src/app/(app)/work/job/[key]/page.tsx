@@ -10,6 +10,8 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { can } from "@/core/roles";
 import { loadJobs } from "@/lib/jobs-view";
 import { currentCaller } from "@/server/auth";
+import { listOrders } from "@/server/orders";
+import { OrdersSection } from "@/components/work/orders-section";
 import { runsOf } from "@/server/workflows";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +23,14 @@ const STATUS: Record<string, { label: string; tone: "ok" | "danger" | "info" | "
 /**
  * صفحة المهمة: the header (number · name · domain and kind · badge · its switch) → the facts (when, who runs it, where it came from, what it
  * touches, who it talks to — an empty one is not shown) → what it is → its branches with their switches → the rules it reads → its last
- * ten runs → the agent's note and advice → «شغّلها هلأ» and «متقدّم». The standing orders (P7) and the owner's decision on the advice (P6)
- * come with their phases.
+ * ten runs → the agent's note and advice → «شغّلها هلأ» and «متقدّم». The standing orders that touch it are under its description.
  */
 export default async function JobPage({ params }: { params: { key: string } }) {
   const key = decodeURIComponent(params.key);
   const [{ jobs }, me, runs] = await Promise.all([loadJobs(), currentCaller(), runsOf(key, { limit: 10 })]);
   const job = jobs.find((j) => j.key === key);
   if (!job) notFound();
+  const orders = await listOrders({ job: { key: job.key, domain: job.domain } });
   const owner = !!me && !me.demo && can(me.role, "owner_only");
   const canRun = !!me && !me.demo && can(me.role, "propose_change");
   return (
@@ -66,6 +68,8 @@ export default async function JobPage({ params }: { params: { key: string } }) {
         </section>
       ) : null}
 
+      <OrdersSection orders={orders} scope={{ domain: job.domain, jobKeys: [job.key] }} canCreate={canRun} canEnd={owner} />
+
       <section className="space-y-3">
         <SectionTitle hint="كل فرع إله رقم ومفتاح. الإطفاء بيحفظ نسخة جديدة من الرسم.">الفروع</SectionTitle>
         <Card>
@@ -91,7 +95,7 @@ export default async function JobPage({ params }: { params: { key: string } }) {
         <SectionTitle>القواعد اللي بتقراها</SectionTitle>
         <p className="text-sm leading-7 text-fg-muted">بتقرا قواعدك من الإعدادات: السقوف وتوزيع الميزانية، ونقطة التعادل لكل منتج، ومستوى كل حساب، وأحكام الحملات. ما بتغيّرها هي.</p>
         {owner ? (
-          <Link href="/settings#rules" className="text-sm font-semibold text-info hover:underline">
+          <Link href="/settings/rules" className="text-sm font-semibold text-info hover:underline">
             عدّل القواعد
           </Link>
         ) : null}

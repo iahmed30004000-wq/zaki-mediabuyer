@@ -24,6 +24,7 @@ import { getRules } from "../rules";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask } from "../tasks";
 import { LogRunInput, RunRefused, UnknownJob, logRun } from "../workflows";
 import { PushJobsInput, upsertJobs, type PushJobsInputT } from "../jobs";
+import { OrderInput, OrderRefused, createOrder, endOrder, standingOrdersForClaude, type OrderInputT } from "../orders";
 import { HANDOFF_STATUSES } from "@/core/handoff";
 import { REQUEST_STATUSES } from "@/core/video-board";
 import { VideoRequestComplete, claimVideoRequest, completeVideoRequest, listVideoRequests } from "../video-requests";
@@ -124,6 +125,39 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     },
   },
   {
+    name: "record_order",
+    title: "سجّل أمر ساري",
+    description:
+      "المالك أعطاك تعليمة مؤقتة بالمحادثة («ما في فيديو جديد لحد ما أقلك ارجع»)؟ سجّلها هون بدل ما تعمل مهمة تذكير: text بكلامه، effect=restrict (بيشدّد: وقّف، لا تعمل، خفّض) فعّال فوراً، أو allow (بيرخّي: زيد، اسمح، ارجع) فبينزل قرار للمالك قبل ما يفعّل. domain وjob_keys وproducts تحدد شو بيأثّر عليه، وuntil لحد إيمتى (فاضي = لحد ما يقول ارجع). الجواب بيقلك أي واحد صار: active أو pending.",
+    input: OrderInput,
+    readOnly: false,
+    run: async (a, ctx) => {
+      try {
+        const o = await createOrder(a as OrderInputT, { actor: ctx.actor, source: "mcp", isOwner: false });
+        return ok(o.status === "active" ? "الأمر فعّال هلأ — اقراه بأول كل تشغيل." : "الأمر بيرخّي: نزل قرار للمالك، وما بيصير فعّال إلا بموافقته.", { order: o });
+      } catch (e) {
+        if (e instanceof OrderRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
+  {
+    name: "end_order",
+    title: "أنهِ أمر ساري",
+    description: "المالك قال «ارجع» بالمحادثة؟ ابعت id الأمر. إنهاء أمر بيشدّد ترخية: بينزل قرار للمالك وبيضل الأمر فعّال لحد ما يوافق (الجواب بيقلك ended=false). ولا شي بينحذف.",
+    input: z.object({ id: z.string().trim().min(1).max(40) }).strict(),
+    readOnly: false,
+    run: async (a, ctx) => {
+      try {
+        const r = await endOrder((a as { id: string }).id, { actor: ctx.actor, source: "mcp", isOwner: false });
+        return ok(r.ended ? "انتهى الأمر." : "انبعت طلب الإنهاء للمالك — الأمر بيضل فعّال لحد ما يوافق.", { order: r.order, ended: r.ended });
+      } catch (e) {
+        if (e instanceof OrderRefused) return fail(e.message);
+        throw e;
+      }
+    },
+  },
+  {
     name: "request_approval",
     title: "اطلب موافقة المالك",
     description:
@@ -202,12 +236,13 @@ export const TOOLS: ToolDef<McpCtx>[] = [
   {
     name: "get_rules",
     title: "قواعد الحملات",
-    description: "القواعد الحالية (الإصدار الأخير دايماً): الأرقام والنصوص الـ 14. اقراها بأول كل تشغيل. إذا في أرقام ناقصة (missing) قول للمالك بدل ما تخمّن — وما تنفّذ قاعدة رقمها ناقص.",
+    description: "القواعد الحالية (الإصدار الأخير دايماً): الأرقام والنصوص الـ 14، و standing_orders = الأوامر السارية (تعليمات المالك المؤقتة اللي بتأثّر على مهام). اقراها بأول كل تشغيل: الأمر اللي بيشدّد (restrict) بيغلب أي قاعدة. إذا في أرقام ناقصة (missing) قول للمالك بدل ما تخمّن — وما تنفّذ قاعدة رقمها ناقص.",
     input: z.object({}).strict(),
     readOnly: true,
     run: async () => {
       const r = await getRules();
-      return ok(`القواعد v${r.version}${r.missing.length ? ` — ناقص ${r.missing.length} رقم` : ""}`, { version: r.version, updated_at: r.updatedAt, rules: r.rules, text: r.text, missing: r.missing });
+      const standing_orders = await standingOrdersForClaude();
+      return ok(`القواعد v${r.version}${r.missing.length ? ` — ناقص ${r.missing.length} رقم` : ""}${standing_orders.length ? ` — ${standing_orders.length} أمر ساري` : ""}`, { version: r.version, updated_at: r.updatedAt, rules: r.rules, text: r.text, missing: r.missing, standing_orders });
     },
   },
   {

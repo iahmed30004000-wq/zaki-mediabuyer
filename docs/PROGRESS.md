@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 34 · done-local-only 38 · blocked 20 · not-started 12 (المجموع 104).
+> **العدّ:** done-live 35 · done-local-only 38 · blocked 20 · not-started 11 (المجموع 104).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -97,7 +97,7 @@
 | V5-P4 | الرئيسية + صفحات المنتجات | `done-live` | `src/core/timeline.ts` (يوم الشغل 06:00–06:00 + خط اليوم) · `src/server/reports.ts` · رئيسية جديدة بأقسام Suspense · `/products/[code]` · `/ads?product=` ← صفحة المنتج |
 | V5-P5 | الشغل ١: خريطة المهام وصفحة المهمة | `done-live` | هجرة `job_meta` (أعمدة `Workflow` + `WorkflowRun.report`) · `src/core/jobs.ts` (شارة · عدّادات · أرقام الفروع · الموعد بالكلام) · `/work` الخريطة · `/work/job/[key]` · `/print/work` · `log_run` بيقبل `report` |
 | V5-P6 | الشغل ٢: الخريطة من Claude · اليوم · التقارير · ورقة القرار | `done-live` | `push_jobs` (الأداة 20) · `/api/work/decisions` + ورقة القرار · مصدر `advice` بـ «بانتظارك» · `/work/today` (الخط الكامل + أزحم وقت) · `/work/reports` + `[id]` + `/print/report/[id]` · مهام الفريق: حسب الشخص أو كانبان |
-| V5-P7 | الأوامر السارية + صفحة القواعد | `not-started` | |
+| V5-P7 | الأوامر السارية + صفحة القواعد | `done-live` | هجرة `StandingOrder` · `src/core/orders.ts` · `/api/orders` · `record_order` و`end_order` (الأدوات 21 و22) و`standing_orders` بـ `get_rules` · قسم «أوامر سارية» بصفحة المهمة والمنتج · مصدر `order` بـ «بانتظارك» · `/settings/rules` |
 | V5-P8 | الإعلانات: اللوحة والحملات والفيديوهات | `not-started` | |
 | V5-P9 | التشغيل: اللوحة وأرقام الفريق والمخزون | `not-started` | |
 | V5-P10 | الفريق والصلاحيات: جدول «مين بيقدر شو» | `not-started` | |

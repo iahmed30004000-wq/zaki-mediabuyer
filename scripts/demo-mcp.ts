@@ -1,6 +1,6 @@
 /**
  * Claude's link to the app (v4 · A), end to end on the local database — through the real route handler, with a real
- * token: auth, the twenty tools, the numbers landing where the screens and the truth job read them, the privacy net,
+ * token: auth, the twenty-two tools, the numbers landing where the screens and the truth job read them, the privacy net,
  * idempotency, approvals and the owner's answer, the switch, the rules, workflows, stock, videos, tasks.
  * `npx tsx --env-file=.env scripts/demo-mcp.ts`  (the database from `docker compose up -d`, migrated)
  */
@@ -19,6 +19,7 @@ import { loadDataset } from "../src/lib/source";
 import { ApprovalInput, decideApproval, requestApproval } from "../src/server/approvals";
 import { loadJobs } from "../src/lib/jobs-view";
 import { applyDecisions } from "../src/server/jobs";
+import { decideOrder, listOrders } from "../src/server/orders";
 import { busiestSlot } from "../src/core/timeline";
 import { getReport, loadReports } from "../src/server/reports";
 import { runsOf } from "../src/server/workflows";
@@ -156,7 +157,7 @@ async function clean() {
   check((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status === 202, "notifications/initialized → 202");
   const list = await call(rpc("tools/list"));
   const names = (list.json?.result?.tools as { name: string; inputSchema: { required?: string[] } }[]).map((t) => t.name);
-  check(names.length === 20 && ["push_metrics", "log_run", "push_jobs", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff", "get_video_requests", "claim_video_request", "complete_video_request"].every((n) => names.includes(n)), "tools/list: twenty tools (twelve + the handoff queue + the video requests + push_jobs)", names);
+  check(names.length === 22 && ["push_metrics", "log_run", "push_jobs", "record_order", "end_order", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff", "get_video_requests", "claim_video_request", "complete_video_request"].every((n) => names.includes(n)), "tools/list: twenty-two tools (… + push_jobs + record_order + end_order)", names);
   const pm = (list.json?.result?.tools as { name: string; inputSchema: any }[]).find((t) => t.name === "push_metrics")!;
   check(pm.inputSchema.properties.rows.items.required.join() === "date,level,id", "push_metrics advertises the row schema (date, level, id required)");
   check(!names.some((n) => /delete|remove|execute|approve$|spend/.test(n)), "no delete / execute / spend tool exists");
@@ -898,6 +899,53 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── الأوامر السارية (V5 · P7) ──
+  {
+    const owner = { id: "demo-mcp-user", role: "OWNER" as const, demo: false };
+    const mark = "demo-p7:";
+    const rec = (a: Record<string, unknown>) => tool("record_order", a);
+    const tight = await rec({ text: mark + " ما في فيديو جديد لحد ما أقلك ارجع", effect: "restrict", domain: "ads", job_keys: ["video-collection"] });
+    const tightId = (tight.data?.order as { id: string; status: string })?.id;
+    check(!tight.isError && (tight.data?.order as { status: string }).status === "active", "record_order: an order that tightens is active at once");
+    const rules = await tool("get_rules");
+    const so = (rules.data?.standing_orders ?? []) as { id: string; text: string; effect: string; job_keys: string[] }[];
+    check(so.some((o) => o.id === tightId && o.effect === "restrict" && o.job_keys.includes("video-collection")), "get_rules hands Claude the active orders (standing_orders)");
+
+    const loose = await rec({ text: mark + " ارجع كبّر الحملات", effect: "allow", domain: "ads" });
+    const looseId = (loose.data?.order as { id: string; status: string })?.id;
+    check((loose.data?.order as { status: string }).status === "pending", "an order that loosens, from Claude, waits (pending)");
+    const so2 = ((await tool("get_rules")).data?.standing_orders ?? []) as { id: string }[];
+    check(!so2.some((o) => o.id === looseId), "…and Claude does not see it in force until the owner approves");
+    check((await loadInbox(owner)).some((i) => i.id === "order:" + looseId && i.kind === "order"), "…it is a decision in «بانتظارك»");
+    await decideOrder(looseId, "approve", { type: "user", id: "demo-mcp-user" });
+    check(((await tool("get_rules")).data?.standing_orders as { id: string }[]).some((o) => o.id === looseId), "…and in force after he approves");
+
+    // ending a tightening order from Claude is a loosening: it asks
+    const end = await tool("end_order", { id: tightId });
+    check(!end.isError && end.data?.ended === false, "end_order on an order that tightens only asks the owner (ended=false)");
+    check(((await tool("get_rules")).data?.standing_orders as { id: string }[]).some((o) => o.id === tightId), "…the order stays in force until he answers");
+    check((await loadInbox(owner)).some((i) => i.id === "order:" + tightId), "…and the request is a decision in «بانتظارك»");
+    await decideOrder(tightId, "approve", { type: "user", id: "demo-mcp-user" });
+    check(!((await tool("get_rules")).data?.standing_orders as { id: string }[]).some((o) => o.id === tightId), "…he says yes: the order ends");
+    check((await listOrders({ archive: true })).some((o) => o.id === tightId && o.status === "ended"), "…and stays in the archive (nothing is deleted)");
+
+    // an order whose end passed closes by itself; a phone number is refused; the past is refused
+    const soon = await db.standingOrder.create({ data: { text: mark + " قصير", effect: "restrict", domain: "ads", status: "active", endsAt: new Date(Date.now() - 1000), startsAt: new Date(Date.now() - 3_600_000) } });
+    check(!(await listOrders({ active: true })).some((o) => o.id === soon.id) && (await db.standingOrder.findUnique({ where: { id: soon.id } }))?.status === "ended", "an order whose end passed is closed by the site");
+    check((await rec({ text: "كلّم الزبون 0791234567", effect: "restrict" })).isError === true, "an order with a phone number is refused");
+    check((await rec({ text: mark + " ماضي", effect: "restrict", until: "2020-01-01T00:00:00Z" })).isError === true, "an end date in the past is refused");
+
+    // the owner's «ارجع» on the site ends at once
+    const ui = await db.standingOrder.create({ data: { text: mark + " من الموقع", effect: "restrict", domain: "ads", status: "active", source: "ui" } });
+    const { endOrder } = await import("../src/server/orders");
+    check((await endOrder(ui.id, { actor: { type: "user", id: "demo-mcp-user" }, source: "ui", isOwner: true })).ended === true, "the owner's «ارجع» on the site ends an order at once");
+    check((await listOrders({ job: { key: "night-round", domain: "ads" }, active: true })).every((o) => o.domain === "ads" || o.domain === "all"), "the job filter keeps only the orders that touch it");
+
+    await db.standingOrder.deleteMany({ where: { text: { startsWith: mark } } });
+    await db.auditLog.deleteMany({ where: { OR: [{ action: { startsWith: "order." } }] } });
   }
 
 
