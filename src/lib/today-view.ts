@@ -3,9 +3,12 @@
  * must not be missed, what is stalled, today's tasks and the morning card — all from the database (MOCK_MODE=0), or one
  * clearly demo set. Never a mix: a screen is real or it is demo.
  *
- * Days are the archive's days (UTC, like InsightDaily). Spend is the best level there is for that day: the account's own
+ * Days are the business days of Amman: an order belongs to the Amman date it was made on (one at 01:30 Amman is today's, not
+ * yesterday's as the UTC clock would say), and a spend row to its own date (InsightDaily keeps the plain date). Spend is the best level there is for that day: the account's own
  * total if it was pushed, else the ads, else the ad sets, else the campaigns — so a partial push still adds up.
  */
+import { ammanKey, keyMs } from "@/core/dates";
+import { dayBounds } from "@/core/day";
 import { lastNight } from "@/core/mode";
 import { readRules, type CampaignRules } from "@/core/rules-v2";
 import { averageDays, buildAlerts, costPerOrder, isTestStage, testShare, type DayNumbers, type TodayAlert } from "@/core/today";
@@ -18,8 +21,8 @@ import { getSetting } from "@/server/settings";
 import { listTasks, type TaskView } from "@/server/tasks";
 
 const DAY = 86_400_000;
-const utcDay = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-const key = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+/** The Amman day of an instant, as the UTC midnight of its date (the same number a spend row's date has). */
+const ammanDay = (d: Date) => keyMs(ammanKey(d));
 const LEVELS_BY_DETAIL = ["ad", "adset", "campaign"] as const;
 
 export interface MorningCard {
@@ -72,13 +75,15 @@ export async function loadToday(now = new Date()): Promise<TodayView> {
   const rules = readRules(await getSetting("campaign.rules"));
   const fx = Number(await getSetting("economics.fx_fee"));
   const split = (await getSetting("budget.split")) as { test: number };
-  const d0 = utcDay(now);
+  const d0 = ammanDay(now);
   const start = d0 - 7 * DAY;
-  const end = d0 + DAY;
+  // the orders of the eight Amman days up to the end of today (Amman midnight is not UTC midnight)
+  const ordersFrom = dayBounds(ammanKey(new Date(start))).from;
+  const ordersTo = dayBounds(ammanKey(now)).to;
 
   const [spendRows, orderRows, econRows, campaigns, adsets, ads] = await Promise.all([
     db.insightDaily.groupBy({ by: ["level", "date", "objectId"], where: { date: { gte: new Date(start), lte: new Date(d0) } }, _sum: { spend: true } }),
-    db.attributedOrder.findMany({ where: { createdAtOms: { gte: new Date(start), lt: new Date(end) }, isFake: false }, select: { createdAtOms: true, productCode: true, campaignId: true } }),
+    db.attributedOrder.findMany({ where: { createdAtOms: { gte: ordersFrom, lt: ordersTo }, isFake: false }, select: { createdAtOms: true, productCode: true, campaignId: true } }),
     db.productEconomics.findMany(),
     db.campaign.findMany({ select: { metaId: true, name: true, stage: true, productCode: true } }),
     db.adSet.findMany({ select: { metaId: true, campaign: { select: { metaId: true } } } }),
@@ -105,7 +110,7 @@ export async function loadToday(now = new Date()): Promise<TodayView> {
   const products = new Map(econRows.map((p) => [p.productCode, toProduct(p)]));
   const margin = (code: string) => (products.has(code) ? targetsOf(products.get(code)!).margin : null);
 
-  const ordersOn = (ms: number) => orderRows.filter((o) => utcDay(o.createdAtOms) === ms);
+  const ordersOn = (ms: number) => orderRows.filter((o) => ammanDay(o.createdAtOms) === ms);
   const dayNumbers = (ms: number): DayNumbers => {
     const list = byDate.get(ms);
     const orders = ordersOn(ms);
@@ -177,7 +182,7 @@ export async function loadToday(now = new Date()): Promise<TodayView> {
     ...stalledRuns.map((r) => ({ key: `run:${r.id}`, title: r.workflow.name, detail: `${r.status === "failed" ? "فشل" : "متوقف"}${r.summary ? ` — ${r.summary}` : ""}`, href: "/workflow" })),
     ...stalledTasks.map((t) => ({ key: `task:${t.id}`, title: t.title, detail: t.assignee ? `عند ${t.assignee}` : "بلا مسؤول", href: "/tasks" })),
   ];
-  const endOfToday = d0 + DAY;
+  const endOfToday = ordersTo.getTime();
   const todays = tasks.filter((t) => t.status === "doing" || (t.dueAt && new Date(t.dueAt).getTime() < endOfToday)).slice(0, 8);
 
   return {
