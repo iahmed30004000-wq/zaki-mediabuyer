@@ -36,6 +36,7 @@ import { GET as vrList } from "../src/app/api/v1/video-requests/route";
 import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/route";
 import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
 import { loadBoard } from "../src/lib/videos-board";
+import { approve, propose } from "../src/server/changes";
 import { runScheduled } from "../src/server/scheduler";
 import { clearChat, loadChat, saveChat } from "../src/server/assistant/chat";
 import { syncDriveLibrary } from "../src/jobs/drive-library";
@@ -1140,6 +1141,43 @@ async function clean() {
     const t1 = await loadToday();
     check((t1.today.orders ?? 0) === (t0.today.orders ?? 0) + 1, "an order made at 01:30 Amman time counts for today", { before: t0.today.orders, after: t1.today.orders });
     check((t1.yesterday.orders ?? 0) === (t0.yesterday.orders ?? 0) + 1, "…and one made at 23:30 the night before counts for yesterday", { before: t0.yesterday.orders, after: t1.yesterday.orders });
+  }
+
+  // ── v3 R: a Meta write asked for live is never a quiet dry-run, and the jobs say what key is missing ──
+  {
+    const owner = { id: "demo-mcp-user", role: "OWNER" as const, demo: false };
+    const wasEnv = { mode: process.env.META_WRITE_MODE, ok: process.env.META_LIVE_VERIFIED, token: process.env.META_SYSTEM_USER_TOKEN };
+    const mkChange = async (sentence: string) =>
+      propose(
+        { source: "user", reasonCode: "S11", sentence, kind: "resume", accountMetaId: "act_demo_mcp", items: [{ op: "resume", objectType: "campaign", objectId: "DEMO_MCP_C1", before: { status: "PAUSED" }, after: { status: "ACTIVE" } }] },
+        { type: "user", id: "demo-mcp-user" },
+      );
+    try {
+      delete process.env.META_SYSTEM_USER_TOKEN;
+      process.env.META_WRITE_MODE = "live";
+      delete process.env.META_LIVE_VERIFIED;
+      const c1 = await mkChange("DEMO جاهزية: بدون META_LIVE_VERIFIED");
+      const r1 = await approve(c1.id, owner).catch((e: Error) => ({ state: "threw", error: e.message }));
+      const i1 = await db.changeItem.findMany({ where: { changeSetId: c1.id } });
+      check(r1.state === "failed" && String(r1.error).includes("META_LIVE_VERIFIED=1") && i1.every((i) => i.apiResponse === null), "META_WRITE_MODE=live without META_LIVE_VERIFIED: the change FAILS with the sentence and nothing was recorded as sent", { state: r1.state, error: r1.error });
+      process.env.META_LIVE_VERIFIED = "1";
+      const c2 = await mkChange("DEMO جاهزية: بدون توكن");
+      const r2 = await approve(c2.id, owner).catch((e: Error) => ({ state: "threw", error: e.message }));
+      check(r2.state === "failed" && String(r2.error).includes("META_SYSTEM_USER_TOKEN"), "verified but no token: it fails naming META_SYSTEM_USER_TOKEN (no made-up «executed»)", { state: r2.state, error: r2.error });
+      delete process.env.META_WRITE_MODE;
+      delete process.env.META_LIVE_VERIFIED;
+      const c3 = await mkChange("DEMO جاهزية: dry-run");
+      const r3 = await approve(c3.id, owner).catch((e: Error) => ({ state: "threw", error: e.message }));
+      const i3 = await db.changeItem.findMany({ where: { changeSetId: c3.id } });
+      check(r3.state === "executed" && (r3 as { writeMode?: string }).writeMode === "dry_run" && i3.every((i) => (i.apiResponse as { dryRun?: boolean } | null)?.dryRun === true), "dry-run (the default) stays honest: «executed» as dry_run, the item says it only recorded what would be sent", { state: r3.state });
+      await db.changeItem.deleteMany({ where: { changeSet: { sentence: { startsWith: "DEMO جاهزية" } } } });
+      await db.changeSet.deleteMany({ where: { sentence: { startsWith: "DEMO جاهزية" } } });
+    } finally {
+      for (const [k, v] of [["META_WRITE_MODE", wasEnv.mode], ["META_LIVE_VERIFIED", wasEnv.ok], ["META_SYSTEM_USER_TOKEN", wasEnv.token]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
   }
 
   // ── v3 S: the site's own clock for scheduled workflows, and the assistant's kept conversation ──

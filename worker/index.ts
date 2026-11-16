@@ -51,6 +51,7 @@ import { weeklyCreativeRequests } from "../src/agents/strategist";
 import { readAlerts, sendAlerts } from "../src/jobs/alerts";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
+import { metaWriteGate, requireKeys } from "../src/core/readiness";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
 import { driveFromEnv } from "../src/adapters/drive";
 import { intakeStudioDrive } from "../src/jobs/studio-intake";
@@ -81,14 +82,19 @@ export async function tick(now = new Date()) {
   const day = t.hour >= 8;
 
   if (day || t.hour % 2 === 0) {
-    await runOnce("meta.sync", day ? halfHour : `${t.date}T${t.hour}`, () => syncMeta({ since: yesterday, until: t.date }));
+    await runOnce("meta.sync", day ? halfHour : `${t.date}T${t.hour}`, async () => {
+      // the token may be the environment's or the encrypted connection in the database
+      if (!(await metaToken())) requireKeys("meta");
+      return syncMeta({ since: yesterday, until: t.date });
+    });
   }
   if (t.hour > 2 || (t.hour === 2 && t.minute >= 30)) await runOnce("db.backup", t.date, () => dailyBackup(db, now));
   if (t.hour === 3) await runOnce("meta.final", t.date, () => syncMeta({ since: iso(new Date(utcDay(t.date).getTime() - 8 * DAY)), until: yesterday }));
   if (t.minute >= 5) {
     await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
+      requireKeys("oms");
       const o = omsOptions();
-      return o ? syncOms(o, new Date(now.getTime() - 3 * DAY)) : { skipped: "OMS not linked yet (P0.3)" };
+      return o ? syncOms(o, new Date(now.getTime() - 3 * DAY)) : { skipped: "OMS not linked (demo)" };
     });
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
@@ -97,30 +103,44 @@ export async function tick(now = new Date()) {
   await runOnce("creative.intake", quarter, async () => {
     const drive = driveFromEnv();
     const root = process.env.DRIVE_PRODUCTS_FOLDER_ID?.trim();
-    return drive && root ? intakeDrive(drive, root) : { skipped: "Drive not linked yet (P0.6)" };
+    requireKeys("drive");
+    return drive && root ? intakeDrive(drive, root) : { skipped: "Drive not linked (demo)" };
   });
   await runOnce("creative.intake.studio", quarter, async () => {
     const drive = driveFromEnv();
     const root = process.env.DRIVE_STUDIO_FOLDER_ID?.trim();
-    return drive && root ? intakeStudioDrive(drive, root) : { skipped: "Studio Drive folder not shared yet (DRIVE_STUDIO_FOLDER_ID)" };
+    requireKeys("studioDrive");
+    return drive && root ? intakeStudioDrive(drive, root) : { skipped: "Studio Drive not linked (demo)" };
   });
   await runOnce("drive.library", `${t.date}T${String(t.hour).padStart(2, "0")}:${t.minute >= 30 ? "30" : "00"}`, async () => {
     const drive = driveFromEnv();
     const root = process.env.DRIVE_PRODUCTION_FOLDER_ID?.trim();
-    return drive && root ? syncDriveLibrary(drive, root, process.env.DRIVE_REGISTER_FILE_ID?.trim() || null) : { skipped: "Production Drive folder not shared yet (DRIVE_PRODUCTION_FOLDER_ID)" };
+    requireKeys("driveLibrary");
+    return drive && root ? syncDriveLibrary(drive, root, process.env.DRIVE_REGISTER_FILE_ID?.trim() || null) : { skipped: "Production Drive not linked (demo)" };
   });
   await runOnce("studio.launch", quarter, () => processPendingRequests());
-  await runOnce("replies.sync", quarter, () => syncReplies(repliesFromEnv(), now));
+  await runOnce("replies.sync", quarter, async () => {
+    requireKeys("replies");
+    return syncReplies(repliesFromEnv(), now);
+  });
   await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
   await runOnce("alerts.read", quarter, () => readAlerts(now));
   const five = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 5) * 5).padStart(2, "0")}`;
-  await runOnce("alerts.send", five, () => sendAlerts(telegramFromEnv(), now));
+  await runOnce("alerts.send", five, async () => {
+    requireKeys("telegram");
+    return sendAlerts(telegramFromEnv(), now);
+  });
   await runOnce("workflow.timeouts", five, () => sweepTimeouts(now));
-  await runOnce("workspace.sync", five, () => syncWorkspace(realDoorDeps(), now));
+  await runOnce("workspace.sync", five, async () => {
+    requireKeys("workspace");
+    return syncWorkspace(realDoorDeps(), now);
+  });
   // the site's own clock for workflows with a schedule (off unless SITE_SCHEDULER=1): every minute
   await runOnce("workflow.schedule", `${t.date}T${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`, () => runScheduled(now));
   await runOnce("capi.send", quarter, async () => {
     const queued = await enqueueCapi(now);
+    const gate = metaWriteGate(process.env, !!(await metaToken()));
+    if (gate.error) throw new Error(gate.error);
     const live = writeMode() === "live";
     const token = live ? await metaToken() : null;
     const sent = await sendCapi({ meta: token ? new MetaClient({ token }) : null, oms: live ? omsOptions() : null, datasetId: await capiDataset(), testEventCode: process.env.CAPI_TEST_EVENT_CODE?.trim() || null, now });
@@ -147,7 +167,10 @@ export async function tick(now = new Date()) {
       await runOnce(`report.${kind}`, t.date, async () => {
         const r = await storePeriodReport(kind, now);
         const tg = telegramFromEnv();
-        if (!tg) return { ...r, skipped: "Telegram not linked yet (P0.7)" };
+        if (!tg) {
+          requireKeys("telegram");
+          return { ...r, skipped: "Telegram not linked (demo)" };
+        }
         const report = await db.report.findUniqueOrThrow({ where: { kind_forDate: { kind, forDate: r.forDate } } });
         await sendTelegram(tg, report.text);
         await db.report.update({ where: { id: report.id }, data: { sentAt: new Date() } });
@@ -165,7 +188,10 @@ export async function tick(now = new Date()) {
       const text = await buildMorningReport(utcDay(yesterday));
       await db.report.upsert({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, create: { kind: "morning", forDate: utcDay(yesterday), text }, update: { text } });
       const tg = telegramFromEnv();
-      if (!tg) return { skipped: "Telegram not linked yet (P0.7)", chars: text.length };
+      if (!tg) {
+        requireKeys("telegram");
+        return { skipped: "Telegram not linked (demo)", chars: text.length };
+      }
       await sendTelegram(tg, text);
       await db.report.update({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, data: { sentAt: new Date() } });
       return { sent: true, chars: text.length };

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { missingText } from "@/core/readiness";
 import { summaryText } from "@/core/numbers";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { audit } from "@/server/audit";
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const q = new URL(req.url).searchParams;
     const tg = telegramFromEnv();
-    if (!tg) throw new HttpError(409, "تيليجرام مش مربوط لسا — حط التوكن بـ Coolify");
+    if (!tg) throw new HttpError(409, missingText("telegram") ?? "تيليجرام مش مربوط");
     const data = await loadNumbers({ d: q.get("d"), from: q.get("from"), to: q.get("to") });
     await sendTelegram(tg, summaryText(data.label, data.totals.current, data.products.map((p) => ({ name: p.name, set: p.current }))));
     await audit({ type: "user", id: caller.id }, "numbers.share_telegram", { type: "numbers", id: `${data.range.from}..${data.range.to}` });

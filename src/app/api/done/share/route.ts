@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { missingText } from "@/core/readiness";
 import { summaryOfDay } from "@/core/day";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { loadDay, readDay } from "@/lib/day-view";
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     const caller = await requireCapability("view");
     if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const tg = telegramFromEnv();
-    if (!tg) throw new HttpError(409, "تيليجرام مش مربوط لسا — حط التوكن بـ Coolify");
+    if (!tg) throw new HttpError(409, missingText("telegram") ?? "تيليجرام مش مربوط");
     const data = await loadDay(readDay(new URL(req.url).searchParams.get("day") ?? undefined));
     await sendTelegram(tg, summaryOfDay(data.title, data.done, data.planned, data.demo));
     await audit({ type: "user", id: caller.id }, "done.share_telegram", { type: "day", id: data.day });

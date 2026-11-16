@@ -9,6 +9,7 @@
  */
 import { Prisma } from "@prisma/client";
 import { effectiveMode, type Urgency } from "@/core/mode";
+import { missingText } from "@/core/readiness";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { db } from "./db";
 import { appOrigin } from "./env";
@@ -60,7 +61,7 @@ export async function dispatchNotification(id: string, now = new Date()): Promis
     if (n.sentAt) return { delivered: true, via: "telegram" };
     if (n.urgency === "yellow") return { delivered: false, reason: "🟡 صامت: بيظهر بـ «اليوم» بس" };
     const tg = telegramFromEnv();
-    if (!tg) return { delivered: false, reason: "تيليجرام مش مربوط لسا" };
+    if (!tg) return { delivered: false, reason: missingText("telegram") ?? "تيليجرام مش مربوط" };
     let chatId = tg.chatId;
     if (n.audience === "owner") {
       if (effectiveMode(await getSetting("owner.mode"), now) === "asleep") return { delivered: false, reason: "المالك نايم — بيطلع بكرت «صباح الخير»" };

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { missingText } from "@/core/readiness";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
@@ -23,6 +24,8 @@ export async function POST(req: Request, { params }: { params: { code: string } 
     if (parsed.data.action === "approve" && asset.policyFlag === "red") throw new HttpError(409, "فيه ادعاء ممنوع — بدو نسخة معدّلة، ما بينوافق عليه");
     if (asset.status !== "review" && parsed.data.action === "approve") throw new HttpError(409, "هالفيديو مش بانتظار موافقة");
     const status = parsed.data.action === "approve" ? "ready" : "excluded";
+    // the file sits on Drive: with no Drive link the move cannot happen, and saying «تمت» would be false — stop before anything changes
+    if (asset.driveFileId && !(driveFromEnv() && process.env.DRIVE_PRODUCTS_FOLDER_ID?.trim())) throw new HttpError(409, `${missingText("drive") ?? "درايف مش مربوط"} (الفيديو على درايف، فنقله ما بيمشي بدونه)`);
     await db.creativeAsset.update({ where: { id: asset.id }, data: { status } });
     await db.policyCheck.updateMany({ where: { assetId: asset.id }, data: { approvedBy: caller.id } });
 

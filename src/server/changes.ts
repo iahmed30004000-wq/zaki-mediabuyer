@@ -19,6 +19,7 @@ import { effectiveLevel, modeFor, type ActionKind, type AutonomyLevel } from "@/
 import { accountRestricted } from "@/jobs/account-safety";
 import { assertMove, directionOf, flipFlopped, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
 import { applyItem, writeMode } from "@/meta/write";
+import { metaWriteGate } from "@/core/readiness";
 import { resolveRefs } from "@/core/templates";
 import { MetaClient } from "@/meta/client";
 import { metaToken } from "@/jobs/meta-sync";
@@ -168,6 +169,8 @@ export async function execute(id: string, actor: Actor) {
   const client = await metaClientIfLive();
   let allVerified = true;
   let mismatch = "";
+  // a live write was asked for but is not allowed yet (no META_LIVE_VERIFIED, no token): the change FAILS with the sentence — it is not run as a quiet dry-run
+  const gate = metaWriteGate(process.env, !!(await metaToken()));
   // a launch creates objects in order: the ids Meta gives are kept by ref and filled into the items after them
   const ids: Record<string, string> = {};
   for (const item of cs.items) {
@@ -175,6 +178,7 @@ export async function execute(id: string, actor: Actor) {
     if (item.op === "create" && ref && item.apiResponse !== null) ids[ref] = item.objectId;
   }
   try {
+    if (gate.error) throw new Error(gate.error);
     for (const item of [...cs.items].sort((a, b) => a.seq - b.seq)) {
       if (item.apiResponse !== null) continue; // already sent once: never twice
       const objectId = resolveRefs(item.objectId, ids);
