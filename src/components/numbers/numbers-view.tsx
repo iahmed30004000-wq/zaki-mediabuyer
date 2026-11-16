@@ -226,7 +226,7 @@ export function NumbersView({ data, query, pasteDay }: { data: NumbersData; quer
         {!data.products.length ? <Panel className="text-sm text-fg-muted">ما في أرقام للفترة هاي لسا. أول ما يبعتها Claude (أو ينربط الـ OMS وميتا) بتطلع هون.</Panel> : null}
       </section>
 
-      {data.rulesMissing && !data.demo ? <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">الألوان (أخضر / برتقالي / أحمر) بتحتاج «الهدف» و«نقطة التعادل» من <a href="/settings#campaign-rules" className="font-medium text-accent hover:underline">قواعد الحملات</a> — لسا ناقصة.</p> : null}
+      {data.rulesMissing && !data.demo ? <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">الألوان (أخضر / برتقالي / أحمر) بتحتاج «الهدف» و«نقطة التعادل» من <a href="/settings/rules#campaign-rules" className="font-medium text-accent hover:underline">قواعد الحملات</a> — لسا ناقصة.</p> : null}
     </div>
   );
 }

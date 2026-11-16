@@ -56,10 +56,10 @@ export function detect(f: AlertFacts): Signal[] {
   const m = median(f.cpm7);
   if (f.cpmToday !== null && m !== null && f.impressionsToday >= 1000 && f.cpmToday > 2 * m) out.push({ key: "cpm", kind: "alert.cpm", tone: "warn", text: `CPM اليوم ${f.cpmToday.toFixed(2)}$ أكتر من ضعف وسيط 7 أيام (${m.toFixed(2)}$)`, href: "/ads" });
   // a source that stopped
-  if (f.metaLinked && (f.metaAgeHours === null || f.metaAgeHours > 2)) out.push({ key: "stale:meta", kind: "alert.stale", tone: "warn", text: `ميتا ما تحدّثت ${f.metaAgeHours === null ? "أبداً" : `من ${Math.round(f.metaAgeHours)} ساعات`} — التكبير مجمّد لحد ما ترجع`, href: "/settings#connections" });
-  if (f.omsLinked && (f.omsAgeHours === null || f.omsAgeHours > 2)) out.push({ key: "stale:oms", kind: "alert.stale", tone: "warn", text: `الـ OMS ما تحدّث ${f.omsAgeHours === null ? "أبداً" : `من ${Math.round(f.omsAgeHours)} ساعات`} — قواعد الحقيقة مجمّدة لحد ما يرجع`, href: "/settings#connections" });
+  if (f.metaLinked && (f.metaAgeHours === null || f.metaAgeHours > 2)) out.push({ key: "stale:meta", kind: "alert.stale", tone: "warn", text: `ميتا ما تحدّثت ${f.metaAgeHours === null ? "أبداً" : `من ${Math.round(f.metaAgeHours)} ساعات`} — التكبير مجمّد لحد ما ترجع`, href: "/settings/connections" });
+  if (f.omsLinked && (f.omsAgeHours === null || f.omsAgeHours > 2)) out.push({ key: "stale:oms", kind: "alert.stale", tone: "warn", text: `الـ OMS ما تحدّث ${f.omsAgeHours === null ? "أبداً" : `من ${Math.round(f.omsAgeHours)} ساعات`} — قواعد الحقيقة مجمّدة لحد ما يرجع`, href: "/settings/connections" });
   // the replies inbox cannot keep up, or cannot be seen — message campaigns are held, so say it
-  if (f.repliesProblem) out.push({ key: "replies", kind: "alert.replies", tone: "warn", text: f.repliesProblem, href: "/settings#connections" });
+  if (f.repliesProblem) out.push({ key: "replies", kind: "alert.replies", tone: "warn", text: f.repliesProblem, href: "/settings/connections" });
   // weak attribution
   if (f.attributedPct !== null && f.attributedPct < 70) out.push({ key: "attribution", kind: "alert.attribution", tone: "warn", text: `إسناد ضعيف: ${f.attributedPct}% بس من الطلبات واصلة لإعلانها (تحت 70%)`, href: "/ads/health" });
   // conversion events refused by Meta
@@ -67,8 +67,8 @@ export function detect(f: AlertFacts): Signal[] {
   // the Meta token: 7 days before it ends, and at once when it ended
   if (f.tokenDaysLeft !== null && f.tokenDaysLeft <= 7) {
     out.push(f.tokenDaysLeft <= 0
-      ? { key: "token", kind: "alert.token", tone: "danger", text: "توكن ميتا انتهى — كل حساب نزل للمستوى صفر لحد ما يتجدد", href: "/settings#connections", instant: true }
-      : { key: "token", kind: "alert.token", tone: "warn", text: `توكن ميتا بينتهي بعد ${Math.ceil(f.tokenDaysLeft)} أيام — جدّده من الإعدادات`, href: "/settings#connections", instant: true });
+      ? { key: "token", kind: "alert.token", tone: "danger", text: "توكن ميتا انتهى — كل حساب نزل للمستوى صفر لحد ما يتجدد", href: "/settings/connections", instant: true }
+      : { key: "token", kind: "alert.token", tone: "warn", text: `توكن ميتا بينتهي بعد ${Math.ceil(f.tokenDaysLeft)} أيام — جدّده من الإعدادات`, href: "/settings/connections", instant: true });
   }
   return out;
 }

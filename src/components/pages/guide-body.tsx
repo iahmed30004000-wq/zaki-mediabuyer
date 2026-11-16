@@ -12,13 +12,13 @@ export function GuideBody() {
         <div>
           <h3 className="text-lg font-bold text-fg">أهلين بالميديا باير</h3>
           <p className="mt-1 max-w-prose text-sm leading-6 text-fg-muted">
-            النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. سبع أماكن بس، وبكل صفحة زر «؟» بيشرحها وبيفرجيك، والمساعد (الزر العائم) بيشرح أي شاشة بضغطة.
+            النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. خمس أماكن بس، وبكل صفحة زر «؟» بيشرحها وبيفرجيك، والمساعد (الزر العائم) بيشرح أي شاشة بضغطة.
           </p>
         </div>
       </div>
 
       <section className="space-y-3">
-        <h3 className="text-base font-bold text-fg">الأماكن السبعة</h3>
+        <h3 className="text-base font-bold text-fg">الأماكن الخمسة</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {PLACES.map((p) => (
             <Link key={p.key} href={p.href} className="rounded-card border border-border bg-surface-1 p-4 shadow-card hover:border-accent/50">
@@ -46,9 +46,9 @@ export function GuideBody() {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h3 className="text-base font-bold text-fg">كل رقم من وين</h3>
-        <Panel className="overflow-x-auto p-0">
+      <details className="group space-y-3 rounded-card border border-border bg-surface-1 p-4">
+        <summary className="cursor-pointer list-none text-base font-bold text-fg group-open:text-accent">كل رقم من وين</summary>
+        <Panel className="mt-3 overflow-x-auto p-0">
           <table className="w-full min-w-[34rem] text-sm">
             <tbody className="divide-y divide-border">
               {Object.values(GLOSSARY).map((t) => (
@@ -61,7 +61,7 @@ export function GuideBody() {
             </tbody>
           </table>
         </Panel>
-      </section>
+      </details>
     </div>
   );
 }

@@ -26,8 +26,8 @@ export const LEGACY_REDIRECTS = [
   { source: "/creatives", destination: "/ads/videos?view=flow", permanent: false },
   { source: "/reports", has: tab("(safety|data)"), destination: "/ads/health", permanent: false },
   { source: "/reports", destination: "/work/reports", permanent: false },
-  { source: "/guide", destination: "/settings#guide", permanent: false },
-  { source: "/setup", destination: "/settings#setup", permanent: false },
+  { source: "/guide", destination: "/settings/advanced/guide", permanent: false },
+  { source: "/setup", destination: "/settings/connections", permanent: false },
 ];
 
 const nextConfig = {

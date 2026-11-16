@@ -238,13 +238,13 @@ function Editor({
  * Nothing is deleted: «أرشف» hides a card, and a merge keeps what the others said. `lockedBoard`: a page of the owner's that is one board.
  */
 /** «حسب الشخص» groups the open tasks of the team by who does them (the late ones first); «كانبان» is the five columns. */
-export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defaultView }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string; defaultView?: "person" | "board" }) {
+export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defaultView, initialBoard }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string; defaultView?: "person" | "board"; initialBoard?: string }) {
   const { toast } = useToast();
   const { editing, openPanel } = useShell();
   const now = useMemo(() => new Date(nowIso), [nowIso]);
   const [tasks, setTasks] = useState(initial);
   const [values, setValues] = useState(custom.values);
-  const [board, setBoard] = useState(lockedBoard ?? "all");
+  const [board, setBoard] = useState(lockedBoard ?? initialBoard ?? "all");
   const [who, setWho] = useState("");
   const [col, setCol] = useState<TaskColumn>("new");
   const [sel, setSel] = useState<Set<string>>(new Set());

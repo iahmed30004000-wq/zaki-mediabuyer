@@ -1,11 +1,12 @@
+import { FoldCard } from "@/components/settings/fold-card";
 import { AgentTokens, ActorsPanel, type TokenRow } from "@/components/settings/team-directory";
 import { AgentsTable, MatrixLegend, RolesTable } from "@/components/settings/permission-matrix";
 import { TeamPanel } from "@/components/settings/editors";
-import { SectionTitle } from "@/components/ui/section-title";
 import { agentMatrix, roleMatrix } from "@/core/permissions";
 import { isDemo } from "@/core/readiness";
 import { can } from "@/core/roles";
-import { loadEditView } from "@/lib/settings-view";
+import { fmt } from "@/lib/format";
+import { loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { currentCaller } from "@/server/auth";
 import { db } from "@/server/db";
 import { loadDirectory } from "@/server/directory";
@@ -28,9 +29,10 @@ export default async function TeamSettingsPage() {
   const me = await currentCaller();
   const owner = !!me && !me.demo && can(me.role, "owner_only");
   const demo = isDemo(process.env);
-  const [directory, edit, tokens, accounts] = await Promise.all([
+  const [directory, edit, real, tokens, accounts] = await Promise.all([
     loadDirectory({ includeInactive: true }),
     loadEditView(),
+    loadSettingsView(),
     owner ? db.apiToken.findMany({ where: { OR: [{ scopes: { has: "mcp" } }, { scopes: { hasSome: ["mcp:read", "mcp:push", "mcp:run", "mcp:ask", "mcp:tasks", "mcp:handoff", "mcp:videos"] } }] }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, scopes: true, actorKey: true, lastUsedAt: true, revokedAt: true } }) : Promise.resolve([]),
     demo ? Promise.resolve([]) : db.adAccount.findMany({ select: { name: true, autonomyLevel: true } }),
   ]);
@@ -43,32 +45,34 @@ export default async function TeamSettingsPage() {
     accounts.map((a) => ({ name: a.name, level: a.autonomyLevel })),
   );
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <SectionTitle hint="كل واحد بدور جاهز — بدون خانات تعدّلها">الناس</SectionTitle>
-        {edit ? <TeamPanel team={edit.team} me={me && !me.demo ? me.id : null} /> : <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">الحسابات بتظهر لما يشتغل الموقع على البيانات الحقيقية.</p>}
-      </section>
+    <div className="space-y-3">
+      <FoldCard id="team" open title="الناس" summary={edit ? `${edit.team.length} حساب · كل واحد بدور جاهز، بدون خانات تعدّلها` : "بتظهر لما يشتغل الموقع على البيانات الحقيقية"}>
+        {edit ? <TeamPanel team={edit.team} me={me && !me.demo ? me.id : null} /> : <p className="text-sm text-fg-muted">الحسابات بتظهر لما يشتغل الموقع على البيانات الحقيقية.</p>}
+      </FoldCard>
 
-      <section className="space-y-3">
-        <SectionTitle hint="الأسماء والفرق ورقم تيليجرام — بيانات، مش كود">دليل الفريق</SectionTitle>
-        {owner ? <ActorsPanel actors={directory} users={edit?.team.filter((u) => u.active).map((u) => ({ id: u.id, name: u.name, email: u.email })) ?? []} /> : <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">{directory.length} بالدليل — التعديل للمالك.</p>}
-      </section>
+      <FoldCard id="directory" title="دليل الفريق" summary={`${directory.filter((a) => a.active).length} بالدليل — الأسماء والفرق ورقم تيليجرام: بيانات، مش كود`}>
+        {owner ? <ActorsPanel actors={directory} users={edit?.team.filter((u) => u.active).map((u) => ({ id: u.id, name: u.name, email: u.email })) ?? []} /> : <p className="text-sm text-fg-muted">التعديل للمالك.</p>}
+      </FoldCard>
 
       {owner ? (
-        <section className="space-y-3">
-          <SectionTitle hint="كل توكن بيفتح أدوات معيّنة بس">توكنات الوكلاء</SectionTitle>
+        <FoldCard id="agents" title="توكنات الوكلاء" summary={`${tokenRows.filter((t) => !t.revoked).length} شغّال · كل توكن بيفتح أدوات معيّنة بس`}>
           <AgentTokens agents={agents.map((a) => ({ key: a.key, name: a.name }))} tokens={tokenRows} />
-        </section>
+        </FoldCard>
       ) : null}
 
-      <section className="space-y-3">
-        <SectionTitle hint="الجدول بيقرا الأنظمة الأربعة: الدور، مستوى الحساب، نطاقات التوكن، والحدود الثابتة">مين بيقدر شو</SectionTitle>
+      {real ? (
+        <FoldCard id="model-cap" title="سقف صرف الموديل" summary={`${fmt(real.monthUsd, "$")} من ${fmt(real.monthCap, "$", 0)} هالشهر`}>
+          <p className="text-sm text-fg-muted">الوكلاء بيفسّروا وبيكتبوا بس — ما حدا منهم بيلمس ميتا ولا بيشوف بيانات زبون. الخارجيين بيوقفوا عند السقف.</p>
+        </FoldCard>
+      ) : null}
+
+      <FoldCard id="matrix" title="مين بيقدر شو" summary="الجدول بيقرا الدور ومستوى الحساب ونطاقات التوكن والحدود الثابتة — مش نسخة مكتوبة باليد">
         <h3 className="text-sm font-bold text-fg">الناس</h3>
         <RolesTable sections={roleMatrix()} />
         <h3 className="pt-2 text-sm font-bold text-fg">الوكلاء</h3>
         <AgentsTable sections={matrix} agents={agents.map((a) => ({ key: a.key, name: a.name }))} />
         <MatrixLegend />
-      </section>
+      </FoldCard>
     </div>
   );
 }

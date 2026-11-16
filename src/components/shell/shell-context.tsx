@@ -6,7 +6,7 @@ import type { EffPage } from "@/core/customize";
 import { READY_PLACES, placeOf, type Place } from "@/lib/nav";
 
 /** The tabs of the edit panel. */
-export type PanelTab = "pages" | "boards" | "fields" | "buttons" | "trash";
+export type PanelTab = "boards" | "fields" | "buttons" | "trash";
 
 interface Shell {
   /** every page (the hidden and the put-away ones too: the sidebar and the phone's bar filter) */
@@ -39,7 +39,7 @@ const KEY = "mb:edit";
  */
 export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = true, caps, children }: { pages: EffPage[]; canEdit: boolean; inbox?: number; places?: readonly string[]; settings?: boolean; caps?: readonly string[]; children: ReactNode }) {
   const [editing, setEditingState] = useState(false);
-  const [panel, setPanel] = useState<{ open: boolean; tab: PanelTab }>({ open: false, tab: "pages" });
+  const [panel, setPanel] = useState<{ open: boolean; tab: PanelTab }>({ open: false, tab: "boards" });
 
   // the switch survives a reload (and only for the owner)
   useEffect(() => {

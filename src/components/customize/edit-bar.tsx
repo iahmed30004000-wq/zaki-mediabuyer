@@ -4,7 +4,7 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useShell } from "@/components/shell/shell-context";
 
-/** «وضع التعديل» on and off — a button in the settings page until P11 retires the mode. Only the owner, signed in, ever sees it. */
+/** «وضع التعديل» on and off — a button in «متقدّم ← التخصيص». Only the owner, signed in, ever sees it. */
 export function EditToggle({ className }: { className?: string }) {
   const { canEdit, editing, setEditing } = useShell();
   if (!canEdit) return null;
