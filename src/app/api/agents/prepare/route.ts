@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { prepareChange } from "@/agents/preparer";
 import { AgentUnavailable } from "@/gateway";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({ text: z.string().trim().min(3).max(1200) });
 
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "اكتب شو بدك يتغيّر");
     await requireCapability("ads.propose");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true, refused: [], items: [] });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true, refused: [], items: [] });
     try {
       const r = await prepareChange(parsed.data.text);
       return NextResponse.json({ ok: true, changeSetId: r.changeSet.id, state: r.changeSet.state, items: r.items.length, refused: r.refused, warnings: r.warnings });

@@ -44,8 +44,8 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
       <div className="space-y-2">
         <p className="text-sm font-semibold text-fg">جدول تلقائي</p>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <label className="inline-flex min-h-9 items-center gap-2 text-fg">
-            <input type="checkbox" checked={sch.enabled} onChange={(e) => setSch({ ...sch, enabled: e.target.checked })} className="size-4 accent-[var(--accent,#2563eb)]" />
+          <label className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-fg">
+            <input type="checkbox" checked={sch.enabled} onChange={(e) => setSch({ ...sch, enabled: e.target.checked })} className="size-4 accent-accent" />
             شغّله
           </label>
           <label className="inline-flex items-center gap-2 text-fg-muted">

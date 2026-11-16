@@ -31,25 +31,25 @@ export function LoginForm({ next }: { next: string }) {
       }}
     >
       <div>
-        <h1 className="text-lg font-bold text-fg">{first ? "اعمل حساب المالك" : invite !== null ? "أول دخول بدعوة" : "أهلين"}</h1>
+        <h1 className="text-base font-bold text-fg">{first ? "اعمل حساب المالك" : invite !== null ? "أول دخول بدعوة" : "أهلين"}</h1>
         <p className="text-xs text-fg-muted">{first ? "أول مرة: الإيميل وكلمة السر اللي بتكتبهم هلأ بيصيروا حساب المالك." : invite !== null ? "اكتب الرمز اللي أعطاك ياه المالك، واختار كلمة سرك (8 أحرف على الأقل). الرمز بينفع مرة وحدة." : "سجّل دخول لتكمّل."}</p>
       </div>
       <label className="block space-y-1">
         <span className="text-xs font-medium text-fg-muted">الإيميل</span>
-        <input type="email" dir="ltr" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+        <input type="email" dir="ltr" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
       </label>
       <label className="block space-y-1">
         <span className="text-xs font-medium text-fg-muted">{invite !== null ? "كلمة سرك الجديدة" : "كلمة السر"} {first || invite !== null ? "(8 أحرف على الأقل)" : ""}</span>
-        <input type="password" dir="ltr" autoComplete={first || invite !== null ? "new-password" : "current-password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+        <input type="password" dir="ltr" autoComplete={first || invite !== null ? "new-password" : "current-password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
       </label>
       {invite !== null ? (
         <label className="block space-y-1">
           <span className="text-xs font-medium text-fg-muted">رمز الدعوة</span>
-          <input dir="ltr" autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} className="h-11 w-full rounded-lg border border-border bg-surface px-3 font-mono tracking-wider text-fg" />
+          <input dir="ltr" autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 font-mono tracking-wider text-fg" />
         </label>
       ) : null}
       {error ? <p className="rounded-lg bg-danger/10 p-2 text-sm text-danger">{error}</p> : null}
-      <Button type="submit" disabled={busy} className="h-11 w-full">
+      <Button type="submit" disabled={busy} className="h-10 max-md:h-[44px] w-full">
         {first ? "اعمل الحساب وادخل" : invite !== null ? "ثبّت كلمة السر وادخل" : "ادخل"}
       </Button>
       {!first ? (

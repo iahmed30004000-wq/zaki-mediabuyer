@@ -5,6 +5,7 @@ import { omsLinked } from "@/server/env";
 import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
 import { workspaceConfigFrom } from "@/core/workspace-door";
 import { schedulerOn } from "@/core/scheduler";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export async function GET() {
   const body = {
     ok: database,
     version: process.env.APP_VERSION ?? "dev",
-    mock: process.env.MOCK_MODE === "1",
+    mock: isDemo(process.env),
     database,
     encryption: encryptionKeyConfigured(),
     links: {

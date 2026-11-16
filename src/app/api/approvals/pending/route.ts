@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { errorResponse, requireCapability } from "@/server/auth";
 import { listApprovals } from "@/server/approvals";
 import { currentMode } from "@/server/mode";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireCapability("inbox.view");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ approvals: [], mode: "awake", demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ approvals: [], mode: "awake", demo: true });
     const [approvals, mode] = await Promise.all([listApprovals({ status: ["pending"] }), currentMode()]);
     return NextResponse.json({ approvals, mode: mode.mode });
   } catch (e) {

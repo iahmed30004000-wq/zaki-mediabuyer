@@ -65,7 +65,7 @@ export function ImportPanel() {
       <Panel className="space-y-3">
         <p className="text-sm font-semibold text-fg">استيراد من مدير الإعلانات</p>
         <p className="text-xs text-fg-muted">تقرير يومي على مستوى الإعلان (CSV أو Excel، عربي أو إنجليزي): اليوم · رقم الإعلان أو اسمه · المبلغ المصروف · مرات الظهور، والباقي إذا موجود. مفيد للأيام اللي قبل الربط.</p>
-        <label className={cn("flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-fg hover:border-accent/50", busy && "opacity-50")}>
+        <label className={cn("flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-fg hover:border-accent/50", busy && "opacity-50")}>
           <FileUp className="size-4" /> {file ? file.name : "اختار الملف"}
           <input type="file" accept=".csv,.xlsx,text/csv" className="hidden" disabled={busy} onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
         </label>
@@ -99,7 +99,7 @@ export function ImportPanel() {
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 disabled={busy || !p.rows || p.errors.some((e) => !e.includes("مكرر"))}
-                className="min-h-10"
+                className="min-h-10 max-md:min-h-[44px]"
                 onClick={async () => {
                   const j = (await send({ fileName: file!.name, text: file!.text, base64: file!.base64, mapping, commit: true })) as { message?: string } | null;
                   if (j) {
@@ -116,7 +116,7 @@ export function ImportPanel() {
           </>
         ) : null}
       </Panel>
-      <a href="/api/export" className="flex min-h-11 items-center justify-center gap-2 self-start rounded-lg border border-border bg-surface-1 text-sm font-medium text-fg hover:bg-surface-2">
+      <a href="/api/export" className="flex min-h-10 max-md:min-h-[44px] items-center justify-center gap-2 self-start rounded-lg border border-border bg-surface-1 text-sm font-medium text-fg hover:bg-surface-2">
         <Download className="size-4" /> تصدير Excel (مع شرح كل مؤشر)
       </a>
     </div>

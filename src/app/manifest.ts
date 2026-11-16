@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { themeColorOf } from "@/lib/themes/palettes";
 
 /** Installable on the phone (spec 18.5): opens straight on «اليوم», in the «وُضوح» colours, right to left. */
 export default function manifest(): MetadataRoute.Manifest {
@@ -12,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait",
     dir: "rtl",
     lang: "ar",
-    background_color: "#F4F8FA",
-    theme_color: "#0C3252",
+    background_color: themeColorOf("zaki"),
+    theme_color: themeColorOf("zaki"),
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

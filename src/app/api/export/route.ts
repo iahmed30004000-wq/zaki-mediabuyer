@@ -3,6 +3,7 @@ import { errorResponse, requireCapability } from "@/server/auth";
 import { audit } from "@/server/audit";
 import { db } from "@/server/db";
 import { ACCOUNTS, CAMPAIGNS, PRODUCTS, campaignCounts, productView, allAds } from "@/lib/mock/data";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET() {
     const latest = await db.truthDaily.findFirst({ orderBy: { date: "desc" } }).catch(() => null);
     let rows: ExportRow[];
     let title: string;
-    if (latest && process.env.MOCK_MODE !== "1") {
+    if (latest && !isDemo(process.env)) {
       const truth = await db.truthDaily.findMany({ where: { date: latest.date }, orderBy: [{ level: "desc" }, { objectId: "asc" }] });
       const names = new Map([...(await db.productEconomics.findMany()).map((p) => [p.productCode, p.name] as const), ...(await db.ad.findMany({ select: { metaId: true, name: true } })).map((a) => [a.metaId, a.name] as const)]);
       rows = truth.map((t) => ({ level: t.level === "product" ? "منتج" : "إعلان", name: names.get(t.objectId) ?? t.objectId, spend: n(t.spendWithFee), orders: t.orders, confirmed: t.confirmed, delivered: t.delivered, costPerConfirmed: n(t.costPerConfirmed), ceiling: n(t.scalingCeiling), confirmRate: n(t.confirmRate), deliveryRate: n(t.deliveryRate), profit: n(t.profitAfterCosts), roas: n(t.trueRoas) }));

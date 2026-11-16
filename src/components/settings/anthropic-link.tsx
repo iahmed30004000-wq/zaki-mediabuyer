@@ -91,6 +91,7 @@ export function AnthropicLink() {
           <div className="flex flex-wrap items-center gap-2">
             <Input
               type="password"
+              aria-label="مفتاح Claude"
               autoComplete="off"
               spellCheck={false}
               dir="ltr"

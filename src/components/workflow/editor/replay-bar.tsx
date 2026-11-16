@@ -73,7 +73,7 @@ export function ReplayBar({ workflowKey, graph, startRef, onStates, onClose }: {
         {runs === null ? (
           <span className="text-xs text-fg-muted">…</span>
         ) : runs.length ? (
-          <select aria-label="اختار التشغيل" value={pick} onChange={(e) => setPick(e.target.value)} className="min-h-9 min-w-0 flex-1 basis-48 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
+          <select aria-label="اختار التشغيل" value={pick} onChange={(e) => setPick(e.target.value)} className="min-h-10 max-md:min-h-[44px] min-w-0 flex-1 basis-48 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
             {runs.map((r) => (
               <option key={r.id} value={r.id}>
                 {when(r.startedAt)} — {RUN_AR[r.status] ?? r.status}
@@ -91,7 +91,7 @@ export function ReplayBar({ workflowKey, graph, startRef, onStates, onClose }: {
       {run ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={btn} aria-label="الخطوة اللي قبل" disabled={frame <= 0} onClick={() => { setPlaying(false); setFrame((f) => Math.max(0, f - 1)); }}>
+            <button type="button" className={btn} aria-label="الفرع اللي قبل" disabled={frame <= 0} onClick={() => { setPlaying(false); setFrame((f) => Math.max(0, f - 1)); }}>
               <ChevronRight className="size-4" />
             </button>
             <button
@@ -106,10 +106,10 @@ export function ReplayBar({ workflowKey, graph, startRef, onStates, onClose }: {
             >
               {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
             </button>
-            <button type="button" className={btn} aria-label="الخطوة اللي بعد" disabled={frame >= last} onClick={() => { setPlaying(false); setFrame((f) => Math.min(last, f + 1)); }}>
+            <button type="button" className={btn} aria-label="الفرع اللي بعد" disabled={frame >= last} onClick={() => { setPlaying(false); setFrame((f) => Math.min(last, f + 1)); }}>
               <ChevronLeft className="size-4" />
             </button>
-            <input type="range" min={0} max={last} step={1} value={frame} disabled={!last} aria-label="مكانك بالتشغيل" onChange={(e) => { setPlaying(false); setFrame(Number(e.target.value)); }} className="min-w-0 flex-1 basis-40 accent-[var(--accent,#2563eb)]" />
+            <input type="range" min={0} max={last} step={1} value={frame} disabled={!last} aria-label="مكانك بالتشغيل" onChange={(e) => { setPlaying(false); setFrame(Number(e.target.value)); }} className="min-w-0 flex-1 basis-40 accent-accent" />
             <span dir="ltr" className="shrink-0 font-mono text-xs text-fg-muted">
               {frame}/{last}
             </span>
@@ -119,9 +119,9 @@ export function ReplayBar({ workflowKey, graph, startRef, onStates, onClose }: {
             {frame > 0 && events[frame - 1] ? <span className="ms-2 text-xs font-normal text-fg-muted">{when(events[frame - 1]!.at)}</span> : null}
           </p>
           {frame > 0 && events[frame - 1]?.note ? <p className="text-xs text-fg-muted">{events[frame - 1]!.note}</p> : null}
-          <p className="text-[11px] leading-5 text-fg-muted">
+          <p className="text-xs leading-5 text-fg-muted">
             الترتيب حسب وقت آخر حالة سجّلتها كل خطوة، و«عم يشتغل» بين خطوتين تقدير (التشغيل ما سجّل بداية الخطوة).
-            {unknown ? ` ${unknown} خطوة بالتشغيل مش موجودة بهالرسم (نسخة أقدم) فما انعرضت.` : ""}
+            {unknown ? ` ${unknown} فرع بالتشغيل مش موجودة بهالرسم (نسخة أقدم) فما انعرضت.` : ""}
           </p>
         </>
       ) : null}

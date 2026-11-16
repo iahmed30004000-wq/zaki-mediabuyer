@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { proposeRaise } from "@/server/ads-actions";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { isDemo } from "@/core/readiness";
 
 const Body = z.object({ objectType: z.enum(["campaign", "adset"]), objectId: z.string().min(3) });
 
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
   try {
     const caller = await requireCapability("ads.propose");
     // demo numbers are not real campaigns (their ids are not Meta ids either): say so, change nothing
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     return NextResponse.json({ ok: true, ...(await proposeRaise(parsed.data, caller)) });

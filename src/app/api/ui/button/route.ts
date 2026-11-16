@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ENTITIES } from "@/core/customize";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { runButton } from "@/server/customize";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     const caller = await requireCapability("tasks.manage");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const r = await runButton(parsed.data.buttonId, parsed.data.entity, parsed.data.entityId, caller);
     return NextResponse.json({ ok: true, created: r.created, handoff: r.handoff });
   } catch (e) {

@@ -1,10 +1,10 @@
 {
-  "rawButtons": 72,
-  "arbitraryText": 83,
-  "offScaleText": 10,
-  "offScaleHeights": 110,
-  "hexColors": 18,
+  "rawButtons": 0,
+  "arbitraryText": 0,
+  "offScaleText": 0,
+  "offScaleHeights": 0,
+  "hexColors": 0,
   "decorImports": 0,
-  "mockChecks": 47,
-  "jargon": 74
+  "mockChecks": 0,
+  "jargon": 0
 }

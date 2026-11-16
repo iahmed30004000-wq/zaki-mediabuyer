@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { RunRefused, WorkflowPatch, runsOf, updateWorkflow } from "@/server/workflows";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,12 @@ export async function GET(req: Request, { params }: { params: { key: string } })
 export async function PATCH(req: Request, { params }: { params: { key: string } }) {
   try {
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = WorkflowPatch.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم: " + parsed.error.issues.slice(0, 2).map((i) => i.message).join(" · "));
     try {
       const card = await updateWorkflow(params.key, parsed.data, { type: "user", id: caller.id });
-      if (!card && !parsed.data.archived) throw new HttpError(404, "الورك فلو مش موجود");
+      if (!card && !parsed.data.archived) throw new HttpError(404, "المهمة مش موجود");
       return NextResponse.json({ ok: true, workflow: card });
     } catch (e) {
       if (e instanceof RunRefused) throw new HttpError(400, e.message);

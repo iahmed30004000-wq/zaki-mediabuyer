@@ -4,6 +4,7 @@ import { REQUEST_STATUSES } from "@/core/video-board";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { HandoffRefused } from "@/server/handoffs";
 import { moveVideoRequest } from "@/server/video-requests";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ const Body = z.object({ to: z.enum(REQUEST_STATUSES) }).strict();
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
     const caller = await requireCapability("ads.propose");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     try {

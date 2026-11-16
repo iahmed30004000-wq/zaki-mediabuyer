@@ -33,7 +33,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       {current ? (
         <div key={current.key} role="status" aria-live="polite" className="mb-mission pointer-events-none fixed inset-x-0 top-1/3 z-[60] flex justify-center px-4">
           <div className="mb-mission-band w-full max-w-xl py-4 text-center">
-            <p className="mb-mission-title font-display text-3xl font-bold text-accent sm:text-4xl">{current.title}</p>
+            <p className="mb-mission-title font-display text-3xl font-bold text-accent sm:text-3xl">{current.title}</p>
             {current.detail ? <p className="mt-1 text-sm text-fg">{current.detail}</p> : null}
           </div>
         </div>

@@ -162,7 +162,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
           <DialogDescription>
             <ol className="mt-2 flex gap-1.5">
               {STEPS.map((s, i) => (
-                <li key={s} className={cn("flex-1 rounded-full py-1 text-center text-[11px] font-medium", i === step ? "bg-accent text-accent-fg" : i < step ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-muted")}>
+                <li key={s} className={cn("flex-1 rounded-full py-1 text-center text-xs font-medium", i === step ? "bg-accent text-accent-fg" : i < step ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-muted")}>
                   {i + 1}. {s}
                 </li>
               ))}
@@ -177,7 +177,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                   <span className="flex items-center gap-2 text-sm font-semibold text-fg">
                     {x.name}
                     <span dir="ltr" className="font-mono text-xs text-fg-muted">{x.code}</span>
-                    {x.stockDays !== null && x.stockDays < 5 ? <span className="ms-auto text-[11px] text-warn">المخزون {x.stockDays} أيام</span> : null}
+                    {x.stockDays !== null && x.stockDays < 5 ? <span className="ms-auto text-xs text-warn">المخزون {x.stockDays} أيام</span> : null}
                   </span>
                   <span className="text-xs text-fg-muted">هدف الطلب {fmt(x.tOrder, "$")} {x.estimated ? "(تقدير)" : ""}</span>
                 </button>
@@ -236,7 +236,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                   </div>
                 </label>
                 <div className="sm:col-span-2">
-                  <Button type="button" variant="ghost" disabled={writing} onClick={write} className="min-h-9 px-2 text-xs">
+                  <Button type="button" variant="ghost" disabled={writing} onClick={write} className="min-h-10 max-md:min-h-[44px] px-2 text-xs">
                     <PenLine className="size-3.5" />
                     {writing ? "عم يكتب…" : "اكتبلي نسخ (بتنفحص بالقاموس)"}
                   </Button>
@@ -247,7 +247,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
 ${v.body}`); setTitle(v.headline); setVariants(null); }} className={choice(false)}>
                           <span className="block text-sm text-fg">{v.hook}</span>
                           <span className="block text-xs text-fg-muted">{v.body}</span>
-                          {v.flag === "yellow" ? <span className="mt-1 block text-[11px] text-warn">بدها موافقتك: {v.note}</span> : null}
+                          {v.flag === "yellow" ? <span className="mt-1 block text-xs text-warn">بدها موافقتك: {v.note}</span> : null}
                         </button>
                       ))}
                     </div>
@@ -271,7 +271,7 @@ ${v.body}`); setTitle(v.headline); setVariants(null); }} className={choice(false
               ) : null}
               <div className="rounded-xl border border-warn/40 bg-warn/5 p-3">
                 <p className="text-xs text-fg-muted">الأثر المالي</p>
-                <p className="text-lg font-bold text-warn" dir="ltr">+{fmt(daily, "$", 0)} / يوم</p>
+                <p className="text-base font-bold text-warn" dir="ltr">+{fmt(daily, "$", 0)} / يوم</p>
                 <p className="text-xs text-fg-muted">لـ {tpl.days} أيام · {picked.length} فيديو · بالحساب {account?.name ?? "—"}</p>
               </div>
               <ul className="space-y-1 text-xs text-fg">

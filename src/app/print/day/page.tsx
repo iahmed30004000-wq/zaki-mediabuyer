@@ -46,7 +46,7 @@ export default async function PrintDayPage({ searchParams }: { searchParams: { d
       </header>
       {data.state !== "future" ? (data.done.length ? <Section title="اللي انعمل" groups={data.done} /> : <p className="border-t border-neutral-300 pt-4 text-sm text-neutral-600">ما في إنجاز مسجّل لهاليوم.</p>) : null}
       {data.state !== "past" ? (data.planned.length ? <Section title={data.state === "today" ? "لسا اليوم" : "المخطّط"} groups={data.planned} /> : <p className="border-t border-neutral-300 pt-4 text-sm text-neutral-600">ما في شي مجدول.</p>) : null}
-      <p className="border-t border-neutral-300 pt-3 text-[11px] text-neutral-500">كل سطر مكتوب بالكود من تشغيلات وقرارات ومهام انسجّلت — ما حدا بيكتب اليوم بإيده. الأوقات بتوقيت عمّان.</p>
+      <p className="border-t border-neutral-300 pt-3 text-xs text-neutral-500">كل سطر مكتوب بالكود من تشغيلات وقرارات ومهام انسجّلت — ما حدا بيكتب اليوم بإيده. الأوقات بتوقيت عمّان.</p>
     </main>
   );
 }

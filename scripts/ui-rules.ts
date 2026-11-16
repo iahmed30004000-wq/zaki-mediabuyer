@@ -26,6 +26,44 @@ export const METRIC_NOTE: Record<Metric, string> = {
   jargon: "words the owner does not use (workflow, handoff, dry-run, MCP, webhook…) inside Arabic UI text",
 };
 
+/**
+ * RAW <button> THAT STAYS, BY FILE (P12). The kit's Button / IconButton cover the common cases; these are the places where a raw element is the right one — a whole
+ * row as the click target, a tab-like toggle group, a dense icon control inside a table or a canvas, a text link inside a sentence. `allowed` is how many each
+ * file may hold: a NEW raw button in any of them (or in any other file) fails the ratchet, and tests/ui-rules.test.ts fails when an allowance is higher than what the file has.
+ */
+export const RAW_BUTTON_EXCEPTIONS: Record<string, { allowed: number; why: string }> = {
+  "src/components/ads/ads-table.tsx": { allowed: 6, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout — the expander, the column reorder arrows, the help dot and the filter reset sit inside a dense table" },
+  "src/components/ads/launch-wizard.tsx": { allowed: 4, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly) — choice cards of the launch wizard" },
+  "src/components/approvals/approval-card.tsx": { allowed: 1, why: "text that reads as a link inside a sentence, not a button" },
+  "src/components/approvals/approval-ringer.tsx": { allowed: 1, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
+  "src/components/creatives/creatives-view.tsx": { allowed: 1, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/customize/card-custom.tsx": { allowed: 2, why: "text that reads as a link inside a sentence, not a button" },
+  "src/components/customize/card-fields.tsx": { allowed: 3, why: "text that reads as a link inside a sentence, not a button" },
+  "src/components/customize/edit-panel.tsx": { allowed: 4, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/done/day-controls.tsx": { allowed: 1, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
+  "src/components/home/mode-switch.tsx": { allowed: 1, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/home/morning-card.tsx": { allowed: 1, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout" },
+  "src/components/login-form.tsx": { allowed: 1, why: "text that reads as a link inside a sentence, not a button" },
+  "src/components/mb/num.tsx": { allowed: 1, why: "text that reads as a link inside a sentence, not a button — the number itself is the «why?» trigger" },
+  "src/components/numbers/numbers-view.tsx": { allowed: 3, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
+  "src/components/numbers/print-button.tsx": { allowed: 1, why: "the print view is black on white by design, whatever the theme" },
+  "src/components/settings/editors.tsx": { allowed: 2, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout — a remove-chip icon and the purchase-moment toggle" },
+  "src/components/settings/level-picker.tsx": { allowed: 1, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/settings/mode-settings.tsx": { allowed: 1, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout" },
+  "src/components/shell/command-palette.tsx": { allowed: 1, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
+  "src/components/shell/consultant.tsx": { allowed: 6, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly) — the assistant's chat controls: suggestion chips, send, close" },
+  "src/components/shell/date-switcher.tsx": { allowed: 2, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/tasks/tasks-board.tsx": { allowed: 3, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly) — the task row and the board and column tabs" },
+  "src/components/videos/board-view.tsx": { allowed: 1, why: "text that reads as a link inside a sentence, not a button" },
+  "src/components/workflow/editor/canvas.tsx": { allowed: 3, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout — the drawing canvas: edge buttons and zoom controls" },
+  "src/components/workflow/editor/editor.tsx": { allowed: 5, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout — the editor toolbar: mode toggles, undo and redo, replay" },
+  "src/components/workflow/editor/node-form.tsx": { allowed: 2, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/workflow/editor/node-picker.tsx": { allowed: 1, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
+  "src/components/workflow/editor/replay-bar.tsx": { allowed: 4, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout" },
+  "src/components/workflow/editor/settings-sheet.tsx": { allowed: 1, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
+  "src/components/workflow/editor/steps-view.tsx": { allowed: 3, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly) — a branch row and its reorder arrows" },
+};
+
 export const emptyCounts = (): Counts => Object.fromEntries(METRICS.map((m) => [m, 0])) as Counts;
 
 const ARABIC = /[؀-ۿ]/;
@@ -77,6 +115,7 @@ export function countRepo(root: string): { total: Counts; byFile: Record<string,
       const rel = path.relative(root, abs).split(path.sep).join("/");
       if (rel.startsWith("src/components/ui/")) continue;
       const c = countSource(readFileSync(abs, "utf8"), rel);
+      c.rawButtons = Math.max(0, c.rawButtons - (RAW_BUTTON_EXCEPTIONS[rel]?.allowed ?? 0));
       if (METRICS.some((m) => c[m] > 0)) byFile[rel] = c;
       total = addCounts(total, c);
     }

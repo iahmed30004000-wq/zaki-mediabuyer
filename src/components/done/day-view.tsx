@@ -20,7 +20,7 @@ function Line({ i }: { i: DayItem }) {
         {i.numbers?.length ? (
           <span className="mt-1 flex flex-wrap gap-1">
             {i.numbers.map((n) => (
-              <span key={n} dir="ltr" className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] tabular-nums text-fg-muted">{n}</span>
+              <span key={n} dir="ltr" className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs tabular-nums text-fg-muted">{n}</span>
             ))}
           </span>
         ) : null}

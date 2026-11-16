@@ -9,7 +9,7 @@ import { tryPrompt } from "@/core/workflow-replay";
 import { cn } from "@/lib/utils";
 import { PermBadge } from "../badges";
 
-const field = "min-h-10 w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg placeholder:text-fg-muted/70 disabled:opacity-60";
+const field = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg placeholder:text-fg-muted/70 disabled:opacity-60";
 const SOURCE_AR: Record<DataSource, string> = { api: "API", mcp: "Claude (MCP)", manual: "يدوي" };
 const PEOPLE = ["owner", "abdullah", "hassan", "laith", "mohammad", "muse", "hermes", "claude"];
 
@@ -48,14 +48,14 @@ function TryPrompt({ prompt }: { prompt: string }) {
   const t = tryPrompt(prompt, values);
   return (
     <details className="rounded-lg border border-border bg-surface-2/50 p-2 text-xs">
-      <summary className="min-h-8 cursor-pointer select-none py-1.5 font-medium text-fg">جرّب التعليمات{t.vars.length ? ` (${t.vars.length} متغيّر)` : ""}</summary>
+      <summary className="min-h-10 max-md:min-h-[44px] cursor-pointer select-none py-1.5 font-medium text-fg">جرّب التعليمات{t.vars.length ? ` (${t.vars.length} متغيّر)` : ""}</summary>
       <div className="space-y-2 pt-1">
         {t.vars.length ? (
           <div className="grid gap-2 sm:grid-cols-2">
             {t.vars.map((v) => (
               <label key={v} className="block space-y-1">
-                <span dir="ltr" className="block text-start font-mono text-[11px] text-fg-muted">{`{{${v}}}`}</span>
-                <input value={values[v] ?? ""} dir="auto" maxLength={200} onChange={(e) => setValues((x) => ({ ...x, [v]: e.target.value }))} placeholder="قيمة تجريبية" className="min-h-9 w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
+                <span dir="ltr" className="block text-start font-mono text-xs text-fg-muted">{`{{${v}}}`}</span>
+                <input value={values[v] ?? ""} dir="auto" maxLength={200} onChange={(e) => setValues((x) => ({ ...x, [v]: e.target.value }))} placeholder="قيمة تجريبية" className="min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
               </label>
             ))}
           </div>
@@ -136,7 +136,7 @@ export function NodeForm({
       </div>
 
       {node.executor === "n8n" || node.executor === "http" ? (
-        <Row label={node.executor === "n8n" ? "الـ webhook (الاسم بس)" : "رابط https"} hint="الموقع بينفّذ هالخطوة بس إذا كانت خضراء والهدف بقائمتك المسموحة بإعدادات السيرفر (N8N_ALLOWED_PATHS · STEP_HTTP_ALLOW). غير هيك بتنزل لطابور التسليم.">
+        <Row label={node.executor === "n8n" ? "عنوان الربط (الاسم بس)" : "رابط https"} hint="الموقع بينفّذ هالفرع بس إذا كانت خضراء والهدف بقائمتك المسموحة بإعدادات السيرفر (N8N_ALLOWED_PATHS · STEP_HTTP_ALLOW). غير هيك بتنزل لطابور المتوقفة.">
           <Text value={node.target ?? ""} dir="ltr" disabled={readOnly} onCommit={(v) => onChange({ target: v })} />
         </Row>
       ) : null}
@@ -156,13 +156,13 @@ export function NodeForm({
         <legend className="text-xs font-semibold text-fg">الصلاحية</legend>
         <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="الصلاحية">
           {PERMISSIONS.map((p: Permission) => (
-            <button key={p} type="button" disabled={readOnly} aria-pressed={node.permission === p} onClick={() => set({ permission: p })} className={cn("flex min-h-10 items-center justify-center rounded-lg border text-xs", node.permission === p ? "border-accent bg-accent/5" : "border-border")}>
+            <button key={p} type="button" disabled={readOnly} aria-pressed={node.permission === p} onClick={() => set({ permission: p })} className={cn("flex min-h-10 max-md:min-h-[44px] items-center justify-center rounded-lg border text-xs", node.permission === p ? "border-accent bg-accent/5" : "border-border")}>
               <PermBadge permission={p} />
             </button>
           ))}
         </div>
-        <p className="text-xs leading-5 text-fg-muted">{node.permission ? PERMISSION_AR[node.permission] : "اختار صلاحية الخطوة"}</p>
-        {node.permission === "black" ? <p className="rounded-lg border border-danger/30 bg-danger/5 p-2 text-xs text-danger">ممنوع على الوكلاء: دفع · حذف · تسجيل خروج · CAPTCHA · توكنات · ورك فلو «ورك فلو n8n الرئيسي». الأحسن تعطّلها.</p> : null}
+        <p className="text-xs leading-5 text-fg-muted">{node.permission ? PERMISSION_AR[node.permission] : "اختار صلاحية الفرع"}</p>
+        {node.permission === "black" ? <p className="rounded-lg border border-danger/30 bg-danger/5 p-2 text-xs text-danger">ممنوع على الوكلاء: دفع · حذف · تسجيل خروج · CAPTCHA · توكنات · مهمة «الأتمتة الرئيسية بـ n8n». الأحسن تعطّلها.</p> : null}
       </fieldset>
 
       <Row label="التعليمات" hint="اكتب شو بدها تعمل. المتغيّرات مثل {{product}} بتنملى وقت التشغيل. ولا أرقام زبائن ولا مفاتيح.">
@@ -191,7 +191,7 @@ export function NodeForm({
           <Text value={node.retries === undefined ? "" : String(node.retries)} inputMode="numeric" dir="ltr" disabled={readOnly} onCommit={num("retries")} />
         </Row>
       </div>
-      <Row label="إذا فشلت" hint="شو بيصير لو وقفت أو فشلت. بدون هيك بتنزل لطابور التسليم وبيكمّلها Claude.">
+      <Row label="إذا فشلت" hint="شو بيصير لو وقفت أو فشلت. بدون هيك بتنزل لطابور المتوقفة وبيكمّلها Claude.">
         <Text value={node.fallback ?? ""} disabled={readOnly} onCommit={(v) => onChange({ fallback: v })} />
       </Row>
 
@@ -222,7 +222,7 @@ export function NodeForm({
               }}
               className={field}
             >
-              <option value="">— ما إلها خطوة قبلها</option>
+              <option value="">— ما إله فرع قبله</option>
               {others.map((n) => (
                 <option key={n.id} value={n.id} disabled={!setPredecessor(graph, node.id, n.id).ok && ins[0]?.from !== n.id}>
                   {n.label}
@@ -254,7 +254,7 @@ export function NodeForm({
           )}
           {readOnly ? null : (
             <select
-              aria-label="وصّلها بخطوة"
+              aria-label="وصّله بفرع"
               value=""
               onChange={(e) => {
                 if (!e.target.value) return;
@@ -266,7 +266,7 @@ export function NodeForm({
               }}
               className={field}
             >
-              <option value="">＋ وصّلها بخطوة…</option>
+              <option value="">＋ وصّله بفرع…</option>
               {others.map((n) => (
                 <option key={n.id} value={n.id} disabled={!connect(graph, node.id, n.id).ok}>
                   {n.label}
@@ -278,22 +278,22 @@ export function NodeForm({
         </div>
       </section>
 
-      <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm text-fg">
-        <input type="checkbox" checked={!!node.disabled} disabled={readOnly} onChange={(e) => set({ disabled: e.target.checked ? true : undefined })} className="size-4 accent-[var(--accent,#2563eb)]" />
+      <label className="flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 text-sm text-fg">
+        <input type="checkbox" checked={!!node.disabled} disabled={readOnly} onChange={(e) => set({ disabled: e.target.checked ? true : undefined })} className="size-4 accent-accent" />
         معطّلة (بتنتخطّى وقت التشغيل)
       </label>
 
-      <p dir="ltr" className="text-start font-mono text-[11px] text-fg-muted">id: {node.id}</p>
+      <p dir="ltr" className="text-start font-mono text-xs text-fg-muted">id: {node.id}</p>
 
       {readOnly ? null : (
         <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-          <Button type="button" variant="secondary" size="sm" className="min-h-10" onClick={onAddAfter}>
+          <Button type="button" variant="secondary" size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={onAddAfter}>
             <Plus className="size-4" /> ضيف خطوة بعدها
           </Button>
-          <Button type="button" variant="secondary" size="sm" className="min-h-10" onClick={onDuplicate}>
+          <Button type="button" variant="secondary" size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={onDuplicate}>
             <Copy className="size-4" /> انسخها
           </Button>
-          <Button type="button" variant="ghost" size="sm" className="min-h-10 text-danger hover:text-danger" onClick={onRemove}>
+          <Button type="button" variant="ghost" size="sm" className="min-h-10 max-md:min-h-[44px] text-danger hover:text-danger" onClick={onRemove}>
             <Trash2 className="size-4" /> احذفها
           </Button>
         </div>

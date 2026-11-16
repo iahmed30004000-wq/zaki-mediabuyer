@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { missingText } from "@/core/readiness";
+import { missingText, isDemo } from "@/core/readiness";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: { code: string } 
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     const caller = await requireCapability(parsed.data.action === "approve" ? "ads.approve_within_cap" : "ads.propose");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const asset = await db.creativeAsset.findUnique({ where: { crCode: params.code } });
     if (!asset) throw new HttpError(404, "الفيديو مش موجود");
     if (parsed.data.action === "approve" && asset.policyFlag === "red") throw new HttpError(409, "فيه ادعاء ممنوع — بدو نسخة معدّلة، ما بينوافق عليه");

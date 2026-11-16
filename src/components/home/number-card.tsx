@@ -15,7 +15,7 @@ export function Delta({ now, base, good }: { now: number | null; base: number | 
   const fine = c.dir !== "flat" && good !== "none" && !bad;
   const Icon = c.dir === "up" ? ArrowUp : c.dir === "down" ? ArrowDown : Minus;
   return (
-    <span dir="ltr" className={cn("inline-flex items-center text-[11px] font-semibold tabular-nums", bad ? "text-danger" : fine ? "text-ok" : "text-fg-muted")}>
+    <span dir="ltr" className={cn("inline-flex items-center text-xs font-semibold tabular-nums", bad ? "text-danger" : fine ? "text-ok" : "text-fg-muted")}>
       <Icon className="size-3" />
       {Math.abs(c.pct)}%
     </span>

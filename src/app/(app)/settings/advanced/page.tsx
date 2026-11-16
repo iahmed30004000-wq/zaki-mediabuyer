@@ -10,7 +10,7 @@ export default function AdvancedPage() {
     <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-1">
       {ADVANCED_PAGES.map((p) => (
         <li key={p.href}>
-          <Link href={p.href} className="flex min-h-14 items-center gap-3 px-4 py-3 hover:bg-surface-2">
+          <Link href={p.href} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-surface-2">
             <span className="min-w-0 flex-1">
               <span className="block text-base font-extrabold text-fg">{p.title}</span>
               <span className="block text-sm text-fg-muted">{p.line}</span>

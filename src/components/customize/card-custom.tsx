@@ -54,7 +54,7 @@ export function CardCustom({ entity, entityId, custom, canEdit }: { entity: Enti
         <FieldChips fields={fields} values={values} />
         {canEdit ? buttons.map((b) => <RunButton key={b.id} button={b} entity={entity} entityId={entityId} />) : null}
         {canEdit && fields.length ? (
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium text-fg-muted hover:text-fg">
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted hover:text-fg">
             حقولي
             <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
           </button>
@@ -68,7 +68,7 @@ export function CardCustom({ entity, entityId, custom, canEdit }: { entity: Enti
               <FieldInput field={f} value={current(f)} disabled={busy} onChange={(v) => setDraft((m) => ({ ...m, [f.id]: v }))} />
             </label>
           ))}
-          <button type="button" disabled={busy || !changed.length} onClick={() => void save()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-medium text-accent-fg disabled:opacity-50">
+          <button type="button" disabled={busy || !changed.length} onClick={() => void save()} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-medium text-accent-fg disabled:opacity-50">
             <Save className="size-3.5" />
             احفظ
           </button>

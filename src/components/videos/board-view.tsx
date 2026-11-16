@@ -51,7 +51,7 @@ function Confirm({ label, sure, onGo, className, ...rest }: { label: React.React
 function Steps({ status }: { status: RequestStatus }) {
   const at = REQUEST_STEPS.indexOf(status as (typeof REQUEST_STEPS)[number]);
   return (
-    <ol className="flex flex-wrap items-center gap-1 text-[11px]" aria-label="مراحل الطلب">
+    <ol className="flex flex-wrap items-center gap-1 text-xs" aria-label="مراحل الطلب">
       {REQUEST_STEPS.map((s, i) => (
         <li key={s} className="flex items-center gap-1">
           <span className={cn("rounded-full px-2 py-0.5 font-medium", i === at ? "bg-accent text-accent-fg" : i < at ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-muted")}>{REQUEST_STATUS_AR[s]}</span>
@@ -83,17 +83,17 @@ function RequestRow({ r, move }: { r: BoardRequest; move: (r: BoardRequest, to: 
       {r.via === "none" && r.status === "asked" ? (
         <p className="text-xs leading-5 text-fg-muted">{r.deliveryError ? `ما وصل لهيرمز (${r.deliveryError}). ` : ""}محفوظ بالمهام، وهيرمز بيسحبه من الطابور (GET /api/v1/video-requests).</p>
       ) : r.via !== "none" ? (
-        <p className="text-xs text-fg-muted">وصل لهيرمز {r.via === "api" ? "بالـ API" : "بتيليجرام"}.</p>
+        <p className="text-xs text-fg-muted">وصل لهيرمز {r.via === "api" ? "بالربط المباشر" : "بتيليجرام"}.</p>
       ) : null}
       {r.status === "ready" && r.resultNote ? <p className="rounded-lg bg-ok/10 p-2 text-xs leading-5 text-fg">{r.resultNote}</p> : null}
       <div className="flex flex-wrap gap-2">
         {next ? (
-          <Button size="sm" className="min-h-10" onClick={() => move(r, next.to)}>
+          <Button size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={() => move(r, next.to)}>
             {next.label}
           </Button>
         ) : null}
         {canMoveRequest(r.status, "cancelled") ? (
-          <Confirm size="sm" variant="ghost" className="min-h-10" label="إلغاء" sure="متأكد؟ اضغط كمان مرة" onGo={() => move(r, "cancelled")} />
+          <Confirm size="sm" variant="ghost" className="min-h-10 max-md:min-h-[44px]" label="إلغاء" sure="متأكد؟ اضغط كمان مرة" onGo={() => move(r, "cancelled")} />
         ) : null}
       </div>
     </li>
@@ -103,7 +103,7 @@ function RequestRow({ r, move }: { r: BoardRequest; move: (r: BoardRequest, to: 
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] text-fg-muted">{label}</dt>
+      <dt className="text-xs text-fg-muted">{label}</dt>
       <dd className="truncate text-sm font-semibold text-fg">{children}</dd>
     </div>
   );
@@ -120,7 +120,7 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
           <p className="flex flex-wrap items-center gap-2">
             {rank ? <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-bold text-accent">{rank}</span> : null}
             <span dir="ltr" className="truncate font-mono text-sm font-semibold text-fg">{v.label}</span>
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg-muted">{v.statusLabel}</span>
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">{v.statusLabel}</span>
           </p>
           {v.request ? (
             <p className="mt-1 text-xs text-fg-muted">
@@ -155,14 +155,14 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         {v.previewUrl ? (
-          <button type="button" onClick={() => setPeek((o) => !o)} aria-expanded={peek} className="inline-flex min-h-8 items-center gap-1 font-medium text-accent hover:underline">
+          <button type="button" onClick={() => setPeek((o) => !o)} aria-expanded={peek} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 font-medium text-accent hover:underline">
             <Play className="size-3.5" /> {peek ? "سكّر المعاينة" : "شوف الفيديو"}
           </button>
         ) : (
           <span className="text-fg-muted">ما في ملف درايف مربوط</span>
         )}
         {v.scenarioUrl ? (
-          <a href={v.scenarioUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-8 items-center gap-1 font-medium text-accent hover:underline">
+          <a href={v.scenarioUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 font-medium text-accent hover:underline">
             <FileText className="size-3.5" /> السيناريو <ExternalLink className="size-3" />
           </a>
         ) : (
@@ -312,7 +312,7 @@ function ProductBoard({ p, busy, ask, move }: { p: BoardProduct; busy: string | 
 
       {p.rest.length ? (
         <details className="group rounded-xl border border-border bg-surface-1">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold text-fg">
+          <summary className="flex min-h-10 max-md:min-h-[44px] cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-semibold text-fg">
             <span>باقي البنك — مش شغّال هلأ ({p.rest.length})</span>
             <ChevronDown className="size-4 text-fg-muted transition-transform group-open:rotate-180" />
           </summary>
@@ -356,9 +356,9 @@ function MinSpend({ typed }: { typed: number | null }) {
       className="flex flex-wrap items-center gap-2 text-sm"
     >
       <label htmlFor="min-spend" className="text-fg-muted">ما بنرتّب فيديو قبل ما يصرف</label>
-      <Input id="min-spend" dir="ltr" inputMode="decimal" type="number" min="0" step="0.5" value={value} onChange={(e) => setValue(e.target.value)} placeholder="ضعف هدفك" className="h-9 w-28" />
+      <Input id="min-spend" dir="ltr" inputMode="decimal" type="number" min="0" step="0.5" value={value} onChange={(e) => setValue(e.target.value)} placeholder="ضعف هدفك" className="h-10 max-md:h-[44px] w-28" />
       <span className="text-fg-muted">$ بآخر 7 أيام</span>
-      <Button type="submit" size="sm" variant="secondary" className="min-h-9" disabled={saving}>
+      <Button type="submit" size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" disabled={saving}>
         {saving ? "لحظة…" : "احفظ"}
       </Button>
     </form>
@@ -373,6 +373,7 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
   const router = useRouter();
   const { toast } = useToast();
   const mission = useMission();
+  const direct = data.hermes.api;
   const [busy, setBusy] = useState<string | null>(null);
 
   async function ask(v: BoardVideo, kind: RequestKind) {
@@ -420,8 +421,8 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
       <div className="space-y-2 rounded-xl border border-border bg-surface-1 p-3">
         <MinSpend typed={data.typedMinSpend} />
         <p className="text-xs leading-5 text-fg-muted">
-          {data.hermes.api || data.hermes.chat
-            ? `الطلبات بتوصل لهيرمز ${data.hermes.api ? "بالـ API" : "بتيليجرام"}، وبتنزل كبطاقة بالمهام.`
+          {direct || data.hermes.chat
+            ? `الطلبات بتوصل لهيرمز ${direct ? "بالربط المباشر" : "بتيليجرام"}، وبتنزل كبطاقة بالمهام.`
             : "لسا ما في قناة لهيرمز (HERMES_BASE_URL + HERMES_TOKEN، أو TELEGRAM_HERMES_CHAT_ID). الطلب بينحفظ بالمهام، وهيرمز بيسحبه من الطابور."}
         </p>
       </div>

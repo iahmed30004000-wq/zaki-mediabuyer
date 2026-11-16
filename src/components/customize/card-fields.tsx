@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 export type CardValues = Record<string, string | number>;
 
-const control = "min-h-10 w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg disabled:opacity-60";
+const control = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg disabled:opacity-60";
 
 /** Draws one field's input by its type — the same few inputs for every card the owner puts fields on. A value is kept as text here; the server checks it against the field. */
 export function FieldInput({ field, value, onChange, disabled }: { field: FieldCfgT; value: string; onChange: (v: string) => void; disabled?: boolean }) {
@@ -55,7 +55,7 @@ const safeHref = (v: string) => (v.startsWith("https://") || (v.startsWith("/") 
 export function FieldChips({ fields, values }: { fields: FieldCfgT[]; values?: CardValues }) {
   const shown = fields.filter((f) => f.onCard !== false && values?.[f.id] !== undefined && values[f.id] !== "");
   if (!shown.length) return null;
-  const chip = "inline-flex max-w-full items-center gap-0.5 truncate rounded-md border border-border bg-surface-1 px-1.5 py-0.5 text-[11px] text-fg";
+  const chip = "inline-flex max-w-full items-center gap-0.5 truncate rounded-md border border-border bg-surface-1 px-1.5 py-0.5 text-xs text-fg";
   return (
     <>
       {shown.map((f) => {
@@ -97,11 +97,11 @@ export function RunButton({ button, entityId, entity = "task", large }: { button
     const d = (await r?.json().catch(() => ({}))) as { error?: string; demo?: boolean; created?: boolean };
     setBusy(false);
     if (!r || !r.ok) return toast(d?.error ?? "صار خطأ، جرّب كمان مرة", "error");
-    if (d.demo) return toast("بالوضع التجريبي ما بيشتغل الورك فلو", "info");
-    toast(d.created ? "انطلب من Claude ✓ — بتشوفه بـ «الورك فلو»" : "في طلب مفتوح لهالبطاقة من قبل", d.created ? "success" : "info");
+    if (d.demo) return toast("بالوضع التجريبي ما بيشتغل المهمة", "info");
+    toast(d.created ? "انطلب من Claude ✓ — بتشوفه بـ «المهمة»" : "في طلب مفتوح لهالبطاقة من قبل", d.created ? "success" : "info");
   }
 
-  const size = large ? "min-h-10 px-3 text-sm" : "min-h-8 px-2 text-[11px]";
+  const size = large ? "min-h-10 max-md:min-h-[44px] px-3 text-sm" : "min-h-10 max-md:min-h-[44px] px-2 text-xs";
   if (armed) {
     return (
       <span className={cn("inline-flex items-center gap-2 rounded-md border border-accent/50 bg-accent/5", size)}>

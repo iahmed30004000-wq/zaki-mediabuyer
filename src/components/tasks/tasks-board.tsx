@@ -18,7 +18,7 @@ import type { TaskView } from "@/server/tasks";
 
 const DUE_STYLE = { late: "bg-danger/10 text-danger", today: "bg-warn/10 text-warn", soon: "bg-surface-2 text-fg" } as const;
 const DUE_LABEL = { late: "متأخرة", today: "اليوم", soon: "قريب" } as const;
-const field = "min-h-10 w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg disabled:opacity-60";
+const field = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg disabled:opacity-60";
 
 /** Where a task's link leads: the page the thing lives on. */
 function linkOf(t: TaskView): { href: string; label: string } | null {
@@ -53,12 +53,16 @@ function Card({ t, canEdit, selected, now, boardLabel, custom, onToggle, onOpen 
       className={cn("rounded-lg border bg-surface-2/50 p-2.5", selected ? "border-accent" : "border-border", canEdit && "cursor-grab active:cursor-grabbing")}
     >
       <div className="flex items-start gap-2">
-        {canEdit ? <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`حدّد: ${t.title}`} className="mt-1 size-4 shrink-0 accent-[var(--accent,#2563eb)]" /> : null}
-        <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-start text-sm leading-5 text-fg hover:text-accent">
+        {canEdit ? (
+          <label className="-m-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center">
+            <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`حدّد: ${t.title}`} className="size-4 accent-accent" />
+          </label>
+        ) : null}
+        <button type="button" onClick={onOpen} className="min-h-10 min-w-0 flex-1 text-start text-sm leading-5 text-fg hover:text-accent max-md:min-h-[44px]">
           {t.title}
         </button>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
         {t.priority === "urgent" || t.priority === "high" ? (
           <span className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-semibold", t.priority === "urgent" ? "bg-danger/10 text-danger" : "bg-warn/10 text-warn")}>
             <Flame className="size-3" />
@@ -120,6 +124,7 @@ function Editor({
   const [fv, setFv] = useState<Record<string, string>>(() => Object.fromEntries(custom.fields.map((f) => [f.id, stored(f)])));
   const [busy, setBusy] = useState(false);
   const link = task ? linkOf(task) : null;
+  const doer = task?.executor ? assigneeName(task.executor) : null;
   return (
     <Sheet open={!!task} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
@@ -129,7 +134,7 @@ function Editor({
               <SheetTitle>{task.title}</SheetTitle>
               <SheetDescription>
                 {boardLabel(task.board)}
-                {task.executor ? ` · ينفّذها ${assigneeName(task.executor)}` : ""}
+                {doer ? ` · ينفّذها ${doer}` : ""}
                 {link ? (
                   <>
                     {" · "}
@@ -398,7 +403,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
             className="min-w-0 flex-1"
             maxLength={300}
           />
-          <Button type="submit" disabled={busy || !text.trim()} className="min-h-10">
+          <Button type="submit" disabled={busy || !text.trim()} className="min-h-10 max-md:min-h-[44px]">
             <Plus className="size-4" />
             أضف
           </Button>
@@ -409,14 +414,14 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
         {lockedBoard ? null : (
           <div role="tablist" aria-label="اللوحات" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
             {tabs.map((b) => (
-              <button key={b.key} role="tab" aria-selected={board === b.key} onClick={() => setBoard(b.key)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", board === b.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+              <button key={b.key} role="tab" aria-selected={board === b.key} onClick={() => setBoard(b.key)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", board === b.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
                 {b.label}
-                <span className="ms-1.5 text-[11px] opacity-80">{countOf(b.key)}</span>
+                <span className="ms-1.5 text-xs opacity-80">{countOf(b.key)}</span>
               </button>
             ))}
           </div>
         )}
-        <select aria-label="المسؤول" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-9 shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
+        <select aria-label="المسؤول" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-10 max-md:min-h-[44px] shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
           <option value="">كل الفريق</option>
           {PEOPLE.map((p) => (
             <option key={p.key} value={p.key}>{p.label}</option>
@@ -444,13 +449,13 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
       {sel.size ? (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-surface-1 p-2 shadow-card" role="toolbar" aria-label="تعديل جماعي">
           <span className="text-sm font-semibold text-fg">{sel.size} محدّدة</span>
-          <select aria-label="انقلها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ status: e.target.value }, "انتقلت")} className="min-h-9 rounded-lg border border-border bg-surface-1 px-2 text-sm">
+          <select aria-label="انقلها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ status: e.target.value }, "انتقلت")} className="min-h-10 max-md:min-h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-sm">
             <option value="">انقلها لـ…</option>
             {TASK_COLUMNS.map((c) => (
               <option key={c.key} value={c.key}>{c.label}</option>
             ))}
           </select>
-          <select aria-label="سلّمها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ assignee: e.target.value }, "انسلّمت")} className="min-h-9 rounded-lg border border-border bg-surface-1 px-2 text-sm">
+          <select aria-label="سلّمها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ assignee: e.target.value }, "انسلّمت")} className="min-h-10 max-md:min-h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-sm">
             <option value="">سلّمها لـ…</option>
             {PEOPLE.map((p) => (
               <option key={p.key} value={p.key}>{p.label}</option>
@@ -495,9 +500,9 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
         <>
       <div role="tablist" aria-label="الأعمدة" className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-1 p-1 lg:hidden">
         {TASK_COLUMNS.map((c) => (
-          <button key={c.key} role="tab" aria-selected={col === c.key} onClick={() => setCol(c.key)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", col === c.key ? "bg-accent text-accent-fg" : "text-fg-muted")}>
+          <button key={c.key} role="tab" aria-selected={col === c.key} onClick={() => setCol(c.key)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", col === c.key ? "bg-accent text-accent-fg" : "text-fg-muted")}>
             {c.label}
-            <span className="ms-1.5 text-[11px] opacity-80">{grouped[c.key].length}</span>
+            <span className="ms-1.5 text-xs opacity-80">{grouped[c.key].length}</span>
           </button>
         ))}
       </div>
@@ -522,7 +527,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
               <span className="rounded-full bg-surface-2 px-2 text-xs text-fg-muted">{grouped[c.key].length}</span>
             </h3>
             {c.key === "waiting_approval" ? (
-              <p className="px-1 text-[11px] leading-4 text-fg-muted">
+              <p className="px-1 text-xs leading-4 text-fg-muted">
                 قرارات الإعلانات والصرف فوق، بـ «بانتظار موافقتك» — هون المهام اللي بتستنى موافقة غير هيك.
               </p>
             ) : null}

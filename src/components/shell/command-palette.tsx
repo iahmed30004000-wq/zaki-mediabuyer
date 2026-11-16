@@ -114,7 +114,7 @@ export function CommandPalette() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent size="lg" className="p-0" onOpenAutoFocus={(e) => (e.preventDefault(), input.current?.focus())}>
         <DialogTitle className="sr-only">بحث</DialogTitle>
-        <DialogDescription className="sr-only">دوّر على صفحة أو منتج أو إعلان أو فيديو أو مهمة أو ورك فلو</DialogDescription>
+        <DialogDescription className="sr-only">دوّر على صفحة أو منتج أو إعلان أو فيديو أو مهمة أو مهمة</DialogDescription>
         <div className="flex items-center gap-2 border-b border-border px-4 py-3 pe-14">
           <Search className="size-4 shrink-0 text-fg-muted" aria-hidden />
           <input
@@ -140,14 +140,14 @@ export function CommandPalette() {
             aria-activedescendant={flat[active] ? `mb-hit-${active}` : undefined}
             aria-label="بحث"
             placeholder="دوّر: صفحة، منتج، إعلان، فيديو، مهمة…"
-            className="min-h-9 w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted/70"
+            className="min-h-10 max-md:min-h-[44px] w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted/70"
           />
-          {busy ? <span className="shrink-0 text-[11px] text-fg-muted">…</span> : null}
+          {busy ? <span className="shrink-0 text-xs text-fg-muted">…</span> : null}
         </div>
         <div id="mb-search-list" role="listbox" className="max-h-[60vh] overflow-y-auto overscroll-contain p-2">
           {groups.map((g) => (
             <div key={g.kind} role="group" aria-label={g.label} className="mb-2 last:mb-0">
-              <p className="px-2 pb-1 pt-1 text-[11px] font-semibold text-fg-muted">{g.label}</p>
+              <p className="px-2 pb-1 pt-1 text-xs font-semibold text-fg-muted">{g.label}</p>
               {g.hits.map((h) => {
                 const i = ++n;
                 return (
@@ -160,10 +160,10 @@ export function CommandPalette() {
                     aria-selected={i === active}
                     onMouseMove={() => setActive(i)}
                     onClick={() => go(h)}
-                    className={cn("flex min-h-11 w-full flex-col items-start justify-center rounded-lg px-3 py-1.5 text-start", i === active ? "bg-accent/10 text-fg" : "text-fg hover:bg-surface-2")}
+                    className={cn("flex min-h-10 max-md:min-h-[44px] w-full flex-col items-start justify-center rounded-lg px-3 py-1.5 text-start", i === active ? "bg-accent/10 text-fg" : "text-fg hover:bg-surface-2")}
                   >
                     <span dir="auto" className="w-full truncate text-sm font-medium">{h.title}</span>
-                    {h.sub ? <span dir="auto" className="w-full truncate text-[11px] text-fg-muted">{h.sub}</span> : null}
+                    {h.sub ? <span dir="auto" className="w-full truncate text-xs text-fg-muted">{h.sub}</span> : null}
                   </button>
                 );
               })}
@@ -171,7 +171,7 @@ export function CommandPalette() {
           ))}
           {!flat.length ? <p className="px-3 py-6 text-center text-sm text-fg-muted">{searchable(q) ? (busy ? "عم أدوّر…" : "ما لقيت شي بهالاسم") : "اكتب اسم صفحة أو منتج أو إعلان أو فيديو أو مهمة"}</p> : null}
         </div>
-        <p className="hidden border-t border-border px-4 py-2 text-[11px] text-fg-muted md:block">↑ ↓ للتنقل · Enter للفتح · Esc للإغلاق · Ctrl K بأي صفحة</p>
+        <p className="hidden border-t border-border px-4 py-2 text-xs text-fg-muted md:block">↑ ↓ للتنقل · Enter للفتح · Esc للإغلاق · Ctrl K بأي صفحة</p>
       </DialogContent>
     </Dialog>
   );

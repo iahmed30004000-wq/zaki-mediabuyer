@@ -5,6 +5,7 @@ import { propose } from "@/server/changes";
 import { audit } from "@/server/audit";
 import { creativeCodeOf, HELP_AR, parseTelegram } from "@/core/telegram-command";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
     await reply(`${cmd.what} من الموقع بس، بعد ما تشوف الأثر المالي: ${SITE()}/inbox`);
     return NextResponse.json({ ok: true });
   }
-  if (process.env.MOCK_MODE === "1") {
+  if (isDemo(process.env)) {
     await reply("الوضع التجريبي: ما وقفت شي فعلاً.");
     return NextResponse.json({ ok: true });
   }

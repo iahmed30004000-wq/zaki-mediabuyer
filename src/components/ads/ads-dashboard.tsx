@@ -68,7 +68,7 @@ export async function ProductsVerdictTable() {
       return { code: p.code, name: p.name, spend: p.current.spend, orders: p.current.ordersIn, cost: p.current.costPerOrder, breakeven: p.breakeven, verdictKey: v.key, label: v.label, tone: v.tone };
     });
   const cols: Column<Row>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="font-bold text-fg hover:underline">{r.name}</Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-10 items-center max-md:min-h-[44px] font-bold text-fg hover:underline">{r.name}</Link> },
     { key: "spend", header: "الصرف", numeric: true, cell: (r) => (r.spend === null ? "—" : fmt(r.spend, "$")) },
     { key: "orders", header: "طلبات حقيقية", numeric: true, cell: (r) => (r.orders === null ? "—" : String(Math.round(r.orders))) },
     { key: "cost", header: "تكلفة الطلب", numeric: true, cell: (r) => (r.cost === null ? "—" : fmt(r.cost, "$")) },
@@ -102,7 +102,7 @@ export async function NightRoundCard() {
                 <span>إعلانات موقوفة <b dir="ltr" className="tabular-nums text-fg">{n("ads_paused")}</b></span>
                 <span>تنبيهات مخزون <b dir="ltr" className="tabular-nums text-fg">{n("stock_alerts")}</b></span>
               </p>
-              <Link href={`/work/reports/${encodeURIComponent(`run:${r.id}`)}`} className="text-sm font-semibold text-info hover:underline">
+              <Link href={`/work/reports/${encodeURIComponent(`run:${r.id}`)}`} className="inline-flex min-h-10 items-center max-md:min-h-[44px] text-sm font-semibold text-info hover:underline">
                 افتح التقرير
               </Link>
             </>
@@ -133,7 +133,7 @@ export async function BankCard() {
         <ul className="divide-y divide-border">
           {board.products.map((p) => (
             <li key={p.code} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
-              <Link href={`/products/${encodeURIComponent(p.code)}`} className="font-bold text-fg hover:underline">
+              <Link href={`/products/${encodeURIComponent(p.code)}`} className="inline-flex min-h-10 items-center max-md:min-h-[44px] font-bold text-fg hover:underline">
                 {p.name}
               </Link>
               <span dir="ltr" className="tabular-nums text-fg-muted">

@@ -20,7 +20,7 @@ export function Segmented<T extends string>({ value, onChange, options, label, c
           <label
             key={o.value}
             className={cn(
-              "inline-flex h-8 cursor-pointer items-center justify-center rounded-md px-3 text-sm font-bold transition-colors max-md:h-10",
+              "inline-flex h-8 cursor-pointer items-center justify-center rounded-md px-3 text-sm font-bold transition-colors max-md:h-11",
               "has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-accent",
               selected ? "bg-surface-1 text-fg shadow-card" : "text-fg-muted hover:text-fg",
             )}

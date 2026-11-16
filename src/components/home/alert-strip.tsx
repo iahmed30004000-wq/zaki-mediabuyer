@@ -25,7 +25,7 @@ export function AlertStrip({ alerts }: { alerts: TodayAlert[] }) {
         const { cls, Icon } = TONE[a.tone];
         return (
           <li key={a.key}>
-            <Link href={a.href} className={cn("flex items-start gap-2 rounded-lg border px-3 py-2 text-sm hover:brightness-95", cls)}>
+            <Link href={a.href} className={cn("flex items-start gap-2 rounded-lg border px-3 py-2 text-sm hover:brightness-95 max-md:min-h-[44px]", cls)}>
               <Icon className="mt-0.5 size-4 shrink-0" />
               <span className="text-fg">{a.text}</span>
             </Link>

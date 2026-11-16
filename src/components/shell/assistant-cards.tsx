@@ -100,7 +100,7 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
           const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; workflow?: { key: string } };
           if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
           if (d.demo || !d.workflow) return toast("بالوضع التجريبي ما انعمل شي", "info");
-          toast("انعمل ورك فلو مطفي — هي لوحة الرسم", "success");
+          toast("انعمل مهمة مطفي — هي لوحة الرسم", "success");
           onNavigate();
           router.push(`/workflow/${d.workflow.key}`);
         } finally {
@@ -114,7 +114,7 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
           <Steps graph={a.graph} />
           <Issues issues={a.issues} />
           {canDraft ? (
-            <Button size="sm" variant="secondary" className="min-h-9" onClick={open} disabled={busy}>
+            <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={open} disabled={busy}>
               {busy ? "لحظة…" : "افتحها بلوحة الرسم (مطفية)"}
             </Button>
           ) : (
@@ -140,7 +140,7 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
           <p className="text-xs text-fg-muted">{a.summary} — لسا ما انحفظت</p>
           <Issues issues={a.issues} />
           {canDraft ? (
-            <Button size="sm" variant="secondary" className="min-h-9" onClick={open}>
+            <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={open}>
               افتح الرسم وفيه الخطوة
             </Button>
           ) : (
@@ -158,7 +158,7 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
             {a.text}
           </pre>
           {a.variables.length ? (
-            <p className="flex flex-wrap gap-1 text-[11px] text-fg-muted">
+            <p className="flex flex-wrap gap-1 text-xs text-fg-muted">
               المتغيرات:
               {a.variables.map((v) => (
                 <code key={v} dir="ltr" className="rounded bg-surface-2 px-1">{`{{${v}}}`}</code>
@@ -168,7 +168,7 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
           <Button
             size="sm"
             variant="secondary"
-            className="min-h-9"
+            className="min-h-10 max-md:min-h-[44px]"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(a.text);

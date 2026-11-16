@@ -15,16 +15,12 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     // FIVE text sizes only (docs/rebuild/03-look.md §3). This REPLACES Tailwind's scale, so any other size does not exist.
-    // lg / 2xl / 4xl are TEMPORARY synonyms of the nearest size so the old screens do not break; P12 removes them.
     fontSize: {
       xs: ["12px", "18px"],
       sm: ["14px", "22px"],
       base: ["16px", "26px"],
       xl: ["20px", "28px"],
       "3xl": ["28px", "36px"],
-      lg: ["16px", "26px"],
-      "2xl": ["20px", "28px"],
-      "4xl": ["28px", "36px"],
     },
     extend: {
       colors: themeColors,

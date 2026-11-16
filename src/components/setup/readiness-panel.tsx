@@ -48,7 +48,7 @@ export function ReadinessPanel({ data }: { data: Readiness }) {
                 <p className="flex flex-wrap items-center gap-1 text-xs text-fg-muted">
                   ناقص:
                   {r.missing.map((m) => (
-                    <code key={m} dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-fg">{m}</code>
+                    <code key={m} dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg">{m}</code>
                   ))}
                 </p>
               ) : null}

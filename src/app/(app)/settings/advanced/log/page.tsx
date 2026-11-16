@@ -23,7 +23,7 @@ export default async function LogPage({ searchParams }: { searchParams: { audit?
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2 text-sm">
         {FILTERS.map((f) => (
-          <Link key={f.k} href={f.k ? `/settings/advanced/log?audit=${f.k}` : "/settings/advanced/log"} className={cn("inline-flex min-h-10 items-center rounded-full border px-4", (actor ?? "") === f.k ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
+          <Link key={f.k} href={f.k ? `/settings/advanced/log?audit=${f.k}` : "/settings/advanced/log"} className={cn("inline-flex min-h-10 max-md:min-h-[44px] items-center rounded-full border px-4", (actor ?? "") === f.k ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>
             {f.l}
           </Link>
         ))}

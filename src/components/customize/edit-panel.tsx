@@ -18,7 +18,7 @@ const TABS: { key: PanelTab; label: string }[] = [
   { key: "trash", label: "المحذوفات" },
 ];
 
-const control = "min-h-10 w-full rounded-lg border border-border bg-surface-1 px-2.5 text-sm text-fg disabled:opacity-60";
+const control = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-2.5 text-sm text-fg disabled:opacity-60";
 
 type Run = (op: UiOpShape) => Promise<boolean>;
 
@@ -109,7 +109,7 @@ function Card({ children, dim, drag }: { children: React.ReactNode; dim?: boolea
   );
 }
 
-const Chip = ({ children, tone }: { children: React.ReactNode; tone?: "accent" }) => <span className={cn("rounded-md px-1.5 py-0.5 text-[11px]", tone === "accent" ? "bg-accent/10 text-accent" : "bg-surface-2 text-fg-muted")}>{children}</span>;
+const Chip = ({ children, tone }: { children: React.ReactNode; tone?: "accent" }) => <span className={cn("rounded-md px-1.5 py-0.5 text-xs", tone === "accent" ? "bg-accent/10 text-accent" : "bg-surface-2 text-fg-muted")}>{children}</span>;
 
 function More({ children }: { children: React.ReactNode }) {
   return (
@@ -125,14 +125,14 @@ function ScopePicker({ boards, value, onChange }: { boards: { key: string; label
   return (
     <fieldset className="space-y-1">
       <legend className="text-xs text-fg-muted">بتظهر على</legend>
-      <label className="flex min-h-9 items-center gap-2 text-sm text-fg">
-        <input type="checkbox" checked={!value.length} onChange={() => onChange([])} className="size-4 accent-[var(--accent,#2563eb)]" />
+      <label className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-sm text-fg">
+        <input type="checkbox" checked={!value.length} onChange={() => onChange([])} className="size-4 accent-accent" />
         كل اللوحات
       </label>
       <div className="grid grid-cols-2 gap-x-3">
         {boards.map((b) => (
-          <label key={b.key} className="flex min-h-9 items-center gap-2 text-sm text-fg">
-            <input type="checkbox" checked={value.includes(b.key)} onChange={(e) => onChange(e.target.checked ? [...value, b.key] : value.filter((x) => x !== b.key))} className="size-4 accent-[var(--accent,#2563eb)]" />
+          <label key={b.key} className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-sm text-fg">
+            <input type="checkbox" checked={value.includes(b.key)} onChange={(e) => onChange(e.target.checked ? [...value, b.key] : value.filter((x) => x !== b.key))} className="size-4 accent-accent" />
             <span className="truncate">{b.label}</span>
           </label>
         ))}
@@ -146,7 +146,7 @@ function EntityPick({ value, onChange }: { value: Entity; onChange: (e: Entity) 
   return (
     <div role="radiogroup" aria-label="نوع البطاقة" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
       {ENTITIES.map((e) => (
-        <button key={e} type="button" role="radio" aria-checked={value === e} onClick={() => onChange(e)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", value === e ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+        <button key={e} type="button" role="radio" aria-checked={value === e} onClick={() => onChange(e)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", value === e ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
           {ENTITY_AR[e]}
         </button>
       ))}
@@ -154,7 +154,7 @@ function EntityPick({ value, onChange }: { value: Entity; onChange: (e: Entity) 
   );
 }
 
-const ENTITY_ONE: Record<Entity, string> = { task: "المهمة", video: "الفيديو", workflow: "الورك فلو" };
+const ENTITY_ONE: Record<Entity, string> = { task: "المهمة", video: "الفيديو", workflow: "المهمة" };
 
 const optionLines = (text: string) => text.split(/\n|،|,/).map((x) => x.trim()).filter(Boolean);
 
@@ -256,7 +256,7 @@ function BoardsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
         <p className="text-sm font-semibold text-fg">＋ لوحة من قالب</p>
         <div className="grid gap-2">
           {BOARD_TEMPLATES.map((t) => (
-            <button key={t.id} type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cn("flex min-h-12 flex-col items-start rounded-xl border px-3 py-2 text-start", template === t.id ? "border-accent bg-accent/5" : "border-border")}>
+            <button key={t.id} type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cn("flex min-h-10 max-md:min-h-[48px] flex-col items-start rounded-xl border px-3 py-2 text-start", template === t.id ? "border-accent bg-accent/5" : "border-border")}>
               <span className="text-sm font-semibold text-fg">{t.name}</span>
               <span className="text-xs text-fg-muted">{t.about}</span>
             </button>
@@ -353,7 +353,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
                     </Button>
                   </div>
                   {convert[f.id]?.to === "select" ? <textarea value={convert[f.id]!.options} onChange={(e) => setConvert((m) => ({ ...m, [f.id]: { to: "select", options: e.target.value } }))} rows={3} placeholder="الخيارات: واحد بكل سطر — لازم تغطّي كل القيم المكتوبة" className={cn(control, "py-2 leading-6")} /> : null}
-                  <p className="text-[11px] leading-5 text-fg-muted">بينغيّر بس لو كل القيم المكتوبة ({f.values}) بتنفع للنوع الجديد؛ وإلا بيوقف وبيقلّك كم قيمة ما بتنفع.</p>
+                  <p className="text-xs leading-5 text-fg-muted">بينغيّر بس لو كل القيم المكتوبة ({f.values}) بتنفع للنوع الجديد؛ وإلا بيوقف وبيقلّك كم قيمة ما بتنفع.</p>
                 </div>
                 {others.length ? (
                   <div className="flex items-center gap-2">
@@ -403,8 +403,8 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
         </select>
         {type === "select" ? <textarea value={options} onChange={(e) => setOptions(e.target.value)} rows={3} placeholder="الخيارات: واحد بكل سطر (اتنين على الأقل)" className={cn(control, "py-2 leading-6")} /> : null}
         {entity === "task" ? <ScopePicker boards={boards} value={scope} onChange={setScope} /> : null}
-        <label className="flex min-h-9 items-center gap-2 text-sm text-fg">
-          <input type="checkbox" checked={onCard} onChange={(e) => setOnCard(e.target.checked)} className="size-4 accent-[var(--accent,#2563eb)]" />
+        <label className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-sm text-fg">
+          <input type="checkbox" checked={onCard} onChange={(e) => setOnCard(e.target.checked)} className="size-4 accent-accent" />
           يطلع على البطاقة نفسها (مش بس جوّاها)
         </label>
         <Button type="submit" disabled={busy || !label.trim()}>
@@ -453,15 +453,15 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
               {b.confirm === false ? <Chip>بلا تأكيد</Chip> : null}
             </div>
             <More>
-              <select aria-label="الورك فلو" value={b.workflow} onChange={(e) => void run({ op: "button.update", id: b.id, workflow: e.target.value })} className={control}>
+              <select aria-label="المهمة" value={b.workflow} onChange={(e) => void run({ op: "button.update", id: b.id, workflow: e.target.value })} className={control}>
                 {data.workflows.map((w) => (
                   <option key={w.key} value={w.key}>
                     {w.name}
                   </option>
                 ))}
               </select>
-              <label className="flex min-h-9 items-center gap-2 text-sm text-fg">
-                <input type="checkbox" checked={b.confirm !== false} onChange={(e) => void run({ op: "button.update", id: b.id, confirm: e.target.checked })} className="size-4 accent-[var(--accent,#2563eb)]" />
+              <label className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-sm text-fg">
+                <input type="checkbox" checked={b.confirm !== false} onChange={(e) => void run({ op: "button.update", id: b.id, confirm: e.target.checked })} className="size-4 accent-accent" />
                 يسأل «متأكد؟» قبل ما يشتغل
               </label>
               {entity === "task" ? (
@@ -479,7 +479,7 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
             </More>
           </Card>
         ))}
-        {!list.length ? <li className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في أزرار لسا. مثلاً زر «ابعت للتأكيد» بيشغّل ورك فلو التأكيد على المهمة.</li> : null}
+        {!list.length ? <li className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في أزرار لسا. مثلاً زر «ابعت للتأكيد» بيشغّل مهمة التأكيد على المهمة.</li> : null}
       </ul>
 
       <form
@@ -491,8 +491,8 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
       >
         <p className="text-sm font-semibold text-fg">＋ زر جديد على بطاقة {ENTITY_ONE[entity]}</p>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="اسم الزر (مثلاً: ابعت للتأكيد)" maxLength={30} dir="auto" className={control} />
-        <select value={workflow} onChange={(e) => setWorkflow(e.target.value)} className={control} aria-label="الورك فلو">
-          <option value="">أي ورك فلو بيشغّل؟</option>
+        <select value={workflow} onChange={(e) => setWorkflow(e.target.value)} className={control} aria-label="المهمة">
+          <option value="">أي مهمة بيشغّل؟</option>
           {data.workflows.map((w) => (
             <option key={w.key} value={w.key}>
               {w.name}
@@ -500,8 +500,8 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
           ))}
         </select>
         {entity === "task" ? <ScopePicker boards={boards} value={scope} onChange={setScope} /> : null}
-        <label className="flex min-h-9 items-center gap-2 text-sm text-fg">
-          <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} className="size-4 accent-[var(--accent,#2563eb)]" />
+        <label className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-sm text-fg">
+          <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} className="size-4 accent-accent" />
           يسأل «متأكد؟» قبل ما يشتغل
         </label>
         <Button type="submit" disabled={busy || !label.trim() || !workflow}>
@@ -613,9 +613,9 @@ export function EditPanel() {
         <SheetBody className="space-y-3">
           <div role="tablist" aria-label="أقسام التعديل" className="flex flex-wrap gap-1 rounded-lg border border-border bg-surface-1 p-1">
             {TABS.map((t) => (
-              <button key={t.key} role="tab" aria-selected={panel.tab === t.key} onClick={() => setTab(t.key)} className={cn("min-h-9 shrink-0 rounded-md px-3 text-sm font-medium", panel.tab === t.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+              <button key={t.key} role="tab" aria-selected={panel.tab === t.key} onClick={() => setTab(t.key)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", panel.tab === t.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
                 {t.label}
-                {t.key === "trash" && trash ? <span className="ms-1 text-[11px] opacity-80">{trash}</span> : null}
+                {t.key === "trash" && trash ? <span className="ms-1 text-xs opacity-80">{trash}</span> : null}
               </button>
             ))}
           </div>

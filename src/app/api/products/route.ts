@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { MARKETS } from "@/core/naming";
+import { isDemo } from "@/core/readiness";
 
 const usd = z.number().finite().min(0).max(10_000);
 const Body = z.object({
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     const caller = await requireCapability("owner_only");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "في رقم ناقص أو غلط");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const { productCode, ...data } = parsed.data;
     const before = await db.productEconomics.findUnique({ where: { productCode } });
     await db.productEconomics.upsert({ where: { productCode }, create: { productCode, ...data }, update: data });

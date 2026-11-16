@@ -124,7 +124,7 @@ const URG: Record<string, { label: string; tone: "danger" | "warn" | "info" }> =
 
 export function StockTable({ rows }: { rows: StockRow[] }) {
   const cols: Column<StockRow>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="font-bold text-fg hover:underline">{r.name}</Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-10 items-center font-bold text-fg hover:underline max-md:min-h-[44px]">{r.name}</Link> },
     { key: "units", header: "القطع", numeric: true, cell: (r) => num(r.units) },
     { key: "daily", header: "البيع اليومي", numeric: true, cell: (r) => (r.daily === null ? "—" : fmt(r.daily, "", 1)) },
     { key: "cover", header: "بيكفي (يوم)", numeric: true, cell: (r) => (r.cover === null ? "—" : fmt(r.cover, "", 1)) },
@@ -239,7 +239,7 @@ export async function ShippingPage() {
   const [data, notLanded, ready, postponed] = await Promise.all([loadNumbers({ d: "7d" }), latestMetric("shipments-check", "not_landed"), latestMetric("shipments-check", "ready"), latestMetric("shipments-check", "postponed")]);
   const rows = data.products.filter((p) => p.hasData);
   const cols: Column<(typeof rows)[number]>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="font-bold text-fg hover:underline">{r.name}</Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-10 items-center font-bold text-fg hover:underline max-md:min-h-[44px]">{r.name}</Link> },
     { key: "shipped", header: "انشحن", numeric: true, cell: (r) => num(r.current.shippedOrders) },
     { key: "out", header: "عند المندوب", numeric: true, cell: (r) => num(r.current.outForDelivery) },
     { key: "stuck", header: "عالق +7 أيام", numeric: true, cell: (r) => num(r.current.stuck) },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { RunRefused, WorkflowCreate, createWorkflow } from "@/server/workflows";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const caller = await requireCapability("owner_only");
-    if (process.env.MOCK_MODE === "1" || caller.demo) return NextResponse.json({ ok: true, demo: true });
+    if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = WorkflowCreate.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم: " + parsed.error.issues.slice(0, 2).map((i) => i.message).join(" · "));
     try {

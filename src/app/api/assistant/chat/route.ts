@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { ChatBody, clearChat, loadChat, saveChat } from "@/server/assistant/chat";
+import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
 
-const kept = (caller: { demo?: boolean }) => !caller.demo && process.env.MOCK_MODE !== "1";
+const kept = (caller: { demo?: boolean }) => !caller.demo && !isDemo(process.env);
 
 /** GET /api/assistant/chat — the conversation this person left in the panel (nothing on the demo). */
 export async function GET() {

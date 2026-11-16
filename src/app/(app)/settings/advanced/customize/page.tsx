@@ -22,7 +22,7 @@ export default async function CustomizePage() {
           <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-1">
             {mine.map((p) => (
               <li key={p.key}>
-                <a href={p.href} className="flex min-h-12 items-center gap-3 px-4 py-2 text-sm font-bold text-fg hover:bg-surface-2">
+                <a href={p.href} className="flex min-h-10 max-md:min-h-[48px] items-center gap-3 px-4 py-2 text-sm font-bold text-fg hover:bg-surface-2">
                   {p.label}
                 </a>
               </li>

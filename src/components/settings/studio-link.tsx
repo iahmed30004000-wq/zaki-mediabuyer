@@ -88,7 +88,7 @@ export function StudioLink() {
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={scope} onChange={(e) => setScope(e.target.value)} className="w-auto">
+          <Select aria-label="نوع التوكن" value={scope} onChange={(e) => setScope(e.target.value)} className="w-auto">
             <option value="vp:read">توكن القراءة (الأداء)</option>
             <option value="vp:launch" disabled>توكن الإطلاق (بالمرحلة الجاية)</option>
           </Select>
@@ -122,8 +122,8 @@ export function StudioLink() {
             }
           }}
         >
-          <Input dir="ltr" placeholder="CR00147" value={cr} onChange={(e) => setCr(e.target.value)} className="w-32 font-mono" />
-          <Input dir="ltr" placeholder="VP-TRF01-0012-v2" value={vp} onChange={(e) => setVp(e.target.value)} className="w-56 font-mono" />
+          <Input aria-label="رمز الفيديو" dir="ltr" placeholder="CR00147" value={cr} onChange={(e) => setCr(e.target.value)} className="w-32 font-mono" />
+          <Input aria-label="رمز الطلب" dir="ltr" placeholder="VP-TRF01-0012-v2" value={vp} onChange={(e) => setVp(e.target.value)} className="w-56 font-mono" />
           <Button size="sm" variant="secondary" type="submit" disabled={!cr || !vp}>
             <Link2 className="size-3.5" /> اربط
           </Button>
@@ -131,7 +131,7 @@ export function StudioLink() {
         {links.length ? (
           <ul className="flex flex-wrap gap-2">
             {links.map((l) => (
-              <li key={l.crCode} dir="ltr" className="rounded-full bg-surface-2 px-2.5 py-1 font-mono text-[11px] text-fg-muted">
+              <li key={l.crCode} dir="ltr" className="rounded-full bg-surface-2 px-2.5 py-1 font-mono text-xs text-fg-muted">
                 {l.crCode} ↔ {l.sourceRef}
               </li>
             ))}

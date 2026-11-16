@@ -21,7 +21,7 @@ interface Preview {
   sample: Record<string, unknown>[];
 }
 
-const field = "min-h-10 w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg";
+const field = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg";
 
 /**
  * «ألصق أرقام»: paste a table (an Ads Manager export, a sheet), look at what was understood, and enter the rows that are fine.
@@ -99,7 +99,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
                 <input type="date" value={day} dir="ltr" onChange={(e) => { setDay(e.target.value); setPre(null); }} className={field} />
               </label>
             </div>
-            <p className="text-[11px] leading-5 text-fg-muted">لازم عمود معرّف (Ad ID أو Campaign ID …) — الموقع ما بيخمّن معرّف. الإعلان بدو أبوه معروف: الصق الحملات أول، بعدين المجموعات، بعدين الإعلانات (وإذا الملف فيه عمود Ad set ID بيستعمله). أرقام الـ OMS وميتا لما تنربط بتحل مكان الملصوق.</p>
+            <p className="text-xs leading-5 text-fg-muted">لازم عمود معرّف (Ad ID أو Campaign ID …) — الموقع ما بيخمّن معرّف. الإعلان بدو أبوه معروف: الصق الحملات أول، بعدين المجموعات، بعدين الإعلانات (وإذا الملف فيه عمود Ad set ID بيستعمله). أرقام الـ OMS وميتا لما تنربط بتحل مكان الملصوق.</p>
 
             {pre ? (
               <div className="space-y-2 rounded-xl border border-border bg-surface-2/50 p-3 text-xs leading-6" role="status">
@@ -118,7 +118,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
                 {pre.sample.length ? (
                   <ul className="space-y-1 text-fg">
                     {pre.sample.map((r, i) => (
-                      <li key={i} dir="ltr" className="truncate text-start font-mono text-[11px]">
+                      <li key={i} dir="ltr" className="truncate text-start font-mono text-xs">
                         {String(r.date)} · {String(r.level)} · {String(r.id)}
                         {r.name ? ` · ${String(r.name)}` : ""}
                         {r.spend !== undefined ? ` · $${String(r.spend)}` : ""}

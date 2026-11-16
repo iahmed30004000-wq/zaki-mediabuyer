@@ -7,17 +7,18 @@ import { loadDataHealth, loadSafety } from "@/lib/launch-view";
 /** «الصحة»: is the tracking, the attribution and the accounts sound — every number below depends on it. */
 export async function DataHealth() {
   const [ds, health, safety] = await Promise.all([loadDataset(), loadDataHealth(), loadSafety()]);
-  const metrics = health
+  const sends = health?.capi;
+  const metrics = health && sends
     ? [
         { l: "نسبة الإسناد", v: health.attributedPct, u: "%" as const, ok: health.attributedPct === null || health.attributedPct >= 80, h: "طلبات الـ OMS اللي إلها رقم إعلان" },
         { l: "أكبر فرق ميتا/حقيقي", v: health.gapWorst?.gap ?? null, u: "%" as const, ok: !health.gapWorst || Math.abs(health.gapWorst.gap) <= 20, h: health.gapWorst ? health.gapWorst.campaign : "تحت 20% سليم", term: "gap" as const },
-        { l: "أحداث CAPI مقبولة", v: health.capiAcceptedPct, u: "%" as const, ok: health.capiAcceptedPct === null || health.capiAcceptedPct >= 90, h: `آخر 7 أيام · ${health.capi.sent} انبعت · ${health.capi.pending} بالانتظار · ${health.capi.expired} منتهي` },
-        { l: "مرفوض أو بلا معرّف", v: health.capi.rejected + health.capi.skipped, u: undefined, ok: health.capi.rejected === 0, h: `${health.capi.rejected} رفضته ميتا · ${health.capi.skipped} ما إلو معرّف` },
+        { l: "طلبات انرسلت لميتا وانقبلت", v: health.capiAcceptedPct, u: "%" as const, ok: health.capiAcceptedPct === null || health.capiAcceptedPct >= 90, h: `آخر 7 أيام · ${sends.sent} انبعت · ${sends.pending} بالانتظار · ${sends.expired} منتهي` },
+        { l: "مرفوض أو بلا معرّف", v: sends.rejected + sends.skipped, u: undefined, ok: sends.rejected === 0, h: `${sends.rejected} رفضته ميتا · ${sends.skipped} ما إلو معرّف` },
       ]
     : [
         { l: "نسبة الإسناد", v: 86, u: "%" as const, ok: true, h: "طلبات الـ OMS اللي إلها رقم إعلان" },
         { l: "فرق ميتا/حقيقي", v: 8, u: "%" as const, ok: true, h: "تحت 20% سليم" , term: "gap" as const },
-        { l: "أحداث CAPI مقبولة", v: 97.4, u: "%" as const, ok: true, h: "آخر 24 ساعة" },
+        { l: "طلبات انرسلت لميتا وانقبلت", v: 97.4, u: "%" as const, ok: true, h: "آخر 24 ساعة" },
         { l: "صرف يتيم", v: 12.63, u: "$" as const, ok: false, h: "حملة بلا رمز منتج" },
       ];
 
@@ -29,7 +30,7 @@ export async function DataHealth() {
             <Panel key={m.l}>
               <p className="text-xs text-fg-muted">{m.l}</p>
               <Num value={m.v} unit={m.u} term={"term" in m ? m.term : undefined} source="truth" big tone={m.ok ? undefined : "warn"} />
-              <p className="mt-1 text-[11px] text-fg-muted">{m.h}</p>
+              <p className="mt-1 text-xs text-fg-muted">{m.h}</p>
             </Panel>
           ))}
         </div>

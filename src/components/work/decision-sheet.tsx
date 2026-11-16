@@ -56,7 +56,7 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
         <table className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
             <tr className="bg-surface-2 text-xs font-bold text-fg-muted">
-              <th className="h-10 w-10 px-3 text-start">#</th>
+              <th className="h-10 max-md:h-[44px] w-10 px-3 text-start">#</th>
               <th className="px-3 text-start">المهمة</th>
               <th className="px-3 text-start">الموعد</th>
               <th className="px-3 text-start">الوضع</th>

@@ -4,7 +4,7 @@ import { Cairo, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { PwaRegister } from "@/components/pwa-register";
-import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
+import { THEME_COOKIE, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
 
 /** One face for everything: Cairo (400 · 600 · 700 · 800). */
@@ -36,7 +36,6 @@ function chosen() {
   const store = cookies();
   return {
     theme: themeOf(store.get(THEME_COOKIE)?.value),
-    decor: decorLevelOf(store.get(DECOR_COOKIE)?.value),
   };
 }
 
@@ -46,13 +45,13 @@ export function generateViewport(): Viewport {
 
 /** The theme is painted on the server from the cookie, so the first frame is already right. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { theme, decor } = chosen();
-  const attrs = rootThemeAttributes(theme, decor);
+  const { theme } = chosen();
+  const attrs = rootThemeAttributes(theme);
   const className = [cairo.variable, plex.variable, attrs.dark ? "dark" : ""].filter(Boolean).join(" ");
   return (
-    <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} data-decor={attrs["data-decor"]} className={className} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} className={className} suppressHydrationWarning>
       <body>
-        <Providers theme={theme} decor={decor}>
+        <Providers theme={theme}>
           {children}
         </Providers>
         <PwaRegister />

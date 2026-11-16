@@ -23,7 +23,7 @@ function Mark({ cell }: { cell: Cell }) {
 
 function Table<R extends { key: string; label: string; locked: boolean }>({ sections, columns, cellOf, caption }: { sections: Section<R>[]; columns: { key: string; label: string; note?: string }[]; cellOf: (row: R, col: string) => Cell | undefined; caption: string }) {
   return (
-    <div className="overflow-x-auto rounded-card border border-border bg-surface-1">
+    <div className="relative overflow-x-auto rounded-card border border-border bg-surface-1">
       <table className="w-full min-w-[720px] border-collapse text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead>
