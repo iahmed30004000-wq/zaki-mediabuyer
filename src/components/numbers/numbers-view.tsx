@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown, Printer, Send } from "lucide-react";
 import { Delta } from "@/components/home/number-card";
@@ -42,7 +43,7 @@ function Stat({ def, set, prev, avg, compare, tone, prevLabel }: { def: StatDef;
 }
 
 /** All the numbers of one product (or of the total), in their eight groups. */
-function Groups({ p, compare, target, prevLabel, only }: { p: Pick<ProductNumbers, "current" | "prev" | "avg7" | "breakeven" | "rejectReasons" | "offers" | "stockUrgency">; compare: boolean; target: number | null; prevLabel: string; only?: GroupKey[] }) {
+export function Groups({ p, compare, target, prevLabel, only }: { p: Pick<ProductNumbers, "current" | "prev" | "avg7" | "breakeven" | "rejectReasons" | "offers" | "stockUrgency">; compare: boolean; target: number | null; prevLabel: string; only?: GroupKey[] }) {
   return (
     <div className="space-y-4">
       {GROUPS.filter((g) => !only || only.includes(g.key)).map((g) => (
@@ -122,7 +123,10 @@ function ProductCard({ p, compare, target, prevLabel }: { p: ProductNumbers; com
         <ChevronDown className={cn("size-4 shrink-0 text-fg-muted transition-transform", open && "rotate-180")} />
       </button>
       {open ? (
-        <div className="border-t border-border p-3 sm:p-4">
+        <div className="space-y-3 border-t border-border p-3 sm:p-4">
+          <Link href={`/products/${encodeURIComponent(p.code)}`} className="inline-block text-sm font-semibold text-info hover:underline">
+            صفحة المنتج ←
+          </Link>
           <Groups p={p} compare={compare} target={target} prevLabel={prevLabel} />
         </div>
       ) : null}
