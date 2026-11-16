@@ -2,11 +2,11 @@
  * THE ASSISTANT'S TOOLS (v3 · H). Names stay English, descriptions are Arabic (what the model reads). None of them can spend,
  * delete, approve or reach Meta:
  *
- *   read    get_numbers · get_ads · get_videos · get_tasks · get_day · get_changes · get_workflows · get_overview ·
+ *   read    get_numbers · get_summary · get_ads · get_videos · get_tasks · get_day · get_changes · get_workflows · get_overview ·
  *           explain · calculate        — the screens' own loaders, so an answer is the dashboard's number
  *   write   create_task · update_task  — the team's task board (archived, never deleted)
  *           propose_change             — a ChangeSet from source «agent»: it ALWAYS waits for the owner's yes on the site
- *   draft   draft_workflow · draft_node · draft_prompt — nothing is saved: the panel shows a card and the owner opens it
+ *   draft   draft_workflow · draft_node · edit_node · draft_prompt — nothing is saved: the panel shows a card and the owner opens it
  *
  * A tool never throws at the model: what is wrong with a call comes back in words (`isError`) so it can fix the call.
  * The loaders are injected (`ToolDeps`) so a test can stand in for the database.
@@ -26,7 +26,7 @@ import { can } from "@/core/roles";
 import { TASK_COLUMNS } from "@/core/tasks";
 import { EdgeSchema, GraphSchema, NodeSchema, stepOrder } from "@/core/workflow";
 import { addAfter, addNode, autoLayout, checkGraph, diffText, ensureLayout, graphDiff, setNode } from "@/core/workflow-edit";
-import { ADS_SORTS, STATS_GUIDE, adsOutput, dayOutput, explainOutput, numbersOutput, tasksOutput, videosOutput, workflowsOutput, type NumbersLike } from "@/lib/assistant-views";
+import { ADS_SORTS, STATS_GUIDE, adsOutput, dayOutput, explainOutput, numbersOutput, summaryOutput, tasksOutput, videosOutput, workflowsOutput, type NumbersLike } from "@/lib/assistant-views";
 import { loadAdsTable, type AdsTableData } from "@/lib/ads-table";
 import { loadDay, type DayData } from "@/lib/day-view";
 import { fmt } from "@/lib/format";
@@ -221,6 +221,20 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           const p = await pickProduct(deps, args.product);
           if (!p.ok) return p.out;
           return numbersOutput(await deps.numbers(r.q, ctx.now), { q: r.q, product: p.product, stats: args.stats, compare: args.compare });
+        }),
+    },
+    {
+      name: "get_summary",
+      access: "read",
+      status: "عم ألخّص…",
+      description: "ملخّص أسبوع أو شهر بجواب واحد: مجموع الصرف والطلبات الحقيقية وتكلفة الطلب والمؤكد والتسليم والربح المتوقع مقابل الفترة اللي قبلها، وأرخص ثلاث منتجات وأغلى ثلاث بتكلفة الطلب الحقيقي (اللي لهم طلبات كافية بس). استعملها لـ «لخّصلي الأسبوع» و«كيف كان الشهر»، وانسخ حقل display متل ما هو.",
+      input: z.object({ period: z.enum(["week", "month"]).describe("week = آخر 7 أيام · month = آخر 30 يوم") }).strict(),
+      run: (a, ctx) =>
+        guarded(async () => {
+          const period = (a as { period: "week" | "month" }).period;
+          const r = rangeQuery({ range: period === "week" ? "last7" : "last30" }, ctx.now);
+          if (!r.ok) return toolError(r.error);
+          return summaryOutput(await deps.numbers(r.q, ctx.now), { q: r.q, period });
         }),
     },
     {
@@ -491,6 +505,39 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           const summary = `خطوة «${i.node.label}»${afterLabel ? ` بعد «${afterLabel}»` : ""} — ${diffText(graphDiff(base, set.graph))}`;
           const art: Artifact = { kind: "node_draft", workflowKey: card.key, workflowName: card.name, graph: set.graph, summary, issues };
           return toolData({ ok: true, saved: false, new_node_id: added.id, summary, warnings: issues, note: "الخطوة ظهرت للمالك بطاقة — هو بيفتح الرسم وفيها كمسودة ويحفظ." }, { artifacts: [art], sources: [{ id: `workflow:${card.key}`, label: `الورك فلو · ${card.name}`, href: `/workflow/${card.key}` }] });
+        }),
+    },
+    {
+      name: "edit_node",
+      access: "read",
+      status: "عم أجهّز التعديل…",
+      description: "عدّل خطوة موجودة بورك فلو (المفتاح وid الخطوة من get_workflows): ابعت بس الحقول اللي بدها تتغيّر (label · executor · permission · prompt · target · …). ما بتغيّر نوع الخطوة ولا بتشيلها. ما بيتحفظ شي: المالك بيفتح الرسم والتعديل مسودة ويراجع ويحفظ.",
+      input: z
+        .object({
+          workflow_key: z.string().trim().min(1).max(60),
+          node_id: z.string().trim().min(1).max(40).describe("id الخطوة (من get_workflows)"),
+          changes: DraftNode.omit({ id: true, type: true }).partial().strict(),
+        })
+        .strict(),
+      run: (a, ctx) =>
+        guarded(async () => {
+          const i = a as { workflow_key: string; node_id: string; changes: Record<string, unknown> };
+          if (!Object.keys(i.changes).length) return toolError("ما حدّدت أي تغيير — ابعت الحقول اللي بدها تتغيّر");
+          const cards = await deps.workflows(ctx.now);
+          const card = cards.find((c) => c.key === i.workflow_key);
+          if (!card) return toolError(`ما في ورك فلو بالمفتاح «${i.workflow_key}». المفاتيح: ${cards.map((c) => c.key).join("، ")}`);
+          const base = ensureLayout(card.graph);
+          const node = base.nodes.find((n) => n.id === i.node_id);
+          if (!node) return toolError(`ما في خطوة «${i.node_id}» بهالورك فلو. الخطوات: ${base.nodes.map((n) => `${n.id} (${n.label})`).join("، ")}`);
+          const set = setNode(base, node.id, i.changes);
+          if (!set.ok) return toolError(set.error);
+          if (JSON.stringify(set.graph) === JSON.stringify(base)) return toolError("هالقيم هي نفسها اللي بالخطوة — ما في شي يتغيّر");
+          const refusal = refuseIfPrivate(...graphTexts(set.graph));
+          if (refusal) return toolError(refusal);
+          const issues = issueTexts(set.graph);
+          const summary = `تعديل خطوة «${node.label}» (${Object.keys(i.changes).join("، ")}) — ${diffText(graphDiff(base, set.graph))}`;
+          const art: Artifact = { kind: "node_draft", workflowKey: card.key, workflowName: card.name, graph: set.graph, summary, issues };
+          return toolData({ ok: true, saved: false, summary, warnings: issues, note: "التعديل ظهر للمالك بطاقة — هو بيفتح الرسم وفيه التعديل كمسودة ويحفظ." }, { artifacts: [art], sources: [{ id: `workflow:${card.key}`, label: `الورك فلو · ${card.name}`, href: `/workflow/${card.key}` }] });
         }),
     },
     {

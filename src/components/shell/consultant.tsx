@@ -129,11 +129,32 @@ export function Consultant() {
     end.current?.scrollIntoView({ block: "end" });
   }, [log, status]);
 
+  // the conversation is kept for this person: it comes back when the panel opens (only if nothing was said yet), and is saved after each answer
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!open || restored.current) return;
+    restored.current = true;
+    fetch("/api/assistant/chat", { cache: "no-store" })
+      .then((r) => (r.ok ? (r.json() as Promise<{ messages?: Msg[] }>) : null))
+      .then((d) => d?.messages?.length && setLog((l) => (l.length ? l : d.messages!)))
+      .catch(() => undefined);
+  }, [open]);
+  useEffect(() => {
+    if (busy || !restored.current || !log.length) return;
+    const t = setTimeout(() => {
+      // the walk-through of the screen is not a conversation; an error line is not worth keeping
+      const keep = log.filter((m) => !m.tour && !m.error);
+      if (keep.length) void fetch("/api/assistant/chat", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: keep }) }).catch(() => undefined);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [log, busy]);
+
   const push = (m: Msg) => setLog((l) => [...l, m]);
   const fromReply = (r: Reply): Msg => ({ me: false, text: r.answer ?? "ما طلع جواب — جرّب كمان مرة", facts: r.facts, sources: r.sources, artifacts: r.artifacts, unsupported: r.unsupported, by: r.by, notice: r.notice });
 
   const reset = () => {
     abort.current?.abort();
+    void fetch("/api/assistant/chat", { method: "DELETE" }).catch(() => undefined);
     setLog([]);
     setBusy(false);
     setStatus(null);

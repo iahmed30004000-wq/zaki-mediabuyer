@@ -6,6 +6,7 @@ import { ChevronDown, Hourglass, PencilRuler, Play, Radio, Zap } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
+import { CardCustom, type EntityCustom } from "@/components/customize/card-custom";
 import { ASSIGNEES, waitingText } from "@/core/handoff";
 import { EXECUTOR_AR, isSiteExecutor, type Executor } from "@/core/workflow";
 import { cn } from "@/lib/utils";
@@ -84,7 +85,7 @@ function History({ workflowKey }: { workflowKey: string }) {
   );
 }
 
-function Card({ c, canEdit, handoff, onChanged }: { c: WorkflowCard; canEdit: boolean; handoff?: HandoffView; onChanged: () => void }) {
+function Card({ c, canEdit, canCustom, custom, handoff, onChanged }: { c: WorkflowCard; canEdit: boolean; canCustom: boolean; custom?: EntityCustom; handoff?: HandoffView; onChanged: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -143,6 +144,8 @@ function Card({ c, canEdit, handoff, onChanged }: { c: WorkflowCard; canEdit: bo
       </div>
 
       <FlowStrip graph={c.graph} states={states} />
+
+      <CardCustom entity="workflow" entityId={c.key} custom={custom} canEdit={canCustom} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
         <span className="text-fg-muted">{scheduleText(c)}</span>
@@ -256,7 +259,7 @@ function HandoffLane({ items, canEdit, onChanged }: { items: HandoffView[]; canE
  * ticks, a failed one shakes. The open page asks every 5 seconds while a job is moving and every 30 otherwise (never in the
  * background).
  */
-export function WorkflowBoard({ initial, initialHandoffs, demo, canEdit }: { initial: WorkflowCard[]; initialHandoffs: HandoffView[]; demo: boolean; canEdit: boolean }) {
+export function WorkflowBoard({ initial, initialHandoffs, demo, canEdit, custom, canCustom = false }: { initial: WorkflowCard[]; initialHandoffs: HandoffView[]; demo: boolean; canEdit: boolean; custom?: EntityCustom; canCustom?: boolean }) {
   const [cards, setCards] = useState(initial);
   const [handoffs, setHandoffs] = useState(initialHandoffs);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
@@ -321,7 +324,7 @@ export function WorkflowBoard({ initial, initialHandoffs, demo, canEdit }: { ini
       </div>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 xl:grid-cols-[repeat(2,minmax(0,1fr))]">
         {shown.map((c) => (
-          <Card key={c.key} c={c} canEdit={canEdit && !demo} handoff={handoffs.find((h) => h.workflowKey === c.key)} onChanged={refresh} />
+          <Card key={c.key} c={c} canEdit={canEdit && !demo} canCustom={canCustom && !demo} custom={custom} handoff={handoffs.find((h) => h.workflowKey === c.key)} onChanged={refresh} />
         ))}
       </div>
       {!shown.length ? <p className="py-8 text-center text-sm text-fg-muted">ما في مهام بهالفلتر.</p> : null}

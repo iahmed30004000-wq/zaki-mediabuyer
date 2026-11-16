@@ -12,13 +12,14 @@
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import {
-  LIMITS, addBoard, addButton, addField, addPage, archiveBoard, archiveButton, archiveField, archivePage, buttonsFor, effectiveBoards, effectivePages, fieldsFor, mergeBoards, mergeFields, mergePages,
+  LIMITS, convertField, moveBoardTo, moveButtonTo, moveFieldTo, movePageTo, addBoard, addButton, addField, addPage, archiveBoard, archiveButton, archiveField, archivePage, buttonsFor, effectiveBoards, effectivePages, fieldsFor, mergeBoards, mergeFields, mergePages,
   moveBoard, moveButton, moveField, movePage, parseUiConfig, renameBoard, renamePage, restoreBoard, restoreButton, restoreField, restorePage, setBoardHidden, setPageHidden, setPageMobile,
   suggestMerges, templateById, updateButton, updateField, validateValue,
   type ButtonCfgT, type EffBoard, type EffPage, type Entity, type FieldCfgT, type Suggestion, type UiConfig, type UiEdit, type UiOp,
 } from "@/core/customize";
 import { PRIORITIES, TASK_COLUMNS, assigneeName, duplicateGroups } from "@/core/tasks";
 import { BUILTIN_PAGES } from "@/lib/nav";
+import { findBoardVideo } from "@/lib/videos-board";
 import { audit } from "./audit";
 import { HttpError, type Caller } from "./auth";
 import { db } from "./db";
@@ -36,6 +37,8 @@ export interface Effects {
   copied?: number;
   conflicts?: number;
   movedBack?: number;
+  /** values a field's change of type rewrote */
+  converted?: number;
 }
 
 const workflowKeys = async (tx: Prisma.TransactionClient) => (await tx.workflow.findMany({ where: { archivedAt: null }, select: { key: true } })).map((w) => w.key);
@@ -53,6 +56,8 @@ async function runOp(cfg: UiConfig, op: UiOp, tx: Prisma.TransactionClient, by: 
       return setPageMobile(cfg, BUILTIN_PAGES, op.key, op.mobile);
     case "page.move":
       return movePage(cfg, BUILTIN_PAGES, op.key, op.dir);
+    case "page.drop":
+      return movePageTo(cfg, BUILTIN_PAGES, op.key, op.onto);
     case "page.archive":
       return archivePage(cfg, BUILTIN_PAGES, op.key, now);
     case "page.restore":
@@ -68,6 +73,8 @@ async function runOp(cfg: UiConfig, op: UiOp, tx: Prisma.TransactionClient, by: 
       return setBoardHidden(cfg, op.key, op.hidden);
     case "board.move":
       return moveBoard(cfg, op.key, op.dir);
+    case "board.drop":
+      return moveBoardTo(cfg, op.key, op.onto);
     case "board.archive":
       // every task that still sits on it counts, the archived ones too: a board with any is merged, not put away
       return archiveBoard(cfg, op.key, await tx.task.count({ where: { board: op.key } }), now);
@@ -90,6 +97,26 @@ async function runOp(cfg: UiConfig, op: UiOp, tx: Prisma.TransactionClient, by: 
       return updateField(cfg, op.id, { label: op.label, options: op.options, boards: op.boards, onCard: op.onCard, hidden: op.hidden });
     case "field.move":
       return moveField(cfg, op.id, op.dir);
+    case "field.drop":
+      return moveFieldTo(cfg, op.id, op.onto);
+    case "field.convert": {
+      const stored = await tx.customValue.findMany({ where: { fieldId: op.id }, select: { entity: true, entityId: true, value: true } });
+      const e = convertField(cfg, op.id, op.to, stored.map((r) => r.value), op.options);
+      if (e.ok && e.convert) {
+        // every stored value is rewritten the way the new type keeps it («12» text → 12), in this same transaction
+        const field = e.config.fields.find((f) => f.id === op.id)!;
+        let n = 0;
+        for (const r of stored) {
+          const v = validateValue(field, r.value);
+          if (v.ok && v.value !== null) {
+            await tx.customValue.update({ where: { entity_entityId_fieldId: { entity: r.entity, entityId: r.entityId, fieldId: op.id } }, data: { value: v.value, updatedBy: by } });
+            n++;
+          }
+        }
+        fx.converted = n;
+      }
+      return e;
+    }
     case "field.archive":
       return archiveField(cfg, op.id, await tx.customValue.count({ where: { fieldId: op.id } }), now);
     case "field.restore":
@@ -111,6 +138,8 @@ async function runOp(cfg: UiConfig, op: UiOp, tx: Prisma.TransactionClient, by: 
       return updateButton(cfg, op.id, { label: op.label, workflow: op.workflow, workflowKeys: op.workflow === undefined ? undefined : await workflowKeys(tx), boards: op.boards, confirm: op.confirm, hidden: op.hidden });
     case "button.move":
       return moveButton(cfg, op.id, op.dir);
+    case "button.drop":
+      return moveButtonTo(cfg, op.id, op.onto);
     case "button.archive":
       return archiveButton(cfg, op.id, now);
     case "button.restore":
@@ -176,6 +205,43 @@ export async function panelData(): Promise<PanelData> {
   };
 }
 
+// ───────────────────────────── the cards ─────────────────────────────
+
+interface CardInfo {
+  /** a task's board (fields and buttons can be scoped to it); other cards have none */
+  board?: string;
+  title: string;
+  /** the card's own words a button hands to Claude — never a customer */
+  words: Record<string, string | number>;
+}
+
+/** The card a field value or a button is about: it must exist (a task not put away, a video the board knows, a workflow not archived). */
+async function cardOf(entity: Entity, id: string, cfg: UiConfig): Promise<CardInfo> {
+  if (entity === "task") {
+    const t = await db.task.findUnique({ where: { id } });
+    if (!t || t.archivedAt) throw new HttpError(404, "المهمة مش موجودة");
+    return {
+      board: t.board,
+      title: t.title,
+      words: {
+        board: (effectiveBoards(cfg).find((b) => b.key === t.board)?.label ?? t.board).slice(0, 200),
+        status: TASK_COLUMNS.find((c) => c.key === t.status)?.label ?? t.status,
+        priority: PRIORITIES.find((p) => p.key === t.priority)?.label ?? t.priority,
+        ...(t.assignee ? { assignee: assigneeName(t.assignee) ?? t.assignee } : {}),
+        ...(t.dueAt ? { due: t.dueAt.toISOString().slice(0, 10) } : {}),
+      },
+    };
+  }
+  if (entity === "video") {
+    const v = await findBoardVideo(id);
+    if (!v) throw new HttpError(404, "الفيديو مش موجود");
+    return { title: v.label, words: { product: v.product, status: v.statusLabel, ...(v.job ? { job: v.job } : {}), ...(v.vName ? { v_name: v.vName } : {}) } };
+  }
+  const w = await db.workflow.findUnique({ where: { key: id }, select: { name: true, archivedAt: true } });
+  if (!w || w.archivedAt) throw new HttpError(404, "الورك فلو مش موجود");
+  return { title: w.name, words: {} };
+}
+
 // ───────────────────────────── the values on the cards ─────────────────────────────
 
 /** card id → field id → value */
@@ -195,12 +261,8 @@ export async function getValues(entity: Entity, ids: string[]): Promise<ValueMap
  */
 export async function setValues(entity: Entity, entityId: string, input: Record<string, unknown>, caller: Caller): Promise<Record<string, string | number>> {
   const cfg = await getUiConfig();
-  let board: string | undefined;
-  if (entity === "task") {
-    const t = await db.task.findUnique({ where: { id: entityId }, select: { board: true, archivedAt: true } });
-    if (!t) throw new HttpError(404, "المهمة مش موجودة");
-    board = t.board;
-  }
+  const card = await cardOf(entity, entityId, cfg);
+  const board = card.board;
   const allowed = new Map(fieldsFor(cfg, entity, board).map((f) => [f.id, f]));
   const writes: { fieldId: string; value: string | number | null }[] = [];
   for (const [fieldId, raw] of Object.entries(input)) {
@@ -231,28 +293,16 @@ export async function runButton(buttonId: string, entity: Entity, entityId: stri
   const cfg = await getUiConfig();
   const button = cfg.buttons.find((b) => b.id === buttonId && b.entity === entity && !b.archivedAt && !b.hidden);
   if (!button) throw new HttpError(404, "الزر مش موجود");
-  if (entity !== "task") throw new HttpError(400, "الأزرار لبطاقات المهام هلأ");
-  const task = await db.task.findUnique({ where: { id: entityId } });
-  if (!task || task.archivedAt) throw new HttpError(404, "المهمة مش موجودة");
-  if (!buttonsFor(cfg, "task", task.board).some((b) => b.id === button.id)) throw new HttpError(409, "الزر مش على هاللوحة");
+  const card = await cardOf(entity, entityId, cfg);
+  if (!buttonsFor(cfg, entity, card.board).some((b) => b.id === button.id)) throw new HttpError(409, "الزر مش على هاللوحة");
   await ensureSeeded();
   const wf = await db.workflow.findUnique({ where: { key: button.workflow } });
   if (!wf || wf.archivedAt) throw new HttpError(404, "الورك فلو اللي ربطت فيه الزر مش موجود — عدّل الزر");
   if (!wf.enabled) throw new HttpError(409, "هالورك فلو مطفي — شغّله أول");
 
-  const values = (await getValues("task", [task.id]))[task.id] ?? {};
-  const inputs: Record<string, string | number> = {
-    card: "task",
-    card_id: task.id,
-    card_title: task.title.slice(0, 200),
-    board: (effectiveBoards(cfg).find((b) => b.key === task.board)?.label ?? task.board).slice(0, 200),
-    status: TASK_COLUMNS.find((c) => c.key === task.status)?.label ?? task.status,
-    priority: PRIORITIES.find((p) => p.key === task.priority)?.label ?? task.priority,
-    button: button.label,
-    ...(task.assignee ? { assignee: assigneeName(task.assignee) ?? task.assignee } : {}),
-    ...(task.dueAt ? { due: task.dueAt.toISOString().slice(0, 10) } : {}),
-  };
-  for (const f of fieldsFor(cfg, "task", task.board)) {
+  const values = (await getValues(entity, [entityId]))[entityId] ?? {};
+  const inputs: Record<string, string | number> = { card: entity, card_id: entityId, card_title: card.title.slice(0, 200), button: button.label, ...card.words };
+  for (const f of fieldsFor(cfg, entity, card.board)) {
     const v = values[f.id];
     if (v === undefined || Object.keys(inputs).length >= 20) continue;
     let k = f.label.slice(0, 40);
@@ -260,7 +310,7 @@ export async function runButton(buttonId: string, entity: Entity, entityId: stri
     inputs[k] = typeof v === "number" ? v : String(v).slice(0, 200);
   }
   try {
-    return await createHandoff({ workflow: button.workflow, kind: "manual_run", title: `«${button.label}» — ${task.title}`.slice(0, 160), inputs, assignee: "claude" }, { type: "user", id: caller.id }, new Date(), { card: task.id });
+    return await createHandoff({ workflow: button.workflow, kind: "manual_run", title: `«${button.label}» — ${card.title}`.slice(0, 160), inputs, assignee: "claude" }, { type: "user", id: caller.id }, new Date(), { card: entityId });
   } catch (e) {
     if (e instanceof HandoffRefused) throw new HttpError(e.status, e.message);
     if (e instanceof UnknownJob) throw new HttpError(404, "الورك فلو اللي ربطت فيه الزر مش موجود — عدّل الزر");

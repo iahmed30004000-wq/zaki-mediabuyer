@@ -4,6 +4,9 @@ import { BoardView } from "@/components/videos/board-view";
 import { loadCreatives, loadDuplicates } from "@/lib/creatives-view";
 import { loadDataset } from "@/lib/source";
 import { loadBoard } from "@/lib/videos-board";
+import { loadEntityCustom } from "@/lib/ui-view";
+import { can } from "@/core/roles";
+import { currentCaller } from "@/server/auth";
 import { STAGE_FLOW } from "@/lib/mock/data";
 
 export const metadata = { title: "الفيديوهات" };
@@ -21,11 +24,13 @@ const TABS = [
 export default async function VideosPage({ searchParams }: { searchParams: { tab?: string } }) {
   const tab = searchParams.tab === "flow" ? "flow" : "board";
   if (tab === "board") {
-    const board = await loadBoard();
+    const [board, me] = await Promise.all([loadBoard(), currentCaller()]);
+    const keys = board.products.flatMap((p) => [...p.winners, ...p.learning, ...p.rest].map((v) => v.key));
+    const custom = await loadEntityCustom("video", keys);
     return (
       <div className="space-y-6">
         <TabNav tabs={TABS} active={tab} base="/videos" label="الفيديوهات" tour="tabs" />
-        <BoardView data={board} />
+        <BoardView data={board} custom={custom} canEdit={!!me && !me.demo && can(me.role, "propose_change")} />
       </div>
     );
   }

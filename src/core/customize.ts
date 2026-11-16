@@ -26,9 +26,9 @@ export const LIMITS = { pages: 40, boards: 30, fields: 60, buttons: 30, label: 4
 /** What the stored document may hold in all (the put-away ones included): far above what a person has active, so history never makes it unreadable. */
 const STORED_MAX = 300;
 
-export const ENTITIES = ["task", "video"] as const;
+export const ENTITIES = ["task", "video", "workflow"] as const;
 export type Entity = (typeof ENTITIES)[number];
-export const ENTITY_AR: Record<Entity, string> = { task: "المهام", video: "الفيديوهات" };
+export const ENTITY_AR: Record<Entity, string> = { task: "المهام", video: "الفيديوهات", workflow: "الورك فلو" };
 
 export const FIELD_TYPES = ["text", "number", "date", "select", "person", "link"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -135,11 +135,11 @@ export function parseUiConfig(raw: unknown): UiConfig {
 // ───────────────────────────── small helpers ─────────────────────────────
 
 export type UiEdit =
-  | { ok: true; config: UiConfig; note: string; /** a board merge undone: these tasks go back */ moveBack?: { from: string; into: string; ids: string[] } }
+  | { ok: true; config: UiConfig; note: string; /** a board merge undone: these tasks go back */ moveBack?: { from: string; into: string; ids: string[] }; /** a field changed type: its stored values are rewritten for the new type */ convert?: { fieldId: string } }
   | { ok: false; error: string };
 
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
-const done = (config: UiConfig, note: string, extra: { moveBack?: { from: string; into: string; ids: string[] } } = {}): UiEdit => ({ ok: true, config, note, ...extra });
+const done = (config: UiConfig, note: string, extra: { moveBack?: { from: string; into: string; ids: string[] }; convert?: { fieldId: string } } = {}): UiEdit => ({ ok: true, config, note, ...extra });
 
 /** A name as a duplicate check sees it: no marks, no spaces or dashes, and no «ال» in front of any word («سد التسريب» = «سد تسريب»). */
 const squash = (s: string) =>
@@ -778,6 +778,79 @@ export function restoreButton(cfg: UiConfig, id: string): UiEdit {
   return done({ ...cfg, buttons: cfg.buttons.map((x) => (x.id === id ? rest : x)) }, `زر «${b.label}» رجع`);
 }
 
+// ───────────────────────────── drag to reorder, and changing a field's type ─────────────────────────────
+
+/** `id` takes the place of `onto` (and the ones between shift by one) — what dropping a row onto another means. Only items `eligible` count. */
+function dropOnto<T>(list: T[], from: number, onto: number, eligible: (x: T) => boolean): T[] | null {
+  if (from < 0 || onto < 0 || from === onto || !eligible(list[from]!) || !eligible(list[onto]!)) return null;
+  const out = list.filter((_, i) => i !== from);
+  out.splice(onto, 0, list[from]!);
+  return out;
+}
+
+export function movePageTo(cfg: UiConfig, builtins: BuiltinPage[], k: string, onto: string): UiEdit {
+  const f = findPage(cfg, builtins, k);
+  if ("error" in f) return fail(f.error);
+  const shown = new Set(visiblePages(effectivePages(f.base, builtins)).map((p) => p.key));
+  if (!shown.has(k) || !shown.has(onto)) return fail("اظهرها أول");
+  const next = dropOnto(f.base.pages, f.base.pages.findIndex((p) => p.key === k), f.base.pages.findIndex((p) => p.key === onto), (p) => shown.has(p.key));
+  return next ? done({ ...f.base, pages: next }, `صفحة «${f.eff.label}» اتحرّكت`) : fail("ما تغيّر ترتيب");
+}
+
+export function moveBoardTo(cfg: UiConfig, k: string, onto: string): UiEdit {
+  const f = findBoard(cfg, k);
+  if ("error" in f) return fail(f.error);
+  const shown = new Set(visibleBoards(effectiveBoards(f.base)).map((b) => b.key));
+  if (!shown.has(k) || !shown.has(onto)) return fail("اظهرها أول");
+  const next = dropOnto(f.base.boards, f.base.boards.findIndex((b) => b.key === k), f.base.boards.findIndex((b) => b.key === onto), (b) => shown.has(b.key));
+  return next ? done({ ...f.base, boards: next }, `لوحة «${f.eff.label}» اتحرّكت`) : fail("ما تغيّر ترتيب");
+}
+
+export function moveFieldTo(cfg: UiConfig, id: string, onto: string): UiEdit {
+  const f = cfg.fields.find((x) => x.id === id);
+  const t = cfg.fields.find((x) => x.id === onto);
+  if (!f || !t) return fail("الحقل مش موجود");
+  if (f.entity !== t.entity) return fail("الحقلين مش على نفس نوع البطاقة");
+  const next = dropOnto(cfg.fields, cfg.fields.indexOf(f), cfg.fields.indexOf(t), (x) => x.entity === f.entity && !x.archivedAt);
+  return next ? done({ ...cfg, fields: next }, `حقل «${f.label}» اتحرّك`) : fail("ما تغيّر ترتيب");
+}
+
+export function moveButtonTo(cfg: UiConfig, id: string, onto: string): UiEdit {
+  const b = cfg.buttons.find((x) => x.id === id);
+  const t = cfg.buttons.find((x) => x.id === onto);
+  if (!b || !t) return fail("الزر مش موجود");
+  if (b.entity !== t.entity) return fail("الزرّين مش على نفس نوع البطاقة");
+  const next = dropOnto(cfg.buttons, cfg.buttons.indexOf(b), cfg.buttons.indexOf(t), (x) => x.entity === b.entity && !x.archivedAt);
+  return next ? done({ ...cfg, buttons: next }, `زر «${b.label}» اتحرّك`) : fail("ما تغيّر ترتيب");
+}
+
+/**
+ * A field becomes another type — only when EVERY value it holds fits the new type (a text «12» becomes the number 12; a text
+ * «سلام» does not become a number). One that does not fit stops the change and says how many: nothing is guessed and nothing is
+ * dropped. `values` are the values now stored for it. The caller rewrites each one through `validateValue` for the new field.
+ */
+export function convertField(cfg: UiConfig, id: string, to: FieldType, values: unknown[], options?: string[]): UiEdit {
+  const f = cfg.fields.find((x) => x.id === id);
+  if (!f) return fail("الحقل مش موجود");
+  if (f.archivedAt) return fail("الحقل بالمحذوفات — رجّعه أول");
+  if (f.type === to) return fail(`هو أصلاً من نوع ${FIELD_TYPE_AR[to]}`);
+  let nextOptions: string[] | undefined;
+  if (to === "select") {
+    const o = cleanOptions(options);
+    if (!o.ok) return o;
+    if (o.options.length < 2) return fail("الاختيار بدو خيارين على الأقل");
+    nextOptions = o.options;
+  }
+  if (activeFields(cfg, f.entity).some((x) => x.id !== id && x.type === to && sameName(x.label, f.label))) return fail("في حقل بنفس الاسم والنوع الجديد — ادمجهم");
+  const target = { type: to, label: f.label, ...(nextOptions ? { options: nextOptions } : {}) };
+  const bad = values.filter((v) => !validateValue(target, v).ok).length;
+  if (bad) return fail(`${bad} قيمة من ${values.length} ما بتنفع كـ ${FIELD_TYPE_AR[to]} — عدّلها أو اعمل حقل جديد وادمج`);
+  const { options: _o, ...rest } = f;
+  void _o;
+  const next: FieldCfgT = { ...rest, type: to, ...(nextOptions ? { options: nextOptions } : {}) };
+  return done({ ...cfg, fields: cfg.fields.map((x) => (x.id === id ? next : x)) }, `حقل «${f.label}» صار ${FIELD_TYPE_AR[to]}`, { convert: { fieldId: id } });
+}
+
 // ───────────────────────────── values ─────────────────────────────
 
 export type ValueCheck = { ok: true; value: string | number | null } | { ok: false; error: string };
@@ -951,6 +1024,7 @@ export const UiOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("page.hide"), key: id, hidden: z.boolean() }).strict(),
   z.object({ op: z.literal("page.mobile"), key: id, mobile: z.boolean() }).strict(),
   z.object({ op: z.literal("page.move"), key: id, dir }).strict(),
+  z.object({ op: z.literal("page.drop"), key: id, onto: id }).strict(),
   z.object({ op: z.literal("page.archive"), key: id }).strict(),
   z.object({ op: z.literal("page.restore"), key: id }).strict(),
   z.object({ op: z.literal("page.merge"), from: id, into: id }).strict(),
@@ -958,18 +1032,22 @@ export const UiOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("board.rename"), key: id, label: z.string().max(200) }).strict(),
   z.object({ op: z.literal("board.hide"), key: id, hidden: z.boolean() }).strict(),
   z.object({ op: z.literal("board.move"), key: id, dir }).strict(),
+  z.object({ op: z.literal("board.drop"), key: id, onto: id }).strict(),
   z.object({ op: z.literal("board.archive"), key: id }).strict(),
   z.object({ op: z.literal("board.restore"), key: id }).strict(),
   z.object({ op: z.literal("board.merge"), from: id, into: id }).strict(),
   z.object({ op: z.literal("field.add"), entity: z.enum(ENTITIES), label: z.string().max(200), type: z.enum(FIELD_TYPES), options: z.array(z.string().max(100)).max(40).optional(), boards: boardsList, onCard: z.boolean().optional() }).strict(),
   z.object({ op: z.literal("field.update"), id, label: z.string().max(200).optional(), options: z.array(z.string().max(100)).max(40).optional(), boards: boardsList, onCard: z.boolean().optional(), hidden: z.boolean().optional() }).strict(),
   z.object({ op: z.literal("field.move"), id, dir }).strict(),
+  z.object({ op: z.literal("field.drop"), id, onto: id }).strict(),
+  z.object({ op: z.literal("field.convert"), id, to: z.enum(FIELD_TYPES), options: z.array(z.string().max(100)).max(40).optional() }).strict(),
   z.object({ op: z.literal("field.archive"), id }).strict(),
   z.object({ op: z.literal("field.restore"), id }).strict(),
   z.object({ op: z.literal("field.merge"), from: id, into: id }).strict(),
   z.object({ op: z.literal("button.add"), entity: z.enum(ENTITIES), label: z.string().max(200), workflow: z.string().max(60), boards: boardsList, confirm: z.boolean().optional() }).strict(),
   z.object({ op: z.literal("button.update"), id, label: z.string().max(200).optional(), workflow: z.string().max(60).optional(), boards: boardsList, confirm: z.boolean().optional(), hidden: z.boolean().optional() }).strict(),
   z.object({ op: z.literal("button.move"), id, dir }).strict(),
+  z.object({ op: z.literal("button.drop"), id, onto: id }).strict(),
   z.object({ op: z.literal("button.archive"), id }).strict(),
   z.object({ op: z.literal("button.restore"), id }).strict(),
 ]);

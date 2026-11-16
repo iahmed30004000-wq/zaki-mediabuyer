@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BatteryWarning, ChevronDown, ExternalLink, FileText, FlaskConical, Play, Sparkles } from "lucide-react";
@@ -9,11 +9,15 @@ import { EmptyState } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
+import { CardCustom, type EntityCustom } from "@/components/customize/card-custom";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { REQUEST_KINDS, REQUEST_KIND_AR, REQUEST_STATUS_AR, REQUEST_STEPS, canMoveRequest, type RequestKind, type RequestStatus } from "@/core/video-board";
 import type { BoardData, BoardProduct, BoardRequest, BoardVideo } from "@/lib/videos-board";
 import { cn } from "@/lib/utils";
+
+/** The owner's fields and buttons for video cards (set in «وضع التعديل»), shared with every card of the board. */
+const CustomCtx = createContext<{ custom?: EntityCustom; canEdit: boolean }>({ canEdit: false });
 
 const ICON: Record<RequestKind, typeof Sparkles> = { new_hooks: Sparkles, new_script: FileText, to_test: FlaskConical, tired: BatteryWarning };
 const TONE = { ok: "text-ok", warn: "text-warn", danger: "text-danger" } as const;
@@ -106,6 +110,7 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
 
 function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy: string | null; ask: (v: BoardVideo, kind: RequestKind) => void }) {
   const [peek, setPeek] = useState(false);
+  const { custom, canEdit } = useContext(CustomCtx);
   const tired = v.fatigue.state === "tired";
   return (
     <li className="space-y-3 rounded-xl border border-border bg-surface-1 p-3">
@@ -144,6 +149,8 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
       </dl>
 
       {tired ? <p className="rounded-lg bg-warn/5 p-2 text-xs leading-5 text-fg">{v.fatigue.text}</p> : null}
+
+      <CardCustom entity="video" entityId={v.key} custom={custom} canEdit={canEdit} />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         {v.previewUrl ? (
@@ -337,7 +344,7 @@ function MinSpend({ typed }: { typed: number | null }) {
  * الفيديوهات, the board per product (v3 · D): the bank against 50, the winners ranked by the cost of a real order, the tired
  * ones, and four buttons on every card — each one a request to Hermes, shown as a card on المهام. Never edits a video.
  */
-export function BoardView({ data }: { data: BoardData }) {
+export function BoardView({ data, custom, canEdit = false }: { data: BoardData; custom?: EntityCustom; canEdit?: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const mission = useMission();
@@ -396,11 +403,13 @@ export function BoardView({ data }: { data: BoardData }) {
       </div>
 
       {data.products.length ? (
-        <div className="space-y-4">
-          {data.products.map((p) => (
-            <ProductBoard key={p.code} p={p} busy={busy} ask={ask} move={move} />
-          ))}
-        </div>
+        <CustomCtx.Provider value={{ custom, canEdit }}>
+          <div className="space-y-4">
+            {data.products.map((p) => (
+              <ProductBoard key={p.code} p={p} busy={busy} ask={ask} move={move} />
+            ))}
+          </div>
+        </CustomCtx.Provider>
       ) : (
         <EmptyState title="لسا ما في فيديوهات" hint="لما يبعت Claude بنك الفيديوهات (push_videos) أو يستلم النظام من درايف، بتطلع هون لكل منتج." art="empty-creatives" />
       )}

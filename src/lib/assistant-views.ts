@@ -106,6 +106,42 @@ export function numbersOutput(d: NumbersLike, o: { q: RangeQuery; product?: { co
   );
 }
 
+// ───────────────────────────── a week, a month ─────────────────────────────
+
+/** A product needs at least this many orders in the window to be called the cheapest or the dearest — one lucky order is not a ranking. */
+export const SUMMARY_MIN_ORDERS = 5;
+const SUMMARY_STATS: SetKey[] = ["spend", "ordersIn", "costPerOrder", "confirmed", "confirmRate", "delivered", "expectedProfit"];
+
+/**
+ * A week or a month in one answer: the totals against the window just before it (and the 7-day average), and the products ranked
+ * by what a real order cost them — the cheapest three and the dearest three among those with enough orders. Every number is
+ * printed by the code; the model only says it in words.
+ */
+export function summaryOutput(d: NumbersLike, o: { q: RangeQuery; period: "week" | "month" }): ToolOutput {
+  const base = numbersOutput(d, { q: o.q, compare: true, stats: SUMMARY_STATS });
+  const ranked = d.products.filter((p) => p.hasData && p.current.costPerOrder !== null && (p.current.ordersIn ?? 0) >= SUMMARY_MIN_ORDERS).sort((a, b) => a.current.costPerOrder! - b.current.costPerOrder!);
+  const cheapest = ranked.slice(0, 3);
+  const dearest = ranked.slice(3).slice(-3).reverse();
+  const row = (p: ProductNumbers) => ({ name: p.name, code: p.code, orders: num(p.current.ordersIn), cost_per_real_order: num(p.current.costPerOrder, "$"), spend: num(p.current.spend, "$") });
+  const source = base.sources[0]!;
+  const facts: Fact[] = [...base.facts];
+  for (const p of [...cheapest, ...dearest]) facts.push({ label: `تكلفة الطلب الحقيقي · ${p.name} · ${d.label}`, value: fmt(p.current.costPerOrder, "$"), raw: p.current.costPerOrder, source: source.id });
+  const quiet = d.products.filter((p) => p.hasData && (p.current.ordersIn ?? 0) < SUMMARY_MIN_ORDERS).length;
+  return toolData(
+    {
+      ...(base.data as Record<string, unknown>),
+      period: o.period === "week" ? "آخر 7 أيام" : "آخر 30 يوم",
+      ranking: {
+        min_orders_to_rank: SUMMARY_MIN_ORDERS,
+        cheapest: cheapest.map(row),
+        dearest: dearest.map(row),
+        not_ranked: quiet ? `${quiet} منتج أقل من ${SUMMARY_MIN_ORDERS} طلبات بهالفترة — ما انحسبوا بالترتيب` : null,
+      },
+    },
+    { facts, sources: base.sources },
+  );
+}
+
 // ───────────────────────────── «الإعلانات» ─────────────────────────────
 
 const LEVEL_AR: Record<Level, string> = { campaign: "حملة", adset: "مجموعة", ad: "إعلان" };
