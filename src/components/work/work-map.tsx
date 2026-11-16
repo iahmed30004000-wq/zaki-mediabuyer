@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { Segmented } from "@/components/ui/segmented";
 import { EmptyState } from "@/components/ui/card";
 import type { JobCounters } from "@/core/jobs";
 import { DOMAIN_AR } from "@/core/jobs";
 import type { JobView } from "@/lib/jobs-view";
+import { DecisionSheet } from "./decision-sheet";
 import { JobCard } from "./job-card";
 
 const TILES: { key: keyof Pick<JobCounters, "running" | "problem" | "upcoming" | "manual" | "off">; label: string; tone: string }[] = [
@@ -20,11 +23,22 @@ const TILES: { key: keyof Pick<JobCounters, "running" | "problem" | "upcoming" |
  * The map: five counters on top (running · a problem · coming · on request · off), then two columns — ads, and team and operations.
  * On a phone one column at a time, with a switch. A job with no number yet goes at the end of its column.
  */
-export function WorkMap({ jobs, counters }: { jobs: JobView[]; counters: JobCounters }) {
+export function WorkMap({ jobs, counters, canDecide = false }: { jobs: JobView[]; counters: JobCounters; canDecide?: boolean }) {
   const [domain, setDomain] = useState<"ads" | "ops">("ads");
+  const [sheet, setSheet] = useState(false);
   const col = (d: "ads" | "ops") => jobs.filter((j) => j.domain === d);
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {canDecide ? (
+          <Button variant={sheet ? "primary" : "secondary"} size="sm" aria-pressed={sheet} onClick={() => setSheet((v) => !v)}>
+            ورقة القرار
+          </Button>
+        ) : null}
+        <ButtonLink href="/print/work" variant="secondary" size="sm" target="_blank">
+          نسخة للطباعة
+        </ButtonLink>
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5" data-tour="counters">
         {TILES.map((t) => (
           <div key={t.key} className="rounded-card border border-border bg-surface-1 p-3">
@@ -36,7 +50,9 @@ export function WorkMap({ jobs, counters }: { jobs: JobView[]; counters: JobCoun
         ))}
       </div>
 
-      {jobs.length === 0 ? (
+      {sheet ? (
+        <DecisionSheet jobs={jobs} onClose={() => setSheet(false)} />
+      ) : jobs.length === 0 ? (
         <EmptyState title="ما في مهام مجدولة" hint="Claude لسا ما بعت خريطة مهامه — لما يبعتها بتشوفها هون بأرقامها." />
       ) : (
         <>

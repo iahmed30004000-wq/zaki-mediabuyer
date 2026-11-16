@@ -112,3 +112,16 @@ export function dayLine(jobs: readonly LineJob[], runs: readonly LineRun[], boun
 }
 
 export const DOT_AR: Record<DotState, string> = { done: "خلص", failed: "فشل", running: "شغّال", missed: "فات", coming: "جاي", manual: "يدوي" };
+
+/** The half hour with the most dots on it — «أزحم وقت». Ties go to the earliest. Null when the day is empty. */
+export function busiestSlot(dots: readonly Pick<DayDot, "at">[], bucketMin = 30): { from: string; count: number } | null {
+  const size = bucketMin * 60_000;
+  const by = new Map<number, number>();
+  for (const d of dots) {
+    const b = Math.floor(Date.parse(d.at) / size) * size;
+    by.set(b, (by.get(b) ?? 0) + 1);
+  }
+  let best: { at: number; count: number } | null = null;
+  for (const [at, count] of by) if (!best || count > best.count || (count === best.count && at < best.at)) best = { at, count };
+  return best ? { from: new Date(best.at).toISOString(), count: best.count } : null;
+}

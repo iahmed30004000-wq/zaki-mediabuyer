@@ -1,6 +1,6 @@
 /**
  * Claude's link to the app (v4 · A), end to end on the local database — through the real route handler, with a real
- * token: auth, the nineteen tools, the numbers landing where the screens and the truth job read them, the privacy net,
+ * token: auth, the twenty tools, the numbers landing where the screens and the truth job read them, the privacy net,
  * idempotency, approvals and the owner's answer, the switch, the rules, workflows, stock, videos, tasks.
  * `npx tsx --env-file=.env scripts/demo-mcp.ts`  (the database from `docker compose up -d`, migrated)
  */
@@ -18,6 +18,9 @@ import { computeTruthDays } from "../src/jobs/truth";
 import { loadDataset } from "../src/lib/source";
 import { ApprovalInput, decideApproval, requestApproval } from "../src/server/approvals";
 import { loadJobs } from "../src/lib/jobs-view";
+import { applyDecisions } from "../src/server/jobs";
+import { busiestSlot } from "../src/core/timeline";
+import { getReport, loadReports } from "../src/server/reports";
 import { runsOf } from "../src/server/workflows";
 import { countInbox, getInboxItem, loadInbox, loadInboxDone, loadInboxLater } from "../src/server/inbox";
 import { GET as inboxGet } from "../src/app/api/inbox/route";
@@ -153,7 +156,7 @@ async function clean() {
   check((await call({ jsonrpc: "2.0", method: "notifications/initialized" })).status === 202, "notifications/initialized → 202");
   const list = await call(rpc("tools/list"));
   const names = (list.json?.result?.tools as { name: string; inputSchema: { required?: string[] } }[]).map((t) => t.name);
-  check(names.length === 19 && ["push_metrics", "log_run", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff", "get_video_requests", "claim_video_request", "complete_video_request"].every((n) => names.includes(n)), "tools/list: nineteen tools (twelve + the handoff queue + the video requests)", names);
+  check(names.length === 20 && ["push_metrics", "log_run", "push_jobs", "request_approval", "get_approvals", "get_mode", "get_rules", "get_handoffs", "claim_handoff", "complete_handoff", "create_handoff", "get_video_requests", "claim_video_request", "complete_video_request"].every((n) => names.includes(n)), "tools/list: twenty tools (twelve + the handoff queue + the video requests + push_jobs)", names);
   const pm = (list.json?.result?.tools as { name: string; inputSchema: any }[]).find((t) => t.name === "push_metrics")!;
   check(pm.inputSchema.properties.rows.items.required.join() === "date,level,id", "push_metrics advertises the row schema (date, level, id required)");
   check(!names.some((n) => /delete|remove|execute|approve$|spend/.test(n)), "no delete / execute / spend tool exists");
@@ -895,6 +898,74 @@ async function clean() {
     else process.env.PRIVACY_MODE = wasPrivacy;
     if (wasKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = wasKey;
+  }
+
+
+  // ── push_jobs + the decision sheet (V5 · P6) ──
+  {
+    const owner = { type: "user" as const, id: "demo-mcp-user" };
+    const keys = ["demo-p6-a", "demo-p6-b", "demo-p6-c"];
+    const push = (jobs: unknown[], replace = false) => tool("push_jobs", { jobs, replace });
+    const r1 = await push([
+      { key: "demo-p6-a", number: 91, name: "مهمة أ", domain: "ads", kind: "recurring", schedule: "0 9 * * *", branches: [{ id: "x1", label: "فرع أول" }, { id: "x2", label: "فرع تاني" }], advice: "cancel", advice_text: "ما إلها لزوم" },
+      { key: "demo-p6-b", number: 92, name: "مهمة ب", domain: "ops", kind: "once", runs_at: "2026-12-01T10:00:00Z", schedule_text: "مرة وحدة الليلة" },
+      { key: "demo-p6-c", number: 93, name: "مهمة ج", domain: "ads", kind: "window", ends_at: "2026-12-05T10:00:00Z", schedule_text: "كل ساعتين لآخر اليوم" },
+    ]);
+    const j1 = (r1.data?.jobs ?? []) as { key: string; ok: boolean; created?: boolean; enabled?: boolean; branches?: { id: string; enabled: boolean }[] }[];
+    check(!r1.isError && j1.length === 3 && j1.every((j) => j.ok && j.created && j.enabled === true), "push_jobs: three jobs (recurring, one-off, window) land and answer enabled", j1);
+    const map = (await loadJobs()).jobs;
+    check(map.find((j) => j.key === "demo-p6-a")?.number === 91 && map.find((j) => j.key === "demo-p6-b")?.badge.key === "once" && map.find((j) => j.key === "demo-p6-c")?.badge.key === "window", "…and show on the map with their numbers and badges");
+    check(map.find((j) => j.key === "demo-p6-a")?.branches.map((b) => b.number).join() === "91.1,91.2", "…with branch numbers 91.1, 91.2");
+    const inboxA = (await loadInbox({ id: "demo-mcp-user", role: "OWNER", demo: false })).find((i) => i.id === "advice:demo-p6-a");
+    check(inboxA?.kind === "advice" && inboxA.actions[0]?.key === "cancel", "advice with no decision is a decision in «بانتظارك», the advised answer first");
+
+    // the owner's word wins
+    await db.workflow.update({ where: { key: "demo-p6-a" }, data: { enabled: false } });
+    const g = (await db.workflow.findUnique({ where: { key: "demo-p6-a" } }))!.graph as { nodes: { id: string; disabled?: boolean }[] };
+    await db.workflow.update({ where: { key: "demo-p6-a" }, data: { graph: { ...g, nodes: g.nodes.map((n) => (n.id === "x1" ? { ...n, disabled: true } : n)) } as never } });
+    const r2 = await push([{ key: "demo-p6-a", number: 91, name: "مهمة أ — محدّثة", domain: "ads", kind: "recurring", schedule: "0 9 * * *", branches: [{ id: "x1", label: "فرع أول", enabled: true }, { id: "x2", label: "فرع تاني" }, { id: "x3", label: "فرع جديد" }] }]);
+    const a2 = ((r2.data?.jobs ?? []) as { key: string; enabled?: boolean; branches?: { id: string; enabled: boolean }[] }[])[0]!;
+    check(a2.enabled === false, "push_jobs does not switch back on a job the owner switched off");
+    check(a2.branches?.find((b) => b.id === "x1")?.enabled === false && a2.branches?.find((b) => b.id === "x3")?.enabled === true, "…nor a branch he switched off; a new branch is added", a2.branches);
+    check((await db.workflow.findUnique({ where: { key: "demo-p6-a" } }))?.name === "مهمة أ — محدّثة", "…but the name and the fields are updated");
+
+    // refusals do not stop the others
+    const r3 = await push([{ key: "demo-p6-b", number: 92, name: "كلّم 0791234567", domain: "ops", kind: "once" }, { key: "demo-p6-c", number: 93, name: "مهمة ج", domain: "ads", kind: "window", schedule: "not a cron" }]);
+    const j3 = (r3.data?.jobs ?? []) as { ok: boolean; error?: string }[];
+    check(j3.length === 2 && j3.every((j) => j.ok === false && !!j.error), "a phone number in a name, and a bad cron, are refused per job");
+
+    // the decision sheet: one transaction, one handoff with the numbers
+    const done = await applyDecisions({ items: [{ key: "demo-p6-b", decision: "cancel" }, { key: "demo-p6-c", decision: "keep", branches: {} }, { key: "demo-p6-a", decision: "keep", branches: { x2: false } }] }, owner);
+    const after = await db.workflow.findMany({ where: { key: { in: keys } } });
+    const byKey = Object.fromEntries(after.map((w) => [w.key, w]));
+    check(done.applied === 3 && byKey["demo-p6-b"]!.enabled === false && byKey["demo-p6-b"]!.decision === "cancel" && byKey["demo-p6-b"]!.finishedAt !== null, "decision sheet: «cancel» switches the job off (a one-off is finished too)");
+    check(byKey["demo-p6-c"]!.decision === "keep" && byKey["demo-p6-c"]!.enabled === true, "…«keep» records the decision and leaves it on");
+    check(((byKey["demo-p6-a"]!.graph as { nodes: { id: string; disabled?: boolean }[] }).nodes.find((n) => n.id === "x2")?.disabled) === true, "…a branch marked off is switched off (a new drawing version)");
+    const ho = done.handoffId ? await db.handoff.findUnique({ where: { id: done.handoffId } }) : null;
+    check(!!ho && ho.title.includes("ورقة القرار") && ho.title.includes("92") && (ho.title.match(/ورقة القرار/g) ?? []).length === 1, "…and ONE handoff to Claude with the numbers", ho?.title);
+    const l = await tool("log_run", { job: "demo-p6-b", ref: "demo-p6-run", status: "ok" });
+    check(!l.isError && /enabled=false/.test(l.text), "log_run on a cancelled job tells Claude it is off (enabled=false)");
+    check(!(await loadInbox({ id: "demo-mcp-user", role: "OWNER", demo: false })).some((i) => i.id === "advice:demo-p6-a"), "an answered advice leaves the inbox");
+
+    // replace: a missing job of Claude's is marked finished, not deleted
+    const r4 = await push([{ key: "demo-p6-c", number: 93, name: "مهمة ج", domain: "ads", kind: "window", ends_at: "2026-12-05T10:00:00Z" }], true);
+    const fin = (r4.data?.finished ?? []) as string[];
+    check(fin.includes("demo-p6-a") && !fin.includes("demo-p6-b") && !fin.includes("demo-p6-c") && !!(await db.workflow.findUnique({ where: { key: "demo-p6-a" } })), "replace: a job of Claude missing from the list is marked finished (one already finished is left), never deleted", fin.filter((k) => k.startsWith("demo-p6")));
+
+    // reports: the full text and the list
+    await tool("log_run", { job: "demo-p6-c", ref: "demo-p6-rep", status: "ok", summary: "خلص", report: "تقرير كامل ج", metrics: { moved: 3 } });
+    const rep = (await loadReports({ limit: 50, jobKey: "demo-p6-c" }))[0];
+    check(rep?.hasFull === true && rep.jobNumber === 93, "the reports list has the run, with its number and «full report»");
+    const detail = rep ? await getReport(rep.id) : null;
+    check(detail?.text === "تقرير كامل ج" && detail.metrics[0]?.label === "moved", "one report: the text and the run's numbers", detail && { text: detail.text, m: detail.metrics });
+    check((await getReport("nonsense")) === null && (await getReport("run:nope")) === null, "an unknown report is null");
+    check(busiestSlot([{ at: "2026-11-16T07:01:00Z" }, { at: "2026-11-16T07:10:00Z" }])?.count === 2, "the busiest half hour is computed");
+
+    await db.workflowRun.deleteMany({ where: { workflow: { key: { in: keys } } } });
+    await db.handoff.deleteMany({ where: { workflowKey: { in: keys } } });
+    await db.workflowVersion.deleteMany({ where: { workflow: { key: { in: keys } } } });
+    await db.workflow.deleteMany({ where: { key: { in: keys } } });
+    await db.auditLog.deleteMany({ where: { OR: [{ action: "work.decision" }, { action: "workflow.push_jobs" }] } });
   }
 
 

@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 33 · done-local-only 38 · blocked 20 · not-started 13 (المجموع 104).
+> **العدّ:** done-live 34 · done-local-only 38 · blocked 20 · not-started 12 (المجموع 104).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -96,7 +96,7 @@
 | V5-P3 | بانتظارك: مكان واحد وبطاقة وحدة لكل قرار | `done-live` | `src/core/inbox.ts` + `src/server/inbox.ts` · بطاقة قرار وحدة (`DecisionCard`) · `/inbox` `/inbox/later` `/inbox/done` `/inbox/[id]` · `GET /api/inbox` · شاشة الرنين على نفس البطاقة · روابط تيليجرام لـ `/inbox/<id>` · `docs/rebuild/NOTES.md` |
 | V5-P4 | الرئيسية + صفحات المنتجات | `done-live` | `src/core/timeline.ts` (يوم الشغل 06:00–06:00 + خط اليوم) · `src/server/reports.ts` · رئيسية جديدة بأقسام Suspense · `/products/[code]` · `/ads?product=` ← صفحة المنتج |
 | V5-P5 | الشغل ١: خريطة المهام وصفحة المهمة | `done-live` | هجرة `job_meta` (أعمدة `Workflow` + `WorkflowRun.report`) · `src/core/jobs.ts` (شارة · عدّادات · أرقام الفروع · الموعد بالكلام) · `/work` الخريطة · `/work/job/[key]` · `/print/work` · `log_run` بيقبل `report` |
-| V5-P6 | الشغل ٢: الخريطة من Claude · اليوم · التقارير · ورقة القرار | `not-started` | |
+| V5-P6 | الشغل ٢: الخريطة من Claude · اليوم · التقارير · ورقة القرار | `done-live` | `push_jobs` (الأداة 20) · `/api/work/decisions` + ورقة القرار · مصدر `advice` بـ «بانتظارك» · `/work/today` (الخط الكامل + أزحم وقت) · `/work/reports` + `[id]` + `/print/report/[id]` · مهام الفريق: حسب الشخص أو كانبان |
 | V5-P7 | الأوامر السارية + صفحة القواعد | `not-started` | |
 | V5-P8 | الإعلانات: اللوحة والحملات والفيديوهات | `not-started` | |
 | V5-P9 | التشغيل: اللوحة وأرقام الفريق والمخزون | `not-started` | |

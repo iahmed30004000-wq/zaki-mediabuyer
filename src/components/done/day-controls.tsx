@@ -40,13 +40,13 @@ export function DayControls({ day, today }: { day: string; today: string }) {
     <div className="flex flex-wrap items-center gap-2" data-tour="day">
       <div role="group" aria-label="اليوم" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
         {choices.map((c) => (
-          <Link key={c.key} href={`/done?tab=day&day=${c.key}`} aria-current={c.key === day ? "date" : undefined} className={cn("inline-flex min-h-9 shrink-0 items-center rounded-md px-3 text-sm font-medium", c.key === day ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
+          <Link key={c.key} href={`/work/today?day=${c.key}`} aria-current={c.key === day ? "date" : undefined} className={cn("inline-flex min-h-9 shrink-0 items-center rounded-md px-3 text-sm font-medium", c.key === day ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
             {c.label}
           </Link>
         ))}
         <span className={cn("inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-2", custom ? "bg-accent text-accent-fg" : "text-fg-muted")}>
           <CalendarDays className="size-3.5" />
-          <Input type="date" dir="ltr" aria-label="تاريخ تاني" value={day} onChange={(e) => e.target.value && router.push(`/done?tab=day&day=${e.target.value}`)} className="h-7 w-36 border-0 bg-transparent p-0 text-sm text-inherit" />
+          <Input type="date" dir="ltr" aria-label="تاريخ تاني" value={day} onChange={(e) => e.target.value && router.push(`/work/today?day=${e.target.value}`)} className="h-7 w-36 border-0 bg-transparent p-0 text-sm text-inherit" />
         </span>
       </div>
       <div className="relative ms-auto">
