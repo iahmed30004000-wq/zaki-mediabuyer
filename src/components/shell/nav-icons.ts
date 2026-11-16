@@ -1,10 +1,8 @@
 import { ExternalLink, Link2, ListTodo, type LucideIcon } from "lucide-react";
 import type { EffPage } from "@/core/customize";
-import { PLACES } from "@/lib/nav";
 
-/** The icon of a page: the place's own, or one for a board or a link the owner made. */
-export function iconOfPage(p: Pick<EffPage, "key" | "builtin" | "kind" | "external">): LucideIcon {
-  if (p.builtin) return PLACES.find((x) => x.key === p.key)?.icon ?? ListTodo;
+/** The icon of a page of «وضع التعديل» (retired in P11): a board or a link the owner made. The five places carry their own icon (src/lib/nav.ts). */
+export function iconOfPage(p: Pick<EffPage, "kind" | "external">): LucideIcon {
   if (p.kind === "board") return ListTodo;
   return p.external ? ExternalLink : Link2;
 }

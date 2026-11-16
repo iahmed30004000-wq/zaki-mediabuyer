@@ -33,7 +33,6 @@ export function ReadinessPanel({ data }: { data: Readiness }) {
           {linked} من {data.rows.length} مربوطين. كل سطر بيقول إذا المفتاح موجود (بأسماء الناقص بس، ولا قيمة) ومتى صار آخر نداء حقيقي وكيف خلص. الفحص الحي: <code dir="ltr">docs/LIVE_CHECKS.md</code>
         </p>
       </div>
-      {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">الموقع هلأ بالوضع التجريبي (MOCK_MODE=1): ما في نداءات حقيقية لأي نظام. لما ينقلب لـ 0، أي مسار مفتاحه ناقص بيوقف برسالة بتسمّي المفتاح — ما بيقلّد النجاح.</p> : null}
       <div className="grid gap-2 md:grid-cols-2">
         {data.rows.map((r) => {
           const v = verdict(r);

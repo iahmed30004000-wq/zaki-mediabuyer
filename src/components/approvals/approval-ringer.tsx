@@ -86,7 +86,7 @@ export function ApprovalRinger() {
     );
   }
   const first = waiting[0];
-  if (!first || pathname.startsWith("/tasks")) return null;
+  if (!first || pathname.startsWith("/inbox")) return null;
   return (
     <div className="fixed inset-x-3 top-[4.75rem] z-40 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-warn/40 bg-surface-1 px-3 py-2 shadow-card md:top-[4.75rem]">
       <PhoneMissed className="size-5 shrink-0 text-warn" />
@@ -94,7 +94,7 @@ export function ApprovalRinger() {
         <span className="block truncate font-medium text-fg">{waiting.length > 1 ? `${waiting.length} موافقات بانتظارك` : `بانتظارك: ${first.title}`}</span>
         <span className="block truncate text-xs text-fg-muted">{first.why}</span>
       </button>
-      <Link href="/tasks#approval" className="shrink-0 text-xs font-medium text-accent">
+      <Link href="/inbox" className="shrink-0 text-xs font-medium text-accent">
         افتح
       </Link>
     </div>

@@ -109,7 +109,7 @@ export function Consultant() {
     setLog((l) => [...l, { me: true, text: "اشرح لي هالشاشة" }, { me: false, text: `${g.what}\n\nالخطوة الجاية: ${g.next}`, by: "guide", tour: true }]);
   };
 
-  // On a phone the button lives in the page header (no floating button over the content): it sends this event.
+  // The button lives in the page header (no floating button over the content): it sends this event.
   useEffect(() => {
     const show = () => setOpen(true);
     window.addEventListener(CONSULTANT_EVENT, show);
@@ -204,14 +204,6 @@ export function Consultant() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 end-6 z-30 hidden h-12 items-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-accent-fg shadow-card hover:bg-accent/90 md:inline-flex"
-      >
-        <MessageCircleQuestion className="size-5" />
-        <span>اسأل المساعد</span>
-      </button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
           <SheetHeader>
@@ -278,7 +270,7 @@ export function Consultant() {
                   ))}
                   {!m.me && m.by === "agent" && /بقترح|اقتراح|وقّف|وقف|خفّض|كبّر/.test(m.text) ? (
                     m.drafted ? (
-                      <a href="/tasks" className="block text-xs font-medium text-accent">{m.drafted}</a>
+                      <a href="/work/tasks" className="block text-xs font-medium text-accent">{m.drafted}</a>
                     ) : (
                       <button
                         type="button"

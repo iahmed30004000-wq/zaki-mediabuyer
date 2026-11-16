@@ -5,11 +5,11 @@ import { loadEntityCustom } from "@/lib/ui-view";
 import { listHandoffs } from "@/server/handoffs";
 import { currentCaller } from "@/server/auth";
 
-export const metadata = { title: "الورك فلو" };
+export const metadata = { title: "الشغل" };
 export const dynamic = "force-dynamic";
 
-/** الورك فلو: the work that runs — who does it, when, what came out — and, while Claude runs a job, the job moving. */
-export default async function WorkflowPage() {
+/** الشغل ← المجدولة: the work that runs — who does it, when, what came out — and, while Claude runs a job, the job moving. P5 rebuilds it as the map. */
+export default async function WorkPage() {
   const [{ cards, demo }, me] = await Promise.all([loadWorkflowCards(), currentCaller()]);
   // the handoff queue is real data: on the demo there is nothing in it
   const handoffs = demo ? [] : await listHandoffs({ status: ["open", "claimed"] });

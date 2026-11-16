@@ -115,7 +115,7 @@ export function RingScreen({ approval, ringing, overlay, onLater }: { approval: 
             big
             after={() => {
               if (overlay) onLater?.();
-              else router.push("/tasks");
+              else router.push("/inbox");
             }}
           />
         ) : (

@@ -9,7 +9,7 @@ export default function OfflinePage() {
       <WifiOff className="size-10 text-fg-muted" />
       <h1 className="text-lg font-semibold text-fg">ما في نت هلأ</h1>
       <p className="text-sm text-fg-muted">الصفحات اللي فتحتها قبل بتنفتح من آخر نسخة، وآخر تقرير موجود بـ «الإنجاز ← التقارير». الموافقات والإيقاف بدهم نت — ولا شي بينبعت وإنت مقطوع.</p>
-      <a href="/done?tab=reports" className="mt-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg">افتح آخر تقرير</a>
+      <a href="/work/reports" className="mt-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg">افتح آخر تقرير</a>
     </main>
   );
 }

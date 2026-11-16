@@ -69,8 +69,6 @@ export function DayView({ data }: { data: DayData }) {
         </p>
       </div>
 
-      {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">بيانات تجريبية — ما في تشغيلات ولا قرارات حقيقية لسا، فبتشوف بس المهام المجدولة. لما يشتغل Claude والموقع على الحقيقي (MOCK_MODE=0)، كل شي بينعمل بيطلع هون لحاله.</p> : null}
-
       {showDone ? (
         <section className="space-y-3" aria-label="اللي انعمل" data-tour="done">
           <h3 className="text-sm font-bold text-fg">اللي انعمل</h3>

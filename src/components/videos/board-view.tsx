@@ -76,7 +76,7 @@ function RequestRow({ r, move }: { r: BoardRequest; move: (r: BoardRequest, to: 
           <span dir="ltr" className="me-1 font-mono">{r.label}</span>
           <span className="text-fg-muted">— {r.kindLabel}</span>
         </p>
-        <Link href="/tasks" className="text-xs font-medium text-accent hover:underline">شوفه بالمهام</Link>
+        <Link href="/work/tasks" className="text-xs font-medium text-accent hover:underline">شوفه بالمهام</Link>
       </div>
       <Steps status={r.status} />
       {r.via === "none" && r.status === "asked" ? (
@@ -377,7 +377,6 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
   const t = data.totals;
   return (
     <div className="space-y-5">
-      {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">بيانات تجريبية — الأزرار ما بتبعت شي لحدا. لما يشتغل الموقع على الحقيقي (MOCK_MODE=0) بتطلع فيديوهاتك وأرقامها هون.</p> : null}
 
       <div data-tour="totals" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
