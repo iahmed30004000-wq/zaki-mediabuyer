@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromApproval, fromChange, fromHandoff, handoffNeedsOwner, inboxCount, inboxHref, itemId, kindOfApproval, sortInbox, splitItemId, type ApprovalIn, type ChangeIn, type HandoffIn } from "@/core/inbox";
+import { fromAdvice, fromApproval, fromChange, fromHandoff, fromOrder, handoffNeedsOwner, inboxCount, inboxHref, itemId, kindOfApproval, sortInbox, splitItemId, type ApprovalIn, type ChangeIn, type HandoffIn } from "@/core/inbox";
 
 const change = (over: Partial<ChangeIn> = {}): ChangeIn => ({ id: "c1", state: "pending_approval", by: "قاعدة التكبير", reasonCode: "S12", sentence: "نزيد الميزانية 20%", target: "X", before: "40$ باليوم", after: "48$ باليوم", spendDeltaDaily: 8, atIso: "2026-11-16T08:00:00.000Z", ...over });
 const approval = (over: Partial<ApprovalIn> = {}): ApprovalIn => ({
@@ -67,6 +67,23 @@ describe("the three sources become one item", () => {
   });
 });
 
+describe("a standing order and the agent's advice as decisions", () => {
+  it("a loosening order waits for yes / no; Claude's request to end one is «انهِه / خلّيه»", () => {
+    const base = { id: "o1", text: "ارجع كبّر", domain: "ads", pending: true, endRequested: false, source: "mcp", createdAt: "2026-11-16T07:00:00.000Z" };
+    expect(fromOrder(base).actions.map((a) => a.label)).toEqual(["وافق", "ارفض"]);
+    const end = fromOrder({ ...base, pending: false, endRequested: true });
+    expect(end.actions.map((a) => a.label)).toEqual(["انهِه", "خلّيه"]);
+    expect(end.kind).toBe("order");
+  });
+  it("advice puts the advised answer first", () => {
+    const a = { key: "j", number: 7, name: "مهمة", domain: "ads" as const, adviceText: "x", runsFrom: null, at: "2026-11-16T07:00:00.000Z" };
+    expect(fromAdvice({ ...a, advice: "cancel" }).actions.map((x) => x.key)).toEqual(["cancel", "keep"]);
+    expect(fromAdvice({ ...a, advice: "merge" }).actions.map((x) => x.key)).toEqual(["merge", "keep"]);
+    expect(fromAdvice({ ...a, advice: "lighten" }).actions.map((x) => x.key)).toEqual(["keep", "cancel"]);
+    expect(fromAdvice({ ...a, advice: "cancel" }).id).toBe("advice:j");
+  });
+});
+
 describe("order and count", () => {
   const at = (n: number) => `2026-11-16T0${n}:00:00.000Z`;
   it("red first, then the one that runs out soonest, then the newest", () => {
@@ -98,7 +115,8 @@ describe("order and count", () => {
   it("an id is `<source>:<row>` and an address round-trips", () => {
     expect(itemId("approval", "x1")).toBe("approval:x1");
     expect(splitItemId("handoff:h9")).toEqual({ source: "handoff", rowId: "h9" });
-    expect(splitItemId("order:1")).toBeNull();
+    expect(splitItemId("order:1")).toEqual({ source: "order", rowId: "1" });
+    expect(splitItemId("creative:1")).toBeNull();
     expect(splitItemId("nonsense")).toBeNull();
     expect(decodeURIComponent(inboxHref("change:c1").split("/").pop()!)).toBe("change:c1");
   });

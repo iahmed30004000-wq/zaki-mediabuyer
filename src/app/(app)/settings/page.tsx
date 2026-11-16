@@ -1,26 +1,17 @@
 import Link from "next/link";
 import { ArrowLeft, CircleDot } from "lucide-react";
 import { ThemePicker } from "@/components/theme/theme-picker";
-import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { StudioLink } from "@/components/settings/studio-link";
 import { ClaudeLink } from "@/components/settings/claude-link";
 import { AnthropicLink } from "@/components/settings/anthropic-link";
 import { EditToggle } from "@/components/customize/edit-bar";
-import { ModeSettings } from "@/components/settings/mode-settings";
-import { RulesEditor } from "@/components/settings/rules-editor";
-import { LevelPicker } from "@/components/settings/level-picker";
 import { loadAudit, loadEditView, loadSettingsView } from "@/lib/settings-view";
-import { CapsEditor, LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
+import { LandingEditor, PagesEditor, ProductsEditor, PurchaseOnPicker, TeamPanel } from "@/components/settings/editors";
 import { currentCaller } from "@/server/auth";
-import { db } from "@/server/db";
-import { currentMode } from "@/server/mode";
-import { getRules } from "@/server/rules";
-import { loadWorkflowCards } from "@/lib/workflow-view";
 import { ImportPanel } from "@/components/settings/import-panel";
 import { GuideBody } from "@/components/pages/guide-body";
-import { RulesTable } from "@/components/pages/rules-table";
 import { SetupChecklist } from "@/components/setup/setup-checklist";
 import { ReadinessPanel } from "@/components/setup/readiness-panel";
 import { loadReadiness } from "@/lib/readiness-view";
@@ -32,11 +23,8 @@ export const metadata = { title: "الإعدادات" };
 
 const GROUPS = [
   { id: "connections", label: "الربط" },
-  { id: "money", label: "المال والسقوف" },
   { id: "products", label: "المنتجات والصفحات" },
-  { id: "rules", label: "القواعد والمستويات" },
-  { id: "campaign-rules", label: "قواعد الحملات" },
-  { id: "mode", label: "صاحي ونايم" },
+  { id: "rules", label: "القواعد" },
   { id: "agents", label: "الوكلاء" },
   { id: "import", label: "الاستيراد والتصدير" },
   { id: "team", label: "الفريق والتدقيق" },
@@ -58,7 +46,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({ searchParams }: { searchParams: { audit?: string } }) {
   const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
-  const [real, edit, audit, me, rulesView, mode, wf, productRows, readiness] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller(), getRules(), currentMode(), loadWorkflowCards(), db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } }), loadReadiness()]);
+  const [real, edit, audit, me, readiness] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller(), loadReadiness()]);
   const demo = process.env.MOCK_MODE === "1";
   return (
     <div className="space-y-8">
@@ -106,29 +94,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         </div>
       </Section>
 
-      <Section title="المال والسقوف" hint="ولا دولار فوق السقف، ولا حملة جديدة بلا سقف معروف">
-        {edit ? (
-          <div id="money" className="scroll-mt-24">
-            <CapsEditor accounts={edit.accounts} split={edit.split} />
-          </div>
-        ) : (
-          <div id="money" className="grid scroll-mt-24 gap-3 md:grid-cols-3">
-            <Panel>
-              <p className="text-xs text-fg-muted">السقف اليومي (كل الحسابات)</p>
-              <p dir="ltr" className="text-end text-xl font-semibold tabular-nums text-fg">{fmt(PACE.dailyCap, "$", 0)}</p>
-            </Panel>
-            <Panel>
-              <p className="text-xs text-fg-muted">السقف الشهري</p>
-              <p dir="ltr" className="text-end text-xl font-semibold tabular-nums text-fg">{fmt(PACE.monthlyCap, "$", 0)}</p>
-            </Panel>
-            <Panel>
-              <p className="text-xs text-fg-muted">التوزيع</p>
-              <p className="text-sm text-fg">70% تكبير · 20% اختبار · 10% جديد</p>
-            </Panel>
-          </div>
-        )}
-      </Section>
-
       <Section title="المنتجات والصفحات" hint="أرقام الحاسبة — بتنسحب من الـ OMS لما ينربط، ولحد هداك بتنحط هون">
         {edit ? (
           <div id="products" className="scroll-mt-24 space-y-4">
@@ -167,47 +132,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
         )}
       </Section>
 
-      <Section title="القواعد والمستويات" hint="البداية ★ لكل الحسابات · ★★ بعد أسبوعين مراجعة · ★★★ مطفي" tour="rules">
-        <div id="rules" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
-          {real
-            ? real.levels.map((a) => (
-                <Panel key={a.metaId} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-fg">{a.name}</p>
-                    <LevelStars level={a.level as 0 | 1 | 2 | 3} />
-                  </div>
-                  <LevelPicker row={a} />
-                </Panel>
-              ))
-            : ACCOUNTS.map((a) => (
-                <Panel key={a.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-fg">{a.name}</p>
-                    <LevelStars level={a.level} />
-                  </div>
-                  <div className="grid grid-cols-4 gap-1">
-                    {LEVEL_AR.map((l, i) => (
-                      <span key={l} title={LEVEL_HINT[i]} className={cn("rounded-md py-1 text-center text-[11px]", i === a.level ? "bg-accent text-accent-fg" : i === 3 ? "bg-surface-2 text-fg-muted/60 line-through" : "bg-surface-2 text-fg-muted")}>
-                        {l}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="text-xs text-fg-muted">{LEVEL_HINT[a.level]}</p>
-                </Panel>
-              ))}
-        </div>
-        <RulesTable />
-      </Section>
-
-      <Section title="قواعد الحملات" hint="شغلك اليومي كأرقام: بتتحفظ بنسخ، وClaude بيقراها بكل تشغيل — الأرقام بالدولار بتكتبها إنت، ما في شي جاهز بالكود" tour="campaign-rules">
-        <div id="campaign-rules" className="scroll-mt-24">
-          <RulesEditor initial={rulesView.rules} version={rulesView.version} products={productRows.map((p) => p.productCode)} demo={demo} />
-        </div>
-      </Section>
-
-      <Section title="صاحي ونايم" hint="الزر الكبير بصفحة «اليوم». هون الجدول، وشو بيشتغل وإنت نايم، وشو بيصحّيك">
-        <div id="mode" className="scroll-mt-24">
-          <ModeSettings schedule={mode.schedule} night={mode.nightPermissions} wakeKinds={mode.wakeKinds} workflows={wf.cards.map((c) => ({ key: c.key, name: c.name }))} demo={demo} />
+      <Section title="القواعد" hint="السقوف، مستوى كل حساب، أحكام الحملات، صاحي ونايم، والأوامر السارية — كل واحدة ببطاقة مطويّة">
+        <div id="rules" className="scroll-mt-24">
+          <Panel className="flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-fg-muted">كل القواعد صارت بصفحة لحالها.</p>
+            <Link href="/settings/rules" className="inline-flex h-10 items-center rounded-lg bg-accent px-4 text-sm font-bold text-accent-fg">
+              افتح القواعد
+            </Link>
+          </Panel>
         </div>
       </Section>
 

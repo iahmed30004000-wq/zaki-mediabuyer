@@ -3,13 +3,14 @@
  * decision into one `InboxItem` (src/core/inbox.ts). The ACTIONS stay on the endpoints that already do them
  * (/api/changes/[id], /api/approvals/[id], /api/handoffs/[id]) — nothing new can spend money.
  */
-import { handoffNeedsOwner, fromAdvice, fromApproval, fromChange, fromHandoff, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
+import { handoffNeedsOwner, fromAdvice, fromApproval, fromOrder, fromChange, fromHandoff, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
 import { isDemo } from "@/core/readiness";
 import { loadChanges, type ChangeView } from "@/lib/changes-view";
 import type { Caller } from "./auth";
 import { db } from "./db";
 import { listApprovals, type ApprovalView } from "./approvals";
 import { listHandoffs } from "./handoffs";
+import { closeLapsed } from "./orders";
 
 const demo = () => isDemo(process.env);
 
@@ -25,19 +26,28 @@ async function adviceItems(): Promise<InboxItem[]> {
   return rows.map((r) => fromAdvice({ key: r.key, number: r.number, name: r.name, domain: r.domain === "ops" ? "ops" : "ads", advice: r.advice!, adviceText: r.adviceText, runsFrom: r.runsFrom, at: r.updatedAt.toISOString() }));
 }
 
+/** The standing orders that wait for the owner: a loosening one not yet approved, and an active one Claude asked to end. */
+async function orderItems(): Promise<InboxItem[]> {
+  await closeLapsed();
+  const rows = await db.standingOrder.findMany({ where: { OR: [{ status: "pending" }, { status: "active", endRequestedAt: { not: null } }] }, orderBy: { createdAt: "desc" } });
+  return rows.map((o) => fromOrder({ id: o.id, text: o.text, domain: o.domain, pending: o.status === "pending", endRequested: !!o.endRequestedAt, source: o.source, createdAt: (o.endRequestedAt ?? o.createdAt).toISOString() }));
+}
+
 /** Every open decision, in the order it should be read. `caller` is for the permission filter P10 adds; today the owner sees everything. */
 export async function loadInbox(_caller: Caller, opts: { limit?: number; domain?: InboxDomain } = {}): Promise<InboxItem[]> {
-  const [changes, approvals, handoffs, advice] = await Promise.all([
+  const [changes, approvals, handoffs, advice, orders] = await Promise.all([
     loadChanges(),
     demo() ? Promise.resolve([]) : listApprovals({ status: ["pending"] }),
     demo() ? Promise.resolve([]) : listHandoffs({ status: ["open", "claimed"] }),
     demo() ? Promise.resolve([]) : adviceItems(),
+    demo() ? Promise.resolve([]) : orderItems(),
   ]);
   const items = [
     ...changes.filter((c) => c.state === "pending_approval").map((c) => fromChange(changeIn(c))),
     ...approvals.map((a) => fromApproval(approvalIn(a))),
     ...handoffs.filter(handoffNeedsOwner).map((h) => fromHandoff(h)),
     ...advice,
+    ...orders,
   ];
   const sorted = sortInbox(opts.domain ? items.filter((i) => i.domain === opts.domain) : items);
   return opts.limit ? sorted.slice(0, opts.limit) : sorted;
@@ -131,13 +141,14 @@ export async function getInboxItem(caller: Caller, id: string): Promise<InboxLoo
 export async function countInbox(): Promise<number> {
   try {
     if (demo()) return (await loadChanges()).filter((c) => c.state === "pending_approval").length;
-    const [changes, asks, handoffs, advice] = await Promise.all([
+    const [changes, asks, handoffs, advice, orders] = await Promise.all([
       db.changeSet.count({ where: { state: { in: ["pending_approval", "simulated"] } } }),
       db.approval.count({ where: { status: "pending" } }),
       listHandoffs({ status: ["open", "claimed"], limit: 200 }),
       db.workflow.count({ where: { advice: { not: null }, decision: null, enabled: true, finishedAt: null, archivedAt: null } }),
+      db.standingOrder.count({ where: { OR: [{ status: "pending" }, { status: "active", endRequestedAt: { not: null } }] } }),
     ]);
-    return changes + asks + handoffs.filter(handoffNeedsOwner).length + advice;
+    return changes + asks + handoffs.filter(handoffNeedsOwner).length + advice + orders;
   } catch {
     // a database that does not answer must not break every page: no number is shown
     return 0;

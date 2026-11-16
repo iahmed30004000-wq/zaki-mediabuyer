@@ -30,6 +30,9 @@ async function send(item: InboxItem, key: InboxActionKey, extra?: { until?: stri
   } else if (ids.source === "approval") {
     url = `/api/approvals/${ids.rowId}`;
     body = key === "later" ? { action: "postpone", until: extra?.until ?? "1h" } : { action: key === "reject" ? "reject" : "approve" };
+  } else if (ids.source === "order") {
+    url = `/api/orders/${ids.rowId}`;
+    body = { action: key === "reject" ? "reject" : "approve" };
   } else if (ids.source === "advice") {
     url = "/api/work/decisions";
     body = { items: [{ key: ids.rowId, decision: key === "cancel" ? "cancel" : key === "merge" ? "merge" : "keep" }] };
