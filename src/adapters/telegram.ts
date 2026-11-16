@@ -40,3 +40,29 @@ export async function sendTelegram(o: TelegramOptions, text: string): Promise<vo
     if (!res.ok) throw new Error(`Telegram answered ${res.status}`);
   }
 }
+
+export interface WebhookInfo {
+  url: string;
+  pending: number;
+  /** Telegram's own words about its last failed delivery (never carries the token) */
+  lastError: string | null;
+}
+
+/** Registers where Telegram sends what people write to the bot, with the secret it must send back. Says only yes or no. */
+export async function registerWebhook(o: Pick<TelegramOptions, "token" | "fetch">, url: string, secret: string): Promise<void> {
+  const res = await (o.fetch ?? fetch)(`https://api.telegram.org/bot${o.token}/setWebhook`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ url, secret_token: secret, allowed_updates: ["message"], drop_pending_updates: false }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new Error(`Telegram answered ${res.status}`);
+}
+
+/** Where Telegram sends it now — to check that the registration took. */
+export async function webhookInfo(o: Pick<TelegramOptions, "token" | "fetch">): Promise<WebhookInfo> {
+  const res = await (o.fetch ?? fetch)(`https://api.telegram.org/bot${o.token}/getWebhookInfo`, { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`Telegram answered ${res.status}`);
+  const j = (await res.json()) as { result?: { url?: string; pending_update_count?: number; last_error_message?: string } };
+  return { url: j.result?.url ?? "", pending: j.result?.pending_update_count ?? 0, lastError: j.result?.last_error_message?.slice(0, 160) ?? null };
+}

@@ -88,3 +88,10 @@ describe("no write to Meta without META_LIVE_VERIFIED", () => {
     await expect(applyItem(item, "dry_run", null)).resolves.toMatchObject({ verified: true, response: { dryRun: true } });
   });
 });
+
+describe("Telegram's two halves", () => {
+  it("sending needs the bot and the chat; receiving «اوقف» also needs the webhook secret", () => {
+    expect(missingGroups(integrationOf("telegram"), { TELEGRAM_BOT_TOKEN: "x", TELEGRAM_OWNER_CHAT_ID: "1" })).toEqual([]);
+    expect(missingGroups(integrationOf("telegramIn"), { TELEGRAM_BOT_TOKEN: "x", TELEGRAM_OWNER_CHAT_ID: "1" })).toEqual(["TELEGRAM_WEBHOOK_SECRET"]);
+  });
+});

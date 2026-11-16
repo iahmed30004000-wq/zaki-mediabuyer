@@ -20,6 +20,8 @@ import { ImportPanel } from "@/components/settings/import-panel";
 import { GuideBody } from "@/components/pages/guide-body";
 import { RulesTable } from "@/components/pages/rules-table";
 import { SetupChecklist } from "@/components/setup/setup-checklist";
+import { ReadinessPanel } from "@/components/setup/readiness-panel";
+import { loadReadiness } from "@/lib/readiness-view";
 import { fmt } from "@/lib/format";
 import { ACCOUNTS, LEVEL_AR, LEVEL_HINT, PACE, PRODUCTS, SETUP_STEPS, SOURCES, targetsOf } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
@@ -54,7 +56,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({ searchParams }: { searchParams: { audit?: string } }) {
   const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
-  const [real, edit, audit, me, rulesView, mode, wf, productRows] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller(), getRules(), currentMode(), loadWorkflowCards(), db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } })]);
+  const [real, edit, audit, me, rulesView, mode, wf, productRows, readiness] = await Promise.all([loadSettingsView(), loadEditView(), loadAudit({ actor }), currentCaller(), getRules(), currentMode(), loadWorkflowCards(), db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } }), loadReadiness()]);
   const demo = process.env.MOCK_MODE === "1";
   return (
     <div className="space-y-8">
@@ -69,6 +71,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
       <Section title="الربط" hint="المفاتيح بـ Coolify أو ملف .env بس — ولا مرة بالموقع ولا بالمحادثة">
         <div id="setup" className="scroll-mt-24">
           <SetupChecklist steps={SETUP_STEPS} embedded />
+        </div>
+        <div id="readiness" className="scroll-mt-24">
+          <ReadinessPanel data={readiness} />
         </div>
         <div id="connections" className="grid scroll-mt-24 gap-3 md:grid-cols-2">
           {(edit?.links ?? SOURCES).map((s) => (

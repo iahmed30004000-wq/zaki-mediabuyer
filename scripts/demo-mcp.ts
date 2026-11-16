@@ -37,6 +37,7 @@ import { POST as vrClaim } from "../src/app/api/v1/video-requests/[id]/claim/rou
 import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/complete/route";
 import { loadBoard } from "../src/lib/videos-board";
 import { approve, propose } from "../src/server/changes";
+import { loadReadiness } from "../src/lib/readiness-view";
 import { runScheduled } from "../src/server/scheduler";
 import { clearChat, loadChat, saveChat } from "../src/server/assistant/chat";
 import { syncDriveLibrary } from "../src/jobs/drive-library";
@@ -1178,6 +1179,27 @@ async function clean() {
         else process.env[k] = v;
       }
     }
+  }
+
+  // the readiness panel: names of what is missing (never a value), and only a REAL call counts as «the last call»
+  {
+    const secret = "tg-secret-value-123456";
+    const env = { TELEGRAM_BOT_TOKEN: secret, OMS_BASE_URL: "https://oms.example.test", META_WRITE_MODE: "live" } as Record<string, string>;
+    await db.jobRun.deleteMany({ where: { slot: { startsWith: "demo-mcp-ready" } } });
+    await db.jobRun.create({ data: { job: "replies.sync", slot: "demo-mcp-ready-1", status: "ok", finishedAt: new Date(Date.now() - 600_000), stats: { skipped: "not linked" } } });
+    const r0 = await loadReadiness(env);
+    const rep0 = r0.rows.find((r) => r.key === "replies")!;
+    check(rep0.last.at === null && !rep0.linked && rep0.missing.join() === "REPLIES_BASE_URL,REPLIES_TOKEN", "a job that only said «skipped» is not a real call, and the missing names are listed", rep0);
+    await db.jobRun.create({ data: { job: "replies.sync", slot: "demo-mcp-ready-2", status: "failed", finishedAt: new Date(Date.now() - 60_000), error: "الردود ما ردّت (503)" } });
+    await db.jobRun.create({ data: { job: "replies.sync", slot: "demo-mcp-ready-0", status: "ok", finishedAt: new Date(Date.now() - 3_600_000), stats: { synced: 4 } } });
+    const rep1 = (await loadReadiness(env)).rows.find((r) => r.key === "replies")!;
+    check(rep1.last.ok === false && rep1.last.what === "الردود ما ردّت (503)" && !!rep1.last.at, "the last real call is the newest one that did something — here a failure, with its words", rep1.last);
+    const tg = r0.rows.find((r) => r.key === "telegram")!;
+    check(!tg.linked && tg.missing.join() === "TELEGRAM_OWNER_CHAT_ID" && JSON.stringify(r0).indexOf(secret) < 0 && JSON.stringify(r0).indexOf("oms.example.test") < 0, "a key that is set shows no value anywhere in the data", tg.missing);
+    const mw = r0.rows.find((r) => r.key === "metaWrite")!;
+    check(!mw.linked && mw.missing.includes("META_LIVE_VERIFIED=1") && r0.metaWrite.mode === "dry_run" && r0.metaWrite.line.includes("META_LIVE_VERIFIED=1"), "Meta writes: asked live, not verified → locked, and the panel says which variable opens it", { missing: mw.missing, line: r0.metaWrite.line });
+    check(r0.rows.some((r) => r.key === "firebase" && r.later), "Firebase is marked «بعدين»");
+    await db.jobRun.deleteMany({ where: { slot: { startsWith: "demo-mcp-ready" } } });
   }
 
   // ── v3 S: the site's own clock for scheduled workflows, and the assistant's kept conversation ──

@@ -4,8 +4,9 @@
  * success. `MOCK_MODE=1` is the one labelled demo and is left alone. The values of the keys are never read here: only whether
  * they are there.
  *
- * Meta has one more lock: even with `META_WRITE_MODE=live` and a token, nothing is written to Meta until the owner has seen a
- * write work on the test ad account and puts `META_LIVE_VERIFIED=1`.
+ * Meta has one more lock: even with `META_WRITE_MODE=live` and a token, nothing is written to Meta until the owner puts
+ * `META_LIVE_VERIFIED=1` — his own «yes, write for real now». The first time it is put, the token must see ONLY the test ad
+ * account, so the first real write can only land there (docs/LIVE_CHECKS.md).
  */
 
 export type Env = Record<string, string | undefined>;
@@ -20,7 +21,7 @@ export interface Integration {
   /** the worker jobs whose last successful run says «it really worked» */
   jobs: string[];
   /** where the real call is recorded when it is not a worker job (the panel reads it) */
-  probe?: "telegram" | "assistant" | "n8n" | "workspace" | "hermes" | "none";
+  probe?: "telegram" | "telegramIn" | "assistant" | "n8n" | "workspace" | "hermes" | "none";
   /** said once on the panel: what it is for */
   why: string;
   /** later, by the owner's own order */
@@ -33,6 +34,7 @@ export const INTEGRATIONS: Integration[] = [
   { key: "metaWrite", label: "ميتا (كتابة)", needs: [["META_SYSTEM_USER_TOKEN"], ["META_WRITE_MODE"], ["META_LIVE_VERIFIED"]], writes: true, jobs: ["meta.upload"], why: "أي تغيير على الحملات — مقفولة لحد ما يتفحص على الحساب التجريبي" },
   { key: "oms", label: "الـ OMS", needs: [["OMS_BASE_URL"], ["OMS_TOKEN", "OMS_API_TOKEN"]], writes: false, jobs: ["oms.sync"], why: "الطلبات الحقيقية — الحقيقة اللي بنقرر عليها" },
   { key: "telegram", label: "تيليجرام", needs: [["TELEGRAM_BOT_TOKEN"], ["TELEGRAM_OWNER_CHAT_ID"]], writes: true, jobs: ["alerts.send"], probe: "telegram", why: "التنبيهات والتقارير و«اوقف»" },
+  { key: "telegramIn", label: "تيليجرام — استقبال «اوقف»", needs: [["TELEGRAM_BOT_TOKEN"], ["TELEGRAM_OWNER_CHAT_ID"], ["TELEGRAM_WEBHOOK_SECRET"]], writes: false, jobs: [], probe: "telegramIn", why: "أي رسالة «اوقف» بتصير إيقاف مسجّل (والصرف بيتعمل من الموقع بس)" },
   { key: "workspace", label: "Zaki Workspace — مهام الفريق", needs: [["WORKSPACE_BASE_URL"], ["WORKSPACE_API_TOKEN"]], writes: true, jobs: ["workspace.sync"], probe: "workspace", why: "دفع مهام الأشخاص وسحب «خلص»" },
   { key: "n8n", label: "n8n (تنفيذ الخطوات)", needs: [["N8N_BASE_URL"], ["N8N_WEBHOOK_SECRET"]], writes: true, jobs: [], probe: "n8n", why: "زر «من الموقع» ومواعيد الورك فلو" },
   { key: "n8nApi", label: "n8n (فحص الحالة)", needs: [["N8N_BASE_URL"], ["N8N_API_KEY"]], writes: false, jobs: [], probe: "none", why: "قراءة حالة الفلوهات" },
@@ -102,7 +104,7 @@ export interface WriteGate {
  */
 export function metaWriteGate(env: Env = process.env, hasToken: boolean = has(env, "META_SYSTEM_USER_TOKEN")): WriteGate {
   if (env.META_WRITE_MODE !== "live") return { mode: "dry_run", error: null };
-  if (env.META_LIVE_VERIFIED !== "1") return { mode: "dry_run", error: "الكتابة على ميتا مقفولة: META_WRITE_MODE=live موجود بس META_LIVE_VERIFIED=1 مش محطوط — ما بتنفتح قبل ما تتفحص الكتابة على الحساب الإعلاني التجريبي (docs/LIVE_CHECKS.md)" };
+  if (env.META_LIVE_VERIFIED !== "1") return { mode: "dry_run", error: "الكتابة على ميتا مقفولة: META_WRITE_MODE=live موجود بس META_LIVE_VERIFIED=1 مش محطوط. حطّه لما تقرّر تسمح بالكتابة الحقيقية — وأول فحص لازم يكون على حساب إعلاني تجريبي بتوكن مش شايف غيره (docs/LIVE_CHECKS.md)" };
   if (!hasToken) return { mode: "dry_run", error: "الكتابة على ميتا ما بتمشي — ناقص META_SYSTEM_USER_TOKEN (ضيفه بـ Coolify)" };
   return { mode: "live", error: null };
 }

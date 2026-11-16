@@ -97,7 +97,7 @@
 | V3-E-b | المهام: «افهمها بالمساعد» | `not-started` |  |
 | V3-C-b | الإعلانات: نسخ (duplicate) كاقتراح | `not-started` |  |
 
-**الكتابة على ميتا:** `META_WRITE_MODE=dry_run` افتراضياً — كل قرار بيسجّل شو كان رح ينبعت وما بيبعت. **ما في كتابة على ميتا بدون `META_WRITE_MODE=live` و`META_LIVE_VERIFIED=1` مع بعض** (الثاني بيحطه المالك بعد ما تنفحص الكتابة على حساب إعلاني تجريبي — docs/LIVE_CHECKS.md).
+**الكتابة على ميتا:** `META_WRITE_MODE=dry_run` افتراضياً — كل قرار بيسجّل شو كان رح ينبعت وما بيبعت. **ما في كتابة على ميتا بدون `META_WRITE_MODE=live` و`META_LIVE_VERIFIED=1` مع بعض** (الثاني بيحطه المالك بقراره؛ أول مرة بتوكن شايف الحساب الإعلاني التجريبي بس — docs/LIVE_CHECKS.md).
 
 **قرارات المالك (16/11/2026):** `MOCK_MODE=0` موافق (بيقلبه هو أو Claude الرئيسي بـ Coolify) · `SITE_SCHEDULER` يضل مقفول (الجدولة الحقيقية = مهام Claude المجدولة لحد ما تنفحص الكتابة الحيّة على ميتا) · ترتيب المفاتيح: `ANTHROPIC_API_KEY` (+`PRIVACY_MODE=off`) ← توكن ميتا ← `WORKSPACE_*` و`N8N_API_KEY` ← `GOOGLE_SERVICE_ACCOUNT_JSON` ← Firebase · ما بنبدأ M04/M01 الجداد ولا قواعد ميتا الآلية (10.3) ولا V4-C الأصلي.
 
