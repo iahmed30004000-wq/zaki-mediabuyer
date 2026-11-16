@@ -3,6 +3,7 @@
  * so the page shows what runs and when without pretending that anything ran.
  */
 import { isValidCron, nextRuns } from "@/core/cron";
+import { SEED_JOB_META } from "@/core/jobs";
 import { SEED_WORKFLOWS } from "@/core/workflow";
 import { listWorkflows, type WorkflowCard } from "@/server/workflows";
 
@@ -25,6 +26,23 @@ export async function loadWorkflowCards(now = new Date()): Promise<{ cards: Work
       nextRun: s.schedule && isValidCron(s.schedule) ? (nextRuns(s.schedule, now, 1)[0]?.toISOString() ?? null) : null,
       lastRun: null,
       live: null,
+      number: SEED_JOB_META[s.key]?.number ?? null,
+      domain: SEED_JOB_META[s.key]?.domain ?? "ads",
+      kind: SEED_JOB_META[s.key]?.kind ?? "recurring",
+      scheduleText: null,
+      runsAt: null,
+      endsAt: null,
+      finishedAt: null,
+      runsFrom: null,
+      origin: null,
+      touches: [],
+      talksTo: [],
+      note: null,
+      advice: null,
+      adviceText: null,
+      decision: null,
+      decidedAt: null,
+      source: "seed",
     })),
   };
 }

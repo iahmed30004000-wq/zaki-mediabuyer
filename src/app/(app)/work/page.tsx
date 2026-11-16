@@ -1,18 +1,25 @@
-import { WorkflowBoard } from "@/components/workflow/workflow-board";
-import { can } from "@/core/roles";
-import { loadWorkflowCards } from "@/lib/workflow-view";
-import { loadEntityCustom } from "@/lib/ui-view";
-import { listHandoffs } from "@/server/handoffs";
-import { currentCaller } from "@/server/auth";
+import { WorkMap } from "@/components/work/work-map";
+import { ButtonLink } from "@/components/ui/button-link";
+import { loadJobs } from "@/lib/jobs-view";
 
 export const metadata = { title: "الشغل" };
 export const dynamic = "force-dynamic";
 
-/** الشغل ← المجدولة: the work that runs — who does it, when, what came out — and, while Claude runs a job, the job moving. P5 rebuilds it as the map. */
+/**
+ * الشغل ← المجدولة: the map of the scheduled jobs — every job with its number, its badge, when it runs and who runs it, its branches, and its
+ * last result. Claude sends the map (`push_jobs`, P6); until then these are the jobs the site was seeded with. A job nobody can finish is a
+ * decision in «بانتظارك». The drawing of a job is under «متقدّم» on its page.
+ */
 export default async function WorkPage() {
-  const [{ cards, demo }, me] = await Promise.all([loadWorkflowCards(), currentCaller()]);
-  // the handoff queue is real data: on the demo there is nothing in it
-  const handoffs = demo ? [] : await listHandoffs({ status: ["open", "claimed"] });
-  const custom = await loadEntityCustom("workflow", cards.map((c) => c.key));
-  return <WorkflowBoard initial={cards} initialHandoffs={handoffs} demo={demo} canEdit={!!me && can(me.role, "owner_only") && !me.demo} custom={custom} canCustom={!!me && !me.demo && can(me.role, "propose_change")} />;
+  const { jobs, counters } = await loadJobs();
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <ButtonLink href="/print/work" variant="secondary" size="sm" target="_blank">
+          نسخة للطباعة
+        </ButtonLink>
+      </div>
+      <WorkMap jobs={jobs} counters={counters} />
+    </div>
+  );
 }

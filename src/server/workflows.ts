@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, Workflow, WorkflowRun } from "@prisma/client";
 import { nextRuns, isValidCron } from "@/core/cron";
+import { SEED_JOB_META } from "@/core/jobs";
 import { refuseIfPrivate } from "@/core/push-rows";
 import { EXECUTORS, GraphSchema, NODE_STATUSES, PERMISSIONS, RUN_STATUSES, SEED_WORKFLOWS, mergeNodeStates, settleStates, type NodeStates, type RunStatus, type WfGraph } from "@/core/workflow";
 import { diffText, ensureLayout, graphDiff, isChanged, templateOf } from "@/core/workflow-edit";
@@ -19,7 +20,7 @@ const json = (v: unknown) => v as Prisma.InputJsonValue;
 /** Adds the seeded jobs that are missing. Never touches one that exists — what the owner edited stays his. */
 export async function ensureSeeded(): Promise<number> {
   const r = await db.workflow.createMany({
-    data: SEED_WORKFLOWS.map((s) => ({ key: s.key, name: s.name, description: s.description, schedule: s.schedule, executor: s.executor, dataSource: "mcp", permission: s.permission, graph: json(s.graph) })),
+    data: SEED_WORKFLOWS.map((s) => ({ key: s.key, name: s.name, description: s.description, schedule: s.schedule, executor: s.executor, dataSource: "mcp", permission: s.permission, graph: json(s.graph), ...(SEED_JOB_META[s.key] ?? {}) })),
     skipDuplicates: true,
   });
   return r.count;
@@ -37,6 +38,8 @@ export interface RunView {
   metrics: Record<string, unknown> | null;
   artifacts: { label: string; url?: string; text?: string }[] | null;
   nodeStates: NodeStates;
+  /** the full report, when the job sent one */
+  report: string | null;
 }
 
 export const runView = (r: WorkflowRun): RunView => ({
@@ -51,6 +54,7 @@ export const runView = (r: WorkflowRun): RunView => ({
   metrics: (r.metrics as RunView["metrics"]) ?? null,
   artifacts: (r.artifacts as RunView["artifacts"]) ?? null,
   nodeStates: (r.nodeStates as unknown as NodeStates) ?? {},
+  report: r.report,
 });
 
 const NodeUpdate = z.object({ id: z.string().trim().min(1).max(40), status: z.enum(NODE_STATUSES), note: z.string().trim().max(200).optional() }).strict();
@@ -65,6 +69,7 @@ export const LogRunInput = z
     started_at: iso.optional(),
     finished_at: iso.optional(),
     summary: z.string().trim().max(300).optional().describe("سطر واحد: شو صار"),
+    report: z.string().trim().max(6000).optional().describe("نص التقرير الكامل للتشغيل (لحد 6000 حرف) — بيظهر بصفحة التقرير"),
     metrics: z.record(z.union([z.number().finite(), z.string().max(80)])).optional().describe("أرقام التشغيل {الاسم: القيمة} (حتى 30)"),
     artifacts: z.array(z.object({ label: z.string().trim().min(1).max(80), url: z.string().trim().max(300).optional(), text: z.string().trim().max(500).optional() }).strict()).max(10).optional(),
     node: NodeUpdate.optional().describe("حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval, note}"),
@@ -90,7 +95,7 @@ function when(s: string | undefined, label: string): Date | undefined {
 
 /** Records a run (or an update of one) and moves its workflow's nodes. Idempotent by (job, ref). */
 export async function logRun(input: LogRunInputT, actor: Actor, source: "mcp" | "worker" | "ui" | "n8n", now = new Date()): Promise<{ run: RunView; workflow: { key: string; name: string; enabled: boolean }; created: boolean }> {
-  const refusal = refuseIfPrivate(input.summary, ...Object.values(input.metrics ?? {}).map(String), ...(input.artifacts ?? []).flatMap((a) => [a.label, a.url, a.text]));
+  const refusal = refuseIfPrivate(input.summary, input.report, ...Object.values(input.metrics ?? {}).map(String), ...(input.artifacts ?? []).flatMap((a) => [a.label, a.url, a.text]));
   if (refusal) throw new RunRefused(refusal);
   if ((input.metrics && Object.keys(input.metrics).length > 30) || false) throw new RunRefused("metrics: حتى 30 رقم");
 
@@ -124,6 +129,7 @@ export async function logRun(input: LogRunInputT, actor: Actor, source: "mcp" | 
     startedAt,
     finishedAt,
     ...(input.summary !== undefined ? { summary: input.summary } : {}),
+    ...(input.report !== undefined ? { report: input.report } : {}),
     ...(input.metrics ? { metrics: json(input.metrics) } : {}),
     ...(input.artifacts ? { artifacts: json(input.artifacts) } : {}),
     nodeStates: json(states),
@@ -153,6 +159,24 @@ export interface WorkflowCard {
   lastRun: RunView | null;
   /** a run that is going on right now (started in the last 6 hours and not finished) */
   live: RunView | null;
+  /** the place on the map (docs/rebuild/04-work.md §2) */
+  number: number | null;
+  domain: string;
+  kind: string;
+  scheduleText: string | null;
+  runsAt: string | null;
+  endsAt: string | null;
+  finishedAt: string | null;
+  runsFrom: string | null;
+  origin: string | null;
+  touches: string[];
+  talksTo: string[];
+  note: string | null;
+  advice: string | null;
+  adviceText: string | null;
+  decision: string | null;
+  decidedAt: string | null;
+  source: string;
 }
 
 const LIVE_HOURS = 6;
@@ -161,6 +185,7 @@ const LIVE_HOURS = 6;
 export async function listWorkflows(now = new Date()): Promise<WorkflowCard[]> {
   await ensureSeeded();
   const rows = await db.workflow.findMany({ where: { archivedAt: null }, orderBy: [{ enabled: "desc" }, { name: "asc" }] });
+  rows.sort((a, b) => Number(b.enabled) - Number(a.enabled) || (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));
   const since = new Date(now.getTime() - LIVE_HOURS * 3_600_000);
   const cards: WorkflowCard[] = [];
   for (const w of rows) {
@@ -184,6 +209,23 @@ export async function listWorkflows(now = new Date()): Promise<WorkflowCard[]> {
       nextRun: w.enabled && w.schedule && isValidCron(w.schedule) ? (nextRuns(w.schedule, now, 1)[0]?.toISOString() ?? null) : null,
       lastRun: last ? runView(last) : null,
       live: live ? runView(live) : null,
+      number: w.number,
+      domain: w.domain,
+      kind: w.kind,
+      scheduleText: w.scheduleText,
+      runsAt: w.runsAt?.toISOString() ?? null,
+      endsAt: w.endsAt?.toISOString() ?? null,
+      finishedAt: w.finishedAt?.toISOString() ?? null,
+      runsFrom: w.runsFrom,
+      origin: w.origin,
+      touches: w.touches,
+      talksTo: w.talksTo,
+      note: w.note,
+      advice: w.advice,
+      adviceText: w.adviceText,
+      decision: w.decision,
+      decidedAt: w.decidedAt?.toISOString() ?? null,
+      source: w.source,
     });
   }
   return cards;
@@ -210,7 +252,7 @@ export const WorkflowPatch = z
   .strict();
 export type WorkflowPatchT = z.infer<typeof WorkflowPatch>;
 
-export const graphTexts = (g: WfGraph) => g.nodes.flatMap((n) => [n.label, n.assignee, n.prompt, n.inputs, n.outputs, n.destination, n.fallback, n.target]);
+export const graphTexts = (g: WfGraph) => g.nodes.flatMap((n) => [n.label, n.assignee, n.prompt, n.inputs, n.outputs, n.destination, n.fallback, n.target, n.desc]);
 
 /**
  * Edits a workflow (or its kill switch). A change to the graph is a new version (a graph that says nothing new is not: saving
