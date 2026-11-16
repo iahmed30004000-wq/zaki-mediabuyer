@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 26 · done-local-only 38 · blocked 20 · not-started 19 (المجموع 103).
+> **العدّ:** done-live 27 · done-local-only 38 · blocked 20 · not-started 18 (المجموع 103).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -89,7 +89,7 @@
 | R3 | `docs/LIVE_CHECKS.md`: 12 فحص حي بخطوات Chrome ونتيجة متوقّعة | `done-live` | الفحص نفسه بيعمله Claude الرئيسي |
 | R4 | ملفات n8n الثمانية: مطفية · credential بالاسم · السر من بيئة n8n · جدول «بيستبدل» (`docs/N8N.md`) | `done-local-only` | `tests/n8n-starters.test.ts` (39) · الاستيراد الفعلي = L7 |
 | V5-PLAN | خطة إعادة الهيكلة الشاملة v5 (الشكل والسلاسة · الشغل · الصلاحيات · لوحات التحكم) + نماذج الشكل | `done-live` | D47 · `docs/rebuild/` · **بانتظار اعتماد المالك** — البناء لنموذج تاني |
-| V5-P0 | التحضير: السقّاطة وقواعد المشروع | `not-started` | `docs/rebuild/07-phases.md` |
+| V5-P0 | التحضير: السقّاطة (`tests/ui-rules.test.ts` + `npm run ui:baseline`) وقواعد المشروع وأحجام الصفحات المرجعية | `done-live` | الخطة معتمدة 16/11/2026 · `docs/rebuild/NOTES.md` · الأعداد الابتدائية: rawButtons 87 · arbitraryText 93 · offScaleText 17 · offScaleHeights 121 · hexColors 18 · decorImports 10 · mockChecks 57 · jargon 78 |
 | V5-P1 | نظام الشكل: الألوان والخط والأزرار والعدّة | `not-started` | |
 | V5-P2 | الهيكل: الخمس أماكن والعناوين والتحويلات | `not-started` | |
 | V5-P3 | بانتظارك: مكان واحد وبطاقة وحدة لكل قرار | `not-started` | |
