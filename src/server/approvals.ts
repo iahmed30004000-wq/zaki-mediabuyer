@@ -104,7 +104,7 @@ async function deliver(a: Approval, delivery: Delivery, now: Date): Promise<void
   if (tg) {
     try {
       const amount = a.amount !== null ? `\nالمبلغ: ${Number(a.amount)}$` : "";
-      await sendTelegram(tg, `${URGENCY_ICON[a.urgency as Urgency]} بدي موافقتك: ${a.title}\n${a.why}${amount}\nللموافقة (من الموقع بس): ${appOrigin()}/tasks#approval`);
+      await sendTelegram(tg, `${URGENCY_ICON[a.urgency as Urgency]} بدي موافقتك: ${a.title}\n${a.why}${amount}\nللموافقة (من الموقع بس): ${appOrigin()}/inbox/${encodeURIComponent(`approval:${a.id}`)}`);
     } catch (e) {
       console.error("approval telegram failed:", e instanceof Error ? e.message : e);
     }

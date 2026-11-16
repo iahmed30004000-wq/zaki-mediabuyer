@@ -90,7 +90,7 @@ export function runItem(r: { name: string; status: string; at: string; summary: 
     text: `${r.name} — ${RUN_AR[r.status] ?? r.status}${r.summary ? `: ${r.summary}` : ""}`,
     numbers: metricsText(r.metrics),
     tone: r.status === "failed" ? "danger" : r.status === "waiting" ? "warn" : r.status === "ok" ? "ok" : undefined,
-    href: "/workflow",
+    href: "/work",
   };
 }
 
@@ -103,35 +103,35 @@ const signed = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n * 100) / 100}$ 
 export function decisionItem(c: { source: string; sentence: string; at: string; spendDeltaDaily: number; approvedBy?: string | null }): DayItem {
   const byAPerson = !!c.approvedBy && !c.approvedBy.startsWith("level-");
   const actor = byAPerson || c.source === "user" || c.source === "telegram" ? "owner" : c.source === "agent" ? "agent" : "system";
-  return { at: c.at, actor, kind: "decision", text: c.sentence, numbers: c.spendDeltaDaily ? [signed(c.spendDeltaDaily)] : [], href: "/tasks" };
+  return { at: c.at, actor, kind: "decision", text: c.sentence, numbers: c.spendDeltaDaily ? [signed(c.spendDeltaDaily)] : [], href: "/inbox/done" };
 }
 
 const APPROVAL_AR: Record<string, string> = { approved: "وافق على", rejected: "رفض", postponed: "أجّل", cancelled: "ألغى" };
 export function approvalItem(a: { status: string; title: string; at: string; amount: number | null }): DayItem | null {
   const verb = APPROVAL_AR[a.status];
   if (!verb) return null;
-  return { at: a.at, actor: "owner", kind: "approval", text: `${verb}: ${a.title}`, numbers: a.amount ? [`${a.amount}$`] : [], tone: a.status === "rejected" ? "warn" : undefined, href: "/tasks#approval" };
+  return { at: a.at, actor: "owner", kind: "approval", text: `${verb}: ${a.title}`, numbers: a.amount ? [`${a.amount}$`] : [], tone: a.status === "rejected" ? "warn" : undefined, href: "/inbox" };
 }
 
 export function taskDoneItem(t: { title: string; at: string; assignee: string | null }): DayItem {
-  return { at: t.at, actor: t.assignee ?? "owner", kind: "task", text: `خلّص: ${t.title}`, tone: "ok", href: "/tasks" };
+  return { at: t.at, actor: t.assignee ?? "owner", kind: "task", text: `خلّص: ${t.title}`, tone: "ok", href: "/work/tasks" };
 }
 
 const VIDEO_AR: Record<string, string> = { ready: "جاهز", uploaded: "انرفع لميتا", live: "شغّال", tired: "تعب" };
 export function videoItem(v: { vName: string; job: string; status: string; at: string }): DayItem | null {
   const s = VIDEO_AR[v.status];
-  return s ? { at: v.at, actor: "claude", kind: "video", text: `فيديو ${v.vName} (${v.job}): ${s}`, href: "/videos" } : null;
+  return s ? { at: v.at, actor: "claude", kind: "video", text: `فيديو ${v.vName} (${v.job}): ${s}`, href: "/ads/videos" } : null;
 }
 
 export function handoffItem(h: { title: string; assignee: string; at: string; note: string | null }): DayItem {
-  return { at: h.at, actor: h.assignee.startsWith("claude") ? "claude" : h.assignee, kind: "handoff", text: `سلّمت: ${h.title}${h.note ? ` — ${h.note}` : ""}`, tone: "ok", href: "/workflow" };
+  return { at: h.at, actor: h.assignee.startsWith("claude") ? "claude" : h.assignee, kind: "handoff", text: `سلّمت: ${h.title}${h.note ? ` — ${h.note}` : ""}`, tone: "ok", href: "/work" };
 }
 
 // ───────────────────────────── what is planned ─────────────────────────────
 
 export function scheduledItem(w: { name: string; executor: string }, at: string): DayItem {
   const actor = w.executor.startsWith("claude") ? "claude" : w.executor === "hermes" ? "hermes" : w.executor === "muse" ? "muse" : w.executor === "n8n" ? "n8n" : w.executor === "person" ? "owner" : "system";
-  return { at, actor, kind: "scheduled", text: `بيشتغل: ${w.name}`, href: "/workflow" };
+  return { at, actor, kind: "scheduled", text: `بيشتغل: ${w.name}`, href: "/work" };
 }
 
 /** A job that runs a few times a day is a line per run; one that runs often (hourly…) is one line — how many times, from when to when. */
@@ -148,7 +148,7 @@ export function dueItem(t: { title: string; dueAt: string; assignee: string | nu
 }
 
 export function expiryItem(a: { title: string; at: string }): DayItem {
-  return { at: a.at, actor: "owner", kind: "expiry", text: `قرار بينتهي بلا جواب: ${a.title}`, tone: "warn", href: "/tasks#approval" };
+  return { at: a.at, actor: "owner", kind: "expiry", text: `قرار بينتهي بلا جواب: ${a.title}`, tone: "warn", href: "/inbox" };
 }
 
 // ───────────────────────────── to say it elsewhere ─────────────────────────────

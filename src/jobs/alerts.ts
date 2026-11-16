@@ -56,8 +56,8 @@ async function eventSignals(now: Date): Promise<Signal[]> {
   const sets = await db.changeSet.findMany({ where: { createdAt: { gte: since }, OR: [{ source: "rule", state: "executed", kind: { in: ["safety_pause", "safety_reduce"] } }, { state: "pending_approval", spendDeltaDaily: { gt: 0 } }, { state: "pending_approval", kind: { in: ["test_campaign", "safety_net"] } }] }, select: { id: true, state: true, sentence: true, spendDeltaDaily: true } });
   return sets.map((c) =>
     c.state === "executed"
-      ? { key: `cs:${c.id}`, kind: "alert.safety", tone: "warn" as const, text: `قرار أمان تنفّذ: ${c.sentence}`, href: "/tasks", instant: true }
-      : { key: `cs:${c.id}`, kind: "alert.approval", tone: "warn" as const, text: `بانتظار موافقتك${Number(c.spendDeltaDaily) > 0 ? ` (+${Number(c.spendDeltaDaily)}$ باليوم)` : ""}: ${c.sentence.slice(0, 160)} — من الموقع بس`, href: "/tasks", instant: true },
+      ? { key: `cs:${c.id}`, kind: "alert.safety", tone: "warn" as const, text: `قرار أمان تنفّذ: ${c.sentence}`, href: `/inbox/${encodeURIComponent(`change:${c.id}`)}`, instant: true }
+      : { key: `cs:${c.id}`, kind: "alert.approval", tone: "warn" as const, text: `بانتظار موافقتك${Number(c.spendDeltaDaily) > 0 ? ` (+${Number(c.spendDeltaDaily)}$ باليوم)` : ""}: ${c.sentence.slice(0, 160)} — من الموقع بس`, href: `/inbox/${encodeURIComponent(`change:${c.id}`)}`, instant: true },
   );
 }
 
