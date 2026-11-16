@@ -967,6 +967,10 @@ model Task {
   /// ui · mcp · workflow · assistant
   source     String    @default("ui")
   archivedAt DateTime?
+  /// Zaki Workspace (the one-way door, v3 · W): this task's id there once it was sent, when it was last asked about, the last refusal
+  wsId       String?   @unique
+  wsSyncedAt DateTime?
+  wsError    String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

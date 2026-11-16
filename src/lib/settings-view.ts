@@ -8,6 +8,7 @@ import { getSetting } from "@/server/settings";
 import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { N8N_CREATOR } from "@/core/n8n-starters";
 import { siteConfigFrom } from "@/core/step-exec";
+import { workspaceConfigFrom } from "@/core/workspace-door";
 import { accountRestricted } from "@/jobs/account-safety";
 import { AGENT_NAMES, AGENTS } from "@/gateway";
 import type { SourceHealth } from "@/lib/mock/data";
@@ -110,6 +111,17 @@ function assistantLink(): SourceHealth {
   return { key: "assistant", label: "المساعد الذكي (Claude)", state: "ok", detail: `موصول — ${assistantModel()}` };
 }
 
+/** Zaki Workspace's one-way door (D41): linked, when it was last asked, and what it refused (never a token or a title). */
+async function workspaceLink(): Promise<SourceHealth> {
+  const label = "Zaki Workspace — مهام الفريق";
+  const cfg = workspaceConfigFrom(process.env);
+  if (!cfg) return { key: "workspace", label, state: "off", detail: "مش مربوط — WORKSPACE_BASE_URL (https) وWORKSPACE_API_TOKEN بـ Coolify" };
+  const [sent, refused, at] = await Promise.all([db.task.count({ where: { wsId: { not: null } } }), db.task.count({ where: { wsError: { not: null }, wsId: null, archivedAt: null } }), lastSuccess("workspace.sync")]);
+  if (!at) return { key: "workspace", label, state: "late", detail: "مربوط — لسا ما صارت أول مزامنة" };
+  const late = Date.now() - at.getTime() > 30 * 60_000;
+  return { key: "workspace", label, state: late || refused ? "late" : "ok", detail: `آخر مزامنة ${ago(at)} · انبعت ${sent}${refused ? ` · ${refused} انرفضت (شوف مهامك)` : ""}` };
+}
+
 /** n8n and addresses the site may call from a workflow step: linked, and what the owner allowed (D35). */
 function stepRunnerLink(): SourceHealth {
   const c = siteConfigFrom(process.env);
@@ -141,6 +153,7 @@ export async function loadEditView(): Promise<EditView | null> {
     link("driveLibrary", "درايف — فيديوهات وسيناريوهات", has("GOOGLE_SERVICE_ACCOUNT_JSON") && has("DRIVE_PRODUCTION_FOLDER_ID"), await lastSuccess("drive.library"), 90, "فحص"),
     assistantLink(),
     stepRunnerLink(),
+    await workspaceLink(),
     await n8nPulse(),
     { key: "model", label: "الموديل", state: modelConnected() ? "ok" : "off", detail: modelConnected() ? (has("EXTERNAL_MODEL_BASE_URL") ? "داخلي + خارجي" : "داخلي") : "مش موصول — الكود بيكمّل لحاله" },
   ];
