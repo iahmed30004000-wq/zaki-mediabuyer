@@ -93,10 +93,6 @@ const TABS = [
 ] as const;
 
 /** The tabs that are pages of their own (server-rendered): reached by link, not by client state. */
-const LINK_TABS = [
-  { key: "health", label: "الصحة" },
-  { key: "scale", label: "سلّم التكبير" },
-] as const;
 
 export function AdsView({
   table,
@@ -125,19 +121,7 @@ export function AdsView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="tablist" data-tour="tabs" className="inline-flex rounded-lg border border-border bg-surface-1 p-1">
-          {TABS.map((t) => (
-            <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)} className={cn("min-h-9 rounded-md px-3 text-sm font-medium", tab === t.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
-              {t.label}
-            </button>
-          ))}
-          {LINK_TABS.map((t) => (
-            <Link key={t.key} role="tab" aria-selected={false} href={`/ads?tab=${t.key}`} className="inline-flex min-h-9 items-center rounded-md px-3 text-sm font-medium text-fg-muted hover:text-fg">
-              {t.label}
-            </Link>
-          ))}
-        </div>
-        <Button onClick={() => setLaunch(true)} data-tour="launch" className="ms-auto min-h-10">
+        <Button onClick={() => setLaunch(true)} data-tour="launch" className="ms-auto">
           <Plus className="size-4" />
           إطلاق
         </Button>

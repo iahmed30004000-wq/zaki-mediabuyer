@@ -1,64 +1,58 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil } from "lucide-react";
 import { MediaBuyerMark } from "@/components/logo";
-import { ThemeDecor } from "@/components/theme/theme-decor";
+import { READY_PLACES, SETTINGS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { iconOfPage } from "./nav-icons";
-import { useCurrentPlace, useShell } from "./shell-context";
+import { useCurrentPlace, useInboxCount } from "./shell-context";
+
+/** The count of what waits for the owner, as a red badge (the one place red is used for a number). */
+export function CountBadge({ count, className }: { count: number; className?: string }) {
+  if (!count) return null;
+  return (
+    <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-xs font-bold text-danger-fg tabular-nums", className)} aria-label={`${count} بانتظارك`}>
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 /**
- * The navigation from the `md` breakpoint up: the mark on the decorated header and the pages as the owner left them (at most seven;
- * «وضع التعديل» also shows the ones he hid, dimmed, and a way into the panel that changes them).
+ * The side menu from `md` up (232px): the mark and the name, the five places (44px rows, «بانتظارك» with its count), then the settings
+ * at the bottom. The pages the owner made himself are under «متقدّم» (P11), not here.
  */
 export function Sidebar() {
   const current = useCurrentPlace();
-  const { pages, editing, openPanel } = useShell();
-  const list = pages.filter((p) => !p.archived && (editing || !p.hidden));
+  const inbox = useInboxCount();
+  const row = (active: boolean) =>
+    cn("flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-bold transition-colors", active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg");
   return (
-    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-e border-border bg-surface-1 md:flex">
-      <div className="relative isolate flex h-[72px] items-center gap-2.5 overflow-hidden border-b border-border px-4">
-        <ThemeDecor kind="sidebar" />
-        <MediaBuyerMark className="relative z-10 size-9" />
-        <div className="relative z-10 leading-tight">
-          <p className="font-display text-base font-bold text-fg">الميديا باير</p>
-          <p className="text-[11px] text-fg-muted">Zaki · إعلانات ميتا</p>
+    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-e border-border bg-surface-1 md:flex">
+      <div className="flex h-[72px] items-center gap-2.5 border-b border-border px-4">
+        <MediaBuyerMark className="size-9" />
+        <div className="leading-tight">
+          <p className="text-base font-extrabold text-fg">الميديا باير</p>
+          <p className="text-xs text-fg-muted">الإعلانات والتشغيل</p>
         </div>
       </div>
       <nav aria-label="الأماكن" className="flex-1 space-y-1 overflow-y-auto p-3">
-        {list.map((p) => {
+        {READY_PLACES.map((p) => {
           const active = p.key === current.key;
-          const Icon = iconOfPage(p);
-          const cls = cn(
-            "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-            active ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
-            p.hidden && "opacity-50",
-          );
-          const inner = (
-            <>
-              <Icon className="size-[18px] shrink-0" />
+          const Icon = p.icon;
+          return (
+            <Link key={p.key} href={p.href} aria-current={active ? "page" : undefined} className={row(active)}>
+              <Icon className="size-5 shrink-0" aria-hidden />
               <span className="min-w-0 flex-1 truncate">{p.label}</span>
-              {p.hidden ? <span className="text-[10px] font-normal">مخفية</span> : null}
-            </>
-          );
-          return p.external ? (
-            <a key={p.key} href={p.href} target="_blank" rel="noreferrer noopener" className={cls}>
-              {inner}
-            </a>
-          ) : (
-            <Link key={p.key} href={p.href} aria-current={active ? "page" : undefined} className={cls}>
-              {inner}
+              {p.key === "inbox" ? <CountBadge count={inbox} /> : null}
             </Link>
           );
         })}
-        {editing ? (
-          <button type="button" onClick={() => openPanel("pages")} className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-dashed border-accent/50 px-3 text-sm font-medium text-accent hover:bg-accent/5">
-            <Pencil className="size-[18px]" />
-            عدّل الصفحات
-          </button>
-        ) : null}
       </nav>
+      <div className="border-t border-border p-3">
+        <Link href={SETTINGS.href} aria-current={current.key === "settings" ? "page" : undefined} className={row(current.key === "settings")}>
+          <SETTINGS.icon className="size-5 shrink-0" aria-hidden />
+          <span>{SETTINGS.label}</span>
+        </Link>
+      </div>
     </aside>
   );
 }

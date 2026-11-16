@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { CircleHelp, Play } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
+import { IconButton } from "@/components/ui/icon-button";
 import { guideOf } from "@/lib/guide";
 import "driver.js/dist/driver.css";
 import "@/components/ui/tour.css";
@@ -25,9 +26,9 @@ export function PageHelp({ place }: { place: { key: string; label: string } }) {
   const g = guideOf(place.key);
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="شو هاي الصفحة؟" className="inline-flex size-9 items-center justify-center rounded-lg border border-border text-fg-muted hover:bg-surface-2 hover:text-fg">
-        <CircleHelp className="size-[18px]" />
-      </button>
+      <IconButton aria-label="شو هاي الصفحة؟" title="شو هاي الصفحة؟" onClick={() => setOpen(true)}>
+        <CircleHelp className="size-5" aria-hidden />
+      </IconButton>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
           <SheetHeader>
@@ -52,9 +53,9 @@ export function PageHelp({ place }: { place: { key: string; label: string } }) {
                 <Play className="size-4" />
                 فرجيني
               </Button>
-              <Link href="/settings#guide" onClick={() => setOpen(false)} className="inline-flex h-9 items-center rounded-lg border border-border px-4 text-sm text-fg hover:bg-surface-2">
+              <ButtonLink href="/settings#guide" variant="secondary" onClick={() => setOpen(false)}>
                 الدليل والمصطلحات
-              </Link>
+              </ButtonLink>
             </div>
           </SheetBody>
         </SheetContent>

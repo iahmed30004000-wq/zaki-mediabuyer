@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { READY_PLACES, SETTINGS } from "@/lib/nav";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { groupHits, rank, searchable, type SearchHit, type SearchItem } from "@/core/search";
 import { cn } from "@/lib/utils";
@@ -78,8 +79,20 @@ export function CommandPalette() {
     };
   }, [q, open]);
 
-  const pageItems = useMemo<SearchItem[]>(() => pages.filter((p) => !p.archived).map((p) => ({ kind: "page", id: p.key, title: p.label, sub: p.question, href: p.href })), [pages]);
-  const hits = useMemo(() => (searchable(q) ? rank(q, [...pageItems, ...data], 24) : pageItems.filter((p) => !pages.find((x) => x.key === p.id)?.hidden).map((p) => ({ ...p, score: 1 }))), [q, pageItems, data, pages]);
+  // the five places and their tabs, the products and the settings — then the pages the owner made himself
+  const pageItems = useMemo<SearchItem[]>(
+    () => [
+      ...READY_PLACES.flatMap((pl) => [
+        { kind: "page" as const, id: pl.key, title: pl.label, sub: pl.question, href: pl.href },
+        ...pl.tabs.filter((t) => t.ready !== false && t.href !== pl.href).map((t) => ({ kind: "page" as const, id: `${pl.key}:${t.href}`, title: `${pl.label} · ${t.label}`, sub: pl.question, href: t.href })),
+      ]),
+      { kind: "page" as const, id: "products", title: "المنتجات", sub: "أرقام كل منتج", href: "/products" },
+      { kind: "page" as const, id: "settings", title: SETTINGS.label, sub: SETTINGS.question, href: SETTINGS.href },
+      ...pages.filter((p) => !p.archived && !p.builtin && !p.hidden).map((p) => ({ kind: "page" as const, id: p.key, title: p.label, sub: p.question, href: p.href })),
+    ],
+    [pages],
+  );
+  const hits = useMemo(() => (searchable(q) ? rank(q, [...pageItems, ...data], 24) : pageItems.map((p) => ({ ...p, score: 1 }))), [q, pageItems, data]);
   const groups = useMemo(() => groupHits(hits), [hits]);
   const flat = useMemo(() => groups.flatMap((g) => g.hits), [groups]);
 

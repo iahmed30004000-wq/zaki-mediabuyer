@@ -384,7 +384,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
   return (
     <div className="space-y-3" onKeyDown={onKey}>
       <header className="flex flex-wrap items-center gap-2">
-        <Link href="/workflow" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg">
+        <Link href="/work" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg">
           <ArrowRight className="size-4" /> الورك فلو
         </Link>
         <h2 className="flex min-w-[9rem] flex-1 items-center gap-2 text-base font-bold text-fg">

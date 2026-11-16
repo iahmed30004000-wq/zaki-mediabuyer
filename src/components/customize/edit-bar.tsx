@@ -3,23 +3,16 @@
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useShell } from "@/components/shell/shell-context";
-import { cn } from "@/lib/utils";
 
-/** The pencil in the header: «وضع التعديل» on and off. Only the owner, signed in, ever sees it. */
+/** «وضع التعديل» on and off — a button in the settings page until P11 retires the mode. Only the owner, signed in, ever sees it. */
 export function EditToggle({ className }: { className?: string }) {
   const { canEdit, editing, setEditing } = useShell();
   if (!canEdit) return null;
   return (
-    <button
-      type="button"
-      onClick={() => setEditing(!editing)}
-      aria-pressed={editing}
-      aria-label="وضع التعديل"
-      title="وضع التعديل"
-      className={cn("inline-flex size-9 items-center justify-center rounded-lg border", editing ? "border-accent bg-accent text-accent-fg" : "border-border text-fg-muted hover:bg-surface-2 hover:text-fg", className)}
-    >
-      <Pencil className="size-[18px]" />
-    </button>
+    <Button variant={editing ? "primary" : "secondary"} aria-pressed={editing} className={className} onClick={() => setEditing(!editing)}>
+      <Pencil className="size-4" aria-hidden />
+      {editing ? "وضع التعديل شغّال" : "وضع التعديل"}
+    </Button>
   );
 }
 

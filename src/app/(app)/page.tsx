@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, CircleDot, CreditCard, Sparkles } from "lucide-react";
+import { CheckCircle2, CircleDot, CreditCard } from "lucide-react";
 import { ApprovalCard } from "@/components/approvals/approval-card";
 import { AlertStrip } from "@/components/home/alert-strip";
 import { ModeSwitch } from "@/components/home/mode-switch";
@@ -9,103 +9,32 @@ import { ChangeCard } from "@/components/mb/change-card";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Num } from "@/components/mb/num";
 import { PaceBar, Panel, Section } from "@/components/mb/section";
-import { NumbersView } from "@/components/numbers/numbers-view";
-import { DateSwitcher } from "@/components/shell/date-switcher";
-import { TabNav } from "@/components/shell/tab-nav";
-import { ArtSlot } from "@/components/theme/art-slot";
-import { ThemeDecor } from "@/components/theme/theme-decor";
-import { can } from "@/core/roles";
-import { addDays, ammanKey, parseRange } from "@/core/dates";
 import { fmt } from "@/lib/format";
 import { loadChanges, type ChangeView } from "@/lib/changes-view";
-import { PACE, SETUP_STEPS, SOURCES, allAds } from "@/lib/mock/data";
-import { loadNumbers } from "@/lib/numbers-view";
+import { PACE, SOURCES, allAds } from "@/lib/mock/data";
+import { isDemo } from "@/core/readiness";
 import { loadEditView } from "@/lib/settings-view";
 import { loadDataset } from "@/lib/source";
 import { loadMorning, loadToday } from "@/lib/today-view";
-import { currentCaller } from "@/server/auth";
-import { db } from "@/server/db";
-import { listApprovals } from "@/server/approvals";
 import { currentMode } from "@/server/mode";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "اليوم" };
+export const metadata = { title: "الرئيسية" };
 export const dynamic = "force-dynamic";
 
-const TABS = [
-  { key: "numbers", label: "الأرقام" },
-  { key: "summary", label: "الملخص" },
-] as const;
-
-function greeting(now = new Date()) {
-  const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", hour: "2-digit", hour12: false }).format(now));
-  return h < 12 ? "صباح الخير" : h < 18 ? "مسا الخير" : "مسا النور";
-}
-
 /**
- * اليوم: the greeting, the صاحي/نايم switch and last night's card on top; under them two tabs — «الأرقام» (every number of the
- * day, per product and in total, for the date range the switcher says) and «الملخص» (what must not be missed, the three short
- * lists, the pace, the best by the truth). A screen is real or it is demo, never both.
+ * الرئيسية: the owner's board — the mode switch and last night's card, then what must not be missed, what waits, the pace, the best by
+ * the truth. (The numbers per product are `/products`.) A screen is real or it is demo, never both. P4 rebuilds it from the kit.
  */
-export default async function TodayPage({ searchParams }: { searchParams: { tab?: string; d?: string; from?: string; to?: string } }) {
-  const tab = searchParams.tab === "summary" ? "summary" : "numbers";
-  const [changes, mode, edit, me, morning, requests] = await Promise.all([
-    loadChanges(),
-    currentMode(),
-    loadEditView(),
-    currentCaller(),
-    loadMorning(),
-    process.env.MOCK_MODE === "1" ? Promise.resolve([]) : listApprovals({ status: ["pending", "postponed"] }),
-  ]);
-  const user = me && !me.demo ? await db.user.findUnique({ where: { id: me.id }, select: { name: true } }) : null;
-  const waiting = changes.filter((c) => c.state === "pending_approval").length + requests.length;
-  const links = edit?.links ?? SOURCES;
-  const linked = edit ? links.filter((l) => l.state !== "off").length : SETUP_STEPS.filter((s) => s.done).length;
-  const total = edit ? links.length : SETUP_STEPS.length;
-  const date = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", weekday: "long", day: "numeric", month: "long" }).format(new Date());
-  const demo = process.env.MOCK_MODE === "1";
+export default async function HomePage() {
+  const [changes, mode, morning] = await Promise.all([loadChanges(), currentMode(), loadMorning()]);
+  const demo = isDemo(process.env);
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* The strip: the only decorated part of the page, with the greeting on a scrim. */}
-      <div className="relative isolate overflow-hidden rounded-card border border-border bg-surface-1">
-        <ThemeDecor kind="strip" />
-        <ArtSlot slot="today-strip" className="zk-strip-art absolute inset-0 h-full w-full object-cover" />
-        <div className="relative z-10 flex flex-wrap items-center gap-3 p-3 sm:gap-4 sm:p-5">
-          <div className="zk-scrim rounded-xl px-3 py-2">
-            <p className="font-display text-lg font-bold text-fg sm:text-2xl">{greeting()}{user?.name ? ` يا ${user.name}` : ""}</p>
-            <p className="text-xs text-fg-muted">{date} · {waiting ? `${waiting} قرار بانتظارك` : "ما في شي بانتظارك"}</p>
-          </div>
-          {linked < total ? (
-            <Link href="/settings#setup" className="zk-scrim ms-auto inline-flex min-h-11 items-center gap-2 rounded-xl border border-accent/40 px-3 text-sm font-medium text-accent hover:bg-accent/10">
-              <Sparkles className="size-4" />
-              جهّز النظام · {linked} من {total}
-              <ArrowLeft className="size-4" />
-            </Link>
-          ) : null}
-        </div>
-      </div>
-
       <ModeSwitch initial={{ mode: mode.mode, since: mode.since, schedule: mode.schedule }} demo={demo} />
       {morning ? <MorningCard m={morning} /> : null}
-
-      <TabNav tabs={TABS} active={tab} base="/" label="اليوم" tour="tabs" />
-      {tab === "numbers" ? <NumbersTab q={searchParams} /> : <SummaryTab changes={changes} />}
-    </div>
-  );
-}
-
-/** «الأرقام»: the date switcher, then the totals and the products. */
-async function NumbersTab({ q }: { q: { d?: string; from?: string; to?: string } }) {
-  const range = parseRange(q, new Date());
-  const [data, me] = await Promise.all([loadNumbers(q), currentCaller()]);
-  // «ألصق أرقام» is the owner's, on real data: it starts from yesterday (the closed day)
-  const pasteDay = me && !me.demo && process.env.MOCK_MODE !== "1" && can(me.role, "owner_only") ? addDays(ammanKey(new Date()), -1) : undefined;
-  const query = range.key === "custom" ? `d=custom&from=${range.from}&to=${range.to}` : `d=${range.key}`;
-  return (
-    <div className="space-y-4">
-      <DateSwitcher range={range} />
-      <NumbersView data={data} query={query} pasteDay={pasteDay} />
+      <SummaryTab changes={changes} />
     </div>
   );
 }
@@ -127,7 +56,6 @@ async function SummaryTab({ changes }: { changes: ChangeView[] }) {
 
   return (
     <div className="space-y-6">
-      {view.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">بيانات تجريبية — هاي الشاشة كلها أمثلة. لما تربط Claude أو الـ APIs وتشغّل الموقع على الحقيقي (MOCK_MODE=0)، كل رقم هون بيجي من طلباتك الفعلية.</p> : null}
 
       <Section title="أرقام اليوم" hint="اليوم مقابل أمس ومعدّل آخر 7 أيام — كل رقم بيشرح حاله بضغطة" tour="numbers">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -148,7 +76,7 @@ async function SummaryTab({ changes }: { changes: ChangeView[] }) {
       </Section>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Section title="بانتظار موافقتك" tour="approvals" link={{ href: "/tasks#approval", label: "كلهم" }}>
+        <Section title="بانتظار موافقتك" tour="approvals" link={{ href: "/inbox", label: "كلهم" }}>
           <div className="space-y-3">
             {view.approvals.slice(0, 3).map((a) => <ApprovalCard key={a.id} approval={a} compact />)}
             {pending.slice(0, 3).map((c) => <ChangeCard key={c.id} change={c} />)}
@@ -159,7 +87,7 @@ async function SummaryTab({ changes }: { changes: ChangeView[] }) {
             ) : null}
           </div>
         </Section>
-        <Section title="متوقف" hint="خطوات واقفة ومين رح يكمّلها" link={{ href: "/workflow", label: "الورك فلو" }}>
+        <Section title="متوقف" hint="خطوات واقفة ومين رح يكمّلها" link={{ href: "/work", label: "الشغل" }}>
           <Panel className="divide-y divide-border p-0">
             {view.stalled.map((s) => (
               <Link key={s.key} href={s.href} className="block px-4 py-3 hover:bg-surface-2">
@@ -170,10 +98,10 @@ async function SummaryTab({ changes }: { changes: ChangeView[] }) {
             {!view.stalled.length ? <p className="px-4 py-3 text-sm text-fg-muted">ولا شي واقف.</p> : null}
           </Panel>
         </Section>
-        <Section title="مهام اليوم" link={{ href: "/tasks", label: "كل المهام" }}>
+        <Section title="مهام اليوم" link={{ href: "/work/tasks", label: "كل المهام" }}>
           <Panel className="divide-y divide-border p-0">
             {view.tasks.map((t) => (
-              <Link key={t.id} href="/tasks" className="flex items-start gap-2 px-4 py-3 hover:bg-surface-2">
+              <Link key={t.id} href="/work/tasks" className="flex items-start gap-2 px-4 py-3 hover:bg-surface-2">
                 <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", t.priority === "urgent" || t.priority === "high" ? "bg-warn" : "bg-fg-muted/40")} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-fg">{t.title}</span>
@@ -231,7 +159,7 @@ async function SummaryTab({ changes }: { changes: ChangeView[] }) {
         <Section title="الأفضل بالحقيقة" hint={`آخر 3 أيام · ${untested} إعلان لسا ما انختبر`} link={{ href: "/ads", label: "كل الإعلانات" }}>
           <Panel className="divide-y divide-border p-0">
             {best.map(({ ad, product, view: v }) => (
-              <Link key={ad.id} href={`/ads?open=${ad.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-2">
+              <Link key={ad.id} href={`/ads/campaigns?open=${ad.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-2">
                 <span dir="ltr" className="font-mono text-xs text-fg">{ad.name.split("_")[0]}</span>
                 <span className="text-xs text-fg-muted">{product?.name}</span>
                 <span className="ms-auto inline-flex items-center gap-3">

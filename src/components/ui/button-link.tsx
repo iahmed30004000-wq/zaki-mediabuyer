@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-import { buttonVariants } from "./button";
+import { buttonVariants } from "./button-variants";
 
 export interface ButtonLinkProps extends ComponentProps<typeof Link>, Omit<VariantProps<typeof buttonVariants>, "block"> {
   block?: boolean;

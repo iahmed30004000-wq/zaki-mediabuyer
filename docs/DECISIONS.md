@@ -406,3 +406,10 @@ Workspace نشر عقد مكتوب (`docs/contracts/workspace-door.v1.md` بري
 - **خمس مقاسات نص** تستبدل مقياس Tailwind. `lg` و`2xl` و`4xl` مرادفات مؤقتة لأقرب مقاس لحد P12.
 - **عدّة جديدة** `src/components/ui`: `Button` (primary/secondary/ghost/danger × lg 48/md 40/sm 32، `loading`, `block`, `confirm`) · `IconButton` · `ButtonLink` · `Pill` · `Chip` · `Stat` · `SectionTitle` · `Tabs` · `Segmented` · `DataTable` · `Field` · `Switch` · `Checkbox` · `FactsTable` · `ErrorState` · `PageShell`، وإعادة تلبيس `Card`/`EmptyState`/`Input`/`Dialog`/`Toast`. معاينة كاملة بـ `/dev/kit` (للمالك).
 - **الزخرفة:** `ThemeDecor` و`ArtSlot` و`DecorVisibility` بترجّع `null`. التفاصيل والانحرافات بـ `docs/rebuild/NOTES.md`.
+
+## D50 — V5 · P2: الهيكل (16/11/2026)
+- **خمس أماكن + الإعدادات:** الرئيسية · بانتظارك · الشغل · الإعلانات · التشغيل (`ready: false` لحد P9، فما بيظهر بالقائمة ولا بالشريط). المصدر `src/lib/nav.ts` (`PLACES`, `SETTINGS`, `placeOf`, `tabOf`). التبويب اللي شاشته لسا ما انبنت (`/inbox/later`, `/inbox/done`) `ready: false` وما بيظهر.
+- **العناوين الجديدة:** `/inbox` · `/work` · `/work/today` · `/work/tasks` · `/work/reports` · `/work/job/[key]` (تحويل) · `/work/job/[key]/draw` · `/ads` · `/ads/campaigns` · `/ads/videos` · `/ads/tests` · `/ads/health` · `/ads/scale` · `/products`. الصفحات القديمة (`/tasks` `/workflow` `/workflow/[key]` `/done` `/videos`) انحذفت وصارت تحويل 307 بـ `next.config.mjs` (والـ query بينتقل). كل تحويل محمي باختبار إن وجهته صفحة موجودة.
+- **الزخرفة:** ولا استيراد (`decorImports` = 0). شاشة الدخول و404 بطاقة (`DoorCard`). شريط التجريبي سطر واحد بالهيكل، وانشالت الشرايط من الصفحات.
+- **مؤقت لحد مراحله:** `/` ملخص اليوم القديم (P4) · `/inbox` موافقات + تغييرات (P3) · `/ads` عرض «حسب المنتج» (P8) · «وضع التعديل» زر بالإعدادات (P11).
+- **الجوال:** الإعدادات رابط بالهيدر (مش بالشريط)، والمساعد أيقونة بالهيدر بدل الزر العائم.

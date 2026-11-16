@@ -7,6 +7,7 @@ import { Panel, Section } from "@/components/mb/section";
 import { StudioLink } from "@/components/settings/studio-link";
 import { ClaudeLink } from "@/components/settings/claude-link";
 import { AnthropicLink } from "@/components/settings/anthropic-link";
+import { EditToggle } from "@/components/customize/edit-bar";
 import { ModeSettings } from "@/components/settings/mode-settings";
 import { RulesEditor } from "@/components/settings/rules-editor";
 import { LevelPicker } from "@/components/settings/level-picker";
@@ -98,6 +99,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { a
             </Panel>
           ) : null}
           {edit ? <PurchaseOnPicker value={edit.purchaseOn} /> : null}
+          <EditToggle className="self-start md:col-span-2" />
           <AnthropicLink />
           <ClaudeLink mock={process.env.MOCK_MODE === "1"} />
           <StudioLink />

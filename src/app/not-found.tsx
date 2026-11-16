@@ -1,14 +1,14 @@
-import Link from "next/link";
-import { DoorShell } from "@/components/theme/door-shell";
+import { ButtonLink } from "@/components/ui/button-link";
+import { DoorCard } from "@/components/shell/door-card";
 
 export default function NotFound() {
   return (
-    <DoorShell>
+    <DoorCard>
       <div className="space-y-3 rounded-card border border-border bg-surface-1 p-5 text-center shadow-card">
         <p className="text-lg font-bold text-fg">هالصفحة مش موجودة</p>
-        <p className="text-sm text-fg-muted">يمكن الرابط قديم. ارجع لـ «اليوم» ومن هناك كل شي بإيدك.</p>
-        <Link href="/" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg">ارجع لليوم</Link>
+        <p className="text-sm text-fg-muted">يمكن الرابط قديم. ارجع للرئيسية ومن هناك كل شي بإيدك.</p>
+        <ButtonLink href="/">ارجع للرئيسية</ButtonLink>
       </div>
-    </DoorShell>
+    </DoorCard>
   );
 }
