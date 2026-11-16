@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 24 · done-local-only 35 · blocked 20 · not-started 6 (المجموع 85).
+> **العدّ:** done-live 25 · done-local-only 38 · blocked 20 · not-started 6 (المجموع 89).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -84,6 +84,10 @@
 | V3-SC | الجدولة من الموقع بدل n8n: الـ worker بيصحّي الورك فلو بمواعيدها (Claude بالطابور أو خطواته من الموقع) — مقفولة لحد `SITE_SCHEDULER=1` | `done-local-only` | D45 · `tests/scheduler.test.ts` · `demo:mcp` · مقفولة افتراضياً (قرار المالك 16/11: الجدولة الحقيقية = مهام Claude المجدولة) |
 | V3-H | المساعد الذكي: زر بكل صفحة (كان «المستشار») بيجاوب من أرقام الشاشات نفسها عبر Claude API بـ 18 أداة (D44) (قراءة · مهام · اقتراح تغيير بيستنى موافقتك · مسودات ورك فلو وخطوة وبرومبت) — الكود بيحسب وبيطبع كل رقم، وحارس بيعلّم أي رقم ما إلو أداة، و«الأرقام اللي جاوبت منها» من الكود، وسقف يومي (M12) وشهري وكل نداء بسجل `AgentRun` | `blocked` — ANTHROPIC_API_KEY + PRIVACY_MODE=off | D32 · `tests/assistant-*.test.ts` (4 ملفات) · `npm run demo:mcp` · **ما اتجرّب مع الـ API الحقيقي** |
 | V3-C | الإعلانات: جدول وحد حملة ← مجموعة ← إعلان بـ 16 عمود (+6 بالمنتقي، محفوظ لكل شخص) + الفلاتر بالرابط + «قارن» + مقياس حصة الاختبارات + «ⓘ» قاعدة الاحتساب لكل عمود + «اقترح زيادة» حقيقي (اقتراح بيمرّ بخدمة التغيير) | `done-local-only` | D25 · `tests/ads-table.test.ts` (36) · `tests/ads-table-view.test.ts` (15) · `npm run demo:mcp` (بلوك الجدول على Postgres) · **صار:** رقم V وJOB على بطاقة الإعلان (D40) · **لسا:** نسخ (duplicate) كاقتراح = صف V3-C-b |
+| R1 | `MOCK_MODE=0` آمن: مفتاح ناقص = فشل بالعربي بيسمّي المتغيّر (مهام الـ worker وأزرار الموقع) · لا كتابة على ميتا بلا `META_LIVE_VERIFIED` | `done-local-only` | D46 · `tests/readiness.test.ts` · `demo:mcp` (تغيير live بلا الفلاج ← فشل بسببه) |
+| R2 | لوحة «جاهزية الربط» (`/settings#readiness`) + تسجيل webhook تيليجرام | `done-local-only` | D46 · `demo:mcp` (أسماء الناقص بلا قيم · «skipped» مش نداء حقيقي) |
+| R3 | `docs/LIVE_CHECKS.md`: 12 فحص حي بخطوات Chrome ونتيجة متوقّعة | `done-live` | الفحص نفسه بيعمله Claude الرئيسي |
+| R4 | ملفات n8n الثمانية: مطفية · credential بالاسم · السر من بيئة n8n · جدول «بيستبدل» (`docs/N8N.md`) | `done-local-only` | `tests/n8n-starters.test.ts` (39) · الاستيراد الفعلي = L7 |
 | A6-b | الصور: تنزيل صور مرخّصة بدل برومبتات GPT (طلب المالك) | `not-started` | التنزيل بدّه موافقة صريحة بالمحادثة (اسم الملف والمصدر والحجم) |
 | T2.3-b | «اوقف» من تيليجرام (أي صرف بيرفضه) | `blocked` — TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_CHAT_ID + webhook `/api/telegram/webhook` | الكود شغّال ومفحوص بسيرفر وهمي · الفحص الحي = docs/LIVE_CHECKS.md |
 | T2.4-b | قدرة الرد: قراءة نظام الردود وتجميد تكبير الرسائل | `blocked` — REPLIES_BASE_URL + REPLIES_TOKEN (نظام الردود نفسه) | `tests/replies.test.ts` |

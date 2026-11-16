@@ -1183,7 +1183,7 @@ async function clean() {
 
   // the readiness panel: names of what is missing (never a value), and only a REAL call counts as «the last call»
   {
-    const secret = "tg-secret-value-123456";
+    const secret = "dummy-test-value-not-a-key"; // scan-secrets:ignore
     const env = { TELEGRAM_BOT_TOKEN: secret, OMS_BASE_URL: "https://oms.example.test", META_WRITE_MODE: "live" } as Record<string, string>;
     await db.jobRun.deleteMany({ where: { slot: { startsWith: "demo-mcp-ready" } } });
     await db.jobRun.create({ data: { job: "replies.sync", slot: "demo-mcp-ready-1", status: "ok", finishedAt: new Date(Date.now() - 600_000), stats: { skipped: "not linked" } } });
