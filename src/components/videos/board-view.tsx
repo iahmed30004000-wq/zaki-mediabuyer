@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BatteryWarning, ChevronDown, ExternalLink, FileText, FlaskConical, Play, Sparkles } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -179,22 +180,46 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
   );
 }
 
-/** The four buttons of a card. «تعب» asks twice: it flips the video's own flag in the bank. */
+/**
+ * ONE button on a card: «اطلب…» opens the four requests (new hooks · new script · up to the test · tired). «تعب» asks twice — it flips the
+ * video's own flag in the bank — so it turns the button into «متأكد؟ أيوه / لا» in the same place.
+ */
 function Actions({ v, busy, ask }: { v: BoardVideo; busy: string | null; ask: (v: BoardVideo, kind: RequestKind) => void }) {
+  const [sure, setSure] = useState(false);
+  const working = !!busy && busy.startsWith(`${v.key}:`);
+  if (sure) {
+    return (
+      <div data-tour="actions" role="group" aria-label="تأكيد تعب" className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-fg">متأكد إنه تعب؟</span>
+        <Button size="sm" onClick={() => (setSure(false), ask(v, "tired"))}>
+          أيوه
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setSure(false)}>
+          لا
+        </Button>
+      </div>
+    );
+  }
   return (
-    <div data-tour="actions" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-      {REQUEST_KINDS.map((kind) => {
-        const Icon = ICON[kind];
-        const working = busy === `${v.key}:${kind}`;
-        if (kind === "tired") {
-          return <Confirm key={kind} size="sm" variant="ghost" className="min-h-10 justify-start whitespace-nowrap px-2 text-[13px] sm:justify-center sm:px-3 sm:text-sm" disabled={!!busy || v.status === "fatigued"} label={<><Icon className="size-4" /> {REQUEST_KIND_AR[kind]}</>} sure="متأكد؟ كمان مرة" onGo={() => ask(v, kind)} />;
-        }
-        return (
-          <Button key={kind} size="sm" variant="secondary" className="min-h-10 justify-start whitespace-nowrap px-2 text-[13px] sm:justify-center sm:px-3 sm:text-sm" disabled={!!busy} onClick={() => ask(v, kind)}>
-            <Icon className="size-4" /> {working ? "لحظة…" : REQUEST_KIND_AR[kind]}
+    <div data-tour="actions">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="secondary" disabled={!!busy}>
+            {working ? "لحظة…" : "اطلب…"}
+            <ChevronDown className="size-4" aria-hidden />
           </Button>
-        );
-      })}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {REQUEST_KINDS.map((kind) => {
+            const Icon = ICON[kind];
+            return (
+              <DropdownMenuItem key={kind} disabled={kind === "tired" && v.status === "fatigued"} onSelect={() => (kind === "tired" ? setSure(true) : ask(v, kind))}>
+                <Icon className="size-4" aria-hidden /> {REQUEST_KIND_AR[kind]}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

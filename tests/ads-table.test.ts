@@ -44,9 +44,10 @@ const order = (o: Partial<OrderRow> & Pick<OrderRow, "day" | "status">): OrderRo
 
 describe("columns", () => {
   it("has 16 default columns that start with the name, and six more the picker can add", () => {
-    expect(DEFAULT_COLUMNS).toHaveLength(16);
+    expect(DEFAULT_COLUMNS).toEqual(["name", "status", "spend", "orders", "costPerOrder", "verdict"]);
     expect(DEFAULT_COLUMNS[0]).toBe("name");
-    expect(COLUMNS.filter((c) => !c.on).map((c) => c.key)).toEqual(["spend", "costPerConfirmed", "cpaPixel", "hook", "hold", "gap"]);
+    expect(COLUMNS.filter((c) => !c.on)).toHaveLength(17);
+    expect(COLUMNS).toHaveLength(23);
     expect(new Set(COLUMN_KEYS).size).toBe(COLUMN_KEYS.length);
   });
 

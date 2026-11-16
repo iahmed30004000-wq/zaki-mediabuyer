@@ -14,6 +14,8 @@ import { fmt } from "@/lib/format";
 import { GLOSSARY, SOURCE_HINT, type TermKey } from "@/lib/glossary";
 import type { AdsTableData, TableRow } from "@/lib/ads-table";
 import { cn } from "@/lib/utils";
+import { Pill } from "@/components/ui/pill";
+import { productVerdict } from "@/core/verdict";
 import { STATUS_LABEL, StatusChip } from "./status-chip";
 
 const DEF = new Map(COLUMNS.map((c) => [c.key, c]));
@@ -48,6 +50,11 @@ function Cell({ def, row, compare, target }: { def: ColumnDef; row: TableRow; co
     );
   }
   switch (def.key) {
+    case "verdict": {
+      // the verdict of the row's cost against the owner's target and break-even — shown, never decided here
+      const v = productVerdict(row.m.costPerOrder, target, row.breakeven);
+      return <Pill tone={v.tone}>{v.label}</Pill>;
+    }
     case "product":
       return row.product ? <span className="block truncate text-fg" title={row.product.code}>{row.product.name}</span> : dash;
     case "page":

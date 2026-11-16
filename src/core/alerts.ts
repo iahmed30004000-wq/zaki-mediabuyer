@@ -49,8 +49,8 @@ export function detect(f: AlertFacts): Signal[] {
   }
   // tracking: the pixel and the OMS disagree completely by the afternoon
   if (f.hour >= 14) {
-    if (f.pixelPurchasesToday === 0 && f.webOrdersToday >= 3) out.push({ key: "tracking:pixel", kind: "alert.tracking", tone: "warn", text: `تتبع: ${f.webOrdersToday} طلب من الموقع بالـ OMS اليوم وصفر Purchase بالبكسل — البكسل أو صفحة الشكر فيها مشكلة`, href: "/ads?tab=health" });
-    if (f.webOrdersToday === 0 && f.pixelPurchasesToday >= 3 && f.omsLinked) out.push({ key: "tracking:oms", kind: "alert.tracking", tone: "warn", text: `تتبع: البكسل عدّ ${f.pixelPurchasesToday} Purchase اليوم والـ OMS صفر طلبات من الموقع — الطلبات مش واصلة أو معاملات الرابط ضايعة`, href: "/ads?tab=health" });
+    if (f.pixelPurchasesToday === 0 && f.webOrdersToday >= 3) out.push({ key: "tracking:pixel", kind: "alert.tracking", tone: "warn", text: `تتبع: ${f.webOrdersToday} طلب من الموقع بالـ OMS اليوم وصفر Purchase بالبكسل — البكسل أو صفحة الشكر فيها مشكلة`, href: "/ads/health" });
+    if (f.webOrdersToday === 0 && f.pixelPurchasesToday >= 3 && f.omsLinked) out.push({ key: "tracking:oms", kind: "alert.tracking", tone: "warn", text: `تتبع: البكسل عدّ ${f.pixelPurchasesToday} Purchase اليوم والـ OMS صفر طلبات من الموقع — الطلبات مش واصلة أو معاملات الرابط ضايعة`, href: "/ads/health" });
   }
   // CPM: today more than twice the 7-day median (after 1,000 impressions)
   const m = median(f.cpm7);
@@ -61,9 +61,9 @@ export function detect(f: AlertFacts): Signal[] {
   // the replies inbox cannot keep up, or cannot be seen — message campaigns are held, so say it
   if (f.repliesProblem) out.push({ key: "replies", kind: "alert.replies", tone: "warn", text: f.repliesProblem, href: "/settings#connections" });
   // weak attribution
-  if (f.attributedPct !== null && f.attributedPct < 70) out.push({ key: "attribution", kind: "alert.attribution", tone: "warn", text: `إسناد ضعيف: ${f.attributedPct}% بس من الطلبات واصلة لإعلانها (تحت 70%)`, href: "/ads?tab=health" });
+  if (f.attributedPct !== null && f.attributedPct < 70) out.push({ key: "attribution", kind: "alert.attribution", tone: "warn", text: `إسناد ضعيف: ${f.attributedPct}% بس من الطلبات واصلة لإعلانها (تحت 70%)`, href: "/ads/health" });
   // conversion events refused by Meta
-  if (f.capiRejectedLastHour > 0) out.push({ key: "capi", kind: "alert.capi", tone: "warn", text: `${f.capiRejectedLastHour} حدث تحويل رفضته ميتا آخر ساعة — شوف «صحة البيانات»`, href: "/ads?tab=health" });
+  if (f.capiRejectedLastHour > 0) out.push({ key: "capi", kind: "alert.capi", tone: "warn", text: `${f.capiRejectedLastHour} حدث تحويل رفضته ميتا آخر ساعة — شوف «صحة البيانات»`, href: "/ads/health" });
   // the Meta token: 7 days before it ends, and at once when it ended
   if (f.tokenDaysLeft !== null && f.tokenDaysLeft <= 7) {
     out.push(f.tokenDaysLeft <= 0

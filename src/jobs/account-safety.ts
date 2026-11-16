@@ -19,11 +19,11 @@ export async function checkAccounts(now = new Date()) {
     await db.accountHealth.create({ data: { accountMetaId: a.metaId, status: a.status, paymentOk: !a.paymentStatus || a.paymentStatus === "ok", rejectedAds: rejected24h, verdict: v.verdict, notes: v.notes } });
     if (v.downgrade) {
       stats.restricted++;
-      if (last?.verdict !== "restricted") await db.alert.create({ data: { kind: "account_restricted", tone: "danger", text: `${a.name}: ${v.notes.join(" · ")}`, href: "/ads?tab=health#safety" } });
+      if (last?.verdict !== "restricted") await db.alert.create({ data: { kind: "account_restricted", tone: "danger", text: `${a.name}: ${v.notes.join(" · ")}`, href: "/ads/health#safety" } });
     }
     if (v.freezeCreate && !(await db.freeze.findFirst({ where: { targetId: a.metaId, kind: "create", liftedAt: null, until: { gt: now } } }))) {
       await db.freeze.create({ data: { scope: "account", targetId: a.metaId, kind: "create", reason: v.notes.join(" · "), until: new Date(now.getTime() + 24 * HOUR) } });
-      await db.alert.create({ data: { kind: "rejections", tone: "warn", text: `${a.name}: ${v.notes.join(" · ")}`, href: "/ads?tab=health#safety" } });
+      await db.alert.create({ data: { kind: "rejections", tone: "warn", text: `${a.name}: ${v.notes.join(" · ")}`, href: "/ads/health#safety" } });
       stats.frozen++;
     }
   }
@@ -82,6 +82,6 @@ export async function storeAttributionHealth(now = new Date()) {
   forDate.setUTCHours(0, 0, 0, 0);
   const text = JSON.stringify(h);
   await db.report.upsert({ where: { kind_forDate: { kind: "attribution", forDate } }, create: { kind: "attribution", forDate, text }, update: { text } });
-  if (h.attribution_health === "broken") await db.alert.create({ data: { kind: "attribution", tone: "danger", text: `صحة الإسناد مكسورة: ${h.attributed_pct ?? "—"}% بس من الطلبات واصلة لإعلانها · CAPI ${h.capi_accepted_pct ?? "—"}% مقبول`, href: "/ads?tab=health" } });
+  if (h.attribution_health === "broken") await db.alert.create({ data: { kind: "attribution", tone: "danger", text: `صحة الإسناد مكسورة: ${h.attributed_pct ?? "—"}% بس من الطلبات واصلة لإعلانها · CAPI ${h.capi_accepted_pct ?? "—"}% مقبول`, href: "/ads/health" } });
   return { health: h.attribution_health, gaps: h.gaps.length };
 }

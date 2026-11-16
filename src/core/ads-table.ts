@@ -19,7 +19,7 @@ export type MetricKey = "spend" | "pixel" | "orders" | "costPerOrder" | "confirm
 
 export const COLUMN_KEYS = [
   "name", "product", "page", "status", "days", "budget", "spendTY", "pixel", "orders", "costPerOrder", "confirmRate", "profit", "cpm", "ctr", "frequency", "adsCount",
-  "spend", "costPerConfirmed", "cpaPixel", "hook", "hold", "gap",
+  "spend", "costPerConfirmed", "cpaPixel", "hook", "hold", "gap", "verdict",
 ] as const;
 export type ColumnKey = (typeof COLUMN_KEYS)[number];
 
@@ -39,23 +39,24 @@ export interface ColumnDef {
 
 export const COLUMNS: ColumnDef[] = [
   { key: "name", label: "الاسم", term: null, unit: "", good: "none", on: true },
-  { key: "product", label: "المنتج", term: null, unit: "", good: "none", on: true },
-  { key: "page", label: "الصفحة", term: "pageCode", unit: "", good: "none", on: true },
   { key: "status", label: "الحالة", term: null, unit: "", good: "none", on: true },
-  { key: "days", label: "أيام التشغيل", term: "daysRunning", unit: "", good: "none", on: true },
-  { key: "budget", label: "الميزانية / يوم", term: "budgetDaily", unit: "$", good: "none", on: true },
-  { key: "spendTY", label: "الصرف اليوم / أمس", term: "spendTY", unit: "$", good: "none", on: true },
-  { key: "pixel", label: "Purchase بالبكسل", term: "pixelPurchases", unit: "", good: "up", metric: "pixel", on: true },
-  { key: "orders", label: "الطلبات الحقيقية", term: "realOrders", unit: "", good: "up", metric: "orders", on: true },
-  { key: "costPerOrder", label: "تكلفة الطلب الحقيقي", term: "costPerOrder", unit: "$", good: "down", metric: "costPerOrder", on: true },
-  { key: "confirmRate", label: "التأكيد", term: "confirmRate", unit: "%", good: "up", metric: "confirmRate", on: true },
-  { key: "profit", label: "الربح التقديري", term: "profitEst", unit: "$", good: "up", metric: "profit", on: true },
-  { key: "cpm", label: "CPM", term: "cpm", unit: "$", good: "down", metric: "cpm", on: true },
-  { key: "ctr", label: "CTR", term: "ctr", unit: "%", good: "up", metric: "ctr", on: true },
-  { key: "frequency", label: "التكرار", term: "frequency", unit: "x", good: "down", metric: "frequency", on: true },
-  { key: "adsCount", label: "عدد الإعلانات", term: "adsCount", unit: "", good: "none", on: true },
-  // not on by default: the picker adds them
-  { key: "spend", label: "الصرف (الفترة)", term: "spend", unit: "$", good: "none", metric: "spend", on: false },
+  { key: "spend", label: "الصرف", term: "spend", unit: "$", good: "none", metric: "spend", on: true },
+  { key: "orders", label: "طلبات حقيقية", term: "realOrders", unit: "", good: "up", metric: "orders", on: true },
+  { key: "costPerOrder", label: "تكلفة الطلب", term: "costPerOrder", unit: "$", good: "down", metric: "costPerOrder", on: true },
+  { key: "verdict", label: "الحكم", term: null, unit: "", good: "none", on: true },
+  // not on by default: «أعمدة أكتر» adds them
+  { key: "product", label: "المنتج", term: null, unit: "", good: "none", on: false },
+  { key: "page", label: "الصفحة", term: "pageCode", unit: "", good: "none", on: false },
+  { key: "days", label: "أيام التشغيل", term: "daysRunning", unit: "", good: "none", on: false },
+  { key: "budget", label: "الميزانية / يوم", term: "budgetDaily", unit: "$", good: "none", on: false },
+  { key: "spendTY", label: "الصرف اليوم / أمس", term: "spendTY", unit: "$", good: "none", on: false },
+  { key: "pixel", label: "Purchase بالبكسل", term: "pixelPurchases", unit: "", good: "up", metric: "pixel", on: false },
+  { key: "confirmRate", label: "التأكيد", term: "confirmRate", unit: "%", good: "up", metric: "confirmRate", on: false },
+  { key: "profit", label: "الربح التقديري", term: "profitEst", unit: "$", good: "up", metric: "profit", on: false },
+  { key: "cpm", label: "CPM", term: "cpm", unit: "$", good: "down", metric: "cpm", on: false },
+  { key: "ctr", label: "CTR", term: "ctr", unit: "%", good: "up", metric: "ctr", on: false },
+  { key: "frequency", label: "التكرار", term: "frequency", unit: "x", good: "down", metric: "frequency", on: false },
+  { key: "adsCount", label: "عدد الإعلانات", term: "adsCount", unit: "", good: "none", on: false },
   { key: "costPerConfirmed", label: "تكلفة المؤكد", term: "costPerConfirmed", unit: "$", good: "down", metric: "costPerConfirmed", on: false },
   { key: "cpaPixel", label: "CPA بكسل", term: "cpaPixel", unit: "$", good: "down", metric: "cpaPixel", on: false },
   { key: "hook", label: "Hook", term: "hook", unit: "%", good: "up", metric: "hook", on: false },
