@@ -460,6 +460,19 @@ model ApiToken {
   @@index([oauthClientId])
 }
 
+/// A connection value entered from the site (never returned to a browser). Secrets are AES-256-GCM sealed with SECRETS_MASTER_KEY; the environment variable of the same name is the fallback.
+model ConnectionSetting {
+  name       String   @id
+  secret     Boolean  @default(false)
+  valueEnc   String?
+  valuePlain String?
+  /// the last four characters of a secret, the only part kept in the clear
+  last4      String?
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 /// A client that registered itself with /oauth/register (RFC 7591): claude.ai adding /mcp as a custom connector. Public client: PKCE, no secret.
 model OAuthClient {
   id           String    @id @default(cuid())

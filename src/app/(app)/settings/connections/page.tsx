@@ -1,6 +1,7 @@
 import { FoldCard } from "@/components/settings/fold-card";
 import { AnthropicLink } from "@/components/settings/anthropic-link";
 import { ClaudeLink } from "@/components/settings/claude-link";
+import { ConnectionsPanel } from "@/components/settings/connections-panel";
 import { PurchaseOnPicker } from "@/components/settings/editors";
 import { StudioLink } from "@/components/settings/studio-link";
 import { ReadinessPanel } from "@/components/setup/readiness-panel";
@@ -14,16 +15,19 @@ export const metadata = { title: "الربط" };
 export const dynamic = "force-dynamic";
 
 /**
- * الإعدادات ← الربط: «جاهزية الربط» (كل رابط، هل مفتاحه موجود ومتى صار آخر نداء حقيقي — بأسماء الناقص بس) · ربط Claude والاستوديو · الكتابة على ميتا · متى
- * بينحسب «شراء». The keys themselves are written in Coolify or the .env file only — never here, never in a chat.
+ * الإعدادات ← الربط (للمالك بس): «المفاتيح والروابط» (كل سطر: اكتب/ارفع المفتاح مرة وما بيرجع، أو «اربط ← اسمح» بين أنظمتنا، و«اختبر الربط») · جاهزية الربط ·
+ * ربط Claude والاستوديو · الكتابة على ميتا. A value saved here wins over Coolify's; delete it and Coolify's comes back (D62).
  */
 export default async function ConnectionsPage() {
   const [readiness, edit] = await Promise.all([loadReadiness(), loadEditView()]);
   const linked = readiness.rows.filter((r) => r.linked).length;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-fg-muted">المفاتيح بتنكتب بـ Coolify أو ملف .env بس — ولا مرة بالموقع ولا بالمحادثة.</p>
-      <FoldCard id="readiness" open title="جاهزية الربط" summary={`${linked} من ${readiness.rows.length} مربوطين`}>
+      <p className="text-sm text-fg-muted">اكتب المفتاح هون مرة وحدة وما بيرجع يظهر. الربط بين أنظمتنا بزر «اربط ← اسمح» بلا نسخ ولصق. ولسا مفاتيح Coolify شغّالة إذا ما كتبت شي هون.</p>
+      <FoldCard id="keys" open title="المفاتيح والروابط" summary="ميتا · جوجل درايف · الـOMS · الردود · Workspace">
+        <ConnectionsPanel />
+      </FoldCard>
+      <FoldCard id="readiness" title="جاهزية الربط" summary={`${linked} من ${readiness.rows.length} مربوطين`}>
         <ReadinessPanel data={readiness} />
       </FoldCard>
       <FoldCard id="claude" title="ربط Claude" summary="مفتاح المساعد، وتوكن الموصّل اللي بيستعمله Claude">

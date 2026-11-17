@@ -35,6 +35,7 @@ const nextConfig = {
   poweredByHeader: false,
   eslint: { ignoreDuringBuilds: true },
   experimental: {
+    instrumentationHook: true,
     serverComponentsExternalPackages: ["bcryptjs", "@prisma/client", "exceljs"],
   },
   async redirects() {

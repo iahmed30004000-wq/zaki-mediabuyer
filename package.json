@@ -31,7 +31,8 @@
     "check:backup": "tsx --env-file=.env scripts/backup-restore-check.ts",
     "check:full": "tsx --env-file=.env scripts/full-check.ts",
     "demo:agents": "tsx --env-file=.env scripts/demo-agents.ts",
-    "demo:mcp": "tsx --env-file=.env scripts/demo-mcp.ts"
+    "demo:mcp": "tsx --env-file=.env scripts/demo-mcp.ts",
+    "demo:secrets": "tsx --env-file=.env scripts/demo-secrets.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

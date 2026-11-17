@@ -87,6 +87,7 @@ describe("where each role lands and what it sees (§3)", () => {
     expect(canOpenPath("MEMBER", "/work")).toBe(false);
     expect(canOpenPath("MEMBER", "/work/reports")).toBe(false);
     expect(COLS.filter((r) => canOpenPath(r, "/settings/team"))).toEqual(["OWNER", "MANAGER"]);
+    expect(COLS.filter((r) => canOpenPath(r, "/settings/connections"))).toEqual(["OWNER"]);
     expect(canOpenPath("VIEWER", "/login")).toBe(true);
   });
   it("whose tasks and which decisions: the scope of a role", () => {
