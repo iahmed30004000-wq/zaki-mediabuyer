@@ -21,6 +21,7 @@ const OPEN: { path: RegExp; why: string }[] = [
   { path: /^auth\//, why: "login, logout and the invite code: there is no session yet" },
   { path: /^health\//, why: "the deploy check" },
   { path: /^telegram\/webhook\//, why: "Telegram calls it, with its own secret" },
+  { path: /^inbound\/oms\//, why: "the OMS sends a signed event: the route checks the HMAC (OMS_EVENT_SECRET) before it reads anything" },
 ];
 
 const files = routes(API).map((p) => ({ rel: relative(API, p).replace(/\\/g, "/"), src: readFileSync(p, "utf8") }));
