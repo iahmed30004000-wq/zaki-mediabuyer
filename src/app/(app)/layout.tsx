@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/shell/bottom-nav";
 import { PageHeader } from "@/components/shell/page-header";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Consultant } from "@/components/shell/consultant";
+import { PeopleProvider } from "@/components/shell/people-context";
 import { ShellProvider } from "@/components/shell/shell-context";
 import { EditPanel } from "@/components/customize/edit-panel";
 import { ApprovalRinger } from "@/components/approvals/approval-ringer";
@@ -15,11 +16,12 @@ import { isDemo } from "@/core/readiness";
 import { countWaiting } from "@/lib/inbox-count";
 import { loadPages } from "@/lib/ui-view";
 import { currentCaller } from "@/server/auth";
+import { loadDirectory } from "@/server/directory";
 
 /** Every screen: the side menu (desktop) or the bottom bar (phone), the page header, and ONE line when the site is on the demo data. */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await currentCaller();
-  const [pages, inbox] = await Promise.all([loadPages(), countWaiting(me)]);
+  const [pages, inbox, directory] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => [])]);
   // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
   const path = headers().get("x-pathname") ?? "/";
   if (me && path === "/" && !hasHome(me.role)) redirect(ROLE_START[me.role]);
@@ -28,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const canEdit = !!me && !me.demo && can(me.role, "owner_only");
   return (
     <MissionProvider>
+      <PeopleProvider people={directory.map((d) => ({ key: d.key, label: d.name }))}>
       <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} caps={me ? capabilitiesOf(me.role) : undefined}>
         <div className="flex min-h-dvh">
           <Sidebar />
@@ -47,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <BottomNav />
         <EditPanel />
       </ShellProvider>
+      </PeopleProvider>
     </MissionProvider>
   );
 }

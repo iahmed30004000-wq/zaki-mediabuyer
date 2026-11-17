@@ -25,6 +25,7 @@ import { HttpError, type Caller } from "./auth";
 import { db } from "./db";
 import { HandoffRefused, createHandoff, type HandoffView } from "./handoffs";
 import { mutateSetting } from "./settings";
+import { directoryKeys } from "./directory";
 import { listTasks } from "./tasks";
 import { getUiConfig } from "./ui-config";
 import { UnknownJob, ensureSeeded } from "./workflows";
@@ -107,7 +108,7 @@ async function runOp(cfg: UiConfig, op: UiOp, tx: Prisma.TransactionClient, by: 
         const field = e.config.fields.find((f) => f.id === op.id)!;
         let n = 0;
         for (const r of stored) {
-          const v = validateValue(field, r.value);
+          const v = validateValue(field, r.value, await directoryKeys());
           if (v.ok && v.value !== null) {
             await tx.customValue.update({ where: { entity_entityId_fieldId: { entity: r.entity, entityId: r.entityId, fieldId: op.id } }, data: { value: v.value, updatedBy: by } });
             n++;
@@ -268,7 +269,7 @@ export async function setValues(entity: Entity, entityId: string, input: Record<
   for (const [fieldId, raw] of Object.entries(input)) {
     const f = allowed.get(fieldId);
     if (!f) throw new HttpError(400, "حقل مش معروف أو مخفي أو مش على هاللوحة");
-    const v = validateValue(f, raw);
+    const v = validateValue(f, raw, await directoryKeys());
     if (!v.ok) throw new HttpError(400, v.error);
     writes.push({ fieldId, value: v.value });
   }
