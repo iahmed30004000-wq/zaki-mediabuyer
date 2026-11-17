@@ -183,7 +183,7 @@ describe("spend and conversions belong to the OMS (17/11)", () => {
   it("the media buyer builds no conversions: the OMS endpoint of identifiers is frozen and not asked for", () => {
     const oms = load("oms");
     expect(String(oms.endpoints.find((x) => x.id === "capi.identifiers")!.status)).toContain("NOT USED");
-    expect(JSON.stringify(oms.auth.scopes_existing) + JSON.stringify(oms.auth.scopes_add)).not.toContain("capi.identifiers");
+    expect(JSON.stringify((oms.auth as { scopes_existing: unknown; scopes_add: unknown }).scopes_existing) + JSON.stringify((oms.auth as { scopes_existing: unknown; scopes_add: unknown }).scopes_add)).not.toContain("capi.identifiers");
     expect(JSON.stringify(oms.env.media_buyer)).not.toContain("CAPI");
   });
 });
@@ -230,7 +230,7 @@ describe("the rules of 17/11: one Telegram gateway, and the OMS model for tokens
     const oms = load("oms");
     const e = oms.endpoints.find((x) => x.id === "oms.system-scopes")!;
     expect(e.status).toBe("ADD");
-    expect(JSON.stringify(oms.endpoints.find((x) => x.id === "oms.notify")!.headers)).toContain("notify.send");
+    expect(JSON.stringify((oms.endpoints.find((x) => x.id === "oms.notify") as { headers?: unknown }).headers)).toContain("notify.send");
   });
   it("Workspace gets the same page (ADD) and System 7 a page in the same model", () => {
     expect(String((load("workspace").auth as { status: string }).status)).toMatch(/^ADD/);
