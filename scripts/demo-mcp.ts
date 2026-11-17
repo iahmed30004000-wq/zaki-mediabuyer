@@ -9,7 +9,7 @@ process.env.APP_URL = "http://localhost:3140";
 process.env.TELEGRAM_BOT_TOKEN = "";
 process.env.TELEGRAM_OWNER_CHAT_ID = "";
 
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { createServer } from "node:http";
 import { db } from "../src/server/db";
 import { hashToken, newToken } from "../src/server/api-token";
@@ -78,6 +78,11 @@ import { GET as uiGet_, POST as uiPost } from "../src/app/api/ui/route";
 import { directoryKeys, loadDirectory, taskKeysFor } from "../src/server/directory";
 import { stripMoney } from "../src/core/redact-money";
 import { teamChange } from "../src/server/team";
+import { POST as oauthToken } from "../src/app/oauth/token/route";
+import { POST as oauthRegister } from "../src/app/oauth/register/route";
+import { GET as prmGet } from "../src/app/.well-known/oauth-protected-resource/[[...rest]]/route";
+import { GET as asmGet } from "../src/app/.well-known/oauth-authorization-server/[[...rest]]/route";
+import { checkAuthRequest, createCode, listConnected, revokeClient } from "../src/server/oauth";
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);
@@ -103,6 +108,12 @@ const Y = day(1);
 const owner = { id: "demo-owner", role: "OWNER" as const };
 
 async function clean() {
+  const demoClients = await db.oAuthClient.findMany({ where: { name: { startsWith: "DEMO" } }, select: { id: true } });
+  await db.apiToken.deleteMany({ where: { oauthClientId: { in: demoClients.map((c) => c.id) } } });
+  await db.oAuthGrant.deleteMany({ where: { clientId: { in: demoClients.map((c) => c.id) } } });
+  await db.oAuthCode.deleteMany({ where: { clientId: { in: demoClients.map((c) => c.id) } } });
+  await db.oAuthClient.deleteMany({ where: { id: { in: demoClients.map((c) => c.id) } } });
+  await db.auditLog.deleteMany({ where: { action: { startsWith: "oauth." } } });
   await db.attributedOrder.deleteMany({ where: { omsOrderId: { startsWith: "mcp:" } } });
   await db.insightDaily.deleteMany({ where: { objectId: { startsWith: "DEMO_MCP" } } });
   await db.truthDaily.deleteMany({ where: { objectId: { startsWith: "DEMO_MCP" } } });
@@ -1742,6 +1753,110 @@ async function clean() {
     await db.actor.deleteMany({ where: { key: { startsWith: "demo-p10" } } });
     await db.user.deleteMany({ where: { email: { startsWith: "demo-mcp-p10" } } });
     await db.apiToken.deleteMany({ where: { name: { startsWith: "demo-mcp-p10" } } });
+  }
+
+  // ── the claude.ai connector: OAuth 2.1 + dynamic registration + PKCE on /mcp ──
+  {
+    const origin = "http://localhost:3140";
+    const challengeOf = (v: string) => createHash("sha256").update(v).digest("base64url");
+    const verifier = (n: number) => `v${n}`.padEnd(48, "x") + "-_.~";
+    const form = (o: Record<string, string>) => new Request(`${origin}/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(o).toString() });
+    const tokenCall = async (o: Record<string, string>) => {
+      const r = await oauthToken(form(o));
+      return { status: r.status, json: (await r.json()) as Record<string, any> };
+    };
+    const regCall = async (body: unknown) => {
+      const r = await oauthRegister(new Request(`${origin}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+      return { status: r.status, json: (await r.json()) as Record<string, any> };
+    };
+
+    // discovery
+    const prm = await (await prmGet()).json();
+    const asm = await (await asmGet()).json();
+    check(prm.resource === `${origin}/mcp` && prm.authorization_servers[0] === origin, "/.well-known/oauth-protected-resource names /mcp and this site as its authorization server", prm);
+    check(asm.registration_endpoint === `${origin}/oauth/register` && asm.code_challenge_methods_supported.join() === "S256" && asm.token_endpoint_auth_methods_supported.join() === "none", "/.well-known/oauth-authorization-server: registration, PKCE S256 only, public clients", asm);
+    const noTok = await call(rpc("ping"), null);
+    check(noTok.status === 401 && (noTok.headers.get("www-authenticate") ?? "").includes(`resource_metadata="${origin}/.well-known/oauth-protected-resource"`), "/mcp without a token: 401 whose WWW-Authenticate points at the resource metadata");
+
+    // registration: Claude's address yes, a stranger's no
+    const bad = await regCall({ client_name: "DEMO evil", redirect_uris: ["https://evil.example/cb"] });
+    check(bad.status === 400 && bad.json.error === "invalid_redirect_uri", "registering with a stranger's redirect address is refused", bad.json);
+    check((await regCall({ client_name: "DEMO x", redirect_uris: ["https://claude.ai/cb"], token_endpoint_auth_method: "client_secret_basic" })).status === 400, "…and so is a client that wants a secret (only PKCE public clients)");
+    const reg = await regCall({ client_name: "DEMO claude.ai", redirect_uris: ["https://claude.ai/api/mcp/auth_callback"], grant_types: ["authorization_code", "refresh_token"], token_endpoint_auth_method: "none" });
+    check(reg.status === 201 && String(reg.json.client_id).startsWith("mbc_") && reg.json.token_endpoint_auth_method === "none", "a connector registers itself (RFC 7591)", reg.json);
+    const again = await regCall({ client_name: "DEMO claude.ai", redirect_uris: ["https://claude.ai/api/mcp/auth_callback"] });
+    check(again.json.client_id === reg.json.client_id, "…registering the same app again gives its own client back (no clutter)");
+    const clientId = reg.json.client_id as string;
+    const REDIRECT = "https://claude.ai/api/mcp/auth_callback";
+
+    // the owner's screen: a bad request is shown, never redirected
+    const q = (o: Record<string, string>) => ({ response_type: "code", client_id: clientId, redirect_uri: REDIRECT, code_challenge: challengeOf(verifier(1)), code_challenge_method: "S256", state: "s1", ...o });
+    check(!(await checkAuthRequest(q({ redirect_uri: "https://claude.ai/other" }))).ok, "authorize: an address the client did not register is refused");
+    check(!(await checkAuthRequest(q({ code_challenge_method: "plain" }))).ok, "authorize: PKCE «plain» is refused");
+    check(!(await checkAuthRequest(q({ client_id: "mbc_nobody" }))).ok, "authorize: an unknown client is refused");
+    const okReq = await checkAuthRequest(q({}));
+    check(okReq.ok && okReq.req.scopes.length === 7 && okReq.req.redirectHost === "claude.ai", "authorize: a good request shows the client, the host and all seven scopes");
+
+    // code → token (PKCE)
+    const approve = async (v: number, scope?: string) => {
+      const c = await checkAuthRequest(q({ code_challenge: challengeOf(verifier(v)), ...(scope ? { scope } : {}) }));
+      if (!c.ok) throw new Error("authorize failed: " + c.why);
+      return createCode(c.req, "demo-mcp-user");
+    };
+    const code1 = await approve(1);
+    const wrong = await tokenCall({ grant_type: "authorization_code", client_id: clientId, code: code1, redirect_uri: REDIRECT, code_verifier: verifier(9) });
+    check(wrong.status === 400 && wrong.json.error === "invalid_grant", "token: a wrong PKCE verifier is refused");
+    const wrongUri = await tokenCall({ grant_type: "authorization_code", client_id: clientId, code: code1, redirect_uri: "https://claude.ai/other", code_verifier: verifier(1) });
+    check(wrongUri.status === 400, "token: a different redirect_uri is refused");
+    const good = await tokenCall({ grant_type: "authorization_code", client_id: clientId, code: code1, redirect_uri: REDIRECT, code_verifier: verifier(1) });
+    check(good.status === 200 && good.json.token_type === "Bearer" && good.json.expires_in === 3600 && String(good.json.access_token).startsWith("mbo_") && !!good.json.refresh_token, "token: the code with the right verifier gives an access token and a refresh token", { ...good.json, access_token: "…", refresh_token: "…" });
+    const reuse = await tokenCall({ grant_type: "authorization_code", client_id: clientId, code: code1, redirect_uri: REDIRECT, code_verifier: verifier(1) });
+    check(reuse.status === 400 && reuse.json.error === "invalid_grant", "token: the same code works once only");
+
+    // the token is an MCP token: all tools with all scopes, tied to the agent «claude»
+    const access = good.json.access_token as string;
+    const list = ((await call(rpc("tools/list"), access)).json?.result?.tools ?? []) as { name: string }[];
+    check(list.length === 22, "/mcp with the OAuth token lists the 22 tools", list.length);
+    const stored = await db.apiToken.findFirst({ where: { oauthClientId: (await db.oAuthClient.findUnique({ where: { clientId } }))!.id } });
+    check(stored?.actorKey === "claude" && stored.scopes.length === 7 && !!stored.expiresAt && stored.name.startsWith("ربط "), "…the token is bound to the agent claude with the seven scopes and an expiry");
+    const viaOauth = await call(rpc("tools/call", { name: "get_rules", arguments: {} }), access);
+    check(!viaOauth.json?.result?.isError, "…and get_rules works through it");
+    check((await call(rpc("ping"), TOKEN)).status === 200, "the old mbm_ Bearer token still works, unchanged");
+
+    // a narrower approval is a narrower token
+    const narrow = await tokenCall({ grant_type: "authorization_code", client_id: clientId, code: await approve(2, "mcp:read"), redirect_uri: REDIRECT, code_verifier: verifier(2) });
+    const nAccess = narrow.json.access_token as string;
+    const nList = ((await call(rpc("tools/list"), nAccess)).json?.result?.tools ?? []) as { name: string }[];
+    check(narrow.json.scope === "mcp:read" && nList.length === 6 && !nList.some((t) => t.name === "push_jobs"), "an OAuth token approved for mcp:read lists only the 6 read tools");
+    const denied = await call(rpc("tools/call", { name: "push_jobs", arguments: { jobs: [] } }), nAccess);
+    check(!!denied.json?.result?.isError && String(denied.json?.result?.content?.[0]?.text).includes("mcp:push"), "…and calling push_jobs anyway is refused, in words, naming mcp:push");
+
+    // refresh rotates both tokens: the old pair is dead at once
+    const ref = await tokenCall({ grant_type: "refresh_token", client_id: clientId, refresh_token: good.json.refresh_token });
+    check(ref.status === 200 && ref.json.access_token !== access && ref.json.refresh_token !== good.json.refresh_token, "refresh gives a new pair");
+    check((await call(rpc("ping"), access)).status === 401, "…the old access token is refused at once");
+    check((await tokenCall({ grant_type: "refresh_token", client_id: clientId, refresh_token: good.json.refresh_token })).status === 400, "…and the old refresh token cannot be used again");
+    const access2 = ref.json.access_token as string;
+    check((await call(rpc("ping"), access2)).status === 200, "…the new one works");
+
+    // an expired access token is a 401 (that is what tells the client to refresh)
+    await db.apiToken.updateMany({ where: { oauthClientId: stored!.oauthClientId! }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    const exp = await call(rpc("ping"), access2);
+    check(exp.status === 401 && !!exp.headers.get("www-authenticate"), "an expired OAuth access token → 401 with WWW-Authenticate");
+    const ref2 = await tokenCall({ grant_type: "refresh_token", client_id: clientId, refresh_token: ref.json.refresh_token });
+    check(ref2.status === 200 && (await call(rpc("ping"), ref2.json.access_token)).status === 200, "…and the refresh token brings a working one");
+
+    // the owner's list and the revoke
+    const shown = (await listConnected()).find((c) => c.name === "DEMO claude.ai");
+    check(!!shown && shown.active && shown.host === "claude.ai" && shown.scopes.length === 7 && !!shown.lastUsedAt, "the owner's list shows the connected app, its host, its scopes and when it last called");
+    check(await revokeClient(shown!.id, "demo-mcp-user"), "revoke: the owner cuts the app");
+    check((await call(rpc("ping"), ref2.json.access_token)).status === 401 && (await call(rpc("ping"), nAccess)).status === 401, "…every token of it is refused on the very next call");
+    check((await tokenCall({ grant_type: "refresh_token", client_id: clientId, refresh_token: ref2.json.refresh_token })).status === 401, "…it cannot refresh (the client is revoked)");
+    check((await checkAuthRequest(q({}))).ok === false, "…and it cannot ask the owner again until it registers anew");
+    check((await listConnected()).find((c) => c.name === "DEMO claude.ai")?.active === false, "…the list marks it «مقطوع» (the history stays)");
+    check((await call(rpc("ping"), TOKEN)).status === 200, "after all this the mbm_ Bearer token still works");
+    check((await db.auditLog.count({ where: { action: { in: ["oauth.approve", "oauth.revoke", "oauth.client_register"] } } })) >= 3, "register, approve and revoke are in the audit log");
+    check(!JSON.stringify(await db.auditLog.findMany({ where: { action: { startsWith: "oauth." } } })).match(/mbo_|mbr_|mbq_|mbc_/), "…and no token, code or secret is in it");
   }
 
   await clean();

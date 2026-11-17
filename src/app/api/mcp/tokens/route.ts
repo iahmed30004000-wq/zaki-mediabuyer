@@ -18,7 +18,7 @@ const Body = z.object({ name: z.string().trim().min(1).max(60), kind: z.enum(["m
 export async function GET() {
   try {
     await requireCapability("owner_only");
-    const tokens = await db.apiToken.findMany({ where: { OR: [{ scopes: { has: "mcp" } }, { scopes: { has: "handoff" } }, { scopes: { hasSome: [...MCP_SCOPES] } }] }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, scopes: true, actorKey: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
+    const tokens = await db.apiToken.findMany({ where: { oauthClientId: null, OR: [{ scopes: { has: "mcp" } }, { scopes: { has: "handoff" } }, { scopes: { hasSome: [...MCP_SCOPES] } }] }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, scopes: true, actorKey: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
     return NextResponse.json({ tokens, url: `${appOrigin()}/mcp`, handoffUrl: `${appOrigin()}/api/v1/handoffs` });
   } catch (e) {
     return errorResponse(e);
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       if (!dir.some((e) => e.key === parsed.data.actorKey && e.kind === "agent")) throw new HttpError(400, "الوكيل مش بدليل الفريق");
       actorKey = parsed.data.actorKey;
     }
-    if ((await db.apiToken.count({ where: { revokedAt: null, scopes: { hasSome: kind === "mcp" ? ["mcp", ...MCP_SCOPES] : ["handoff"] } } })) >= 10) throw new HttpError(409, "عندك 10 توكنات شغّالة من هالنوع — وقّف واحد قبل ما تعمل جديد");
+    if ((await db.apiToken.count({ where: { revokedAt: null, oauthClientId: null, scopes: { hasSome: kind === "mcp" ? ["mcp", ...MCP_SCOPES] : ["handoff"] } } })) >= 10) throw new HttpError(409, "عندك 10 توكنات شغّالة من هالنوع — وقّف واحد قبل ما تعمل جديد");
     const token = newToken(kind === "mcp" ? "mbm_" : "mbh_");
     const row = await db.apiToken.create({ data: { name, scopes, actorKey, tokenHash: hashToken(token), prefix: token.slice(0, 10), createdById: caller.id } });
     await audit({ type: "user", id: caller.id }, "mcp.token_create", { type: "api_token", id: row.id }, { after: { name: row.name, kind, scopes, actorKey } });
