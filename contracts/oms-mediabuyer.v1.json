@@ -1,0 +1,368 @@
+{
+  "contract": "oms-mediabuyer",
+  "version": "v1",
+  "status": "EXISTS — the OMS owns the source; the verbatim copy lives in contracts/oms-mediabuyer.v1/ (hash-pinned by tests/oms-contract.test.ts). This file adds the ADD items and the cross-references, nothing that changes the copy.",
+  "system": {
+    "name": "OMS",
+    "url": "https://crm.zakiai.io",
+    "repo": "MKory18/Zaki-ai-CRM"
+  },
+  "direction": "PULL — the media buyer calls the OMS. The one POST (capi/identifiers) only reads.",
+  "base_url_env": "OMS_BASE_URL",
+  "auth": {
+    "type": "Bearer",
+    "header": "Authorization: Bearer <system key>",
+    "token_env": "OMS_TOKEN",
+    "key_owner": "one key per company and per system (system = mediabuyer), minted by the owner in the OMS, shown once, 90-day expiry",
+    "scopes": [
+      "orders.attribution.read",
+      "products.read",
+      "products.economics.read (older name: products.costs.read, same fields)",
+      "capi.identifiers (ticked by hand, in nobody's default set)"
+    ],
+    "revoked_or_expired": "401 TOKEN_INVALID on the next request"
+  },
+  "rate_limit": "30 calls per minute on the media buyer's key (429 RATE_LIMITED)",
+  "error_envelope": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+      "error",
+      "request_id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": [
+              "object",
+              "array",
+              "null"
+            ]
+          }
+        }
+      },
+      "request_id": {
+        "type": "string"
+      }
+    }
+  },
+  "idempotency": "Reads need none. The CAPI identifiers POST is a pure read: the same refs always answer the same.",
+  "endpoints": [
+    {
+      "id": "orders.attribution",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/orders/attribution",
+      "query": {
+        "updated_since": "ISO-8601 with offset, required, at most 31 days back",
+        "cursor": "opaque, from the previous page",
+        "limit": "1..200, default 200"
+      },
+      "pagination": "cursor: {items, next_cursor}; the media buyer stops at 100 pages or when a cursor repeats",
+      "schema_ref": "contracts/oms-mediabuyer.v1/attribution-page.schema.json",
+      "example_ref": "contracts/oms-mediabuyer.v1/attribution-page.example.json",
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_MISSING",
+          "when": "no Bearer header"
+        },
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired key"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks orders.attribution.read"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "updated_since missing or older than 31 days"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "notes": "Status words are six: new · confirmed · shipped · delivered · returned · canceled (the OMS maps its 14 core states onto them). `ad_id` is what joins an order to an ad: it must be filled for landing-page orders (see ADD A2 and the Pages contract)."
+    },
+    {
+      "id": "products",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/products",
+      "query": {
+        "fields": "comma list from products-page.schema.json: code,name,aliases,unit_cost_usd,price_options,stock_days,delivery_fee,return_fee,cod_fee_pct (+ ADD A3: stock_units,daily_sales_7d)"
+      },
+      "schema_ref": "contracts/oms-mediabuyer.v1/products-page.schema.json",
+      "example_ref": "contracts/oms-mediabuyer.v1/products-page.example.json",
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired key"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks products.read / products.economics.read"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "notes": "A figure the OMS has no single source for is null, never a guess. A null never wipes a number the owner typed in the media buyer's settings."
+    },
+    {
+      "id": "capi.identifiers",
+      "status": "EXISTS (merged in the OMS per the media buyer's INTEGRATIONS.md §4.1 — VERIFY on main)",
+      "method": "POST",
+      "path": "/api/v1/capi/identifiers",
+      "request_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.schema.json (request: {refs: string[≤100]})",
+      "schema_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.schema.json",
+      "example_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.example.json",
+      "errors": [
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks capi.identifiers"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "more than 100 refs"
+        }
+      ],
+      "notes": "The ONLY place a customer identifier may move: decrypted in memory for events about to be sent, no-store, never logged, never to a model. Server-side purchase events are sent by the media buyer; the OMS's own server CAPI for the same pixel must be switched off first (never two senders)."
+    },
+    {
+      "id": "oms.key-for-mediabuyer",
+      "status": "ADD",
+      "method": "UI",
+      "path": "OMS Settings → Apps → توكنات الأنظمة",
+      "change": "Let the owner choose system = `mediabuyer` in the key panel (it is hard-coded to `replies` today although the API already accepts `mediabuyer` with the default scopes). Optional: tick `capi.identifiers` and `products.economics.read`.",
+      "size": "small — one select option, no schema change",
+      "blocking": true
+    },
+    {
+      "id": "oms.landing-attribution-intake",
+      "status": "ADD",
+      "method": "POST",
+      "path": "/api/v1/landing/orders  (and /api/v1/landing/abandoned-carts)",
+      "change": "Accept and store the ad tags in the body's `attribution` object (optional fields, shape-checked, ids digits only): adset_id, campaign_id, ad_name, utm_source, utm_medium, fbclid, fbc, fbp, landing_url. `ad_id` already exists there. Return them on /orders/attribution as ad_id, adset_id, campaign_id, ad_name, landing_page (those fields are already in the frozen schema). fbc/fbp/fbclid are sealed like the other identifiers and only ever leave through capi/identifiers.",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "attribution"
+        ],
+        "properties": {
+          "attribution": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "method": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "url_tags",
+                  null
+                ],
+                "description": "how the tags were read"
+              },
+              "ad_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{6,25}$"
+              },
+              "adset_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{6,25}$"
+              },
+              "campaign_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{6,25}$"
+              },
+              "ad_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              },
+              "utm_source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              },
+              "utm_medium": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 60
+              },
+              "fbclid": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "fbc": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "fbp": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "landing_url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            }
+          }
+        }
+      },
+      "example_request": {
+        "attribution": {
+          "method": "url_tags",
+          "ad_id": "120211000000000001",
+          "adset_id": "120210000000000005",
+          "campaign_id": "120210000000000009",
+          "ad_name": "CR00147_TRF01_hook2",
+          "utm_source": "fb",
+          "utm_medium": "Facebook_Mobile_Feed",
+          "fbclid": "IwAR0example",
+          "fbc": "fb.1.1762200000000.IwAR0example",
+          "fbp": "fb.1.1762200000000.1234567890",
+          "landing_url": "https://pages.zakiai.io/p/kamaa-eye-water"
+        }
+      },
+      "size": "small — optional fields on an existing object; an order without them is accepted exactly as before",
+      "blocking": true
+    },
+    {
+      "id": "oms.stock-figures",
+      "status": "ADD",
+      "method": "GET",
+      "path": "/api/v1/products?fields=stock_units,daily_sales_7d,stock_days",
+      "change": "Make `stock_days` non-null whenever the OMS holds a stock count: stock_units ÷ daily_sales_7d (units shipped in the last 7 days ÷ 7). Add the two inputs as optional fields so the media buyer can show them and check the division.",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "stock_units": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "daily_sales_7d": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+(\\.\\d{1,2})?$"
+                },
+                "stock_days": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "example_response": {
+        "items": [
+          {
+            "code": "TRF01",
+            "stock_units": 240,
+            "daily_sales_7d": "30.00",
+            "stock_days": 8
+          },
+          {
+            "code": "TIN01",
+            "stock_units": null,
+            "daily_sales_7d": null,
+            "stock_days": null
+          }
+        ]
+      },
+      "size": "small — two optional columns on an existing read",
+      "blocking": false
+    }
+  ],
+  "env": {
+    "media_buyer": {
+      "OMS_BASE_URL": "https://crm.zakiai.io",
+      "OMS_TOKEN": "(secret — minted in the OMS, only in Coolify)",
+      "CAPI_TEST_EVENT_CODE": "TEST12345 (test events only; remove before live)"
+    },
+    "oms": {
+      "APP_ENCRYPTION_KEY": "(secret — already required there; without it fbc/fbp/fbclid are dropped, never stored clear)"
+    }
+  },
+  "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
+}

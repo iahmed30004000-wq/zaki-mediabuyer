@@ -1,0 +1,240 @@
+{
+  "contract": "workspace-mediabuyer",
+  "version": "v1",
+  "status": "EXISTS — the media buyer is built against Workspace's own docs/contracts/workspace-door.v1.md (src/core/workspace-door.ts, src/server/workspace.ts, 18 checks in demo:mcp). Never run against a real Workspace yet.",
+  "system": {
+    "name": "Zaki Workspace",
+    "url": "https://workspace.zakiai.io"
+  },
+  "direction": "PUSH one way — the media buyer creates a person's open task in Workspace, then asks about it and closes it on its own side when the team finished it there. Workspace never writes back unasked, and the media buyer never edits or reads the team's own tasks.",
+  "base_url_env": "WORKSPACE_BASE_URL",
+  "auth": {
+    "type": "Bearer",
+    "header": "Authorization: Bearer <door key>",
+    "token_env": "WORKSPACE_API_TOKEN",
+    "key_owner": "minted from Workspace's «الأتمتة» screen with the API door switched on",
+    "scopes": [
+      "tasks.write",
+      "tasks.read"
+    ]
+  },
+  "rate_limit": "60 per minute (429 → the media buyer stops the run and continues next time)",
+  "error_envelope": {
+    "note": "Workspace's door answers {error:{code,...}}; the media buyer reads only the status and `error.code`, never echoes a body",
+    "codes": [
+      "door.board_not_found",
+      "door.customer_data_rejected"
+    ]
+  },
+  "idempotency": "`Idempotency-Key: mb-task-<taskId>` on every task creation: the same key creates the task once, however many retries. The same key with a different body is 409.",
+  "endpoints": [
+    {
+      "id": "boards",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/boards",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "project": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "example_response": [
+        {
+          "id": "brd_example",
+          "name": "الإعلانات",
+          "project": "Zaki"
+        }
+      ],
+      "errors": [
+        {
+          "status": 401,
+          "code": "unauthorized",
+          "when": "key refused"
+        },
+        {
+          "status": 403,
+          "code": "forbidden",
+          "when": "key lacks tasks.read"
+        },
+        {
+          "status": 404,
+          "code": "door.disabled",
+          "when": "API door switched off in Workspace"
+        }
+      ]
+    },
+    {
+      "id": "task.create",
+      "status": "EXISTS",
+      "method": "POST",
+      "path": "/api/v1/tasks",
+      "headers": {
+        "Idempotency-Key": "mb-task-<id>",
+        "Content-Type": "application/json"
+      },
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "title",
+          "boardId",
+          "priority",
+          "externalRef"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 280
+          },
+          "boardId": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "URGENT",
+              "HIGH",
+              "NORMAL",
+              "LOW"
+            ]
+          },
+          "externalRef": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:/-]+$"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "dueDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        }
+      },
+      "example_request": {
+        "title": "اتصل بالمورّد وأكّد دفعة التصنيع",
+        "boardId": "brd_example",
+        "priority": "HIGH",
+        "externalRef": "mb:task/ck123abc",
+        "description": "المخزون الباقي 6 أيام",
+        "dueDate": "2026-11-19"
+      },
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "example_response": {
+        "id": "tsk_example",
+        "status": "open"
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "door.board_not_found",
+          "when": "the board is not in the key's workspace"
+        },
+        {
+          "status": 409,
+          "code": "idempotency_conflict",
+          "when": "same key, different body"
+        },
+        {
+          "status": 422,
+          "code": "door.customer_data_rejected",
+          "when": "a field name that looks like customer data"
+        },
+        {
+          "status": 429,
+          "code": "rate_limited",
+          "when": "over 60/min"
+        }
+      ],
+      "notes": "Only words: no assignee, no customer, no price. The media buyer pushes a task only for a person (never for an agent), once, and not again after a refusal until somebody edits it."
+    },
+    {
+      "id": "task.status",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/tasks/{id}",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "example_response": {
+        "id": "tsk_example",
+        "status": "done",
+        "finishedAt": "2026-11-19T09:12:00Z"
+      },
+      "notes": "Only a close comes back (`status = done` or a `finishedAt`): a reopened task is the owner's to move in the media buyer."
+    },
+    {
+      "id": "workspace.key",
+      "status": "ADD",
+      "method": "UI",
+      "path": "Workspace → الأتمتة",
+      "change": "Switch the API door on, mint a key with tasks.write + tasks.read, confirm GET /api/v1/boards lists the board. Nothing to code unless the door answers differently from workspace-door.v1.md.",
+      "size": "small — configuration",
+      "blocking": false
+    }
+  ],
+  "env": {
+    "media_buyer": {
+      "WORKSPACE_BASE_URL": "https://workspace.zakiai.io",
+      "WORKSPACE_API_TOKEN": "(secret — minted in Workspace, only in Coolify)",
+      "WORKSPACE_BOARD_ID": "brd_example (only when the key sees more than one board)"
+    },
+    "workspace": {
+      "note": "no new env; the API door switch and the key are in its automation screen"
+    }
+  },
+  "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
+}

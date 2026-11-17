@@ -62,7 +62,8 @@ jobs:
       # merge result) and deploys it — exactly what a push to main does.
       - name: Merge the pull request (its checks passed)
         id: merge
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        # a DRAFT pull request is never merged here: it is the owner's to read first (he marks it ready, or merges it himself)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft != true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

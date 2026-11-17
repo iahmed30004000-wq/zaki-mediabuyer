@@ -1,0 +1,288 @@
+{
+  "contract": "pages-mediabuyer",
+  "version": "v1",
+  "status": "PROPOSED — the media buyer never calls Pages and Pages never calls the media buyer. This contract says what Pages must carry so the OMS can hand the media buyer an `ad_id`. The source of truth is Pages (it answers); when adopted there, this file becomes a verbatim copy.",
+  "system": {
+    "name": "Zaki Pages",
+    "url": "https://pages.zakiai.io",
+    "repo": "(not read by this study)"
+  },
+  "direction": "PUSH through the OMS door: Pages → OMS `/api/v1/landing/orders` (+ abandoned carts). Pages holds its own OMS key (system = landing, scopes products.read + orders.create). Nothing flows to the media buyer directly.",
+  "base_url_env": "(Pages' own env) OMS_API_BASE",
+  "auth": {
+    "type": "Bearer",
+    "header": "Authorization: Bearer <landing system key>",
+    "note": "an existing key and an existing door; no new token for the media buyer",
+    "scopes": [
+      "products.read",
+      "orders.create"
+    ]
+  },
+  "rate_limit": "600 per minute on the landing key (existing)",
+  "error_envelope": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+      "error",
+      "request_id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": [
+              "object",
+              "array",
+              "null"
+            ]
+          }
+        }
+      },
+      "request_id": {
+        "type": "string"
+      }
+    }
+  },
+  "idempotency": "`Idempotency-Key` header on every order write (existing, required by the OMS door): one key is one order.",
+  "join": {
+    "summary": "ad link → Pages (reads the tags) → order body → OMS stores → /orders/attribution → media buyer joins on ad_id",
+    "media_buyer_url_tags": "utm_source=fb&utm_medium={{site_source_name}}&utm_campaign={{campaign.id}}&utm_term={{adset.id}}&utm_content={{ad.id}}&ad_name={{ad.name}}",
+    "field_map": {
+      "utm_content": "attribution.ad_id",
+      "utm_term": "attribution.adset_id",
+      "utm_campaign": "attribution.campaign_id",
+      "ad_name": "attribution.ad_name",
+      "utm_source": "attribution.utm_source",
+      "utm_medium": "attribution.utm_medium",
+      "fbclid (query)": "attribution.fbclid",
+      "_fbc cookie": "attribution.fbc",
+      "_fbp cookie": "attribution.fbp",
+      "the page's own address": "attribution.landing_url"
+    },
+    "worked_example": {
+      "day": "2026-11-17",
+      "ad_id": "120211000000000001",
+      "meta_spend_usd": "42.00",
+      "source": "spend: Meta insights for that ad (InsightDaily.objectId = ad_id); orders: OMS /orders/attribution rows with the same ad_id",
+      "orders": [
+        {
+          "order_id": "o-1",
+          "status": "new",
+          "ad_id": "120211000000000001"
+        },
+        {
+          "order_id": "o-2",
+          "status": "confirmed",
+          "ad_id": "120211000000000001"
+        },
+        {
+          "order_id": "o-3",
+          "status": "confirmed",
+          "ad_id": "120211000000000001"
+        },
+        {
+          "order_id": "o-4",
+          "status": "shipped",
+          "ad_id": "120211000000000001"
+        },
+        {
+          "order_id": "o-5",
+          "status": "delivered",
+          "ad_id": "120211000000000001"
+        },
+        {
+          "order_id": "o-6",
+          "status": "canceled",
+          "ad_id": "120211000000000001"
+        }
+      ],
+      "rule": "orders_in = all rows; confirmed = status in confirmed, shipped, delivered, returned; delivered = status delivered; cost = spend / count",
+      "expected": {
+        "orders_in": 6,
+        "confirmed": 4,
+        "delivered": 1,
+        "cost_per_order_in": "7.00",
+        "cost_per_confirmed": "10.50",
+        "cost_per_delivered": "42.00"
+      }
+    },
+    "note": "The media buyer's launch builder already writes these url_tags on every ad it creates (src/core/templates.ts URL_TAGS). Ads created before it have none: those orders keep the `naming` method (product level, an estimate) and never pose as real per-ad numbers."
+  },
+  "endpoints": [
+    {
+      "id": "pages.capture",
+      "status": "ADD",
+      "method": "—",
+      "path": "every landing page, on the first view",
+      "change": "Read the seven query parameters above once, keep them for the whole visit (first-party cookie or session, 7 days, first touch wins unless a newer paid click arrives), and keep them through the AI assistant «سارة» chat, the checkout and the abandoned-cart recovery link (a recovered cart must still carry the ad it came from). Digits-only ids: anything that is not 6–25 digits is dropped, not stored.",
+      "size": "small — a read of the query string and one stored object",
+      "blocking": true
+    },
+    {
+      "id": "pages.order-with-attribution",
+      "status": "ADD",
+      "method": "POST",
+      "path": "{OMS}/api/v1/landing/orders",
+      "headers": {
+        "Authorization": "Bearer <landing key>",
+        "Idempotency-Key": "<one per order>",
+        "Content-Type": "application/json"
+      },
+      "change": "Send the stored tags in the existing body's optional `attribution` object. Everything else in the body is unchanged (and keeps going to the OMS only: Pages' customer fields never go to a model or to the media buyer).",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "attribution"
+        ],
+        "properties": {
+          "attribution": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "url_tags"
+                ]
+              },
+              "ad_id": {
+                "type": "string",
+                "pattern": "^\\d{6,25}$"
+              },
+              "adset_id": {
+                "type": "string",
+                "pattern": "^\\d{6,25}$"
+              },
+              "campaign_id": {
+                "type": "string",
+                "pattern": "^\\d{6,25}$"
+              },
+              "ad_name": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "utm_source": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "utm_medium": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "fbclid": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "fbc": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "fbp": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "landing_url": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          }
+        }
+      },
+      "example_request": {
+        "attribution": {
+          "method": "url_tags",
+          "ad_id": "120211000000000001",
+          "adset_id": "120210000000000005",
+          "campaign_id": "120210000000000009",
+          "ad_name": "CR00147_TRF01_hook2",
+          "utm_source": "fb",
+          "utm_medium": "Facebook_Mobile_Feed",
+          "fbc": "fb.1.1762200000000.IwAR0example",
+          "fbp": "fb.1.1762200000000.1234567890",
+          "landing_url": "https://pages.zakiai.io/p/kamaa-eye-water"
+        }
+      },
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "order_id",
+          "order_number"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "order_number": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "example_response": {
+        "order_id": "0b6c2a8e-5f1d-4c1e-9a7b-2d3e4f5a6b7c",
+        "order_number": "TRF-10482",
+        "status": "new"
+      },
+      "errors": [
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "an id that is not digits, or an unknown field"
+        },
+        {
+          "status": 409,
+          "code": "IDEMPOTENCY_CONFLICT",
+          "when": "same key, different body"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over the landing key's allowance"
+        }
+      ],
+      "size": "small — an optional object; the OMS accepts the order with or without it (ADD oms.landing-attribution-intake)",
+      "blocking": true
+    },
+    {
+      "id": "pages.abandoned-cart-with-attribution",
+      "status": "ADD",
+      "method": "POST",
+      "path": "{OMS}/api/v1/landing/abandoned-carts",
+      "change": "The same optional `attribution` object on a cart, so a cart that is recovered and ordered keeps its ad.",
+      "size": "small",
+      "blocking": false
+    }
+  ],
+  "never": [
+    "no customer name, phone or address in `attribution`",
+    "no tag value is ever sent to a model",
+    "no ad-account token is ever on a landing page"
+  ],
+  "env": {
+    "pages": {
+      "OMS_API_BASE": "https://crm.zakiai.io",
+      "OMS_LANDING_TOKEN": "(secret — the existing landing key)",
+      "ATTRIBUTION_COOKIE_DAYS": "7"
+    },
+    "note": "Pages chooses its own env names; the ones above are suggestions marked (ADD). Nothing is required on the media buyer's side for this link."
+  },
+  "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
+}
