@@ -60,6 +60,7 @@
 - **الخريطة:** `utm_content`→`attribution.ad_id` · `utm_term`→`adset_id` · `utm_campaign`→`campaign_id` · `ad_name` · `utm_source` · `utm_medium` · `fbclid` · كوكي `_fbc` · `_fbp` · عنوان الصفحة→`landing_url`.
 - **ADD P1:** أول زيارة بتقرا الوسوم وبتحفظها 7 أيام (أول لمسة بتفوز إلا إذا إجت نقرة مدفوعة أجدد) وبتضل مع شات «سارة» وصفحة الدفع ورابط السلة المتروكة. أي رقم مش 6–25 خانة بينرمى.
 - **ADD P2:** `attribution` اختياري بجسم الطلب والسلة. التحقق والتخزين بالـOMS (O2).
+- **حقول قديمة اختيارية (قرار المالك 17/11):** Pages بتضل تبعت الوسوم الخام اللي كانت تبعتها قبل العقد (`utm_campaign` · `utm_term` · `utm_content` · `gclid` · `ttclid` · `sccid` · `ttp` · `scid` · `ga` · `c` · `landing_ref`)، لأنو باب الـOMS بيقرا منها `adId` و`metaCampaignId` و`refCode`. صارت حقول اختيارية بالمخطط (نص بحد أقصى للطول)، فالكائن كله بيمرق على `additionalProperties: false`. ولا وحدة منها فيها بيانات زبون. نسخة Pages هي المصدر، وهالملف نسخة منها حرفيًا.
 - الإعلانات القديمة (قبل الوسوم) بتضل بطريقة «تسمية» = تقدير على مستوى المنتج.
 
 ### 3.3 النظام 7 (الردود) — `contracts/replies-mediabuyer.v1.json`

@@ -208,6 +208,61 @@
               "landing_url": {
                 "type": "string",
                 "maxLength": 300
+              },
+              "utm_campaign": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "utm_term": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "utm_content": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "gclid": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "ttclid": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "sccid": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "ttp": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "scid": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "ga": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "c": {
+                "type": "string",
+                "maxLength": 100,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
+              },
+              "landing_ref": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "optional (v1, added by Pages): the raw tag Pages already sent before the contract; the OMS landing-ad-attribution branch reads utm_content/utm_campaign/utm_term as ad/campaign/adset ids. Never a customer name, phone or address."
               }
             }
           }
