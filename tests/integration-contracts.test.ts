@@ -175,7 +175,7 @@ describe("spend and conversions belong to the OMS (17/11)", () => {
     const e = oms.endpoints.find((x) => x.id === "oms.ad-spend")!;
     expect(e.status).toBe("ADD");
     expect(e.path).toBe("/api/v1/ad-spend");
-    expect(JSON.stringify(oms.auth)).toContain("ad_spend.read");
+    expect(JSON.stringify(oms.auth)).toContain("ads.spend.read");
     const w = load("pages").join!.worked_example;
     expect(w.spend_row.spend).toBe(w.spend_usd);
     expect(w.spend_row.ad_id).toBe((e.example_response as { items: { ad_id: string }[] }).items[0]!.ad_id);
@@ -183,17 +183,17 @@ describe("spend and conversions belong to the OMS (17/11)", () => {
   it("the media buyer builds no conversions: the OMS endpoint of identifiers is frozen and not asked for", () => {
     const oms = load("oms");
     expect(String(oms.endpoints.find((x) => x.id === "capi.identifiers")!.status)).toContain("NOT USED");
-    expect(oms.auth.scopes.some((s: string) => s.startsWith("capi.identifiers"))).toBe(false);
+    expect(JSON.stringify(oms.auth.scopes_existing) + JSON.stringify(oms.auth.scopes_add)).not.toContain("capi.identifiers");
     expect(JSON.stringify(oms.env.media_buyer)).not.toContain("CAPI");
   });
 });
 
-describe("the rules of 17/11: one Telegram gateway, no pasted tokens between our systems", () => {
+describe("the rules of 17/11: one Telegram gateway, and the OMS model for tokens between our systems", () => {
   const all = NAMES.map((n) => [n, load(n)] as const);
-  it("the OMS is the only Telegram gateway: the media buyer holds no bot token and no token variable of an internal system", () => {
+  it("the OMS is the only Telegram gateway: the media buyer holds no bot token, and no token is a Coolify variable (they are entered on the site, sealed)", () => {
     for (const [n, c] of all) {
       const text = JSON.stringify(c.env);
-      expect(text, n).not.toMatch(/TELEGRAM_BOT_TOKEN\"|HERMES_TOKEN|OMS_TOKEN|REPLIES_TOKEN|WORKSPACE_API_TOKEN|OMS_LANDING_TOKEN/);
+      expect(text, n).not.toMatch(/TELEGRAM_BOT_TOKEN\"|HERMES_TOKEN/);
       expect(Object.keys((c.env as Record<string, Record<string, unknown>>).media_buyer ?? {}).filter((k) => /TOKEN|SECRET|KEY/.test(k)), n).toEqual([]);
     }
   });
@@ -211,12 +211,29 @@ describe("the rules of 17/11: one Telegram gateway, no pasted tokens between our
     expect(stop.status).toBe("ADD");
     expect(JSON.stringify(stop)).toContain("X-Zaki-Signature");
   });
-  it("every link says how the token is obtained: OAuth 2.1 with PKCE S256 and the data owner as the authorization server — never a pasted key", () => {
+  it("every link says who mints the token, with which scopes and what expiry — the system that owns the data, on its «توكنات الأنظمة» page (or the media buyer's «توكنات الوكلاء» for Hermes); no OAuth flow between our systems", () => {
     for (const [n, c] of all) {
-      const auth = JSON.stringify(c.auth);
-      expect(auth, n).toContain("S256");
-      expect(auth, n).toContain("authorization_server");
-      expect(auth, n).toMatch(/اربط ← اسمح/);
+      const auth = (c.auth as Record<string, unknown>).pull_from_media_buyer ?? c.auth;
+      const text = JSON.stringify(auth);
+      expect(text, n).toMatch(/توكنات الأنظمة|توكنات الوكلاء/);
+      expect(text, n).toContain("expiry");
+      expect(text, n).not.toMatch(/PKCE|S256|authorization_server|redirect_uri/);
+      expect(text, n).toMatch(/scopes/);
     }
+  });
+  it("the OMS knows the system «الميديا باير» with three scopes today, and gets two more (ADD): ads.spend.read and notify.send", () => {
+    const a = load("oms").auth as { scopes_existing: string[]; scopes_add: string[]; system_name: string };
+    expect(a.system_name).toBe("الميديا باير");
+    expect(a.scopes_existing).toEqual(["products.read", "products.costs.read", "orders.attribution.read"]);
+    expect(a.scopes_add.join(" ")).toMatch(/ads\.spend\.read/);
+    expect(a.scopes_add.join(" ")).toMatch(/notify\.send/);
+    const oms = load("oms");
+    const e = oms.endpoints.find((x) => x.id === "oms.system-scopes")!;
+    expect(e.status).toBe("ADD");
+    expect(JSON.stringify(oms.endpoints.find((x) => x.id === "oms.notify")!.headers)).toContain("notify.send");
+  });
+  it("Workspace gets the same page (ADD) and System 7 a page in the same model", () => {
+    expect(String((load("workspace").auth as { status: string }).status)).toMatch(/^ADD/);
+    expect(String((load("replies").auth as { status: string }).status)).toMatch(/^ADD/);
   });
 });

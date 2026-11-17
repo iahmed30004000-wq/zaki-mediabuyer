@@ -10,35 +10,26 @@
   "direction": "PULL — the media buyer calls the OMS: real orders, the spend per ad, stock. Two ADD calls go the other way round (the media buyer asks the OMS to send a Telegram message; the OMS sends the media buyer a signed «اوقف» event).",
   "base_url_env": "OMS_BASE_URL",
   "auth": {
-    "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
-    "authorization_server": "OMS (crm.zakiai.io)",
-    "discovery": [
-      "/.well-known/oauth-authorization-server (RFC 8414)",
-      "/.well-known/oauth-protected-resource (RFC 9728)"
-    ],
-    "endpoints": {
-      "register": "POST /oauth/register (RFC 7591, public client, token_endpoint_auth_method none)",
-      "authorize": "GET /oauth/authorize (the owner is logged in to that system and approves)",
-      "token": "POST /oauth/token (authorization_code + code_verifier S256, refresh_token with rotation)"
-    },
-    "client": {
-      "name": "الميديا باير",
-      "redirect_uri": "https://mediabuyer.zakiai.io/oauth/callback",
-      "token_endpoint_auth_method": "none",
-      "code_challenge_method": "S256"
-    },
-    "scopes": [
-      "orders.attribution.read",
+    "rule": "System token — the OMS model (owner's decision, 17/11 17:30). The system that OWNS the data mints the token on its «الإعدادات ← توكنات الأنظمة» page: one token per consuming system, with named scopes and an expiry. The owner pastes it ONCE into the media buyer's «الإعدادات ← الربط» (write-only, AES-256-GCM at rest, never shown again — only «محفوظ ✓ · آخر 4 خانات»). The Bearer header on each call is unchanged. No OAuth flow between our systems.",
+    "issued_by": "OMS (crm.zakiai.io) — «الإعدادات ← توكنات الأنظمة»",
+    "system_name": "الميديا باير",
+    "pasted_into": "media buyer «الإعدادات ← الربط» ← row الـOMS: OMS_TOKEN (and OMS_EVENT_SECRET, once the stop event exists)",
+    "scopes_existing": [
       "products.read",
-      "products.economics.read",
-      "ad_spend.read (ADD with O6)"
+      "products.costs.read",
+      "orders.attribution.read"
     ],
-    "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
-    "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
-    "status": "ADD — on the authorization server's side (small if it copies the reference implementation; additive; the old per-system keys can keep working until the owner switches)",
-    "replaces": "the pasted OMS_TOKEN: the key minted in OMS Settings → Apps → «توكنات الأنظمة» stays valid until the owner presses «اربط ← اسمح», then it can be revoked",
-    "resource_server": "the existing /api/v1 door (scopes are the existing ones); Bearer on every call",
-    "scopes_note": "capi.identifiers is no longer requested (decision of 17/11): the OMS sends the custom conversions (ConfirmedOrder / DeliveredOrder) itself, so no customer identifier ever has to move to the media buyer."
+    "scopes_add": [
+      "ads.spend.read (with O6: GET /api/v1/ad-spend)",
+      "notify.send (with O4: POST /api/v1/notify)"
+    ],
+    "scopes_not_asked": [
+      "capi.identifiers — the OMS sends the custom conversions itself"
+    ],
+    "status": "EXISTS — the page and the system «الميديا باير» with its three scopes. ADD — only the two new scopes (O1).",
+    "resource_server": "the existing /api/v1 door; Bearer on every call",
+    "expiry": "chosen when the token is minted (suggested 90 days). The media buyer does not store it: after expiry the system answers 401 and «اختبر الربط» says «انتهى أو انسحب» — the owner mints a new one and pastes it over the old.",
+    "revoke": "delete or rotate the token on the same page; the very next call is refused (401)."
   },
   "rate_limit": "30 calls per minute on the media buyer's key (429 RATE_LIMITED)",
   "error_envelope": {
@@ -81,12 +72,12 @@
   "idempotency": "Reads need none. The CAPI identifiers POST is a pure read: the same refs always answer the same.",
   "endpoints": [
     {
-      "id": "oms.oauth-authorization-server",
+      "id": "oms.system-scopes",
       "status": "ADD",
-      "method": "UI+HTTP",
-      "path": "/.well-known/oauth-authorization-server · /oauth/register · /oauth/authorize · /oauth/token",
-      "change": "Let the OMS be the authorization server for its own /api/v1 door: a consent screen («الميديا باير بدّه يقرا الطلبات والمنتجات — اسمح؟») that issues the same kind of scoped, per-company token the door already checks (system = mediabuyer), with expiry and refresh. Replaces minting and pasting a key.",
-      "size": "small — it reuses the door's existing token table and scopes; the reference implementation is public",
+      "method": "UI",
+      "path": "الإعدادات ← توكنات الأنظمة ← الميديا باير",
+      "change": "Add two scopes to the system «الميديا باير» that already exists on the page: `ads.spend.read` (for GET /api/v1/ad-spend) and `notify.send` (for POST /api/v1/notify). The three existing scopes (products.read, products.costs.read, orders.attribution.read) do not change, and a token minted before keeps working with exactly what it had. Nothing else is built: the page, the token format and the rate limit are the existing ones.",
+      "size": "small — two entries in a scope list that already exists",
       "blocking": true
     },
     {
@@ -150,7 +141,7 @@
         {
           "status": 403,
           "code": "SCOPE_MISSING",
-          "when": "key lacks products.read / products.economics.read"
+          "when": "key lacks products.read / products.costs.read"
         },
         {
           "status": 429,
@@ -315,7 +306,7 @@
         "limit": "1..500, default 500"
       },
       "pagination": "cursor: {items, next_cursor}; ordered by date then ad_id so a page never repeats a row",
-      "change": "Expose, read-only and by scope `ad_spend.read`, the daily spend the OMS already pulls from Meta (system-user token, the account's 145 campaigns). One row per day per ad (or adset / campaign by `level`). Money is a decimal string in the account's currency; a figure the OMS does not hold is null, never 0. The media buyer's own Meta token is for WRITES only and is never used to read the spend that decides a cost per order.",
+      "change": "Expose, read-only and by scope `ads.spend.read`, the daily spend the OMS already pulls from Meta (system-user token, the account's 145 campaigns). One row per day per ad (or adset / campaign by `level`). Money is a decimal string in the account's currency; a figure the OMS does not hold is null, never 0. The media buyer's own Meta token is for WRITES only and is never used to read the spend that decides a cost per order.",
       "response_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -423,7 +414,7 @@
         {
           "status": 403,
           "code": "SCOPE_MISSING",
-          "when": "key lacks ad_spend.read"
+          "when": "key lacks ads.spend.read"
         },
         {
           "status": 400,
@@ -514,7 +505,7 @@
       "method": "POST",
       "path": "/api/v1/notify",
       "headers": {
-        "Authorization": "Bearer <OAuth token, scope notify.send>",
+        "Authorization": "Bearer <system token, scope notify.send>",
         "Content-Type": "application/json"
       },
       "change": "The OMS is the ONE Telegram gateway for every system (it already has the bot and the webhook). The media buyer holds no bot token: it asks the OMS to deliver a message. The OMS decides the transport, the language and the topic.",
@@ -674,7 +665,7 @@
         "X-Zaki-Signature": "sha256=<hex HMAC-SHA256 of «<timestamp>.<raw body>» with the signing secret>",
         "Content-Type": "application/json"
       },
-      "change": "When the owner writes «اوقف …» to the bot, the OMS (which owns the bot and the webhook) forwards it to the media buyer as a SIGNED event — the same signed-outbox shape as contracts/oms-app-events.v1. The media buyer turns it into the same safety ChangeSet it makes today (pause only; anything that spends is refused with a link to the site). The signing secret comes back once in the OAuth token response (`event_signing_secret`) — never pasted.",
+      "change": "When the owner writes «اوقف …» to the bot, the OMS (which owns the bot and the webhook) forwards it to the media buyer as a SIGNED event — the same signed-outbox shape as contracts/oms-app-events.v1. The media buyer turns it into the same safety ChangeSet it makes today (pause only; anything that spends is refused with a link to the site). The signing secret is shown ONCE on the same «توكنات الأنظمة» page, next to the token (a field «سرّ توقيع الأحداث»), and is pasted into the media buyer as OMS_EVENT_SECRET (sealed, write-only).",
       "request_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -772,7 +763,7 @@
   "env": {
     "media_buyer": {
       "OMS_BASE_URL": "https://crm.zakiai.io",
-      "note": "no token variable: «اربط ← اسمح» stores the token (encrypted) and refreshes it. META_SYSTEM_USER_TOKEN here is for WRITES to Meta only; spend is read from the OMS."
+      "note": "OMS_TOKEN and OMS_EVENT_SECRET are entered on the site (الإعدادات ← الربط), sealed — they are not Coolify variables. META_SYSTEM_USER_TOKEN is for WRITES to Meta only; spend is read from the OMS."
     },
     "oms": {
       "APP_ENCRYPTION_KEY": "(secret — already required there; without it fbc/fbp/fbclid are dropped, never stored clear)",

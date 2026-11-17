@@ -9,31 +9,17 @@
   "direction": "PUSH one way — the media buyer creates a person's open task in Workspace, then asks about it and closes it on its own side when the team finished it there. Workspace never writes back unasked, and the media buyer never edits or reads the team's own tasks.",
   "base_url_env": "WORKSPACE_BASE_URL",
   "auth": {
-    "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
-    "authorization_server": "Zaki Workspace",
-    "discovery": [
-      "/.well-known/oauth-authorization-server (RFC 8414)",
-      "/.well-known/oauth-protected-resource (RFC 9728)"
-    ],
-    "endpoints": {
-      "register": "POST /oauth/register (RFC 7591, public client, token_endpoint_auth_method none)",
-      "authorize": "GET /oauth/authorize (the owner is logged in to that system and approves)",
-      "token": "POST /oauth/token (authorization_code + code_verifier S256, refresh_token with rotation)"
-    },
-    "client": {
-      "name": "الميديا باير",
-      "redirect_uri": "https://mediabuyer.zakiai.io/oauth/callback",
-      "token_endpoint_auth_method": "none",
-      "code_challenge_method": "S256"
-    },
+    "rule": "System token — the OMS model (owner's decision, 17/11 17:30). The system that OWNS the data mints the token on its «الإعدادات ← توكنات الأنظمة» page: one token per consuming system, with named scopes and an expiry. The owner pastes it ONCE into the media buyer's «الإعدادات ← الربط» (write-only, AES-256-GCM at rest, never shown again — only «محفوظ ✓ · آخر 4 خانات»). The Bearer header on each call is unchanged. No OAuth flow between our systems.",
+    "issued_by": "Zaki Workspace — «الإعدادات ← توكنات الأنظمة»",
+    "system_name": "الميديا باير",
+    "pasted_into": "media buyer «الإعدادات ← الربط» ← row Zaki Workspace: WORKSPACE_API_TOKEN",
     "scopes": [
       "tasks.write",
       "tasks.read"
     ],
-    "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
-    "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
-    "status": "ADD — on the authorization server's side (small if it copies the reference implementation; additive; the old per-system keys can keep working until the owner switches)",
-    "replaces": "the pasted WORKSPACE_API_TOKEN"
+    "status": "ADD (W1) — the page «توكنات الأنظمة» in Workspace, the same model as the OMS (system + scopes + expiry); the door itself does not change",
+    "expiry": "chosen when the token is minted (suggested 90 days). The media buyer does not store it: after expiry the system answers 401 and «اختبر الربط» says «انتهى أو انسحب» — the owner mints a new one and pastes it over the old.",
+    "revoke": "delete or rotate the token on the same page; the very next call is refused (401)."
   },
   "rate_limit": "60 per minute (429 → the media buyer stops the run and continues next time)",
   "error_envelope": {
@@ -247,7 +233,7 @@
     "media_buyer": {
       "WORKSPACE_BASE_URL": "https://workspace.zakiai.io",
       "WORKSPACE_BOARD_ID": "brd_example (only when the key sees more than one board)",
-      "note": "no token variable"
+      "note": "WORKSPACE_API_TOKEN is entered on the site (sealed), not in Coolify"
     },
     "workspace": {
       "note": "no new env"
