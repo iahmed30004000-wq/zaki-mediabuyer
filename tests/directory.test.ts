@@ -51,3 +51,14 @@ describe("no money without money.view", () => {
     expect(stripMoney({ profit: null, margin: undefined as unknown as number })).toEqual({ profit: null, margin: undefined });
   });
 });
+
+describe("a person field knows the directory", () => {
+  it("a key of the directory passes when the server hands the keys over; a stranger never does", async () => {
+    const { validateValue } = await import("@/core/customize");
+    const f = { type: "person" as const, label: "مين" };
+    expect(validateValue(f, "sara", ["sara", "muse"])).toEqual({ ok: true, value: "sara" });
+    expect(validateValue(f, "sara").ok).toBe(false);
+    expect(validateValue(f, "stranger", ["sara"]).ok).toBe(false);
+    expect(validateValue(f, "muse")).toEqual({ ok: true, value: "muse" });
+  });
+});

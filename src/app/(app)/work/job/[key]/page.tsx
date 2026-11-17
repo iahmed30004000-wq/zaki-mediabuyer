@@ -148,13 +148,12 @@ export default async function JobPage({ params }: { params: { key: string } }) {
         </section>
       ) : null}
 
-      {owner ? (
-        <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          <ButtonLink href={`/work/job/${encodeURIComponent(job.key)}/draw`} variant="ghost" size="sm">
-            متقدّم: رسم المهمة
-          </ButtonLink>
-        </div>
-      ) : null}
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <ButtonLink href={`/work/job/${encodeURIComponent(job.key)}/draw`} variant="secondary">
+          افتح رسم المهمة
+        </ButtonLink>
+        <span className="text-sm text-fg-muted">{owner ? "الفروع وكيف بتتوصّل، وبتعدّلها وبترجع لأي نسخة." : "الفروع وكيف بتتوصّل (قراءة)."}</span>
+      </div>
     </div>
   );
 }

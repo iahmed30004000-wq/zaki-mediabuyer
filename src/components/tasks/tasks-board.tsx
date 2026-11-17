@@ -11,7 +11,8 @@ import { useToast } from "@/components/ui/toast";
 import { FieldChips, FieldInput, RunButton, type CardValues } from "@/components/customize/card-fields";
 import { useShell } from "@/components/shell/shell-context";
 import { onBoard, type ButtonCfgT, type FieldCfgT } from "@/core/customize";
-import { PEOPLE, PRIORITIES, TASK_BOARDS, TASK_COLUMNS, assigneeName, dueState, duplicateGroups, groupByStatus, type TaskColumn } from "@/core/tasks";
+import { usePeople, usePersonName } from "@/components/shell/people-context";
+import { PRIORITIES, TASK_BOARDS, TASK_COLUMNS, dueState, duplicateGroups, groupByStatus, type TaskColumn } from "@/core/tasks";
 import { cn } from "@/lib/utils";
 import type { TasksCustom } from "@/lib/ui-view";
 import type { TaskView } from "@/server/tasks";
@@ -44,6 +45,7 @@ interface CardCustom {
 }
 
 function Card({ t, canEdit, selected, now, boardLabel, custom, onToggle, onOpen }: { t: TaskView; canEdit: boolean; selected: boolean; now: Date; boardLabel: (key: string) => string; custom: CardCustom; onToggle: () => void; onOpen: () => void }) {
+  const personName = usePersonName();
   const due = dueState(t.dueAt, t.status, now);
   const link = linkOf(t);
   return (
@@ -69,7 +71,7 @@ function Card({ t, canEdit, selected, now, boardLabel, custom, onToggle, onOpen 
             {t.priority === "urgent" ? "عاجل" : "مهم"}
           </span>
         ) : null}
-        {t.assignee ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 font-medium text-accent">{assigneeName(t.assignee)}</span> : <span className="rounded-md border border-dashed border-border px-1.5 py-0.5 text-fg-muted">بلا مسؤول</span>}
+        {t.assignee ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 font-medium text-accent">{personName(t.assignee)}</span> : <span className="rounded-md border border-dashed border-border px-1.5 py-0.5 text-fg-muted">بلا مسؤول</span>}
         {t.dueAt ? (
           <span className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5", due ? DUE_STYLE[due] : "bg-surface-2 text-fg-muted")} title={due ? DUE_LABEL[due] : undefined}>
             <CalendarClock className="size-3" />
@@ -115,6 +117,8 @@ function Editor({
   onSave: (patch: Record<string, unknown>, fields: Record<string, string | null>) => Promise<void>;
   onArchive: () => Promise<void>;
 }) {
+  const people = usePeople();
+  const personName = usePersonName();
   const [status, setStatus] = useState(task?.status ?? "new");
   const [assignee, setAssignee] = useState(task?.assignee ?? "");
   const [priority, setPriority] = useState(task?.priority ?? "normal");
@@ -124,7 +128,7 @@ function Editor({
   const [fv, setFv] = useState<Record<string, string>>(() => Object.fromEntries(custom.fields.map((f) => [f.id, stored(f)])));
   const [busy, setBusy] = useState(false);
   const link = task ? linkOf(task) : null;
-  const doer = task?.executor ? assigneeName(task.executor) : null;
+  const doer = task?.executor ? personName(task.executor) : null;
   return (
     <Sheet open={!!task} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
@@ -156,7 +160,7 @@ function Editor({
                 المسؤول
                 <select value={assignee} disabled={!canEdit} onChange={(e) => setAssignee(e.target.value)} className={field}>
                   <option value="">بلا مسؤول</option>
-                  {PEOPLE.map((p) => (
+                  {people.map((p) => (
                     <option key={p.key} value={p.key}>{p.label}</option>
                   ))}
                 </select>
@@ -244,6 +248,8 @@ function Editor({
  */
 /** «حسب الشخص» groups the open tasks of the team by who does them (the late ones first); «كانبان» is the five columns. */
 export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defaultView, initialBoard }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string; defaultView?: "person" | "board"; initialBoard?: string }) {
+  const team = usePeople();
+  const personName = usePersonName();
   const { toast } = useToast();
   const { editing, openPanel } = useShell();
   const now = useMemo(() => new Date(nowIso), [nowIso]);
@@ -299,7 +305,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
     const by = new Map<string, TaskView[]>();
     for (const t of open) by.set(t.assignee ?? "", [...(by.get(t.assignee ?? "") ?? []), t]);
     return [...by.entries()]
-      .map(([key, list]) => ({ key, label: key ? assigneeName(key) ?? key : "بلا مسؤول", list: [...list].sort((a, b) => rank(a) - rank(b) || (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9")) }))
+      .map(([key, list]) => ({ key, label: key ? personName(key) ?? key : "بلا مسؤول", list: [...list].sort((a, b) => rank(a) - rank(b) || (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9")) }))
       .sort((a, b) => (a.key === "" ? 1 : b.key === "" ? -1 : a.label.localeCompare(b.label)));
   }, [shown, now]);
   const countOf = (b: string) => tasks.filter((t) => t.status !== "done" && (b === "all" || t.board === b)).length;
@@ -423,7 +429,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
         )}
         <select aria-label="المسؤول" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-10 max-md:min-h-[44px] shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
           <option value="">كل الفريق</option>
-          {PEOPLE.map((p) => (
+          {team.map((p) => (
             <option key={p.key} value={p.key}>{p.label}</option>
           ))}
         </select>
@@ -457,7 +463,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
           </select>
           <select aria-label="سلّمها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ assignee: e.target.value }, "انسلّمت")} className="min-h-10 max-md:min-h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-sm">
             <option value="">سلّمها لـ…</option>
-            {PEOPLE.map((p) => (
+            {team.map((p) => (
               <option key={p.key} value={p.key}>{p.label}</option>
             ))}
           </select>

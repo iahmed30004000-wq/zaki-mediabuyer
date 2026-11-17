@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import { PEOPLE } from "@/core/tasks";
+import { usePeople } from "@/components/shell/people-context";
 import { valueText, type ButtonCfgT, type Entity, type FieldCfgT } from "@/core/customize";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ const control = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-bo
 
 /** Draws one field's input by its type — the same few inputs for every card the owner puts fields on. A value is kept as text here; the server checks it against the field. */
 export function FieldInput({ field, value, onChange, disabled }: { field: FieldCfgT; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  const people = usePeople();
   const common = { disabled, "aria-label": field.label };
   switch (field.type) {
     case "select":
@@ -31,7 +32,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: FieldC
       return (
         <select {...common} value={value} onChange={(e) => onChange(e.target.value)} className={control}>
           <option value="">—</option>
-          {PEOPLE.map((p) => (
+          {people.map((p) => (
             <option key={p.key} value={p.key}>
               {p.label}
             </option>

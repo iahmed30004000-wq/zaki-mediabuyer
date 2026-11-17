@@ -856,7 +856,8 @@ export function convertField(cfg: UiConfig, id: string, to: FieldType, values: u
 export type ValueCheck = { ok: true; value: string | number | null } | { ok: false; error: string };
 
 /** What was typed into a field → what is kept: nothing (cleared), or a value of the field's type. A phone, an e-mail or a key is refused in any text. */
-export function validateValue(field: Pick<FieldCfgT, "type" | "options" | "label">, raw: unknown): ValueCheck {
+/** `people`: the keys of the team directory (the server passes them); without it only the seven who always existed are known. */
+export function validateValue(field: Pick<FieldCfgT, "type" | "options" | "label">, raw: unknown, people?: readonly string[]): ValueCheck {
   if (raw === null || raw === undefined || (typeof raw === "string" && !raw.trim())) return { ok: true, value: null };
   const name = `«${field.label}»`;
   switch (field.type) {
@@ -881,7 +882,7 @@ export function validateValue(field: Pick<FieldCfgT, "type" | "options" | "label
     }
     case "person": {
       const s = String(raw).trim();
-      return PEOPLE.some((p) => p.key === s) ? { ok: true, value: s } : fail(`${name}: شخص مش معروف`);
+      return (people ?? PEOPLE.map((p) => p.key)).includes(s) ? { ok: true, value: s } : fail(`${name}: شخص مش معروف`);
     }
     case "link": {
       const h = cleanHref(String(raw));
