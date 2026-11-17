@@ -14,7 +14,7 @@ const refuse = (status: number, code: string, message: string, extra?: Record<st
 /**
  * POST /api/inbound/oms — the OMS owns the Telegram bot; when the owner writes «اوقف CR00147» to it, the OMS sends this signed event
  * (contracts/oms-mediabuyer.v1.json → oms.stop-event). There is no session and no token here: the proof is the signature,
- * HMAC-SHA256 of «<X-Zaki-Timestamp>.<raw body>» with OMS_EVENT_SECRET (entered on «الإعدادات ← الربط», sealed; falls back to the environment),
+ * HMAC-SHA256 of «<X-Zaki-Timestamp>.<raw body>» with OMS_EVENT_SECRET (pasted on «الإعدادات ← الربط» only, sealed — never a Coolify variable; the in-app overlay of #53 puts it into the environment this reads),
  * the timestamp not older than five minutes. Without the secret set, every call is refused.
  * It does what the Telegram webhook does and nothing more: it PAUSES. A sentence that asks for anything that spends is answered with the site.
  */
