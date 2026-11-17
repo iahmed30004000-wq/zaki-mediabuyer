@@ -33,6 +33,7 @@
  *   `npm run worker`
  */
 import { runOnce } from "../src/jobs/runner";
+import { startOverlay } from "../src/server/connections";
 import { metaToken, syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
@@ -208,6 +209,7 @@ if (process.argv[1]?.includes("worker")) {
       console.error("tick failed:", e instanceof Error ? e.message : e);
     }
   };
-  void loop();
+  // the site's own values (D62) go over the environment before the first tick, and again every 30 s — the web process renews OAuth tokens, the worker only reads
+  void startOverlay({ refresh: false }).catch(() => undefined).then(() => loop());
   setInterval(loop, 60_000);
 }

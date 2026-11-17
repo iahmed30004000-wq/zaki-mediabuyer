@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { HashRedirect } from "@/components/settings/hash-redirect";
 import { SETTINGS_PAGES } from "@/lib/settings-nav";
+import { canOpenPath } from "@/core/roles";
+import { currentCaller } from "@/server/auth";
 import { loadReadiness } from "@/lib/readiness-view";
 
 export const metadata = { title: "الإعدادات" };
@@ -12,13 +14,14 @@ export const dynamic = "force-dynamic";
  * `#anchors` (an alert, a message, a bookmark) are sent to the new address by `HashRedirect`.
  */
 export default async function SettingsPage() {
+  const me = await currentCaller();
   const readiness = await loadReadiness().catch(() => null);
   const linked = readiness ? readiness.rows.filter((r) => r.linked).length : null;
   return (
     <div className="space-y-3">
       <HashRedirect />
       <ul data-tour="groups" className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-1">
-        {SETTINGS_PAGES.map((p) => (
+        {SETTINGS_PAGES.filter((p) => !me || canOpenPath(me.role, p.href)).map((p) => (
           <li key={p.href}>
             <Link href={p.href} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-surface-2">
               <span className="min-w-0 flex-1">

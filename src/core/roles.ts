@@ -146,6 +146,7 @@ const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: P
   { test: /^\/print\/(work|report)(\/|$)/, any: ["work.view"] },
   { test: /^\/(ads|products)(\/|$)/, any: ["ads.view"], place: "ads" },
   { test: /^\/ops(\/|$)/, any: ["ops.view"], place: "ops" },
+  { test: /^\/settings\/connections(\/|$)/, any: ["owner_only"] }, // the keys and links (D62): the owner alone, like the API behind it
   { test: /^\/settings(\/|$)/, any: ["settings.view"] },
   { test: /^\/p\//, any: ["tasks.own", "tasks.manage"] },
 ];
