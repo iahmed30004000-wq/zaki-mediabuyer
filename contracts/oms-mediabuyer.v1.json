@@ -1,0 +1,774 @@
+{
+  "contract": "oms-mediabuyer",
+  "version": "v1",
+  "status": "EXISTS — the OMS owns the source; the verbatim copy lives in contracts/oms-mediabuyer.v1/ (hash-pinned by tests/oms-contract.test.ts). This file adds the ADD items and the cross-references, nothing that changes the copy.",
+  "system": {
+    "name": "OMS",
+    "url": "https://crm.zakiai.io",
+    "repo": "MKory18/Zaki-ai-CRM"
+  },
+  "direction": "PULL — the media buyer calls the OMS: real orders, the spend per ad, stock. Two ADD calls go the other way round (the media buyer asks the OMS to send a Telegram message; the OMS sends the media buyer a signed «اوقف» event).",
+  "base_url_env": "OMS_BASE_URL",
+  "auth": {
+    "rule": "System token — the OMS model (owner's decision, 17/11 17:30). The system that OWNS the data mints the token on its «الإعدادات ← توكنات الأنظمة» page: one token per consuming system, with named scopes and an expiry. The owner pastes it ONCE into the media buyer's «الإعدادات ← الربط» (write-only, AES-256-GCM at rest, never shown again — only «محفوظ ✓ · آخر 4 خانات»). The Bearer header on each call is unchanged. No OAuth flow between our systems.",
+    "issued_by": "OMS (crm.zakiai.io) — «الإعدادات ← توكنات الأنظمة»",
+    "system_name": "الميديا باير",
+    "pasted_into": "media buyer «الإعدادات ← الربط» ← row الـOMS: OMS_TOKEN (and OMS_EVENT_SECRET, once the stop event exists)",
+    "scopes_existing": [
+      "products.read",
+      "products.costs.read",
+      "orders.attribution.read"
+    ],
+    "scopes_add": [
+      "ads.spend.read (with O6: GET /api/v1/ad-spend)",
+      "notify.send (with O4: POST /api/v1/notify)"
+    ],
+    "scopes_not_asked": [
+      "capi.identifiers — the OMS sends the custom conversions itself"
+    ],
+    "status": "EXISTS — the page and the system «الميديا باير» with its three scopes. ADD — only the two new scopes (O1).",
+    "resource_server": "the existing /api/v1 door; Bearer on every call",
+    "expiry": "chosen when the token is minted (suggested 90 days). The media buyer does not store it: after expiry the system answers 401 and «اختبر الربط» says «انتهى أو انسحب» — the owner mints a new one and pastes it over the old.",
+    "revoke": "delete or rotate the token on the same page; the very next call is refused (401)."
+  },
+  "rate_limit": "30 calls per minute on the media buyer's key (429 RATE_LIMITED)",
+  "error_envelope": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+      "error",
+      "request_id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": [
+              "object",
+              "array",
+              "null"
+            ]
+          }
+        }
+      },
+      "request_id": {
+        "type": "string"
+      }
+    }
+  },
+  "idempotency": "Reads need none. The CAPI identifiers POST is a pure read: the same refs always answer the same.",
+  "endpoints": [
+    {
+      "id": "oms.system-scopes",
+      "status": "ADD",
+      "method": "UI",
+      "path": "الإعدادات ← توكنات الأنظمة ← الميديا باير",
+      "change": "Add two scopes to the system «الميديا باير» that already exists on the page: `ads.spend.read` (for GET /api/v1/ad-spend) and `notify.send` (for POST /api/v1/notify). The three existing scopes (products.read, products.costs.read, orders.attribution.read) do not change, and a token minted before keeps working with exactly what it had. Nothing else is built: the page, the token format and the rate limit are the existing ones.",
+      "size": "small — two entries in a scope list that already exists",
+      "blocking": true
+    },
+    {
+      "id": "orders.attribution",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/orders/attribution",
+      "query": {
+        "updated_since": "ISO-8601 with offset, required, at most 31 days back",
+        "cursor": "opaque, from the previous page",
+        "limit": "1..200, default 200"
+      },
+      "pagination": "cursor: {items, next_cursor}; the media buyer stops at 100 pages or when a cursor repeats",
+      "schema_ref": "contracts/oms-mediabuyer.v1/attribution-page.schema.json",
+      "example_ref": "contracts/oms-mediabuyer.v1/attribution-page.example.json",
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_MISSING",
+          "when": "no Bearer header"
+        },
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired key"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks orders.attribution.read"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "updated_since missing or older than 31 days"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "notes": "Status words are six: new · confirmed · shipped · delivered · returned · canceled (the OMS maps its 14 core states onto them). `ad_id` is what joins an order to an ad: it must be filled for landing-page orders (see ADD A2 and the Pages contract)."
+    },
+    {
+      "id": "products",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/products",
+      "query": {
+        "fields": "comma list from products-page.schema.json: code,name,aliases,unit_cost_usd,price_options,stock_days,delivery_fee,return_fee,cod_fee_pct (+ ADD A3: stock_units,daily_sales_7d)"
+      },
+      "schema_ref": "contracts/oms-mediabuyer.v1/products-page.schema.json",
+      "example_ref": "contracts/oms-mediabuyer.v1/products-page.example.json",
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired key"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks products.read / products.costs.read"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "notes": "A figure the OMS has no single source for is null, never a guess. A null never wipes a number the owner typed in the media buyer's settings."
+    },
+    {
+      "id": "capi.identifiers",
+      "status": "EXISTS — FROZEN, NOT USED BY THE MEDIA BUYER from 17/11",
+      "method": "POST",
+      "path": "/api/v1/capi/identifiers",
+      "request_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.schema.json (request: {refs: string[≤100]})",
+      "schema_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.schema.json",
+      "example_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.example.json",
+      "errors": [
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks capi.identifiers"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "more than 100 refs"
+        }
+      ],
+      "notes": "Kept as published (a published version never breaks) but the media buyer does not call it and does not ask for its scope: the OMS already sends the server-side custom conversions to Meta for confirmed and delivered orders, and building them twice would double-count. The media buyer's own conversion sender stays off (its queue is not drained)."
+    },
+    {
+      "id": "oms.landing-attribution-intake",
+      "status": "ADD",
+      "method": "POST",
+      "path": "/api/v1/landing/orders  (and /api/v1/landing/abandoned-carts)",
+      "change": "Accept and store the ad tags in the body's `attribution` object (optional fields, shape-checked, ids digits only): adset_id, campaign_id, ad_name, utm_source, utm_medium, fbclid, fbc, fbp, landing_url. `ad_id` already exists there. Return them on /orders/attribution as ad_id, adset_id, campaign_id, ad_name, landing_page (those fields are already in the frozen schema). fbc/fbp/fbclid are sealed like the other identifiers and only ever leave through capi/identifiers.",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "attribution"
+        ],
+        "properties": {
+          "attribution": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "method": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "url_tags",
+                  null
+                ],
+                "description": "how the tags were read"
+              },
+              "ad_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{6,25}$"
+              },
+              "adset_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{6,25}$"
+              },
+              "campaign_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{6,25}$"
+              },
+              "ad_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              },
+              "utm_source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              },
+              "utm_medium": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 60
+              },
+              "fbclid": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "fbc": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "fbp": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "landing_url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            }
+          }
+        }
+      },
+      "example_request": {
+        "attribution": {
+          "method": "url_tags",
+          "ad_id": "120211000000000001",
+          "adset_id": "120210000000000005",
+          "campaign_id": "120210000000000009",
+          "ad_name": "CR00147_TRF01_hook2",
+          "utm_source": "fb",
+          "utm_medium": "Facebook_Mobile_Feed",
+          "fbclid": "IwAR0example",
+          "fbc": "fb.1.1762200000000.IwAR0example",
+          "fbp": "fb.1.1762200000000.1234567890",
+          "landing_url": "https://pages.zakiai.io/p/kamaa-eye-water"
+        }
+      },
+      "size": "small — optional fields on an existing object; an order without them is accepted exactly as before",
+      "blocking": true
+    },
+    {
+      "id": "oms.ad-spend",
+      "status": "ADD",
+      "method": "GET",
+      "path": "/api/v1/ad-spend",
+      "query": {
+        "date_from": "YYYY-MM-DD (Asia/Amman day), required",
+        "date_to": "YYYY-MM-DD, required, at most 31 days after date_from",
+        "level": "ad | adset | campaign — default ad",
+        "cursor": "opaque, from the previous page",
+        "limit": "1..500, default 500"
+      },
+      "pagination": "cursor: {items, next_cursor}; ordered by date then ad_id so a page never repeats a row",
+      "change": "Expose, read-only and by scope `ads.spend.read`, the daily spend the OMS already pulls from Meta (system-user token, the account's 145 campaigns). One row per day per ad (or adset / campaign by `level`). Money is a decimal string in the account's currency; a figure the OMS does not hold is null, never 0. The media buyer's own Meta token is for WRITES only and is never used to read the spend that decides a cost per order.",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor",
+          "as_of"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "date",
+                "ad_id",
+                "spend",
+                "currency"
+              ],
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "ad_id": {
+                  "type": "string",
+                  "pattern": "^\\d{6,25}$"
+                },
+                "adset_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d{6,25}$"
+                },
+                "campaign_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d{6,25}$"
+                },
+                "spend": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+(\\.\\d{1,2})?$"
+                },
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "impressions": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "link_clicks": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "as_of": {
+            "type": "string",
+            "description": "when the OMS last pulled from Meta (ISO-8601 with offset); a stale as_of is shown to the owner as «قديم», not hidden"
+          }
+        }
+      },
+      "example_response": {
+        "items": [
+          {
+            "date": "2026-11-17",
+            "ad_id": "120211000000000001",
+            "adset_id": "120210000000000005",
+            "campaign_id": "120210000000000009",
+            "spend": "42.00",
+            "currency": "USD",
+            "impressions": 5200,
+            "link_clicks": 130
+          }
+        ],
+        "next_cursor": null,
+        "as_of": "2026-11-17T23:05:00+03:00"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired key"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks ads.spend.read"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "a date is missing or malformed, or the window is over 31 days"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "size": "small — a read over the table the spend sync already fills",
+      "blocking": true
+    },
+    {
+      "id": "oms.stock-figures",
+      "status": "ADD",
+      "method": "GET",
+      "path": "/api/v1/products?fields=stock_units,daily_sales_7d,stock_days",
+      "change": "Make `stock_days` non-null whenever the OMS holds a stock count: stock_units ÷ daily_sales_7d (units shipped in the last 7 days ÷ 7). Add the two inputs as optional fields so the media buyer can show them and check the division.",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "stock_units": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "daily_sales_7d": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+(\\.\\d{1,2})?$"
+                },
+                "stock_days": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "example_response": {
+        "items": [
+          {
+            "code": "TRF01",
+            "stock_units": 240,
+            "daily_sales_7d": "30.00",
+            "stock_days": 8
+          },
+          {
+            "code": "TIN01",
+            "stock_units": null,
+            "daily_sales_7d": null,
+            "stock_days": null
+          }
+        ]
+      },
+      "size": "small — two optional columns on an existing read",
+      "blocking": false
+    },
+    {
+      "id": "oms.notify",
+      "status": "ADD",
+      "method": "POST",
+      "path": "/api/v1/notify",
+      "headers": {
+        "Authorization": "Bearer <system token, scope notify.send>",
+        "Content-Type": "application/json"
+      },
+      "change": "The OMS is the ONE Telegram gateway for every system (it already has the bot and the webhook). The media buyer holds no bot token: it asks the OMS to deliver a message. The OMS decides the transport, the language and the topic.",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "target",
+          "text",
+          "key"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "owner"
+                ]
+              },
+              {
+                "type": "object",
+                "required": [
+                  "person"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "person": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]{1,31}$"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "chat_id"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "chat_id": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  },
+                  "topic_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "key": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 120,
+            "description": "idempotency key: the same key sends once (24 hours)"
+          },
+          "link": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      },
+      "example_request": {
+        "target": {
+          "chat_id": "-1001234567890",
+          "topic_id": 1001
+        },
+        "text": "طلب جديد: هوكات جديدة — TRF01 / JOB-12",
+        "key": "mb-vr-vr_example-asked"
+      },
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "ok",
+          "delivered"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "delivered": {
+            "type": "boolean"
+          },
+          "duplicate": {
+            "type": "boolean"
+          },
+          "message_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "example_response": {
+        "ok": true,
+        "delivered": true,
+        "duplicate": false,
+        "message_id": 4821
+      },
+      "errors": [
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "token lacks notify.send"
+        },
+        {
+          "status": 404,
+          "code": "TARGET_UNKNOWN",
+          "when": "an unknown person key or a chat the bot is not in"
+        },
+        {
+          "status": 409,
+          "code": "IDEMPOTENCY_CONFLICT",
+          "when": "same key, different text"
+        },
+        {
+          "status": 422,
+          "code": "CONTAINS_CUSTOMER_DATA",
+          "when": "the text looks like a phone number or an address (refused, not sent)"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        },
+        {
+          "status": 502,
+          "code": "TELEGRAM_UNAVAILABLE",
+          "when": "Telegram did not accept it (the message is not lost: retry with the same key)"
+        }
+      ],
+      "notes": "Telegram is blocked in Jordan and not on the server: the OMS server sends. A message from the media buyer never carries a customer detail. «owner» = the owner's private chat; `person` = a key of the media buyer's team directory the OMS maps to a chat.",
+      "size": "small — one endpoint over the OMS's own Telegram sender",
+      "blocking": false
+    },
+    {
+      "id": "oms.stop-event",
+      "status": "ADD",
+      "method": "POST",
+      "path": "{media-buyer}/api/inbound/oms",
+      "direction": "inbound (OMS → media buyer)",
+      "headers": {
+        "X-Zaki-Timestamp": "unix seconds (rejected if more than 5 minutes old)",
+        "X-Zaki-Signature": "sha256=<hex HMAC-SHA256 of «<timestamp>.<raw body>» with the signing secret>",
+        "Content-Type": "application/json"
+      },
+      "change": "When the owner writes «اوقف …» to the bot, the OMS (which owns the bot and the webhook) forwards it to the media buyer as a SIGNED event — the same signed-outbox shape as contracts/oms-app-events.v1. The media buyer turns it into the same safety ChangeSet it makes today (pause only; anything that spends is refused with a link to the site). The signing secret is shown ONCE on the same «توكنات الأنظمة» page, next to the token (a field «سرّ توقيع الأحداث»), and is pasted into the media buyer as OMS_EVENT_SECRET (sealed, write-only).",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "event",
+          "at",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "owner.stop_requested"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "source_chat": {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "allowed"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "example_request": {
+        "event": "owner.stop_requested",
+        "at": "2026-11-18T10:05:00+03:00",
+        "data": {
+          "query": "CR00147",
+          "source_chat": "owner"
+        }
+      },
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reply": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "example_response": {
+        "ok": true,
+        "reply": "وقّفت CR00147 — بتقدر ترجّعه من بانتظارك"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "SIGNATURE_INVALID",
+          "when": "bad or missing signature, or an old timestamp"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "unknown event or extra field"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "notes": "The OMS may show `reply` back to the owner through its own bot. The media buyer's own Telegram webhook is retired once this is live. Money is never approved from here: a request to spend answers with a link to the site.",
+      "size": "small on the OMS (one signed delivery); small on the media buyer (one route over the existing stop logic) — MEDIA BUYER ADD, not built yet",
+      "blocking": false
+    }
+  ],
+  "env": {
+    "media_buyer": {
+      "OMS_BASE_URL": "https://crm.zakiai.io",
+      "note": "OMS_TOKEN and OMS_EVENT_SECRET are entered on the site (الإعدادات ← الربط), sealed — they are not Coolify variables. META_SYSTEM_USER_TOKEN is for WRITES to Meta only; spend is read from the OMS."
+    },
+    "oms": {
+      "APP_ENCRYPTION_KEY": "(secret — already required there; without it fbc/fbp/fbclid are dropped, never stored clear)",
+      "note": "the OMS keeps its own Telegram bot (TELEGRAM_BOT_TOKEN lives ONLY there) and its own Meta system-user token (spend + the server-side custom conversions)"
+    }
+  },
+  "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
+}
