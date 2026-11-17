@@ -7,7 +7,7 @@
     "url": "https://crm.zakiai.io",
     "repo": "MKory18/Zaki-ai-CRM"
   },
-  "direction": "PULL — the media buyer calls the OMS. The one POST (capi/identifiers) only reads.",
+  "direction": "PULL — the media buyer calls the OMS: real orders, the spend per ad, stock. Two ADD calls go the other way round (the media buyer asks the OMS to send a Telegram message; the OMS sends the media buyer a signed «اوقف» event).",
   "base_url_env": "OMS_BASE_URL",
   "auth": {
     "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
@@ -31,13 +31,14 @@
       "orders.attribution.read",
       "products.read",
       "products.economics.read",
-      "capi.identifiers (asked for separately; the owner ticks it on the consent screen)"
+      "ad_spend.read (ADD with O6)"
     ],
     "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
     "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
     "status": "ADD — on the authorization server's side (small if it copies the reference implementation; additive; the old per-system keys can keep working until the owner switches)",
     "replaces": "the pasted OMS_TOKEN: the key minted in OMS Settings → Apps → «توكنات الأنظمة» stays valid until the owner presses «اربط ← اسمح», then it can be revoked",
-    "resource_server": "the existing /api/v1 door (scopes are the existing ones); Bearer on every call"
+    "resource_server": "the existing /api/v1 door (scopes are the existing ones); Bearer on every call",
+    "scopes_note": "capi.identifiers is no longer requested (decision of 17/11): the OMS sends the custom conversions (ConfirmedOrder / DeliveredOrder) itself, so no customer identifier ever has to move to the media buyer."
   },
   "rate_limit": "30 calls per minute on the media buyer's key (429 RATE_LIMITED)",
   "error_envelope": {
@@ -161,7 +162,7 @@
     },
     {
       "id": "capi.identifiers",
-      "status": "EXISTS (merged in the OMS per the media buyer's INTEGRATIONS.md §4.1 — VERIFY on main)",
+      "status": "EXISTS — FROZEN, NOT USED BY THE MEDIA BUYER from 17/11",
       "method": "POST",
       "path": "/api/v1/capi/identifiers",
       "request_ref": "contracts/oms-mediabuyer.v1/capi-identifiers.schema.json (request: {refs: string[≤100]})",
@@ -179,7 +180,7 @@
           "when": "more than 100 refs"
         }
       ],
-      "notes": "The ONLY place a customer identifier may move: decrypted in memory for events about to be sent, no-store, never logged, never to a model. Server-side purchase events are sent by the media buyer; the OMS's own server CAPI for the same pixel must be switched off first (never two senders)."
+      "notes": "Kept as published (a published version never breaks) but the media buyer does not call it and does not ask for its scope: the OMS already sends the server-side custom conversions to Meta for confirmed and delivered orders, and building them twice would double-count. The media buyer's own conversion sender stays off (its queue is not drained)."
     },
     {
       "id": "oms.landing-attribution-intake",
@@ -299,6 +300,143 @@
         }
       },
       "size": "small — optional fields on an existing object; an order without them is accepted exactly as before",
+      "blocking": true
+    },
+    {
+      "id": "oms.ad-spend",
+      "status": "ADD",
+      "method": "GET",
+      "path": "/api/v1/ad-spend",
+      "query": {
+        "date_from": "YYYY-MM-DD (Asia/Amman day), required",
+        "date_to": "YYYY-MM-DD, required, at most 31 days after date_from",
+        "level": "ad | adset | campaign — default ad",
+        "cursor": "opaque, from the previous page",
+        "limit": "1..500, default 500"
+      },
+      "pagination": "cursor: {items, next_cursor}; ordered by date then ad_id so a page never repeats a row",
+      "change": "Expose, read-only and by scope `ad_spend.read`, the daily spend the OMS already pulls from Meta (system-user token, the account's 145 campaigns). One row per day per ad (or adset / campaign by `level`). Money is a decimal string in the account's currency; a figure the OMS does not hold is null, never 0. The media buyer's own Meta token is for WRITES only and is never used to read the spend that decides a cost per order.",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor",
+          "as_of"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "date",
+                "ad_id",
+                "spend",
+                "currency"
+              ],
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "ad_id": {
+                  "type": "string",
+                  "pattern": "^\\d{6,25}$"
+                },
+                "adset_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d{6,25}$"
+                },
+                "campaign_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d{6,25}$"
+                },
+                "spend": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+(\\.\\d{1,2})?$"
+                },
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "impressions": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "link_clicks": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "as_of": {
+            "type": "string",
+            "description": "when the OMS last pulled from Meta (ISO-8601 with offset); a stale as_of is shown to the owner as «قديم», not hidden"
+          }
+        }
+      },
+      "example_response": {
+        "items": [
+          {
+            "date": "2026-11-17",
+            "ad_id": "120211000000000001",
+            "adset_id": "120210000000000005",
+            "campaign_id": "120210000000000009",
+            "spend": "42.00",
+            "currency": "USD",
+            "impressions": 5200,
+            "link_clicks": 130
+          }
+        ],
+        "next_cursor": null,
+        "as_of": "2026-11-17T23:05:00+03:00"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired key"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "key lacks ad_spend.read"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "a date is missing or malformed, or the window is over 31 days"
+        },
+        {
+          "status": 429,
+          "code": "RATE_LIMITED",
+          "when": "over 30/min"
+        }
+      ],
+      "size": "small — a read over the table the spend sync already fills",
       "blocking": true
     },
     {
@@ -634,12 +772,11 @@
   "env": {
     "media_buyer": {
       "OMS_BASE_URL": "https://crm.zakiai.io",
-      "CAPI_TEST_EVENT_CODE": "TEST12345 (test events only; remove before live)",
-      "note": "no token variable: «اربط ← اسمح» stores the token (encrypted) and refreshes it"
+      "note": "no token variable: «اربط ← اسمح» stores the token (encrypted) and refreshes it. META_SYSTEM_USER_TOKEN here is for WRITES to Meta only; spend is read from the OMS."
     },
     "oms": {
       "APP_ENCRYPTION_KEY": "(secret — already required there; without it fbc/fbp/fbclid are dropped, never stored clear)",
-      "note": "the OMS keeps its own Telegram bot (TELEGRAM_BOT_TOKEN lives ONLY there)"
+      "note": "the OMS keeps its own Telegram bot (TELEGRAM_BOT_TOKEN lives ONLY there) and its own Meta system-user token (spend + the server-side custom conversions)"
     }
   },
   "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."

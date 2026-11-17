@@ -38,7 +38,7 @@ interface Contract {
   error_envelope: unknown;
   endpoints: Endpoint[];
   env: Record<string, unknown>;
-  join?: { worked_example: { meta_spend_usd: string; orders: { status: string }[]; expected: Record<string, number | string> } };
+  join?: { worked_example: { spend_usd: string; spend_row: { spend: string; ad_id: string }; orders: { status: string }[]; expected: Record<string, number | string> } };
 }
 type Schema = { anyOf?: Schema[]; type?: string | string[]; enum?: unknown[]; pattern?: string; minimum?: number; maxLength?: number; minLength?: number; maxItems?: number; maxProperties?: number; required?: string[]; properties?: Record<string, Schema>; additionalProperties?: boolean | Schema; items?: Schema };
 
@@ -162,10 +162,29 @@ describe("the contracts agree with the media buyer's own code", () => {
 describe("the cost-per-ad join, on paper", () => {
   it("one ad, six orders, 42$ of spend → 7.00 per order in, 10.50 per confirmed, 42.00 per delivered", () => {
     const w = load("pages").join!.worked_example;
-    const spend = Number(w.meta_spend_usd);
+    const spend = Number(w.spend_usd);
     const confirmed = w.orders.filter((o) => ["confirmed", "shipped", "delivered", "returned"].includes(o.status)).length;
     const delivered = w.orders.filter((o) => o.status === "delivered").length;
     expect({ orders_in: w.orders.length, confirmed, delivered, cost_per_order_in: (spend / w.orders.length).toFixed(2), cost_per_confirmed: (spend / confirmed).toFixed(2), cost_per_delivered: (spend / delivered).toFixed(2) }).toEqual(w.expected);
+  });
+});
+
+describe("spend and conversions belong to the OMS (17/11)", () => {
+  it("the spend is read from the OMS: an ADD endpoint with its own scope, and the worked example uses that row", () => {
+    const oms = load("oms");
+    const e = oms.endpoints.find((x) => x.id === "oms.ad-spend")!;
+    expect(e.status).toBe("ADD");
+    expect(e.path).toBe("/api/v1/ad-spend");
+    expect(JSON.stringify(oms.auth)).toContain("ad_spend.read");
+    const w = load("pages").join!.worked_example;
+    expect(w.spend_row.spend).toBe(w.spend_usd);
+    expect(w.spend_row.ad_id).toBe((e.example_response as { items: { ad_id: string }[] }).items[0]!.ad_id);
+  });
+  it("the media buyer builds no conversions: the OMS endpoint of identifiers is frozen and not asked for", () => {
+    const oms = load("oms");
+    expect(String(oms.endpoints.find((x) => x.id === "capi.identifiers")!.status)).toContain("NOT USED");
+    expect(oms.auth.scopes.some((s: string) => s.startsWith("capi.identifiers"))).toBe(false);
+    expect(JSON.stringify(oms.env.media_buyer)).not.toContain("CAPI");
   });
 });
 

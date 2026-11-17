@@ -93,8 +93,7 @@
     "worked_example": {
       "day": "2026-11-17",
       "ad_id": "120211000000000001",
-      "meta_spend_usd": "42.00",
-      "source": "spend: Meta insights for that ad (InsightDaily.objectId = ad_id); orders: OMS /orders/attribution rows with the same ad_id",
+      "source": "spend: OMS GET /api/v1/ad-spend row for that ad and day (the OMS pulled it from Meta); orders: OMS GET /api/v1/orders/attribution rows with the same ad_id — both from the OMS, joined by ad_id",
       "orders": [
         {
           "order_id": "o-1",
@@ -135,6 +134,13 @@
         "cost_per_order_in": "7.00",
         "cost_per_confirmed": "10.50",
         "cost_per_delivered": "42.00"
+      },
+      "spend_usd": "42.00",
+      "spend_row": {
+        "date": "2026-11-17",
+        "ad_id": "120211000000000001",
+        "spend": "42.00",
+        "currency": "USD"
       }
     },
     "note": "The media buyer's launch builder already writes these url_tags on every ad it creates (src/core/templates.ts URL_TAGS). Ads created before it have none: those orders keep the `naming` method (product level, an estimate) and never pose as real per-ad numbers."
