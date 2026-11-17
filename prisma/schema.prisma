@@ -438,20 +438,65 @@ model AgentRun {
 
 /// A token another system (the content studio) calls this one with. Only the sha256 is kept; the token is shown once.
 model ApiToken {
-  id          String    @id @default(cuid())
-  name        String
+  id            String    @id @default(cuid())
+  name          String
   /// vp:read · vp:launch — never a scope that approves spend
-  scopes      String[]
-  tokenHash   String    @unique
+  scopes        String[]
+  tokenHash     String    @unique
   /// the first characters, so the owner can tell two tokens apart
-  prefix      String
+  prefix        String
   /// which agent of the team directory this token is (Actor.key); null for the older tokens
-  actorKey    String?
-  createdById String?
-  lastUsedAt  DateTime?
-  revokedAt   DateTime?
+  actorKey      String?
+  createdById   String?
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  /// an OAuth access token expires (an hour); the older tokens never do
+  expiresAt     DateTime?
+  /// the OAuth client this token was issued to (OAuthClient.id); null for a token the owner made by hand
+  oauthClientId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([oauthClientId])
+}
+
+/// A client that registered itself with /oauth/register (RFC 7591): claude.ai adding /mcp as a custom connector. Public client: PKCE, no secret.
+model OAuthClient {
+  id           String    @id @default(cuid())
+  clientId     String    @unique
+  name         String
+  redirectUris String[]
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+}
+
+/// A one-time authorization code (only its sha256 is stored; ten minutes; used once).
+model OAuthCode {
+  id          String    @id @default(cuid())
+  codeHash    String    @unique
+  clientId    String
+  userId      String
+  redirectUri String
+  challenge   String
+  scopes      String[]
+  expiresAt   DateTime
+  usedAt      DateTime?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+}
+
+/// What the owner approved. `apiTokenId` is the ApiToken /mcp checks; a refresh rotates its hash in place, a revoke sets revokedAt on both.
+model OAuthGrant {
+  id               String    @id @default(cuid())
+  clientId         String
+  userId           String
+  apiTokenId       String    @unique
+  refreshHash      String    @unique
+  scopes           String[]
+  refreshExpiresAt DateTime
+  createdAt        DateTime  @default(now())
+  revokedAt        DateTime?
+
+  @@index([clientId])
 }
 
 /// The registry of creatives (spec 7.3). Phase 1 keeps only what ties a CR##### to the studio script it came from;

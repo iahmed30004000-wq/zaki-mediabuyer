@@ -1,5 +1,5 @@
 import { FoldCard } from "@/components/settings/fold-card";
-import { AgentTokens, ActorsPanel, type TokenRow } from "@/components/settings/team-directory";
+import { AgentTokens, ActorsPanel, ConnectedApps, type TokenRow } from "@/components/settings/team-directory";
 import { AgentsTable, MatrixLegend, RolesTable } from "@/components/settings/permission-matrix";
 import { TeamPanel } from "@/components/settings/editors";
 import { agentMatrix, roleMatrix } from "@/core/permissions";
@@ -9,7 +9,9 @@ import { fmt } from "@/lib/format";
 import { loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { currentCaller } from "@/server/auth";
 import { db } from "@/server/db";
+import { appOrigin } from "@/server/env";
 import { loadDirectory } from "@/server/directory";
+import { listConnected } from "@/server/oauth";
 
 export const metadata = { title: "الفريق والصلاحيات" };
 export const dynamic = "force-dynamic";
@@ -29,12 +31,13 @@ export default async function TeamSettingsPage() {
   const me = await currentCaller();
   const owner = !!me && !me.demo && can(me.role, "owner_only");
   const demo = isDemo(process.env);
-  const [directory, edit, real, tokens, accounts] = await Promise.all([
+  const [directory, edit, real, tokens, accounts, connected] = await Promise.all([
     loadDirectory({ includeInactive: true }),
     loadEditView(),
     loadSettingsView(),
-    owner ? db.apiToken.findMany({ where: { OR: [{ scopes: { has: "mcp" } }, { scopes: { hasSome: ["mcp:read", "mcp:push", "mcp:run", "mcp:ask", "mcp:tasks", "mcp:handoff", "mcp:videos"] } }] }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, scopes: true, actorKey: true, lastUsedAt: true, revokedAt: true } }) : Promise.resolve([]),
+    owner ? db.apiToken.findMany({ where: { oauthClientId: null, OR: [{ scopes: { has: "mcp" } }, { scopes: { hasSome: ["mcp:read", "mcp:push", "mcp:run", "mcp:ask", "mcp:tasks", "mcp:handoff", "mcp:videos"] } }] }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, prefix: true, scopes: true, actorKey: true, lastUsedAt: true, revokedAt: true } }) : Promise.resolve([]),
     demo ? Promise.resolve([]) : db.adAccount.findMany({ select: { name: true, autonomyLevel: true } }),
+    owner && !demo ? listConnected() : Promise.resolve([]),
   ]);
   const agents = directory.filter((a) => a.kind === "agent" && a.active);
   const names = new Map(directory.map((a) => [a.key, a.name]));
@@ -55,8 +58,10 @@ export default async function TeamSettingsPage() {
       </FoldCard>
 
       {owner ? (
-        <FoldCard id="agents" title="توكنات الوكلاء" summary={`${tokenRows.filter((t) => !t.revoked).length} شغّال · كل توكن بيفتح أدوات معيّنة بس`}>
+        <FoldCard id="agents" title="توكنات الوكلاء" summary={`${tokenRows.filter((t) => !t.revoked).length} توكن شغّال · ${connected.filter((c) => c.active).length} تطبيق موصّل · كل واحد بيفتح أدوات معيّنة بس`}>
           <AgentTokens agents={agents.map((a) => ({ key: a.key, name: a.name }))} tokens={tokenRows} />
+          <h3 className="pt-3 text-sm font-bold text-fg">تطبيقات متصلة بالموصّل (claude.ai)</h3>
+          <ConnectedApps clients={connected} url={`${appOrigin()}/mcp`} />
         </FoldCard>
       ) : null}
 

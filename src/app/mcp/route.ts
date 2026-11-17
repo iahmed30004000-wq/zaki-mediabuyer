@@ -7,6 +7,7 @@
  */
 import { NextResponse } from "next/server";
 import { handleRpc } from "@/core/mcp-rpc";
+import { wwwAuthenticate } from "@/core/oauth";
 import { makeLimiter, originAllowed } from "@/core/rate-limit";
 import { toolAllowed, TOOL_SCOPE } from "@/core/token-scopes";
 import { ContractError, requireToken } from "@/server/api-token";
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   try {
     token = await requireToken(req, "mcp");
   } catch (e) {
-    if (e instanceof ContractError) return rpcError(e.status, -32001, e.message, e.status === 401 ? { "WWW-Authenticate": 'Bearer realm="zaki-mediabuyer"' } : {});
+    if (e instanceof ContractError) return rpcError(e.status, -32001, e.message, e.status === 401 ? { "WWW-Authenticate": wwwAuthenticate(appOrigin()) } : {});
     console.error("mcp auth failed:", e instanceof Error ? e.message : e);
     return rpcError(500, -32603, "صار خطأ عند الميديا باير");
   }

@@ -38,6 +38,8 @@ export async function requireToken(req: Request, scope: Scope | "mcp" | "handoff
   if (!m) throw new ContractError(401, "unauthorized", "ما في توكن");
   const token = await db.apiToken.findUnique({ where: { tokenHash: hashToken(m[1]!) } });
   if (!token || token.revokedAt) throw new ContractError(401, "unauthorized", "التوكن مرفوض");
+  // an OAuth access token lives an hour; the client then refreshes it (a 401 is what tells it to)
+  if (token.expiresAt && token.expiresAt <= new Date()) throw new ContractError(401, "unauthorized", "التوكن انتهى");
   // Claude's MCP token is Claude: it may read and answer the handoff queue as well; a token made only for the queue carries «handoff» alone
   // the door of the MCP server takes the old `mcp` and every finer `mcp:*` scope (which tools each may call is decided per call: src/core/token-scopes.ts)
   const accepted: string[] = scope === "handoff" ? ["handoff", "mcp", "mcp:handoff"] : [scope];

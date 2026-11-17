@@ -288,3 +288,58 @@ export function AgentTokens({ agents, tokens }: { agents: { key: string; name: s
     </div>
   );
 }
+
+export interface ConnectedRow {
+  id: string;
+  name: string;
+  host: string;
+  scopes: string[];
+  connectedAt: string;
+  lastUsedAt: string | null;
+  active: boolean;
+}
+
+/** Apps the owner let in through the connector (claude.ai): who, when it last called, and a revoke that cuts it off on its very next call. */
+export function ConnectedApps({ clients, url }: { clients: ConnectedRow[]; url: string }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  async function revoke(id: string) {
+    const { ok, data } = await call(`/api/mcp/oauth-clients/${id}`, "DELETE");
+    if (!ok) return toast(String(data.error ?? "صار خطأ"), "error");
+    toast("انقطع التطبيق", "success");
+    router.refresh();
+  }
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1 rounded-card border border-border bg-surface-1 p-4 text-sm">
+        <p className="font-bold text-fg">لإضافة Claude كموصّل</p>
+        <p className="text-fg-muted">
+          بـ claude.ai ← الإعدادات ← الموصّلات ← «إضافة موصّل مخصّص»، الصق هالعنوان: <span dir="ltr" className="font-mono font-bold text-fg">{url}</span>. بيفتحلك الموقع لتوافق، وبعدها بيشتغل لحاله.
+        </p>
+      </div>
+      {clients.length ? (
+        <ul className="divide-y divide-border rounded-card border border-border bg-surface-1">
+          {clients.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold text-fg">{c.name} <span dir="ltr" className="font-mono text-xs font-normal text-fg-muted">{c.host}</span></span>
+                <span className="block text-xs text-fg-muted">
+                  {c.scopes.map((s) => (SCOPE_AR as Record<string, string>)[s] ?? s).join(" · ") || "ما إله صلاحيات"} · {c.lastUsedAt ? `آخر نداء ${new Date(c.lastUsedAt).toLocaleString("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "short", timeStyle: "short" })}` : "ما نادى لسا"}
+                </span>
+              </span>
+              {c.active ? (
+                <Button size="sm" variant="ghost" confirm="تقطع هالتطبيق؟ ما بيقدر يشتغل بعدها إلا إذا وافقت من جديد." onClick={() => void revoke(c.id)}>
+                  اقطع
+                </Button>
+              ) : (
+                <Pill tone="neutral">مقطوع</Pill>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في تطبيق متصل بالموصّل لسا.</p>
+      )}
+    </div>
+  );
+}
