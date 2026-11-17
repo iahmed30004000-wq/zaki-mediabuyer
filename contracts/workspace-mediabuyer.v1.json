@@ -9,14 +9,31 @@
   "direction": "PUSH one way — the media buyer creates a person's open task in Workspace, then asks about it and closes it on its own side when the team finished it there. Workspace never writes back unasked, and the media buyer never edits or reads the team's own tasks.",
   "base_url_env": "WORKSPACE_BASE_URL",
   "auth": {
-    "type": "Bearer",
-    "header": "Authorization: Bearer <door key>",
-    "token_env": "WORKSPACE_API_TOKEN",
-    "key_owner": "minted from Workspace's «الأتمتة» screen with the API door switched on",
+    "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
+    "authorization_server": "Zaki Workspace",
+    "discovery": [
+      "/.well-known/oauth-authorization-server (RFC 8414)",
+      "/.well-known/oauth-protected-resource (RFC 9728)"
+    ],
+    "endpoints": {
+      "register": "POST /oauth/register (RFC 7591, public client, token_endpoint_auth_method none)",
+      "authorize": "GET /oauth/authorize (the owner is logged in to that system and approves)",
+      "token": "POST /oauth/token (authorization_code + code_verifier S256, refresh_token with rotation)"
+    },
+    "client": {
+      "name": "الميديا باير",
+      "redirect_uri": "https://mediabuyer.zakiai.io/oauth/callback",
+      "token_endpoint_auth_method": "none",
+      "code_challenge_method": "S256"
+    },
     "scopes": [
       "tasks.write",
       "tasks.read"
-    ]
+    ],
+    "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
+    "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
+    "status": "ADD — on the authorization server's side (small if it copies the reference implementation; additive; the old per-system keys can keep working until the owner switches)",
+    "replaces": "the pasted WORKSPACE_API_TOKEN"
   },
   "rate_limit": "60 per minute (429 → the media buyer stops the run and continues next time)",
   "error_envelope": {
@@ -28,6 +45,15 @@
   },
   "idempotency": "`Idempotency-Key: mb-task-<taskId>` on every task creation: the same key creates the task once, however many retries. The same key with a different body is 409.",
   "endpoints": [
+    {
+      "id": "workspace.oauth-authorization-server",
+      "status": "ADD",
+      "method": "UI+HTTP",
+      "path": "/.well-known/oauth-authorization-server · /oauth/register · /oauth/authorize · /oauth/token",
+      "change": "Let Workspace issue the door token by consent («الميديا باير بدّه يضيف مهام ويقرا حالتها — اسمح؟») instead of the owner minting and pasting a key. The door itself (workspace-door.v1.md) is unchanged.",
+      "size": "small — reuses the door's key table and scopes",
+      "blocking": false
+    },
     {
       "id": "boards",
       "status": "EXISTS",
@@ -215,25 +241,16 @@
         "finishedAt": "2026-11-19T09:12:00Z"
       },
       "notes": "Only a close comes back (`status = done` or a `finishedAt`): a reopened task is the owner's to move in the media buyer."
-    },
-    {
-      "id": "workspace.key",
-      "status": "ADD",
-      "method": "UI",
-      "path": "Workspace → الأتمتة",
-      "change": "Switch the API door on, mint a key with tasks.write + tasks.read, confirm GET /api/v1/boards lists the board. Nothing to code unless the door answers differently from workspace-door.v1.md.",
-      "size": "small — configuration",
-      "blocking": false
     }
   ],
   "env": {
     "media_buyer": {
       "WORKSPACE_BASE_URL": "https://workspace.zakiai.io",
-      "WORKSPACE_API_TOKEN": "(secret — minted in Workspace, only in Coolify)",
-      "WORKSPACE_BOARD_ID": "brd_example (only when the key sees more than one board)"
+      "WORKSPACE_BOARD_ID": "brd_example (only when the key sees more than one board)",
+      "note": "no token variable"
     },
     "workspace": {
-      "note": "no new env; the API door switch and the key are in its automation screen"
+      "note": "no new env"
     }
   },
   "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."

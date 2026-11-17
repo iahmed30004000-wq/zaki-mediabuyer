@@ -10,13 +10,31 @@
   "direction": "PUSH through the OMS door: Pages → OMS `/api/v1/landing/orders` (+ abandoned carts). Pages holds its own OMS key (system = landing, scopes products.read + orders.create). Nothing flows to the media buyer directly.",
   "base_url_env": "(Pages' own env) OMS_API_BASE",
   "auth": {
-    "type": "Bearer",
-    "header": "Authorization: Bearer <landing system key>",
-    "note": "an existing key and an existing door; no new token for the media buyer",
+    "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
+    "authorization_server": "OMS (the data owner) — Pages is the client of the OMS here, not of the media buyer",
+    "discovery": [
+      "/.well-known/oauth-authorization-server (RFC 8414)",
+      "/.well-known/oauth-protected-resource (RFC 9728)"
+    ],
+    "endpoints": {
+      "register": "POST /oauth/register (RFC 7591, public client, token_endpoint_auth_method none)",
+      "authorize": "GET /oauth/authorize (the owner is logged in to that system and approves)",
+      "token": "POST /oauth/token (authorization_code + code_verifier S256, refresh_token with rotation)"
+    },
+    "client": {
+      "name": "Zaki Pages",
+      "redirect_uri": "https://pages.zakiai.io/oauth/callback",
+      "token_endpoint_auth_method": "none",
+      "code_challenge_method": "S256"
+    },
     "scopes": [
       "products.read",
       "orders.create"
-    ]
+    ],
+    "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
+    "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
+    "status": "ADD — on the authorization server's side (small if it copies the reference implementation; additive; the old per-system keys can keep working until the owner switches)",
+    "note": "Pages gets its OMS token by «اربط ← اسمح» in the OMS, like the media buyer; no OMS_LANDING_TOKEN is pasted. The existing landing key keeps working until then."
   },
   "rate_limit": "600 per minute on the landing key (existing)",
   "error_envelope": {
@@ -279,10 +297,10 @@
   "env": {
     "pages": {
       "OMS_API_BASE": "https://crm.zakiai.io",
-      "OMS_LANDING_TOKEN": "(secret — the existing landing key)",
-      "ATTRIBUTION_COOKIE_DAYS": "7"
+      "ATTRIBUTION_COOKIE_DAYS": "7",
+      "note": "the token is obtained by «اربط ← اسمح» and stored encrypted by Pages"
     },
-    "note": "Pages chooses its own env names; the ones above are suggestions marked (ADD). Nothing is required on the media buyer's side for this link."
+    "note": "Nothing is required on the media buyer's side for this link."
   },
   "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
 }

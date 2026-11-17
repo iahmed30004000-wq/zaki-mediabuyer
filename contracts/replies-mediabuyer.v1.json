@@ -9,14 +9,31 @@
   "direction": "PULL — the media buyer calls System 7 every 15 minutes.",
   "base_url_env": "REPLIES_BASE_URL",
   "auth": {
-    "type": "Bearer",
-    "header": "Authorization: Bearer <integration token>",
-    "token_env": "REPLIES_TOKEN",
-    "key_owner": "one token per company for system `mediabuyer`, minted in System 7's integrations screen",
+    "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
+    "authorization_server": "System 7 (smart replies)",
+    "discovery": [
+      "/.well-known/oauth-authorization-server (RFC 8414)",
+      "/.well-known/oauth-protected-resource (RFC 9728)"
+    ],
+    "endpoints": {
+      "register": "POST /oauth/register (RFC 7591, public client, token_endpoint_auth_method none)",
+      "authorize": "GET /oauth/authorize (the owner is logged in to that system and approves)",
+      "token": "POST /oauth/token (authorization_code + code_verifier S256, refresh_token with rotation)"
+    },
+    "client": {
+      "name": "الميديا باير",
+      "redirect_uri": "https://mediabuyer.zakiai.io/oauth/callback",
+      "token_endpoint_auth_method": "none",
+      "code_challenge_method": "S256"
+    },
     "scopes": [
       "capacity.read",
-      "ads.read (ADD, only for ad-signals)"
-    ]
+      "ads.read (only for ad-signals)"
+    ],
+    "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
+    "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
+    "status": "ADD — on the authorization server's side (small if it copies the reference implementation; additive; the old per-system keys can keep working until the owner switches)",
+    "replaces": "the pasted REPLIES_TOKEN"
   },
   "rate_limit": "the media buyer calls once per 15 minutes; allow at least 12 per minute (429 → it waits for the next tick)",
   "error_envelope": {
@@ -58,6 +75,15 @@
   },
   "idempotency": "Reads only.",
   "endpoints": [
+    {
+      "id": "replies.oauth-authorization-server",
+      "status": "ADD",
+      "method": "UI+HTTP",
+      "path": "/.well-known/oauth-authorization-server · /oauth/register · /oauth/authorize · /oauth/token",
+      "change": "Let System 7 be the authorization server for its /api/v1 door: a consent screen («الميديا باير بدّه يقرا قدرة الردود — اسمح؟») issuing the same scoped token the door already checks (system = mediabuyer).",
+      "size": "small — reuses the door's token table and scopes",
+      "blocking": false
+    },
     {
       "id": "capacity",
       "status": "EXISTS",
@@ -125,15 +151,6 @@
         }
       ],
       "notes": "STRICT: any field not listed is refused by the media buyer (so a customer field can never slip in). `at` must carry an offset. The media buyer's verdict: down (no answer) · stale (> 2 h) · behind (unanswered > 50) · slow (median first reply > 30 min). Any of them freezes SCALE-UP of message ad sets (never pauses, never lowers); lifted when good again."
-    },
-    {
-      "id": "replies.token-for-mediabuyer",
-      "status": "ADD",
-      "method": "UI",
-      "path": "System 7 → integrations",
-      "change": "Mint a token for system `mediabuyer` with scope `capacity.read` (and later `ads.read`). Confirm the response matches the schema above, `at` with its offset.",
-      "size": "small — a token, no code unless the response differs",
-      "blocking": false
     },
     {
       "id": "ad-signals",
@@ -259,10 +276,10 @@
   "env": {
     "media_buyer": {
       "REPLIES_BASE_URL": "https://<system-7-host>",
-      "REPLIES_TOKEN": "(secret — minted in System 7, only in Coolify)"
+      "note": "no token variable"
     },
     "system7": {
-      "note": "no new env; the token is minted in its integrations screen"
+      "note": "no new env"
     }
   },
   "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."

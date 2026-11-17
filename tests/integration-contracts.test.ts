@@ -40,10 +40,11 @@ interface Contract {
   env: Record<string, unknown>;
   join?: { worked_example: { meta_spend_usd: string; orders: { status: string }[]; expected: Record<string, number | string> } };
 }
-type Schema = { type?: string | string[]; enum?: unknown[]; pattern?: string; minimum?: number; maxLength?: number; minLength?: number; maxItems?: number; maxProperties?: number; required?: string[]; properties?: Record<string, Schema>; additionalProperties?: boolean | Schema; items?: Schema };
+type Schema = { anyOf?: Schema[]; type?: string | string[]; enum?: unknown[]; pattern?: string; minimum?: number; maxLength?: number; minLength?: number; maxItems?: number; maxProperties?: number; required?: string[]; properties?: Record<string, Schema>; additionalProperties?: boolean | Schema; items?: Schema };
 
 /** A small draft-07 check for the subset these contracts use (no ajv here). Returns the problems, empty = valid. */
 function check(s: Schema, v: unknown, at = "$"): string[] {
+  if (s.anyOf) return s.anyOf.some((x) => check(x, v, at).length === 0) ? [] : [`${at}: matches none of anyOf`];
   const out: string[] = [];
   const types = s.type === undefined ? null : Array.isArray(s.type) ? s.type : [s.type];
   const is = (t: string) => (t === "null" ? v === null : t === "array" ? Array.isArray(v) : t === "object" ? typeof v === "object" && v !== null && !Array.isArray(v) : t === "integer" ? Number.isInteger(v) : t === "number" ? typeof v === "number" : typeof v === t);
@@ -165,5 +166,38 @@ describe("the cost-per-ad join, on paper", () => {
     const confirmed = w.orders.filter((o) => ["confirmed", "shipped", "delivered", "returned"].includes(o.status)).length;
     const delivered = w.orders.filter((o) => o.status === "delivered").length;
     expect({ orders_in: w.orders.length, confirmed, delivered, cost_per_order_in: (spend / w.orders.length).toFixed(2), cost_per_confirmed: (spend / confirmed).toFixed(2), cost_per_delivered: (spend / delivered).toFixed(2) }).toEqual(w.expected);
+  });
+});
+
+describe("the rules of 17/11: one Telegram gateway, no pasted tokens between our systems", () => {
+  const all = NAMES.map((n) => [n, load(n)] as const);
+  it("the OMS is the only Telegram gateway: the media buyer holds no bot token and no token variable of an internal system", () => {
+    for (const [n, c] of all) {
+      const text = JSON.stringify(c.env);
+      expect(text, n).not.toMatch(/TELEGRAM_BOT_TOKEN\"|HERMES_TOKEN|OMS_TOKEN|REPLIES_TOKEN|WORKSPACE_API_TOKEN|OMS_LANDING_TOKEN/);
+      expect(Object.keys((c.env as Record<string, Record<string, unknown>>).media_buyer ?? {}).filter((k) => /TOKEN|SECRET|KEY/.test(k)), n).toEqual([]);
+    }
+  });
+  it("the OMS contract has notify (owner, a person, or a chat with a topic) and the signed stop event back", () => {
+    const oms = load("oms");
+    const notify = oms.endpoints.find((e) => e.id === "oms.notify")!;
+    expect(notify.path).toBe("/api/v1/notify");
+    const ok = (t: unknown) => check(notify.request_schema!, { target: t, text: "x", key: "abcdefgh" });
+    expect(ok("owner")).toEqual([]);
+    expect(ok({ person: "abdullah" })).toEqual([]);
+    expect(ok({ chat_id: "-1001234567890", topic_id: 5 })).toEqual([]);
+    expect(ok("everyone")).not.toEqual([]);
+    expect(ok({ phone: "0791234567" })).not.toEqual([]);
+    const stop = oms.endpoints.find((e) => e.id === "oms.stop-event")!;
+    expect(stop.status).toBe("ADD");
+    expect(JSON.stringify(stop)).toContain("X-Zaki-Signature");
+  });
+  it("every link says how the token is obtained: OAuth 2.1 with PKCE S256 and the data owner as the authorization server — never a pasted key", () => {
+    for (const [n, c] of all) {
+      const auth = JSON.stringify(c.auth);
+      expect(auth, n).toContain("S256");
+      expect(auth, n).toContain("authorization_server");
+      expect(auth, n).toMatch(/اربط ← اسمح/);
+    }
   });
 });

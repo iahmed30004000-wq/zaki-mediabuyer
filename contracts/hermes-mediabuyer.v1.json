@@ -3,30 +3,43 @@
   "version": "v1",
   "status": "EXISTS on the media buyer's side (D29: send, claim, complete; src/adapters/hermes.ts, src/adapters/telegram.ts). PROPOSED for Hermes' side and for one Telegram detail (topics).",
   "system": {
-    "name": "Hermes (hooks and scenarios agent) + the owner's Telegram bot"
+    "name": "Hermes (hooks and scenarios agent); Telegram only through the OMS"
   },
-  "direction": "Two directions. (1) media buyer → Hermes: a video request. (2) Hermes → media buyer: it pulls, claims and completes requests, handing back Drive file ids. Telegram is a third, one-way channel FROM the media buyer's server (the server is not blocked; a machine in Jordan is).",
+  "direction": "Hermes PULLS from the media buyer (the media buyer is the authorization server: the same /mcp connector flow, scope mcp:videos, or the REST door with the same OAuth token). The media buyer does NOT push to Hermes and holds NO Telegram bot token: a notification goes through the OMS (`POST /api/v1/notify`).",
   "transport_priority": [
-    "1. Hermes PULLS (GET /api/v1/video-requests, claim, complete) — works from anywhere, needs no Telegram",
-    "2. media buyer PUSHES POST {HERMES_BASE_URL}/requests when Hermes exposes it",
-    "3. Telegram message to the group topic, sent from the media buyer's server, as a notification only"
+    "1. Hermes pulls: GET /api/v1/video-requests → claim → complete (works from anywhere, no Telegram)",
+    "2. a Telegram notification to the group topic, asked of the OMS (`oms.notify`), as a nudge only"
   ],
   "base_url_env": "HERMES_BASE_URL (push) · the media buyer's own site (pull)",
   "auth": {
-    "push_to_hermes": {
-      "type": "Bearer",
-      "header": "Authorization: Bearer <HERMES_TOKEN>",
-      "token_env": "HERMES_TOKEN"
-    },
     "pull_from_media_buyer": {
-      "type": "Bearer",
-      "header": "Authorization: Bearer <handoff-queue token>",
-      "note": "a token made in the media buyer under Settings → Team → agents' tokens, kind «handoff», or an `mcp:videos` token for the agent Hermes; a connector (OAuth) token with mcp:videos also works on /mcp"
+      "rule": "OAuth 2.1 + PKCE, exactly like the media buyer's own /mcp connector (reference implementation, public: src/core/oauth.ts + src/server/oauth.ts in the media buyer repo). The system that OWNS the data is the authorization server; the owner presses «اربط ← اسمح» once; nobody copies a token. The Bearer header on each call is unchanged.",
+      "authorization_server": "the media buyer (mediabuyer.zakiai.io)",
+      "discovery": [
+        "/.well-known/oauth-authorization-server (RFC 8414)",
+        "/.well-known/oauth-protected-resource (RFC 9728)"
+      ],
+      "endpoints": {
+        "register": "POST /oauth/register (RFC 7591, public client, token_endpoint_auth_method none)",
+        "authorize": "GET /oauth/authorize (the owner is logged in to that system and approves)",
+        "token": "POST /oauth/token (authorization_code + code_verifier S256, refresh_token with rotation)"
+      },
+      "client": {
+        "name": "Hermes",
+        "redirect_uri": "https://<hermes-host>/oauth/callback",
+        "token_endpoint_auth_method": "none",
+        "code_challenge_method": "S256"
+      },
+      "scopes": [
+        "mcp:videos",
+        "mcp:read"
+      ],
+      "lifetimes": "access token about one hour; refresh token about 60 days, rotated on every use; a revoked client or grant is refused on the very next call",
+      "refused": "a redirect address that was not registered, a missing or wrong PKCE verifier, a code used twice",
+      "status": "EXISTS — the media buyer's OAuth server (D61) already issues these; Hermes registers itself and the owner presses «اسمح» on the site",
+      "replaces": "the pasted «طابور التسليم» token and HERMES_TOKEN"
     },
-    "telegram": {
-      "type": "bot token in the URL by Telegram's design (never logged)",
-      "token_env": "TELEGRAM_BOT_TOKEN"
-    }
+    "telegram": "none in the media buyer. The OMS owns the bot (TELEGRAM_BOT_TOKEN only there) and the webhook."
   },
   "rate_limit": "pull: 60 per minute per token; Telegram: the bot API's own limits",
   "error_envelope": {
@@ -34,169 +47,6 @@
   },
   "idempotency": "A request has one id; claiming twice answers 409; completing is idempotent on (request id, v_name).",
   "endpoints": [
-    {
-      "id": "request.push",
-      "status": "EXISTS (Hermes must implement it to be pushed to; otherwise it pulls)",
-      "method": "POST",
-      "path": "{HERMES_BASE_URL}/requests",
-      "request_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "required": [
-          "id",
-          "kind",
-          "kindLabel",
-          "product",
-          "video",
-          "scenario",
-          "numbers",
-          "askedAt",
-          "reply"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "kindLabel": {
-            "type": "string"
-          },
-          "product": {
-            "type": "string"
-          },
-          "job": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "vName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "crCode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "video": {
-            "type": "object",
-            "required": [
-              "driveFileId",
-              "url"
-            ],
-            "properties": {
-              "driveFileId": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "url": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          },
-          "scenario": {
-            "type": "object",
-            "required": [
-              "driveFileId",
-              "url"
-            ],
-            "properties": {
-              "driveFileId": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "url": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          },
-          "numbers": {
-            "type": "object"
-          },
-          "note": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "askedAt": {
-            "type": "string",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
-          },
-          "reply": {
-            "type": "object",
-            "required": [
-              "claim",
-              "complete"
-            ],
-            "properties": {
-              "claim": {
-                "type": "string"
-              },
-              "complete": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "example_request": {
-        "id": "vr_example",
-        "kind": "new_hooks",
-        "kindLabel": "هوكات جديدة",
-        "product": "TRF01",
-        "job": "JOB-12",
-        "vName": "V3",
-        "crCode": "CR00147",
-        "video": {
-          "driveFileId": "1AbCdEfGhIjKlMnOpQrStUvWxYz012345",
-          "url": "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/view"
-        },
-        "scenario": {
-          "driveFileId": null,
-          "url": null
-        },
-        "numbers": {
-          "spend": 41.5,
-          "costPerOrder": 6.9
-        },
-        "note": null,
-        "askedAt": "2026-11-18T09:00:00+03:00",
-        "reply": {
-          "claim": "https://mediabuyer.zakiai.io/api/v1/video-requests/vr_example/claim",
-          "complete": "https://mediabuyer.zakiai.io/api/v1/video-requests/vr_example/complete"
-        }
-      },
-      "errors": [
-        {
-          "status": 401,
-          "code": "unauthorized",
-          "when": "token refused"
-        },
-        {
-          "status": 500,
-          "code": "internal",
-          "when": "retried on the next press"
-        }
-      ],
-      "notes": "Carries no customer detail: ids, names of products and videos, and the video's own numbers."
-    },
     {
       "id": "request.list",
       "status": "EXISTS",
@@ -423,74 +273,76 @@
       "notes": "The new videos land in the bank as «جاهز» with their Drive ids; the owner uploads them to Meta and marks the request «مرفوع»."
     },
     {
-      "id": "telegram.topic",
+      "id": "request.notify",
       "status": "ADD",
       "method": "POST",
-      "path": "https://api.telegram.org/bot<token>/sendMessage",
-      "change": "Send Hermes requests to the group's «requests» topic and advice to the «suggestions» topic by passing `message_thread_id`. The media buyer's sender today posts to the group's main thread; add one env var per topic. Telegram is only a notification from the server: Hermes must not depend on it.",
+      "path": "{OMS}/api/v1/notify",
+      "change": "When a video request is made, the media buyer asks the OMS to post one line to the group's «requests» topic (target {chat_id, topic_id}); advice goes to the «suggestions» topic. The ids are the owner's, saved in the media buyer's settings, never in the repo. Hermes does not depend on this message: it pulls.",
       "request_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "required": [
-          "chat_id",
-          "text"
+          "target",
+          "text",
+          "key"
         ],
         "properties": {
-          "chat_id": {
-            "type": [
-              "string",
-              "integer"
-            ]
-          },
-          "message_thread_id": {
-            "type": "integer"
+          "target": {
+            "type": "object",
+            "required": [
+              "chat_id"
+            ],
+            "properties": {
+              "chat_id": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "topic_id": {
+                "type": "integer"
+              }
+            }
           },
           "text": {
             "type": "string",
             "maxLength": 4096
           },
-          "disable_web_page_preview": {
-            "type": "boolean"
+          "key": {
+            "type": "string",
+            "minLength": 8
           }
         }
       },
       "example_request": {
-        "chat_id": "-1001234567890",
-        "message_thread_id": 1001,
+        "target": {
+          "chat_id": "-1001234567890",
+          "topic_id": 1001
+        },
         "text": "طلب جديد: هوكات جديدة — TRF01 / JOB-12",
-        "disable_web_page_preview": true
+        "key": "mb-vr-vr_example-asked"
       },
       "errors": [
         {
-          "status": 400,
-          "code": "Bad Request",
-          "when": "the topic id is wrong"
-        },
-        {
-          "status": 403,
-          "code": "Forbidden",
-          "when": "the bot was removed from the group"
+          "status": 404,
+          "code": "TARGET_UNKNOWN",
+          "when": "the OMS bot is not in that group or the topic does not exist"
         }
       ],
-      "size": "small — one optional parameter",
+      "size": "small — it is the OMS's endpoint (see oms.notify); the media buyer side is one adapter",
       "blocking": false
     }
   ],
   "env": {
     "media_buyer": {
-      "HERMES_BASE_URL": "https://<hermes-host> (only if Hermes exposes POST /requests)",
-      "HERMES_TOKEN": "(secret)",
-      "TELEGRAM_BOT_TOKEN": "(secret)",
-      "TELEGRAM_OWNER_CHAT_ID": "123456789 (the owner's private chat — a number, not a secret key, but not in the repo)",
-      "TELEGRAM_HERMES_CHAT_ID": "-1001234567890 (the group; the real one stays in Coolify)",
-      "TELEGRAM_HERMES_REQUESTS_THREAD_ID": "1001 (ADD — the «requests» topic)",
-      "TELEGRAM_HERMES_SUGGESTIONS_THREAD_ID": "1002 (ADD — the «suggestions» topic)",
-      "TELEGRAM_ALLOWED_CHAT_IDS": "123456789,-1001234567890 (who may talk to the bot)",
-      "DRIVE_PRODUCTION_FOLDER_ID": "1AbCdEfGhIjKlMnOpQrStUvWxYz012345 (the production library: a folder id, not a secret)",
-      "GOOGLE_SERVICE_ACCOUNT_JSON": "(secret)"
+      "NOTIFY_HERMES_REQUESTS_TARGET": "chat -1001234567890 · topic 1001 (kept in the media buyer's settings page, not in the repo)",
+      "NOTIFY_HERMES_SUGGESTIONS_TARGET": "chat -1001234567890 · topic 1002",
+      "DRIVE_PRODUCTION_FOLDER_ID": "1AbCdEfGhIjKlMnOpQrStUvWxYz012345 (a folder id, not a secret)",
+      "GOOGLE_SERVICE_ACCOUNT_JSON": "(external secret — entered on the site's tokens page, never pasted into another system)",
+      "note": "no bot token and no Hermes token in the media buyer"
     },
     "hermes": {
-      "note": "Hermes holds a handoff-queue token for the media buyer (made by the owner in Settings → Team) and, if it can be reached, a bearer for POST /requests."
+      "note": "stores its OAuth token for the media buyer itself"
     }
   },
   "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
