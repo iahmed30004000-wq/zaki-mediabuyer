@@ -79,7 +79,7 @@ const TESTS: Record<string, Tester> = {
 
   async oms(fetchImpl) {
     const why = missingText("oms");
-    if (why) return { ok: false, message: why.replace("بـ Coolify.", "من «اربط ← اسمح» ومن عنوان الـOMS.") };
+    if (why) return { ok: false, message: why.replace("بـ Coolify.", "هون (العنوان والتوكن).") };
     const r = await bearerGet(process.env.OMS_BASE_URL!, "/api/v1/products?fields=code", (process.env.OMS_TOKEN ?? process.env.OMS_API_TOKEN)!, "الـOMS", fetchImpl);
     if (!r.ok) return r;
     const items = (r.json as { items?: unknown[] })?.items ?? (Array.isArray(r.json) ? (r.json as unknown[]) : []);
@@ -88,7 +88,7 @@ const TESTS: Record<string, Tester> = {
 
   async replies(fetchImpl) {
     const o = repliesFromEnv(fetchImpl);
-    if (!o) return { ok: false, message: missingText("replies")?.replace("بـ Coolify.", "من «اربط ← اسمح» ومن العنوان.") ?? "نظام الردود مش مربوط" };
+    if (!o) return { ok: false, message: missingText("replies")?.replace("بـ Coolify.", "هون (العنوان والتوكن).") ?? "نظام الردود مش مربوط" };
     try {
       const c = await readCapacity(o);
       return { ok: true, message: `تمام — ${c.unanswered} محادثة بلا رد${c.firstResponseP50Min !== null ? `، وسيط أول ردّ ${c.firstResponseP50Min} دقيقة` : ""}` };
@@ -101,7 +101,7 @@ const TESTS: Record<string, Tester> = {
 
   async workspace(fetchImpl) {
     const why = missingText("workspace");
-    if (why) return { ok: false, message: why.replace("بـ Coolify.", "من «اربط ← اسمح» ومن العنوان.") };
+    if (why) return { ok: false, message: why.replace("بـ Coolify.", "هون (العنوان والتوكن).") };
     const r = await bearerGet(process.env.WORKSPACE_BASE_URL!, "/api/v1/boards", process.env.WORKSPACE_API_TOKEN!, "Workspace", fetchImpl);
     if (!r.ok) return r;
     const n = Array.isArray(r.json) ? r.json.length : Array.isArray((r.json as { boards?: unknown[] })?.boards) ? (r.json as { boards: unknown[] }).boards.length : 0;

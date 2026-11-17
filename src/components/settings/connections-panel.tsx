@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, ShieldCheck } from "lucide-react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -124,60 +124,6 @@ function FieldEditor({ f, locked, onChanged }: { f: FieldView; locked: boolean; 
   );
 }
 
-function LinkControls({ row, masterKey, onChanged }: { row: RowView; masterKey: boolean; onChanged: () => Promise<void> }) {
-  const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
-  const link = row.link!;
-  const hasUrl = row.fields[0]?.source !== "none";
-
-  async function begin() {
-    setBusy(true);
-    try {
-      const r = await call(`/api/connections/row/${row.key}/link`, "POST");
-      if (!r.ok || typeof r.data.url !== "string") return toast(errorOf(r.data), "error");
-      window.location.assign(r.data.url);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function drop() {
-    setBusy(true);
-    try {
-      const r = await call(`/api/connections/row/${row.key}/link`, "DELETE");
-      if (!r.ok) return toast(errorOf(r.data), "error");
-      toast("انفصل", "success");
-      await onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-sm font-semibold text-fg">الربط بين أنظمتنا</p>
-      <p className="text-xs leading-5 text-fg-muted">ما في مفتاح بتنسخه: بتضغط «اربط»، بيفتح النظام نفسه، وبتضغط «اسمح» هناك. النظام هو اللي بيعطينا المفتاح.</p>
-      <p className={cn("flex items-center gap-1.5 text-xs", link.state === "linked" || link.state === "env" ? "text-ok" : link.state === "broken" ? "text-warn" : "text-fg-muted")}>
-        {link.state === "linked" || link.state === "env" ? <ShieldCheck className="size-3.5 shrink-0" aria-hidden /> : <CircleAlert className="size-3.5 shrink-0" aria-hidden />}
-        <span>
-          {link.state === "linked" ? `مربوط ✓${link.at ? ` · آخر ربط ${when(link.at)}` : ""}` : link.state === "env" ? "المفتاح من Coolify ✓ — «أعد الربط» بيبدّله بمفتاح بيتجدّد لحاله"
-            : link.state === "broken" ? "الربط انقطع — اضغط «أعد الربط»" : "مش مربوط بـ«اربط ← اسمح»"}
-        </span>
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" loading={busy} disabled={!masterKey || !hasUrl} onClick={() => void begin()}>
-          {link.state === "none" || link.state === "env" ? "اربط ← اسمح" : "أعد الربط"}
-        </Button>
-        {link.state === "linked" || link.state === "broken" ? (
-          <Button size="sm" variant="ghost" disabled={busy} confirm="بدك تفصل الربط؟" onClick={() => void drop()}>
-            افصل
-          </Button>
-        ) : null}
-      </div>
-      {!hasUrl ? <p className="text-xs text-fg-muted">اكتب عنوان النظام فوق واحفظه أول.</p> : null}
-    </div>
-  );
-}
-
 function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boolean; onChanged: () => Promise<void> }) {
   const { toast } = useToast();
   const [testing, setTesting] = useState(false);
@@ -206,7 +152,6 @@ function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boole
       {row.fields.map((f) => (
         <FieldEditor key={f.name} f={f} locked={(f.kind === "secret" || f.kind === "file") && secretLocked} onChanged={onChanged} />
       ))}
-      {row.link ? <LinkControls row={row} masterKey={masterKey} onChanged={onChanged} /> : null}
       {row.testable ? (
         <div className="space-y-1.5 border-t border-border pt-3">
           <Button size="sm" variant="secondary" loading={testing} onClick={() => void test()}>
@@ -228,10 +173,9 @@ function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boole
 
 /**
  * «الربط»: one card per connection. A key is typed or uploaded here once and never comes back (write-only box, «محفوظ ✓ · آخر 4 خانات»); an address or folder id is
- * a normal box; a link between our own systems is «اربط ← اسمح». «اختبر الربط» makes one real read-only call and says ✓ or the exact reason. Owner only.
+ * a normal box; the token of one of our own systems is made on that system's «توكنات الأنظمة» page and pasted the same way. «اختبر الربط» makes one real read-only call and says ✓ or the exact reason. Owner only.
  */
 export function ConnectionsPanel() {
-  const { toast } = useToast();
   const [view, setView] = useState<ConnectionsView | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -247,13 +191,6 @@ export function ConnectionsPanel() {
 
   useEffect(() => {
     load().catch(() => setFailed(true));
-    const q = new URLSearchParams(window.location.search);
-    const ok = q.get("linked");
-    const bad = q.get("link_error");
-    if (ok) toast("انربط ✓ — اضغط «اختبر الربط» تتأكد", "success");
-    if (bad) toast(bad === "denied" ? "ما سمحت — ما انربط شي" : bad === "missing" ? "الرجعة ناقصة — اضغط «اربط» من جديد" : bad, "error");
-    if (ok || bad) window.history.replaceState(null, "", window.location.pathname);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   if (failed) return <p className="text-sm text-danger">ما قدرت أجيب سطور الربط — حدّث الصفحة.</p>;

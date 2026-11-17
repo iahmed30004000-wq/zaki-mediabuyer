@@ -209,7 +209,7 @@ if (process.argv[1]?.includes("worker")) {
       console.error("tick failed:", e instanceof Error ? e.message : e);
     }
   };
-  // the site's own values (D62) go over the environment before the first tick, and again every 30 s — the web process renews OAuth tokens, the worker only reads
-  void startOverlay({ refresh: false }).catch(() => undefined).then(() => loop());
+  // the site's own values (D62) go over the environment before the first tick, and again every 30 s — a save made on the site reaches this process within 30 s
+  void startOverlay().catch(() => undefined).then(() => loop());
   setInterval(loop, 60_000);
 }

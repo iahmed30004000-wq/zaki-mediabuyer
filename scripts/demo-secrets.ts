@@ -1,8 +1,7 @@
 /**
  * «الإعدادات ← الربط» — secrets entered from the site (D62), end to end on the local database through the real route handlers:
  * a saved secret is in NO HTTP response, NO log line, NO audit row and NOT in the table in the clear; the environment is the fallback and comes back on «امسح»;
- * a second process picks a change up by reloading; «اختبر الربط» sends the key only in the header; «اربط ← اسمح» works against a fake authorization server
- * (discovery, registration, PKCE, code exchange, renewal, a revoked grant). Who may call at all (403) is proven in tests/connections-routes.test.ts.
+ * a second process picks a change up by reloading; «اختبر الربط» sends the key only in the header; the tokens of our own systems (OMS, Workspace) are pasted and sealed the same way. Who may call at all (403) is proven in tests/connections-routes.test.ts.
  * `npx tsx --env-file=.env scripts/demo-secrets.ts`  (the database from `docker compose up -d`, migrated)
  */
 process.env.MOCK_MODE = "0";
@@ -16,10 +15,7 @@ import { db } from "../src/server/db";
 import { GET as listRoute } from "../src/app/api/connections/route";
 import { PUT as putRoute, DELETE as delRoute } from "../src/app/api/connections/field/[name]/route";
 import { POST as testRoute } from "../src/app/api/connections/row/[key]/test/route";
-import { POST as linkRoute, DELETE as unlinkRoute } from "../src/app/api/connections/row/[key]/link/route";
-import { GET as callbackRoute } from "../src/app/oauth/callback/route";
 import { clearField, connectionsView, reloadOverlay, saveField, storedValues } from "../src/server/connections";
-import { refreshDueLinks } from "../src/server/oauth-client";
 import { testRow } from "../src/server/connection-tests";
 import { sealSecret } from "../src/server/secrets";
 
@@ -40,18 +36,16 @@ const KEY = (k: string) => ({ params: { key: k } });
 const DEL = new Request("http://localhost/x", { method: "DELETE" });
 const POST = new Request("http://localhost/x", { method: "POST" });
 
-const NAMES = ["META_SYSTEM_USER_TOKEN", "GOOGLE_SERVICE_ACCOUNT_JSON", "DRIVE_STUDIO_FOLDER_ID", "OMS_BASE_URL", "OMS_TOKEN", "OMS_TOKEN__REFRESH", "OMS_TOKEN__EXPIRES", "OMS_TOKEN__STATE", "OMS_EVENT_SECRET"];
+const NAMES = ["META_SYSTEM_USER_TOKEN", "GOOGLE_SERVICE_ACCOUNT_JSON", "DRIVE_STUDIO_FOLDER_ID", "OMS_BASE_URL", "OMS_TOKEN", "OMS_EVENT_SECRET", "WORKSPACE_BASE_URL", "WORKSPACE_API_TOKEN"];
 const g = globalThis as { __mbOverlay?: unknown };
 
 async function clean() {
   await db.connectionSetting.deleteMany({ where: { name: { in: NAMES } } });
-  await db.oAuthLinkClient.deleteMany({ where: { key: "oms" } });
-  await db.oAuthLinkPending.deleteMany({ where: { key: "oms" } });
-  await db.auditLog.deleteMany({ where: { OR: [{ action: { startsWith: "connection." } }, { action: { startsWith: "oauth_link." } }] } });
+  await db.auditLog.deleteMany({ where: { OR: [{ action: { startsWith: "connection." } }] } });
 }
 
 /** everything an attacker could read: every response body so far, every log line, every audit row, every stored row */
-const everything = async (responses: string[]) => JSON.stringify([responses, logged, await db.auditLog.findMany(), await db.connectionSetting.findMany(), await db.oAuthLinkPending.findMany(), await db.oAuthLinkClient.findMany()]);
+const everything = async (responses: string[]) => JSON.stringify([responses, logged, await db.auditLog.findMany(), await db.connectionSetting.findMany()]);
 
 (async () => {
   await clean();
@@ -148,82 +142,39 @@ const everything = async (responses: string[]) => JSON.stringify([responses, log
   const t3 = await testRow("meta", "demo-owner", async () => { throw new Error(`boom ${SECRET}`); });
   check(!t3.ok && /ما قدرت أوصل/.test(t3.message) && !t3.message.includes(SECRET), "network failure → «ما قدرت أوصل», without the error text", t3.message);
   const t4 = await testRow("oms", "demo-owner", async () => new Response("{}", { status: 200 }));
-  check(!t4.ok && /الـOMS|اربط/.test(t4.message), "OMS not linked yet → says what is missing, makes no call", t4.message);
+  check(!t4.ok && /OMS|هون/.test(t4.message), "OMS not linked yet → says what is missing, makes no call", t4.message);
   const route = await keep(await testRoute(POST, KEY("telegram")));
   check(route.status === 200 && route.json?.ok === false, "a row with nothing to test answers honestly (not ✓)");
   check((await db.auditLog.count({ where: { action: "connection.test" } })) >= 4, "every test is audited (key and result only)");
 
-  say("— «اربط ← اسمح» against a fake authorization server (OMS)");
-  const AS = "https://oms.example.test";
-  let challenge = "";
-  let issued = 0;
-  let revoked = false;
-  const registered: unknown[] = [];
-  const fakeAs: typeof fetch = async (url, init) => {
-    const u = new URL(String(url));
-    const form = init?.body ? new URLSearchParams(String(init.body)) : null;
-    if (u.pathname === "/.well-known/oauth-authorization-server") return new Response(JSON.stringify({ issuer: AS, authorization_endpoint: `${AS}/oauth/authorize`, token_endpoint: `${AS}/oauth/token`, registration_endpoint: `${AS}/oauth/register`, code_challenge_methods_supported: ["S256"] }), { status: 200 });
-    if (u.pathname === "/oauth/register") {
-      registered.push(JSON.parse(String(init?.body)));
-      return new Response(JSON.stringify({ client_id: "client-abc" }), { status: 201 });
-    }
-    if (u.pathname === "/oauth/token" && form?.get("grant_type") === "authorization_code") {
-      const ok = form.get("code") === "code-1" && createHash("sha256").update(form.get("code_verifier") ?? "").digest("base64url") === challenge && form.get("redirect_uri") === "http://localhost:3140/oauth/callback";
-      if (!ok) return new Response("{}", { status: 400 });
-      issued++;
-      return new Response(JSON.stringify({ access_token: `at-${issued}-${randomBytes(6).toString("hex")}`, refresh_token: `rt-${issued}-${randomBytes(6).toString("hex")}`, expires_in: 3600, event_signing_secret: `ess-${randomBytes(8).toString("hex")}` }), { status: 200 });
-    }
-    if (u.pathname === "/oauth/token" && form?.get("grant_type") === "refresh_token") {
-      if (revoked) return new Response("{}", { status: 400 });
-      issued++;
-      return new Response(JSON.stringify({ access_token: `at-${issued}-${randomBytes(6).toString("hex")}`, refresh_token: `rt-${issued}-${randomBytes(6).toString("hex")}`, expires_in: 3600 }), { status: 200 });
-    }
-    return new Response("{}", { status: 404 });
-  };
-  // the route calls the real fetch; to keep this offline the begin/complete steps use the services directly (the routes are the same one-liners)
-  const svc = await import("../src/server/oauth-client");
-  const begun = await svc.beginLink("oms", "demo-owner", fakeAs);
-  const au = new URL(begun.url);
-  challenge = au.searchParams.get("code_challenge") ?? "";
-  const state = au.searchParams.get("state") ?? "";
-  check(au.origin === AS && au.pathname === "/oauth/authorize" && au.searchParams.get("code_challenge_method") === "S256" && au.searchParams.get("client_id") === "client-abc" && au.searchParams.get("redirect_uri") === "http://localhost:3140/oauth/callback", "«اربط»: the owner is sent to the OTHER system's consent screen with PKCE S256 and our callback", begun.url);
-  check(!begun.url.includes("verifier") && JSON.stringify(registered).includes("localhost:3140/oauth/callback") && JSON.stringify(registered).includes('"none"'), "registered as a public client with our redirect address (no secret anywhere)");
-  const pend = await db.oAuthLinkPending.findUnique({ where: { state } });
-  check(!!pend && pend.verifierEnc.startsWith("s1:"), "the PKCE verifier waits sealed in the table, not in the clear");
-  const wrong = await svc.completeLink("not-the-state", "code-1", "demo-owner", fakeAs).then(() => "ok", (e) => (e as Error).message);
-  check(wrong !== "ok", "a callback with a state we did not make completes nothing", wrong);
-  const other2 = await svc.completeLink(state, "code-1", "someone-else", fakeAs).then(() => "ok", (e) => (e as Error).message);
-  check(other2 !== "ok", "a state started by the owner cannot be completed by another person");
-  const begun2 = await svc.beginLink("oms", "demo-owner", fakeAs);
-  const au2 = new URL(begun2.url);
-  challenge = au2.searchParams.get("code_challenge") ?? "";
-  const done = await svc.completeLink(au2.searchParams.get("state")!, "code-1", "demo-owner", fakeAs);
-  check(done.key === "oms" && !!process.env.OMS_TOKEN?.startsWith("at-1-") && !!process.env.OMS_EVENT_SECRET?.startsWith("ess-"), "«اسمح»: the code is exchanged server-side; the token and the event-signing secret are stored and live in the environment (adapters read OMS_TOKEN as before)");
-  const reuse = await svc.completeLink(au2.searchParams.get("state")!, "code-1", "demo-owner", fakeAs).then(() => "ok", (e) => (e as Error).message);
-  check(reuse !== "ok", "the same state cannot be used twice");
-  const tokRow = await db.connectionSetting.findUnique({ where: { name: "OMS_TOKEN" } });
-  check(!!tokRow && tokRow.source === "oauth" && tokRow.secret && !!tokRow.valueEnc?.startsWith("s1:"), "the token is sealed in the table and marked as obtained by «اربط»");
-  const linkView = (await keep(await listRoute())).json.rows.find((r: any) => r.key === "oms");
-  check(linkView.link.state === "linked" && !JSON.stringify(linkView).includes("at-1-") && !JSON.stringify(linkView).includes("ess-"), "the page shows «مربوط ✓» without the token or the signing secret");
-  const cb = await callbackRoute(new Request("http://localhost:3140/oauth/callback?code=zzz&state=unknown"));
-  check(cb.status === 303 && !(cb.headers.get("location") ?? "").includes("zzz") && /link_error/.test(cb.headers.get("location") ?? ""), "the callback route sends an unknown state back with a word, never the code");
-
-  say("— renewal, and a revoked grant");
-  const tok1 = process.env.OMS_TOKEN;
-  check((await refreshDueLinks(fakeAs)) === 0 && process.env.OMS_TOKEN === tok1, "a fresh token is not renewed (no needless rotation)");
-  await db.connectionSetting.update({ where: { name: "OMS_TOKEN__EXPIRES" }, data: { valuePlain: String(Date.now() + 60_000) } });
-  check((await refreshDueLinks(fakeAs)) === 1 && process.env.OMS_TOKEN !== tok1 && !!process.env.OMS_TOKEN?.startsWith("at-"), "a token about to expire is renewed and the new one is live at once");
-  revoked = true;
-  await db.connectionSetting.update({ where: { name: "OMS_TOKEN__EXPIRES" }, data: { valuePlain: String(Date.now() + 1000) } });
-  await refreshDueLinks(fakeAs);
-  const broken = (await connectionsView()).rows.find((r) => r.key === "oms")!.link!;
-  check(broken.state === "broken", "the other system revoked the grant → the row says «انقطع» (it asks to link again, it does not pretend)");
-  const unl = await keep(await unlinkRoute(DEL, KEY("oms")));
-  check(unl.status === 200 && !process.env.OMS_TOKEN && (await db.connectionSetting.count({ where: { name: { startsWith: "OMS_TOKEN" } } })) === 0, "«افصل»: the token, its renewal and the state are gone");
+  say("— the token of one of OUR systems: made there, pasted here, sealed like any key");
+  const OMS_TOK = `omsT-${randomBytes(16).toString("hex")}-Zq9X`;
+  const EV = `whsec-${randomBytes(12).toString("hex")}`;
+  await keep(await putRoute(body("https://oms.example.test/"), NAME("OMS_BASE_URL")));
+  const pt = await keep(await putRoute(body(OMS_TOK), NAME("OMS_TOKEN")));
+  const pe = await keep(await putRoute(body(EV), NAME("OMS_EVENT_SECRET")));
+  check(pt.status === 200 && pt.json?.last4 === "Zq9X" && !pt.text.includes(OMS_TOK) && pe.status === 200 && !pe.text.includes(EV), "OMS token and signing secret: saved, only the last four come back");
+  check(process.env.OMS_TOKEN === OMS_TOK && process.env.OMS_EVENT_SECRET === EV, "the adapters read OMS_TOKEN exactly as before (the overlay is in the environment, no call site changed)");
+  const omsRow = (await keep(await listRoute())).json.rows.find((r: any) => r.key === "oms");
+  check(omsRow.linked === true && omsRow.fields.filter((f: any) => f.kind === "secret").every((f: any) => f.source === "app" && f.value === undefined), "the page says «مربوط» and carries no token value");
+  const omsSeen: { url: string; auth: string | null; method: string }[] = [];
+  const omsOk: typeof fetch = async (url, init) => (omsSeen.push({ url: String(url), auth: new Headers(init?.headers).get("authorization"), method: init?.method ?? "GET" }), new Response(JSON.stringify({ items: [{ code: "TRF01" }, { code: "TIN01" }] }), { status: 200 }));
+  const to = await testRow("oms", "demo-owner", omsOk);
+  check(to.ok && omsSeen.length === 1 && omsSeen[0]!.method === "GET" && omsSeen[0]!.auth === `Bearer ${OMS_TOK}` && !omsSeen[0]!.url.includes(OMS_TOK), "«اختبر الربط» on the OMS: one GET with the token in the header only", to.message);
+  const to403 = await testRow("oms", "demo-owner", async () => new Response("{}", { status: 403 }));
+  check(!to403.ok && /صلاحية/.test(to403.message) && !to403.message.includes(OMS_TOK), "403 → «قبل المفتاح بس ما إله صلاحية» (a token without the scope), no body echoed", to403.message);
+  const to401 = await testRow("oms", "demo-owner", async () => new Response("{}", { status: 401 }));
+  check(!to401.ok && /رفض/.test(to401.message), "401 (expired or revoked at the OMS) → says so in Arabic", to401.message);
+  await keep(await putRoute(body("https://workspace.example.test"), NAME("WORKSPACE_BASE_URL")));
+  await keep(await putRoute(body(`wsT-${randomBytes(12).toString("hex")}`), NAME("WORKSPACE_API_TOKEN")));
+  const tw = await testRow("workspace", "demo-owner", async () => new Response(JSON.stringify([{ id: "b1" }]), { status: 200 }));
+  check(tw.ok, "Workspace: the same, with its own token", tw.message);
+  const del = await keep(await delRoute(DEL, NAME("OMS_TOKEN")));
+  check(del.status === 200 && !process.env.OMS_TOKEN, "«امسح» on the OMS token: gone from the environment (no Coolify value to fall back to)");
 
   say("— the whole picture: where the secrets are NOT");
   const all = await everything(responses);
-  for (const [what, v] of [["the Meta key", SECRET], ["the PEM", "BEGIN PRIVATE KEY"], ["the service account e-mail", "demo-project.iam"], ["an access token", "at-1-"], ["a refresh token", "rt-1-"], ["the signing secret", "ess-"]] as const) {
+  for (const [what, v] of [["the Meta key", SECRET], ["the PEM", "BEGIN PRIVATE KEY"], ["the service account e-mail", "demo-project.iam"], ["the OMS token", "omsT-"], ["the OMS signing secret", "whsec-"], ["the Workspace token", "wsT-"]] as const) {
     check(!all.includes(v), `${what} appears in no response, log line, audit row or table cell`);
   }
   check(logged.length === 0 || !logged.some((l) => /EAAB|rt-|at-\d|ess-/.test(l)), "the console stayed clean of anything key-shaped");

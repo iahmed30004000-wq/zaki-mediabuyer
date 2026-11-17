@@ -464,8 +464,6 @@ model ApiToken {
 model ConnectionSetting {
   name       String   @id
   secret     Boolean  @default(false)
-  /// app = typed by the owner · oauth = obtained by «اربط ← اسمح»
-  source     String   @default("app")
   valueEnc   String?
   valuePlain String?
   /// the last four characters of a secret, the only part kept in the clear
@@ -473,26 +471,6 @@ model ConnectionSetting {
   updatedBy  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-}
-
-/// The media buyer registered as an OAuth client with another of our systems (oms · replies · workspace).
-model OAuthLinkClient {
-  key           String   @id
-  issuer        String
-  tokenEndpoint String
-  clientId      String
-  registeredAt  DateTime @default(now())
-}
-
-/// A link in progress (state + sealed PKCE verifier), ten minutes.
-model OAuthLinkPending {
-  id          String   @id @default(cuid())
-  state       String   @unique
-  key         String
-  userId      String
-  verifierEnc String
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
 }
 
 /// A client that registered itself with /oauth/register (RFC 7591): claude.ai adding /mcp as a custom connector. Public client: PKCE, no secret.

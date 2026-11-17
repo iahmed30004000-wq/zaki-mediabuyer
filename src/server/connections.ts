@@ -2,9 +2,10 @@
  * THE VALUES THE OWNER ENTERS FROM THE SITE (D62). Stored in `ConnectionSetting` (a secret sealed with SECRETS_MASTER_KEY, a plain value as it is), put over
  * `process.env` by a small in-process overlay so every adapter keeps reading the variable it always read — no call site changed. Resolution: the site's value, else
  * the environment's (Coolify keeps working untouched); delete the site's value and the environment comes back. The app applies a save at once; the worker, a
- * separate process, picks it up within `RELOAD_MS`. No value is ever returned to a browser or written to a log: the view carries «محفوظ ✓ · آخر 4».
+ * separate process, picks it up within `RELOAD_MS`. Tokens of our own systems (OMS · replies · Workspace) are minted by the system that owns the data, on its
+ * «توكنات الأنظمة» page (scopes + expiry), and pasted here like any other key. No value is ever returned to a browser or written to a log: the view carries «محفوظ ✓ · آخر 4».
  */
-import { applyOverlay, checkValue, fieldOf, isBookkeeping, isSecretField, last4Of, newOverlay, ROWS, rowOf, sourceOf, type ConnField, type OverlayState } from "@/core/connections";
+import { applyOverlay, checkValue, fieldOf, isSecretField, last4Of, newOverlay, ROWS, rowOf, sourceOf, type ConnField, type OverlayState } from "@/core/connections";
 import { isLinked } from "@/core/readiness";
 import { audit } from "./audit";
 import { HttpError } from "./auth";
@@ -23,7 +24,6 @@ export async function storedValues(): Promise<Record<string, string>> {
   const rows = await db.connectionSetting.findMany();
   const out: Record<string, string> = {};
   for (const r of rows) {
-    if (isBookkeeping(r.name)) continue;
     const v = r.secret ? openSecret(r.name, r.valueEnc) : r.valuePlain;
     if (v) out[r.name] = v;
   }
@@ -39,18 +39,12 @@ export async function reloadOverlay(): Promise<void> {
   }
 }
 
-/** Load now, then every RELOAD_MS. `refresh` is for the web process only: it also renews OAuth tokens (two processes must not race a rotating refresh token). */
-export async function startOverlay(opts: { refresh: boolean }): Promise<void> {
+/** Load now, then every RELOAD_MS (so a save made in the web process reaches the worker, which is a separate process). */
+export async function startOverlay(): Promise<void> {
   await reloadOverlay();
-  if (opts.refresh) await import("./oauth-client").then((m) => m.refreshDueLinks()).catch(() => undefined);
   if (g.__mbOverlayTimer) return;
   g.__mbOverlayTimer = true;
-  const t = setInterval(() => {
-    void (async () => {
-      if (opts.refresh) await import("./oauth-client").then((m) => m.refreshDueLinks()).catch(() => undefined);
-      await reloadOverlay();
-    })();
-  }, RELOAD_MS);
+  const t = setInterval(() => void reloadOverlay(), RELOAD_MS);
   t.unref?.();
 }
 
@@ -68,13 +62,6 @@ export interface FieldView {
   updatedBy?: string | null;
 }
 
-export interface LinkView {
-  state: "none" | "linked" | "env" | "broken";
-  at?: string;
-  expiresAt?: string | null;
-  scopes: string[];
-}
-
 export interface RowView {
   key: string;
   title: string;
@@ -83,7 +70,6 @@ export interface RowView {
   linked: boolean;
   testable: boolean;
   fields: FieldView[];
-  link?: LinkView;
 }
 
 export interface ConnectionsView {
@@ -97,7 +83,7 @@ export async function connectionsView(): Promise<ConnectionsView> {
   const byName = new Map(stored.map((r) => [r.name, r]));
   const users = await db.user.findMany({ where: { id: { in: [...new Set(stored.map((r) => r.updatedBy).filter((x): x is string => !!x))] } }, select: { id: true, name: true } });
   const nameOf = new Map(users.map((u) => [u.id, u.name]));
-  const savedNames = new Set(stored.filter((r) => !isBookkeeping(r.name)).map((r) => r.name));
+  const savedNames = new Set(stored.map((r) => r.name));
   const st = state();
   const rows: RowView[] = [];
   for (const row of ROWS) {
@@ -117,14 +103,7 @@ export async function connectionsView(): Promise<ConnectionsView> {
       }
       return view;
     });
-    let link: LinkView | undefined;
-    if (row.link) {
-      const token = byName.get(row.link.tokenName);
-      const exp = byName.get(`${row.link.tokenName}__EXPIRES`)?.valuePlain;
-      const bad = byName.get(`${row.link.tokenName}__STATE`)?.valuePlain === "broken";
-      link = { state: bad ? "broken" : token && token.source === "oauth" ? "linked" : !token && sourceOf(row.link.tokenName, new Set(), process.env, st) === "env" ? "env" : "none", at: token?.updatedAt.toISOString(), expiresAt: exp ? new Date(Number(exp)).toISOString() : null, scopes: [...row.link.scopes] };
-    }
-    rows.push({ key: row.key, title: row.title, kind: row.kind, note: row.note, linked: row.kind === "info" ? false : safeLinked(row.key), testable: row.testable, fields, link });
+    rows.push({ key: row.key, title: row.title, kind: row.kind, note: row.note, linked: row.kind === "info" ? false : safeLinked(row.key), testable: row.testable, fields });
   }
   return { masterKey: masterKeyConfigured(), rows };
 }
@@ -146,7 +125,7 @@ export async function saveField(name: string, raw: unknown, userId: string): Pro
   const secret = isSecretField(f);
   if (secret && !masterKeyConfigured()) throw new HttpError(409, MASTER_KEY_MISSING);
   const last4 = last4Of(f, checked.value);
-  const data = secret ? { secret: true, source: "app", valueEnc: sealSecret(name, checked.value), valuePlain: null, last4, updatedBy: userId } : { secret: false, source: "app", valueEnc: null, valuePlain: checked.value, last4: null, updatedBy: userId };
+  const data = secret ? { secret: true, valueEnc: sealSecret(name, checked.value), valuePlain: null, last4, updatedBy: userId } : { secret: false, valueEnc: null, valuePlain: checked.value, last4: null, updatedBy: userId };
   await db.connectionSetting.upsert({ where: { name }, create: { name, ...data }, update: data });
   await reloadOverlay();
   // the name and the kind, never the value

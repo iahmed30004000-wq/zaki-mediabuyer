@@ -1,7 +1,8 @@
 /**
- * THE CONNECTIONS PAGE, as data (D62). Which value belongs to which row, which are secrets, how each is checked — pure, so a test holds every rule. The owner's
- * rule of 17/11: between OUR systems there is no pasted token (the system that owns the data hands it out after «اربط ← اسمح»); the site's own entry is only for
- * what has no such system: Meta's System User token, Google's service account file, and AI keys. Nothing here ever sees a value's content beyond checking its shape.
+ * THE CONNECTIONS PAGE, as data (D62). Which value belongs to which row, which are secrets, how each is checked — pure, so a test holds every rule. The key of one
+ * of OUR systems (OMS · replies · Workspace) is made by that system, on its «توكنات الأنظمة» page: a token with named scopes and an expiry; the owner pastes it here
+ * once (write-only, sealed). What has no such system — Meta's System User token, Google's service account file, an AI key — is entered the same way. Nothing here
+ * ever sees a value's content beyond checking its shape.
  */
 export type FieldKind = "secret" | "file" | "text" | "url";
 
@@ -14,20 +15,12 @@ export interface ConnField {
   example?: string;
 }
 
-/** An internal system linked by «اربط ← اسمح»: where the token lands, and what is asked for on the consent screen. */
-export interface LinkSpec {
-  system: "oms" | "replies" | "workspace";
-  tokenName: string;
-  scopes: readonly string[];
-}
-
 export interface ConnRow {
   key: string;
   title: string;
-  /** external = a key the owner types here; internal = linked by OAuth; info = nothing to enter */
+  /** external = a key from a company (Meta, Google); internal = a token from one of our systems; info = nothing to enter */
   kind: "external" | "internal" | "info";
   fields: readonly ConnField[];
-  link?: LinkSpec;
   /** a real read-only call exists for it */
   testable: boolean;
   note?: string;
@@ -58,16 +51,21 @@ export const ROWS: readonly ConnRow[] = [
     key: "oms",
     title: "الـOMS",
     kind: "internal",
-    fields: [{ name: "OMS_BASE_URL", label: "عنوان الـOMS", kind: "url", example: "https://crm.zakiai.io" }],
-    link: { system: "oms", tokenName: "OMS_TOKEN", scopes: ["orders.attribution.read", "products.read", "products.economics.read", "ad_spend.read"] },
+    fields: [
+      { name: "OMS_BASE_URL", label: "عنوان الـOMS", kind: "url", example: "https://crm.zakiai.io" },
+      { name: "OMS_TOKEN", label: "توكن النظام", kind: "secret", hint: "من الـOMS ← الإعدادات ← توكنات الأنظمة ← «الميديا باير». صلاحياته: products.read · products.costs.read · orders.attribution.read · ads.spend.read · notify.send." },
+      { name: "OMS_EVENT_SECRET", label: "سرّ توقيع أحداث الـOMS (اختياري)", kind: "secret", hint: "بيطلع مع التوكن. بيوقّع حدث «اوقف» اللي بيبعته الـOMS لنا." },
+    ],
     testable: true,
   },
   {
     key: "replies",
     title: "نظام الردود",
     kind: "internal",
-    fields: [{ name: "REPLIES_BASE_URL", label: "عنوان نظام الردود", kind: "url", example: "https://replies.example.com" }],
-    link: { system: "replies", tokenName: "REPLIES_TOKEN", scopes: ["capacity.read"] },
+    fields: [
+      { name: "REPLIES_BASE_URL", label: "عنوان نظام الردود", kind: "url", example: "https://replies.example.com" },
+      { name: "REPLIES_TOKEN", label: "توكن النظام", kind: "secret", hint: "من نظام الردود ← توكنات الأنظمة، بصلاحية capacity.read بس." },
+    ],
     testable: true,
   },
   {
@@ -77,12 +75,12 @@ export const ROWS: readonly ConnRow[] = [
     fields: [
       { name: "WORKSPACE_BASE_URL", label: "عنوان Workspace", kind: "url", example: "https://workspace.zakiai.io" },
       { name: "WORKSPACE_BOARD_ID", label: "اللوح (إذا في أكتر من وحد)", kind: "text", example: "brd_example" },
+      { name: "WORKSPACE_API_TOKEN", label: "توكن النظام", kind: "secret", hint: "من Workspace ← توكنات الأنظمة، بصلاحيات tasks.write وtasks.read." },
     ],
-    link: { system: "workspace", tokenName: "WORKSPACE_API_TOKEN", scopes: ["tasks.write", "tasks.read"] },
     testable: true,
   },
   { key: "telegram", title: "تيليجرام", kind: "info", fields: [], testable: false, note: "بيصير عبر الـOMS (`/api/v1/notify`): الـOMS عنده البوت والويبهوك. ما بدك بوت هون." },
-  { key: "hermes", title: "هيرمز", kind: "info", fields: [], testable: false, note: "هيرمز هو اللي بيسحب منّا (بزر «اسمح» عندنا) — ما في توكن بننسخه." },
+  { key: "hermes", title: "هيرمز", kind: "info", fields: [], testable: false, note: "هيرمز هو اللي بيسحب منّا بتوكن بنعمله هون من «الفريق ← توكنات الوكلاء». ما في شي يتكتب بهالسطر." },
   { key: "assistant", title: "مفتاح الذكاء الاصطناعي (Claude)", kind: "info", fields: [], testable: false, note: "من «ربط مفتاح Claude» تحت." },
 ];
 
@@ -92,13 +90,6 @@ export const fieldOf = (name: string): ConnField | undefined => ROWS.flatMap((r)
 export const rowOf = (key: string): ConnRow | undefined => ROWS.find((r) => r.key === key);
 export const rowOfField = (name: string): ConnRow | undefined => ROWS.find((r) => r.fields.some((f) => f.name === name));
 
-/** Names the OAuth link keeps next to a token (never typed, never in the environment). */
-export const REFRESH_SUFFIX = "__REFRESH";
-export const EXPIRES_SUFFIX = "__EXPIRES";
-export const STATE_SUFFIX = "__STATE";
-export const EVENT_SECRET = (system: string) => `${system.toUpperCase()}_EVENT_SECRET`;
-/** A stored name that is internal bookkeeping, not an environment variable. */
-export const isBookkeeping = (name: string): boolean => name.includes("__");
 
 const SECRET_KINDS: readonly FieldKind[] = ["secret", "file"];
 export const isSecretField = (f: ConnField): boolean => SECRET_KINDS.includes(f.kind);
@@ -187,7 +178,7 @@ export function sourceOf(name: string, saved: ReadonlySet<string>, env: EnvLike,
 
 /** A reason in the owner's words for a failed test, from a status code only (no body, no echo). */
 export function statusWords(status: number, what: string): string {
-  if (status === 401) return `${what} رفض المفتاح (انتهى أو انسحب) — اربط من جديد`;
+  if (status === 401) return `${what} رفض المفتاح (انتهى أو انسحب) — اعمل توكن جديد والصقه`;
   if (status === 403) return `${what} قبل المفتاح بس ما إله صلاحية لهالطلب`;
   if (status === 404) return `${what}: العنوان أو المورد مش موجود`;
   if (status === 429) return `${what}: كتير طلبات — جرّب بعد شوي`;

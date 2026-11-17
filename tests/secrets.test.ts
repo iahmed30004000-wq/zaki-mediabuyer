@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FIELD_NAMES, ROWS, applyOverlay, checkValue, fieldOf, isBookkeeping, isSecretField, last4Of, newOverlay, rowOf, sourceOf, statusWords } from "@/core/connections";
+import { FIELD_NAMES, ROWS, applyOverlay, checkValue, fieldOf, isSecretField, last4Of, newOverlay, rowOf, sourceOf, statusWords } from "@/core/connections";
 import { MASTER_KEY_MISSING, openSecret, parseMasterKey, sealSecret } from "@/server/secrets";
 
 const KEY = randomBytes(32);
@@ -53,15 +53,18 @@ describe("what may be written from the site", () => {
     expect(FIELD_NAMES).toContain("META_SYSTEM_USER_TOKEN");
     expect(FIELD_NAMES).toContain("GOOGLE_SERVICE_ACCOUNT_JSON");
   });
-  it("the rule of 17/11: no pasted key for our own systems and none for Telegram — the box holds addresses only; they link by «اربط ← اسمح»", () => {
-    for (const k of ["oms", "replies", "workspace"]) {
-      const row = rowOf(k)!;
-      expect(row.fields.every((f) => f.kind !== "secret" && f.kind !== "file"), k).toBe(true);
-      expect(row.link, k).toBeDefined();
-    }
+  it("the rule of 17/11 (17:30): a system's token is made by the system that owns the data (scopes + expiry) and pasted here — write-only; no bot token, no Hermes token", () => {
+    const secrets = (k: string) => rowOf(k)!.fields.filter((f) => f.kind === "secret").map((f) => f.name);
+    expect(secrets("oms")).toEqual(["OMS_TOKEN", "OMS_EVENT_SECRET"]);
+    expect(secrets("replies")).toEqual(["REPLIES_TOKEN"]);
+    expect(secrets("workspace")).toEqual(["WORKSPACE_API_TOKEN"]);
+    expect(secrets("meta")).toEqual(["META_SYSTEM_USER_TOKEN"]);
     expect(ROWS.flatMap((r) => r.fields).some((f) => /TELEGRAM|HERMES/.test(f.name))).toBe(false);
-    expect(ROWS.filter((r) => r.kind === "external").map((r) => r.key)).toEqual(["meta", "drive"]);
     expect(rowOf("telegram")?.note).toContain("الـOMS");
+    expect(rowOf("telegram")?.fields).toEqual([]);
+    // each token field says where it is made and which scopes it needs
+    for (const n of ["OMS_TOKEN", "REPLIES_TOKEN", "WORKSPACE_API_TOKEN"]) expect(fieldOf(n)!.hint, n).toMatch(/توكنات الأنظمة/);
+    expect(fieldOf("OMS_TOKEN")!.hint).toMatch(/products.read.*products.costs.read.*orders.attribution.read.*ads.spend.read.*notify.send/);
   });
   it("secrets and files are secret; addresses and ids are not", () => {
     expect(isSecretField(fieldOf("META_SYSTEM_USER_TOKEN")!)).toBe(true);
@@ -96,10 +99,6 @@ describe("what may be written from the site", () => {
       const r = checkValue(f, SECRET + " with spaces {");
       if (!r.ok) expect(r.error).not.toContain(SECRET);
     }
-  });
-  it("bookkeeping rows (refresh, expiry, state) are never an environment name", () => {
-    expect(isBookkeeping("OMS_TOKEN__REFRESH")).toBe(true);
-    expect(isBookkeeping("OMS_TOKEN")).toBe(false);
   });
 });
 
@@ -148,12 +147,12 @@ describe("a test result says why in words, from the status alone", () => {
   });
 });
 
-/** The connections door is the owner's alone: every route under /api/connections names `owner_only` (and the callback too). */
+/** The connections door is the owner's alone: every route under /api/connections names `owner_only` . */
 describe("static: who may call the connections routes", () => {
   const walk = (d: string): string[] => readdirSync(d).flatMap((n) => (statSync(join(d, n)).isDirectory() ? walk(join(d, n)) : n === "route.ts" ? [join(d, n)] : []));
-  const files = [...walk(join(process.cwd(), "src", "app", "api", "connections")), join(process.cwd(), "src", "app", "oauth", "callback", "route.ts")];
+  const files = walk(join(process.cwd(), "src", "app", "api", "connections"));
   it("found them", () => {
-    expect(files.length).toBeGreaterThanOrEqual(5);
+    expect(files.length).toBeGreaterThanOrEqual(3);
   });
   for (const f of files) {
     it(relative(process.cwd(), f).replace(/\\/g, "/"), () => {
@@ -185,13 +184,13 @@ describe("static: no code path hands a secret value to a browser or a log", () =
     expect(panel).not.toMatch(/node:crypto|process\.env/);
   });
   it("the connection code never logs", () => {
-    for (const p of ["src/server/connections.ts", "src/server/secrets.ts", "src/server/oauth-client.ts", "src/server/connection-tests.ts", "src/core/connections.ts"]) {
+    for (const p of ["src/server/connections.ts", "src/server/secrets.ts", "src/server/connection-tests.ts", "src/core/connections.ts"]) {
       expect(srcOf(p), p).not.toMatch(/console\.(log|info|warn|error|debug)/);
     }
   });
   it("the audit entries carry names and kinds, never a value", () => {
-    for (const p of ["src/server/connections.ts", "src/server/oauth-client.ts", "src/server/connection-tests.ts"]) {
-      for (const m of srcOf(p).matchAll(/audit\(([^;]*)\);/g)) expect(m[1], `${p}: ${m[1]}`).not.toMatch(/checked\.value|raw|\bvalue\b|verifier|access_token|refresh/);
+    for (const p of ["src/server/connections.ts", "src/server/connection-tests.ts"]) {
+      for (const m of srcOf(p).matchAll(/audit\(([^;]*)\);/g)) expect(m[1], `${p}: ${m[1]}`).not.toMatch(/checked\.value|raw|\bvalue\b/);
     }
   });
 });
