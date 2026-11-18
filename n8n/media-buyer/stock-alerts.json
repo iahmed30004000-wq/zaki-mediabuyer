@@ -1,0 +1,139 @@
+{
+  "name": "Media Buyer — تنبيهات المخزون",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## تنبيهات المخزون\nالساعة حسب الجدول (30 9-21/4 * * * بتوقيت عمّان) هالفلو بيطلب من Claude يشغّل «تنبيهات المخزون» عن طريق طابور التسليم. ما بيصرف ولا بيلمس ميتا.\n\n**قبل التفعيل:**\n1. اربط credential «Media Buyer — handoff token» (Header Auth: Authorization = Bearer mbh_… من «الإعدادات ← الربط ← Claude»، اسم التوكن `n8n`).\n2. للمسار الموقّع: حط N8N_WEBHOOK_SECRET كمتغيّر بيئة لسيرفر n8n (أو الصقه بعقدة «تحقّق من توقيع الموقع») وضيف `stock-alerts` لـ N8N_ALLOWED_PATHS بالموقع.\n3. فعّل الفلو.",
+        "height": 300,
+        "width": 460
+      },
+      "id": "4144d6ee-f49c-4001-a061-7219ccb7895a",
+      "name": "اقرأني",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -460,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 9-21/4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a207c7ea-593f-42bb-ad0f-424f5fdef229",
+      "name": "الجدول",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stock-alerts",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "af9dca3d-0681-40f0-a02a-25038d1dd34d",
+      "name": "الموقع بيطلب",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        220
+      ],
+      "webhookId": "ecf624d5-2529-4e22-aa92-8ae2bae20eb0"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Checks that the site signed this call: HMAC-SHA256 over \"<timestamp>.<body>\", not older than 5 minutes.\n// Needs n8n to allow the built-in module: NODE_FUNCTION_ALLOW_BUILTIN=crypto\nconst crypto = require('crypto');\n// the secret: the n8n server's own N8N_WEBHOOK_SECRET variable (nothing to edit here), else the placeholder below, which refuses everything\nconst SECRET = (typeof $env !== 'undefined' && $env.N8N_WEBHOOK_SECRET) || 'PASTE_N8N_WEBHOOK_SECRET_HERE';\nconst item = $input.first().json;\nconst headers = item.headers || {};\nconst ts = String(headers['x-mb-timestamp'] || '');\nconst sig = Buffer.from(String(headers['x-mb-signature'] || ''));\nconst want = Buffer.from('sha256=' + crypto.createHmac('sha256', SECRET).update(ts + '.' + JSON.stringify(item.body)).digest('hex'));\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) <= 300;\nif (SECRET.startsWith('PASTE_') || !fresh || sig.length !== want.length || !crypto.timingSafeEqual(sig, want)) {\n  throw new Error('Not signed by the site (or the secret is not pasted yet) - refused');\n}\nreturn $input.all();"
+      },
+      "id": "7f4e9e2a-e780-4108-a3cb-34bde240cf38",
+      "name": "تحقّق من توقيع الموقع",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mediabuyer.zakiai.io/api/v1/handoffs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"workflow\": \"stock-alerts\",\n  \"kind\": \"manual_run\",\n  \"title\": \"شغّل «تنبيهات المخزون» (من n8n)\",\n  \"need\": \"كل 4 ساعات من 9:30: قراءة مخزون كل منتج من الـ OMS ومقارنته بحد الأمان، وتنبيه المالك لما منتج يقرب يخلص.\",\n  \"assignee\": \"claude\"\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "2feff2e9-ee6c-49e9-a016-65b1bcccd92b",
+      "name": "اطلب من Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        540,
+        110
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Media Buyer — handoff token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "الجدول": {
+      "main": [
+        [
+          {
+            "node": "اطلب من Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "الموقع بيطلب": {
+      "main": [
+        [
+          {
+            "node": "تحقّق من توقيع الموقع",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحقّق من توقيع الموقع": {
+      "main": [
+        [
+          {
+            "node": "اطلب من Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Amman"
+  },
+  "pinData": {}
+}

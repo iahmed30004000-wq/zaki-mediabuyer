@@ -69,7 +69,7 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
     <div
       role="status"
       className={cn(
-        "pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-xl border border-border bg-surface-1 ps-3 shadow-md animate-fade-in motion-reduce:animate-none md:max-w-none",
+        "pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-card border border-border bg-surface-1 ps-3 shadow-md animate-fade-in motion-reduce:animate-none md:max-w-none",
       )}
     >
       {icons[item.kind]}

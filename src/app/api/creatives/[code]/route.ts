@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { missingText, isDemo } from "@/core/readiness";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
@@ -16,13 +17,15 @@ export async function POST(req: Request, { params }: { params: { code: string } 
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
-    const caller = await requireCapability(parsed.data.action === "approve" ? "approve_within_cap" : "propose_change");
-    if (process.env.MOCK_MODE === "1") return NextResponse.json({ ok: true, demo: true });
+    const caller = await requireCapability(parsed.data.action === "approve" ? "ads.approve_within_cap" : "ads.propose");
+    if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const asset = await db.creativeAsset.findUnique({ where: { crCode: params.code } });
     if (!asset) throw new HttpError(404, "الفيديو مش موجود");
     if (parsed.data.action === "approve" && asset.policyFlag === "red") throw new HttpError(409, "فيه ادعاء ممنوع — بدو نسخة معدّلة، ما بينوافق عليه");
     if (asset.status !== "review" && parsed.data.action === "approve") throw new HttpError(409, "هالفيديو مش بانتظار موافقة");
     const status = parsed.data.action === "approve" ? "ready" : "excluded";
+    // the file sits on Drive: with no Drive link the move cannot happen, and saying «تمت» would be false — stop before anything changes
+    if (asset.driveFileId && !(driveFromEnv() && process.env.DRIVE_PRODUCTS_FOLDER_ID?.trim())) throw new HttpError(409, `${missingText("drive") ?? "درايف مش مربوط"} (الفيديو على درايف، فنقله ما بيمشي بدونه)`);
     await db.creativeAsset.update({ where: { id: asset.id }, data: { status } });
     await db.policyCheck.updateMany({ where: { assetId: asset.id }, data: { approvedBy: caller.id } });
 

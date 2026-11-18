@@ -67,3 +67,29 @@ describe("studio tokens", () => {
     expect(hashToken(a)).not.toContain(a.slice(4, 14));
   });
 });
+
+describe("the studio's Drive tree (Zakiai/<product>/<VP>/6-نهائي)", () => {
+  it("reads the VP id from the file name, never guesses", async () => {
+    const { vpIdOfFile } = await import("@/core/studio-contract");
+    expect(vpIdOfFile("VP-kama-109-v2.mp4")).toBe("VP-kama-109-v2");
+    expect(vpIdOfFile("VP-kama-109-v2-h2.MP4")).toBe("VP-kama-109-v2-h2");
+    expect(vpIdOfFile("final copy.mp4")).toBeNull();
+    expect(vpIdOfFile("VP-kama-109.mp4")).toBeNull();
+  });
+  it("takes only the highest version of each script; a hook copy is its own script", async () => {
+    const { latestVersions } = await import("@/core/studio-contract");
+    expect(latestVersions(["VP-kama-109-v1.mp4", "VP-kama-109-v3.mp4", "VP-kama-109-v2.mp4"])).toEqual(["VP-kama-109-v3.mp4"]);
+    expect(latestVersions(["VP-kama-109-v2.mp4", "VP-kama-109-v2-h2.mp4", "VP-kama-109-v1-h2.mp4", "notes.txt"]).sort()).toEqual(["VP-kama-109-v2-h2.mp4", "VP-kama-109-v2.mp4"]);
+    expect(latestVersions(["VP-v2-5-v1.mp4", "VP-v2-5-v4.mp4"])).toEqual(["VP-v2-5-v4.mp4"]);
+  });
+});
+
+describe("product facts for the studio (E1)", () => {
+  it("never carries offer_tiers or guarantee: absent means unknown, an empty list would mean «no offer»", async () => {
+    const { productFacts } = await import("@/core/studio-launch");
+    const body = productFacts({ market: "SY", price: "20", deliveryFee: "1.5" }, "SY")!;
+    expect(Object.keys(body).sort()).toEqual(["cod", "country", "delivery", "price"]);
+    expect(body).not.toHaveProperty("offer_tiers");
+    expect(body).not.toHaveProperty("guarantee");
+  });
+});

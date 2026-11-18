@@ -1,5 +1,5 @@
 /**
- * The four themes of the Media Buyer (its own designs; the engine came from Zaki Workspace). A pure module (no React, no server imports, no `@/` imports — the
+ * The two themes of the Media Buyer: «فاتح» (`zaki`, the default) and «داكن» (`zaki-dark`). A pure module (no React, no server imports, no `@/` imports — the
  * Tailwind config reaches it through palettes.ts): the root layout, the client provider, the
  * decoration engine and the tests all read the theme list from here.
  *
@@ -9,25 +9,21 @@
  * The colours are in palettes.ts; the stylesheet they become is src/app/themes.css (generated).
  */
 
-export const THEME_KEYS = ["iznik", "observatory", "sunset-city", "wudooh"] as const;
+export const THEME_KEYS = ["zaki", "zaki-dark"] as const;
 export type ThemeKey = (typeof THEME_KEYS)[number];
 
-/** «إزنيق» (Iznik tiles): the default for everybody who has not chosen. */
-export const DEFAULT_THEME: ThemeKey = "iznik";
+/** «فاتح»: the default for everybody who has not chosen. */
+export const DEFAULT_THEME: ThemeKey = "zaki";
 
 export interface ThemeInfo {
   key: ThemeKey;
   /** Dark themes also get the `dark` class. */
   dark: boolean;
-  /** The face of the headings: Reem Kufi for the Islamic themes, IBM Plex Sans Arabic otherwise. */
-  headingFont: "reem-kufi" | "plex";
 }
 
 export const THEMES: Record<ThemeKey, ThemeInfo> = {
-  iznik: { key: "iznik", dark: false, headingFont: "reem-kufi" },
-  observatory: { key: "observatory", dark: true, headingFont: "reem-kufi" },
-  "sunset-city": { key: "sunset-city", dark: true, headingFont: "plex" },
-  wudooh: { key: "wudooh", dark: false, headingFont: "plex" },
+  zaki: { key: "zaki", dark: false },
+  "zaki-dark": { key: "zaki-dark", dark: true },
 };
 
 /** The themes in the order the picker shows them. */
@@ -39,7 +35,7 @@ export function isThemeKey(value: unknown): value is ThemeKey {
 
 /**
  * Whatever was stored (`User.theme` used to hold "system" for the old light/dark/system toggle, a
- * cookie can be edited) becomes a real theme: anything that is not one of the four is the default.
+ * cookie can be edited) becomes a real theme: anything that is not one of the two (the four old theme names included) is the default.
  */
 export function themeOf(value: unknown): ThemeKey {
   return isThemeKey(value) ? value : DEFAULT_THEME;
@@ -65,23 +61,9 @@ export function themeMoodKey(key: ThemeKey): string {
  */
 export const THEME_COOKIE = "mb_theme";
 
-/** How much decoration is drawn: nothing, a light touch (default) or the full effect with slow motion. */
-export const DECOR_LEVELS = ["off", "light", "full"] as const;
-export type DecorLevel = (typeof DECOR_LEVELS)[number];
-export const DEFAULT_DECOR: DecorLevel = "light";
-export const DECOR_COOKIE = "mb-decor";
-
-export function isDecorLevel(value: unknown): value is DecorLevel {
-  return typeof value === "string" && (DECOR_LEVELS as readonly string[]).includes(value);
-}
-
-export function decorLevelOf(value: unknown): DecorLevel {
-  return isDecorLevel(value) ? value : DEFAULT_DECOR;
-}
-
-/** What <html> carries for a theme and a decoration level (the root layout and the client provider agree through this). */
-export function rootThemeAttributes(theme: ThemeKey, decor: DecorLevel): { "data-theme": ThemeKey; "data-decor": DecorLevel; dark: boolean } {
-  return { "data-theme": theme, "data-decor": decor, dark: isDarkTheme(theme) };
+/** What <html> carries for a theme (the root layout and the client provider agree through this). */
+export function rootThemeAttributes(theme: ThemeKey): { "data-theme": ThemeKey; dark: boolean } {
+  return { "data-theme": theme, dark: isDarkTheme(theme) };
 }
 
 /** Both preference cookies live a year. */

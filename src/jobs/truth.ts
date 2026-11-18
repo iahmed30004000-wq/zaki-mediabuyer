@@ -6,20 +6,20 @@
 import Decimal from "decimal.js";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
+import { omsBaseUrl, omsToken } from "@/server/env";
 import { computeTruth } from "@/core/economics";
 import { readOrders, readProducts, toAttributedOrder, type OmsOptions, type OmsProduct } from "@/adapters/oms";
-import { omsLink } from "@/server/oms-link";
 
-/** The live OMS options, or null while the link is off (`OMS_LIVE`, `src/server/oms-link.ts`). */
 export function omsOptions(fetchImpl?: typeof fetch): OmsOptions | null {
-  const link = omsLink(process.env, fetchImpl);
-  return link.mode === "live" ? link.options : null;
+  const baseUrl = omsBaseUrl() ?? undefined;
+  const token = omsToken() ?? undefined;
+  return baseUrl && token ? { baseUrl, token, fetch: fetchImpl } : null;
 }
 
 /**
- * One OMS product as the economics row: `update` carries only the figures the OMS actually sent, so a null never
- * wipes a number the owner typed; `create` fills the missing ones with 0 and marks the row `oms_partial`, which the
- * screens read as «تقدير». Stock days are whole days in this table.
+ * One OMS product as the economics row. `update` carries only the figures the OMS actually sent, so a null never wipes
+ * a number the owner typed in Settings (P0.9); `create` fills the missing ones with 0, and the row keeps the default
+ * source «estimate», which every screen shows as «تقدير». Stock days are whole days in this table.
  */
 export function economicsFromOms(p: OmsProduct) {
   const update: { name: string; price?: string; unitCost?: string; deliveryFee?: string; returnFee?: string; codFeePct?: string; stockDays?: number | null } = { name: p.name };
@@ -30,20 +30,7 @@ export function economicsFromOms(p: OmsProduct) {
   if (p.return_fee != null) update.returnFee = p.return_fee;
   if (p.cod_fee_pct != null) update.codFeePct = p.cod_fee_pct;
   if (p.stock_days !== undefined) update.stockDays = p.stock_days === null ? null : Math.round(p.stock_days);
-  const complete = price != null && p.unit_cost_usd != null && p.delivery_fee != null && p.return_fee != null && p.cod_fee_pct != null;
-  const create = {
-    productCode: p.code,
-    market: "SY",
-    confirmCost: 0.3,
-    price: "0",
-    unitCost: "0",
-    deliveryFee: "0",
-    returnFee: "0",
-    codFeePct: "0",
-    stockDays: null as number | null,
-    ...update,
-    source: complete ? "oms" : "oms_partial",
-  };
+  const create = { productCode: p.code, market: "SY", confirmCost: 0.3, price: "0", unitCost: "0", deliveryFee: "0", returnFee: "0", codFeePct: "0", stockDays: null as number | null, ...update };
   return { create, update };
 }
 
@@ -57,7 +44,10 @@ export async function syncOms(o: OmsOptions, since: Date) {
     }
   }
   let orders = 0;
-  for (const raw of await readOrders(o, since)) {
+  const raws = await readOrders(o, since);
+  // the OMS is the truth: order rows made from a tally Claude pushed (method «mcp») for the days it just read step aside
+  await db.attributedOrder.deleteMany({ where: { method: "mcp", createdAtOms: { gte: since } } });
+  for (const raw of raws) {
     const row = toAttributedOrder(raw, windowH);
     await db.attributedOrder.upsert({ where: { omsOrderId: row.omsOrderId }, create: row, update: row });
     orders++;

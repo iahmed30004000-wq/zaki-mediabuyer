@@ -22,6 +22,29 @@ export function isVpId(value: string | null | undefined): value is string {
   return !!value && VP_ID.test(value.trim());
 }
 
+/** `VP-kama-109-v2.mp4` → `VP-kama-109-v2`; null when the file is not named the studio's way (never guessed). */
+export function vpIdOfFile(fileName: string): string | null {
+  const stem = fileName.replace(/\.[A-Za-z0-9]{2,4}$/, "").trim();
+  return isVpId(stem) ? stem : null;
+}
+
+/**
+ * The studio keeps every version of a final video in the same Drive folder (VP-kama-109-v1, -v2, -v3). Only the
+ * highest version of each script (a hook copy -h2 is its own script) is a candidate for the registry.
+ */
+export function latestVersions(fileNames: string[]): string[] {
+  const best = new Map<string, { name: string; v: number }>();
+  for (const name of fileNames) {
+    const id = vpIdOfFile(name);
+    if (!id) continue;
+    const v = Number(/-v(\d+)(?:-h\d+)?$/.exec(id)?.[1] ?? 0);
+    const group = id.replace(/-v\d+(?=(?:-h\d+)?$)/, "");
+    const cur = best.get(group);
+    if (!cur || v > cur.v) best.set(group, { name, v });
+  }
+  return [...best.values()].map((b) => b.name);
+}
+
 /** The fifth field of a studio-style name, or null. Never guesses (adname.parse). */
 export function vpIdFromAdName(name: string | null | undefined): string | null {
   const fifth = String(name ?? "").split("|")[4]?.trim();

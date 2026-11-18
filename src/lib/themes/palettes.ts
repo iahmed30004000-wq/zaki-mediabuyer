@@ -1,11 +1,10 @@
 /**
- * THE FOUR PALETTES of the Media Buyer — every colour a screen may use, per theme, by ROLE and never by look.
+ * THE TWO PALETTES of the Media Buyer — every colour a screen may use, per theme, by ROLE and never by look (docs/rebuild/03-look.md §2).
  *
- * New designs for this system (the token engine came from Zaki Workspace): «إزنيق» (Iznik tiles, the default),
- * «المرصد» (astrolabe at night), «مدينة الغروب» (a city at golden hour, real photographs) and «وُضوح» (the
- * spec's own identity, section 18.1). `src/app/themes.css` is GENERATED from this file
- * (`npm run themes:css`) and tests/themes-palettes.test.ts runs every palette through the contrast gate.
- * Meanings (ok / warn / danger) keep their roles in every theme; danger is for risk only (spec 18.1).
+ * «فاتح» (`zaki`, the default): white paper, navy ink, a gold line. «داكن» (`zaki-dark`): the same on a night surface, where the gold
+ * becomes the primary colour. `src/app/themes.css` is GENERATED from this file (`npm run themes:css`) and tests/themes-palettes.test.ts
+ * runs every palette through the contrast gate. Meanings (ok / warn / danger) keep their roles in both; danger is for risk only.
+ * The gold (`accent-2`) is a signal only — the line under a title, the active tab, a number, the focus ring — never a text colour on white.
  */
 import { DEFAULT_THEME, type ThemeKey } from "./registry";
 import { SCRIM_BACKDROP_ALPHA, SCRIM_PANEL_ALPHA, hexToTriplet } from "./contrast";
@@ -55,74 +54,70 @@ export interface Palette {
   style: Record<StyleToken, string>;
 }
 
-/**
- * Titles. IBM Plex Sans Arabic is the body face of every theme; Reem Kufi (public/fonts, SIL OFL,
- * loaded by the root layout through next/font/local with preload off, so only an Islamic theme
- * ever downloads it) is the face of the Islamic themes' h1-h3. Each `var()` carries a fallback so a
- * page rendered without the font classes still gets a valid stack.
- */
-const PLEX_STACK = 'var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif';
-const KUFI_STACK = `var(--font-reem, "Reem Kufi"), ${PLEX_STACK}`;
+/** One face for everything: Cairo (loaded by the root layout through next/font as --font-cairo), IBM Plex Sans Arabic as the fallback. */
+const CAIRO_STACK = 'var(--font-cairo, "Cairo"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif';
+
+const STYLE: Palette["style"] = {
+  "font-display": CAIRO_STACK,
+  "radius-card": "14px",
+  "shadow-card": "0 1px 2px rgb(16 24 40 / 0.04)",
+};
 
 export const PALETTES: Record<ThemeKey, Palette> = {
-  /** «إزنيق» — Iznik tiles: ivory glaze, cobalt blue, turquoise. Light. The default. */
-  iznik: {
+  /** «فاتح» — white paper (muted / ok / warn / three category colours are one step darker than the first sketch so every pair passes the contrast gate), navy ink, a gold line. The default. */
+  zaki: {
     colors: {
-      surface: "#F7F4EC",
+      surface: "#F5F6F8",
       "surface-1": "#FFFFFF",
       "surface-2": "#EEF1F5",
-      border: "#D3DAE3",
-      muted: "#56657E",
-      fg: "#14213D",
-      "fg-muted": "#3E4F6B",
-      accent: "#1D4AA0", // cobalt
+      border: "#DCE1E9",
+      muted: "#626C7B",
+      fg: "#172033",
+      "fg-muted": "#5A657A",
+      accent: "#1B2A4A", // navy
       "accent-fg": "#FFFFFF",
-      "accent-2": "#138486", // turquoise glaze, as a shape only
-      ok: "#17703A",
-      warn: "#8E5B06",
+      "accent-2": "#F2B705", // gold, as a signal only
+      ok: "#167049",
+      warn: "#975506",
       danger: "#B42318",
-      info: "#0A6C8C",
+      info: "#1F4FBF",
       "ok-fg": "#FFFFFF",
       "warn-fg": "#FFFFFF",
       "danger-fg": "#FFFFFF",
       "info-fg": "#FFFFFF",
-      scrim: "#0B1428",
-      "cat-1": "#6A35B0",
-      "cat-2": "#A3288F",
-      "cat-3": "#B02A55",
-      "cat-4": "#0B6F7C",
-      "cat-5": "#5A6B0A",
-      "cat-6": "#3236A8",
+      scrim: "#0B1220",
+      "cat-1": "#6C5A9E",
+      "cat-2": "#9D3D8D",
+      "cat-3": "#9A526B",
+      "cat-4": "#0B6F7F",
+      "cat-5": "#5B6B17",
+      "cat-6": "#384DB8",
     },
-    style: {
-      "font-display": KUFI_STACK,
-      "radius-card": "0.875rem",
-      "shadow-card": "0 1px 2px rgb(20 33 61 / 0.06), 0 2px 6px rgb(20 33 61 / 0.06)",
-    },
+    style: STYLE,
   },
 
-  /** «المرصد» — an astrolabe at night: indigo-black sky and brass. Dark. */
-  observatory: {
+  /** «داكن» — the same on a night surface; the gold is the primary colour. */
+  "zaki-dark": {
     colors: {
-      surface: "#0B1022",
-      "surface-1": "#121A33",
-      "surface-2": "#1C2645",
-      border: "#34406A",
-      muted: "#A49C8C",
-      fg: "#EDEAE2",
-      "fg-muted": "#C2B9A6",
-      accent: "#D9A55B", // brass
-      "accent-fg": "#120C04",
-      "accent-2": "#6FC3D6", // lapis-sky
-      ok: "#3FD07F",
-      warn: "#F27A3D",
-      danger: "#F7718A",
-      info: "#7DA9F0",
-      "ok-fg": "#0B1022",
-      "warn-fg": "#0B1022",
-      "danger-fg": "#0B1022",
-      "info-fg": "#0B1022",
-      scrim: "#04070F",
+      surface: "#0E1420",
+      "surface-1": "#161E2E",
+      "surface-2": "#1D2739",
+      border: "#2A3650",
+      muted: "#8896AD",
+      fg: "#E9EDF5",
+      "fg-muted": "#9BA7BD",
+      accent: "#F2B705",
+      "accent-fg": "#172033",
+      "accent-2": "#F2B705",
+      ok: "#4CC38A",
+      warn: "#E8913A",
+      danger: "#FF8A7A",
+      info: "#8FB2FF",
+      "ok-fg": "#10151F",
+      "warn-fg": "#10151F",
+      "danger-fg": "#10151F",
+      "info-fg": "#10151F",
+      scrim: "#05080F",
       "cat-1": "#B592F5",
       "cat-2": "#E07AD0",
       "cat-3": "#F38BAF",
@@ -130,83 +125,7 @@ export const PALETTES: Record<ThemeKey, Palette> = {
       "cat-5": "#B5DA6A",
       "cat-6": "#7DA2F2",
     },
-    style: {
-      "font-display": KUFI_STACK,
-      "radius-card": "0.875rem",
-      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.30)",
-    },
-  },
-
-  /** «مدينة الغروب» — a city at golden hour: dusk purple, sunset orange, magenta. Dark. Original work, no game reference. */
-  "sunset-city": {
-    colors: {
-      surface: "#160F1E",
-      "surface-1": "#20172B",
-      "surface-2": "#2C2039",
-      border: "#4A3A5E",
-      muted: "#B9A296",
-      fg: "#FBF1E6",
-      "fg-muted": "#DCC5B4",
-      accent: "#FF9A3C", // sunset orange
-      "accent-fg": "#1A0F05",
-      "accent-2": "#FF5FA8", // magenta sky
-      ok: "#5FD38D",
-      warn: "#FFD15C",
-      danger: "#FF6B6B",
-      info: "#7FB8FF",
-      "ok-fg": "#160F1E",
-      "warn-fg": "#160F1E",
-      "danger-fg": "#160F1E",
-      "info-fg": "#160F1E",
-      scrim: "#0A0610",
-      "cat-1": "#C9A0FA",
-      "cat-2": "#F27FE0",
-      "cat-3": "#FF7FA8",
-      "cat-4": "#5FD6D6",
-      "cat-5": "#C3E06A",
-      "cat-6": "#8A9BFF",
-    },
-    style: {
-      "font-display": PLEX_STACK,
-      "radius-card": "1rem",
-      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.6), 0 4px 14px rgb(0 0 0 / 0.35)",
-    },
-  },
-
-  /** «وُضوح» — the spec's own identity (section 18.1): navy, petrol, cyan on white. Light. */
-  wudooh: {
-    colors: {
-      surface: "#F4F8FA",
-      "surface-1": "#FFFFFF",
-      "surface-2": "#E9F0F3",
-      border: "#D5E1E6",
-      muted: "#5E6B72",
-      fg: "#1F2933",
-      "fg-muted": "#44535C",
-      accent: "#1A6382", // petrol
-      "accent-fg": "#FFFFFF",
-      "accent-2": "#2A98AE", // cyan, a shade darker for 3:1
-      ok: "#1A7043",
-      warn: "#7A6000",
-      danger: "#C00000",
-      info: "#2B57C4",
-      "ok-fg": "#FFFFFF",
-      "warn-fg": "#FFFFFF",
-      "danger-fg": "#FFFFFF",
-      "info-fg": "#FFFFFF",
-      scrim: "#071A2B",
-      "cat-1": "#705EA2",
-      "cat-2": "#9D3D8D",
-      "cat-3": "#9A526B",
-      "cat-4": "#0C7383",
-      "cat-5": "#5F7019",
-      "cat-6": "#384DB8",
-    },
-    style: {
-      "font-display": PLEX_STACK,
-      "radius-card": "0.75rem",
-      "shadow-card": "0 1px 2px rgb(12 50 82 / 0.06), 0 1px 3px rgb(12 50 82 / 0.08)",
-    },
+    style: STYLE,
   },
 };
 

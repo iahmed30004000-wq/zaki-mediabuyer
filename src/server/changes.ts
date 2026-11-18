@@ -19,6 +19,7 @@ import { effectiveLevel, modeFor, type ActionKind, type AutonomyLevel } from "@/
 import { accountRestricted } from "@/jobs/account-safety";
 import { assertMove, directionOf, flipFlopped, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
 import { applyItem, writeMode } from "@/meta/write";
+import { metaWriteGate } from "@/core/readiness";
 import { resolveRefs } from "@/core/templates";
 import { MetaClient } from "@/meta/client";
 import { metaToken } from "@/jobs/meta-sync";
@@ -121,7 +122,8 @@ export async function propose(p: Proposal, actor: Actor) {
 
   const mode = modeFor(p.kind, level);
   if (mode === "suggest") return db.changeSet.findUniqueOrThrow({ where: { id: created.id } });
-  if (mode === "auto" && sim.ok && p.source !== "user") {
+  // an agent only ever suggests: its changes wait for a person, whatever the level (spec 11.1)
+  if (mode === "auto" && sim.ok && p.source !== "user" && p.source !== "agent") {
     await move(created.id, "simulated", "approved", { approvedBy: `level-${level}`, approvedAt: new Date() });
     return execute(created.id, actor);
   }
@@ -138,8 +140,8 @@ export async function propose(p: Proposal, actor: Actor) {
 /** Approve on the site. Telegram never reaches here (spec 3.13). */
 export async function approve(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
-  const ownerOnly = ["above_cap", "test_campaign", "connect_asset", "customer_audience"].includes(cs.kind) || cs.error === "loop_guard";
-  if (!can(caller.role, ownerOnly ? "owner_only" : "approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
+  const ownerOnly = ["above_cap", "test_campaign", "connect_asset", "customer_audience", "safety_net"].includes(cs.kind) || cs.error === "loop_guard";
+  if (!can(caller.role, ownerOnly ? "owner_only" : "ads.approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
   const sim = cs.simulation as { ok?: boolean } | null;
   if (sim && sim.ok === false && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, "التجربة ما نجحت (سقف أو تعلّم أو تعارض) — شوف «جرّب»");
   await move(id, cs.state as ChangeState, "approved", { approvedBy: caller.id, approvedAt: new Date() });
@@ -149,7 +151,7 @@ export async function approve(id: string, caller: Caller) {
 
 export async function reject(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
-  if (!can(caller.role, "propose_change")) throw new HttpError(403, "دورك ما بيسمح");
+  if (!can(caller.role, "ads.propose")) throw new HttpError(403, "دورك ما بيسمح");
   await move(id, cs.state as ChangeState, "rejected");
   await audit({ type: "user", id: caller.id }, "change.reject", { type: "changeset", id });
   return db.changeSet.findUniqueOrThrow({ where: { id } });
@@ -167,6 +169,8 @@ export async function execute(id: string, actor: Actor) {
   const client = await metaClientIfLive();
   let allVerified = true;
   let mismatch = "";
+  // a live write was asked for but is not allowed yet (no META_LIVE_VERIFIED, no token): the change FAILS with the sentence — it is not run as a quiet dry-run
+  const gate = metaWriteGate(process.env, !!(await metaToken()));
   // a launch creates objects in order: the ids Meta gives are kept by ref and filled into the items after them
   const ids: Record<string, string> = {};
   for (const item of cs.items) {
@@ -174,6 +178,7 @@ export async function execute(id: string, actor: Actor) {
     if (item.op === "create" && ref && item.apiResponse !== null) ids[ref] = item.objectId;
   }
   try {
+    if (gate.error) throw new Error(gate.error);
     for (const item of [...cs.items].sort((a, b) => a.seq - b.seq)) {
       if (item.apiResponse !== null) continue; // already sent once: never twice
       const objectId = resolveRefs(item.objectId, ids);
@@ -208,7 +213,7 @@ export async function execute(id: string, actor: Actor) {
 
 /** «رجّع»: a new change with the inverse items, executed for the person who asked; the original becomes rolled_back. */
 export async function rollback(id: string, caller: Caller) {
-  if (!can(caller.role, "pause_or_reduce")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
+  if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   if (cs.state !== "executed") throw new HttpError(409, "بس التغيير المنفّذ بينرجع");
   // a launch is undone by pausing what it made (never deleting): the switches first, then the created objects
@@ -217,6 +222,8 @@ export async function rollback(id: string, caller: Caller) {
     const after = i.after as ChangeItemDraft["after"];
     const objectType = i.objectType as ChangeItemDraft["objectType"];
     if (i.op === "create") return objectType === "creative" ? [] : [{ op: "pause", objectType, objectId: i.objectId, before: { status: "ACTIVE", dailyBudget: after.dailyBudget }, after: { status: "PAUSED" } }];
+    // the account cap goes back to what it was (never with a second reset of what was spent)
+    if (i.op === "set_account_cap") return [{ op: "set_account_cap", objectType, objectId: i.objectId, before: { spendCap: after.spendCap }, after: { spendCap: before.spendCap ?? 0, reset: false } }];
     return [{ op: i.op === "pause" ? "resume" : i.op === "resume" ? "pause" : "set_budget", objectType, objectId: i.objectId, before: after, after: before }];
   }).filter((x, n, all) => all.findIndex((y) => y.objectId === x.objectId) === n);
   const back = await db.changeSet.create({
@@ -247,7 +254,7 @@ export async function rollback(id: string, caller: Caller) {
 
 /** The full stop (spec 10.3): every active campaign of one account, or of all, paused at once, logged. */
 export async function killSwitch(scope: string, caller: Caller) {
-  if (!can(caller.role, "kill_switch")) throw new HttpError(403, "دورك ما بيسمح بالإيقاف الكامل");
+  if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالإيقاف الكامل");
   const campaigns = await db.campaign.findMany({ where: { status: { notIn: ["PAUSED", "ARCHIVED", "DELETED"] }, ...(scope === "all" ? {} : { account: { metaId: scope } }) }, include: { account: true } });
   if (!campaigns.length) {
     await db.killSwitchEvent.create({ data: { scope, byUser: caller.id, objects: 0 } });

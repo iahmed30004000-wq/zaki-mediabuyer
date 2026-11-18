@@ -49,8 +49,8 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
           return (
             <li key={f.key}>
               <button onClick={() => setStage(f.key)} aria-pressed={active} className={cn("relative flex w-full flex-col items-center gap-0.5 rounded-xl border px-1 py-2.5 transition-colors sm:py-3", active ? "border-accent bg-accent text-accent-fg" : "border-border bg-surface-1 text-fg hover:border-accent/50")}>
-                <span className="text-lg font-bold tabular-nums sm:text-2xl">{n}</span>
-                <span className="text-[11px] font-medium sm:text-xs">{f.label}</span>
+                <span className="text-base font-bold tabular-nums sm:text-xl">{n}</span>
+                <span className="text-xs font-medium sm:text-xs">{f.label}</span>
                 {f.key === "review" && n > 0 && !active ? <span className="absolute -top-1 end-1 size-2.5 rounded-full bg-warn" /> : null}
               </button>
               {i < flow.length - 1 ? null : null}
@@ -72,7 +72,7 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.thumb} alt="" loading="lazy" className={cn("shrink-0 rounded-lg bg-surface-2 object-cover", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")} />
                   ) : (
-                    <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[10px] text-fg-muted", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")}>{c.aspect}</div>
+                    <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-xs text-fg-muted", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")}>{c.aspect}</div>
                   )}
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="flex items-center gap-2">
@@ -84,6 +84,7 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
                       <P.icon className="size-3.5" />
                       {P.label}
                     </p>
+                    {c.studioMode ? <p className="text-xs text-fg-muted">طلب إطلاق من الاستوديو · {c.studioMode === "test" ? "تست" : "منتج شغّال"}</p> : null}
                   </div>
                 </div>
                 {c.policyNote ? <p className={cn("rounded-lg p-2 text-xs leading-5", c.policy === "red" ? "bg-danger/5 text-fg" : "bg-warn/5 text-fg")}>{c.policyNote}</p> : null}

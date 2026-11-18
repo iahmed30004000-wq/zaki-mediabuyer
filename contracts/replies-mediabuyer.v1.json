@@ -1,0 +1,272 @@
+{
+  "contract": "replies-mediabuyer",
+  "version": "v1",
+  "status": "EXISTS for capacity (the media buyer's adapter is strict and tested: tests/replies.test.ts); PROPOSED for ad-signals. Source of truth: System 7 (MKory18/AIresponse, which also holds contracts/oms-app-events.v1). This file is the media buyer's side of it.",
+  "system": {
+    "name": "System 7 — smart replies and sales",
+    "repo": "MKory18/AIresponse"
+  },
+  "direction": "PULL — the media buyer calls System 7 every 15 minutes.",
+  "base_url_env": "REPLIES_BASE_URL",
+  "auth": {
+    "rule": "System token — the OMS model (owner's decision, 17/11 17:30). The system that OWNS the data mints the token on its «الإعدادات ← توكنات الأنظمة» page: one token per consuming system, with named scopes and an expiry. The owner pastes it ONCE into the media buyer's «الإعدادات ← الربط» (write-only, AES-256-GCM at rest, never shown again — only «محفوظ ✓ · آخر 4 خانات»). The Bearer header on each call is unchanged. No OAuth flow between our systems.",
+    "issued_by": "System 7 — «الإعدادات ← توكنات الأنظمة»",
+    "system_name": "الميديا باير",
+    "pasted_into": "media buyer «الإعدادات ← الربط» ← row نظام الردود: REPLIES_TOKEN",
+    "scopes": [
+      "capacity.read",
+      "ads.read (only for ad-signals)"
+    ],
+    "status": "ADD (R1) — a «توكنات الأنظمة» page with the same model as the OMS, if System 7 has no such page yet; if it already has an API-key page, only the scope names are needed",
+    "expiry": "chosen when the token is minted (suggested 90 days). The media buyer does not store it: after expiry the system answers 401 and «اختبر الربط» says «انتهى أو انسحب» — the owner mints a new one and pastes it over the old.",
+    "revoke": "delete or rotate the token on the same page; the very next call is refused (401)."
+  },
+  "rate_limit": "the media buyer calls once per 15 minutes; allow at least 12 per minute (429 → it waits for the next tick)",
+  "error_envelope": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+      "error",
+      "request_id"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": [
+              "object",
+              "array",
+              "null"
+            ]
+          }
+        }
+      },
+      "request_id": {
+        "type": "string"
+      }
+    }
+  },
+  "idempotency": "Reads only.",
+  "endpoints": [
+    {
+      "id": "replies.oauth-authorization-server",
+      "status": "ADD",
+      "method": "UI+HTTP",
+      "path": "/.well-known/oauth-authorization-server · /oauth/register · /oauth/authorize · /oauth/token",
+      "change": "Let System 7 be the authorization server for its /api/v1 door: a consent screen («الميديا باير بدّه يقرا قدرة الردود — اسمح؟») issuing the same scoped token the door already checks (system = mediabuyer).",
+      "size": "small — reuses the door's token table and scopes",
+      "blocking": false
+    },
+    {
+      "id": "capacity",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "/api/v1/capacity",
+      "query": {},
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "unanswered",
+          "at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "unanswered": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "first_response_p50_min": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "by_channel": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+          }
+        }
+      },
+      "example_response": {
+        "unanswered": 12,
+        "first_response_p50_min": 7.5,
+        "by_channel": {
+          "messenger": 5,
+          "instagram": 3,
+          "whatsapp": 4
+        },
+        "at": "2026-11-18T10:00:00+03:00"
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired token"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "token lacks capacity.read"
+        },
+        {
+          "status": 503,
+          "code": "INTERNAL",
+          "when": "counted as «error», never as zero"
+        }
+      ],
+      "notes": "STRICT: any field not listed is refused by the media buyer (so a customer field can never slip in). `at` must carry an offset. The media buyer's verdict: down (no answer) · stale (> 2 h) · behind (unanswered > 50) · slow (median first reply > 30 min). Any of them freezes SCALE-UP of message ad sets (never pauses, never lowers); lifted when good again."
+    },
+    {
+      "id": "ad-signals",
+      "status": "ADD",
+      "method": "GET",
+      "path": "/api/v1/ad-signals",
+      "change": "A new read-only endpoint over data System 7 already holds: per ad and per day, counts only (conversations, handoffs by reason, drafted and confirmed orders), a bucket under 5 left out.",
+      "query": {
+        "since": "YYYY-MM-DD, required, at most 31 days back",
+        "until": "YYYY-MM-DD, optional",
+        "cursor": "opaque",
+        "limit": "1..200"
+      },
+      "pagination": "cursor: {items, next_cursor}",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ad_id",
+                "date",
+                "conversations_started"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "ad_id": {
+                  "type": "string",
+                  "pattern": "^\\d{6,25}$"
+                },
+                "date": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "conversations_started": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "first_response_p50_min": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "unanswered": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "handoffs_by_reason": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "orders_drafted": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "orders_confirmed": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "example_response": {
+        "items": [
+          {
+            "ad_id": "120211000000000001",
+            "date": "2026-11-17",
+            "conversations_started": 38,
+            "first_response_p50_min": 6.2,
+            "unanswered": 2,
+            "handoffs_by_reason": {
+              "LOW_CONFIDENCE": 3,
+              "COMPLAINT": 1
+            },
+            "orders_drafted": 9,
+            "orders_confirmed": 5
+          }
+        ],
+        "next_cursor": null
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "TOKEN_INVALID",
+          "when": "unknown, revoked or expired token"
+        },
+        {
+          "status": 403,
+          "code": "SCOPE_MISSING",
+          "when": "token lacks ads.read"
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "since missing or older than 31 days"
+        }
+      ],
+      "notes": "Counts only. A bucket under 5 conversations is suppressed (left out), so no single person can be inferred. `ad_id` is the real Meta ad id (Messenger referral.ad_id, WhatsApp source_id), which joins straight to the media buyer. Not needed for any of the five minimum sets; it feeds the rule «many conversations, few orders».",
+      "size": "medium but additive — a new read-only endpoint over data System 7 already holds",
+      "blocking": false
+    }
+  ],
+  "env": {
+    "media_buyer": {
+      "REPLIES_BASE_URL": "https://<system-7-host>",
+      "note": "REPLIES_TOKEN is entered on the site (sealed), not in Coolify"
+    },
+    "system7": {
+      "note": "no new env"
+    }
+  },
+  "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
+}

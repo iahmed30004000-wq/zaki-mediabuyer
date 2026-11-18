@@ -7,7 +7,7 @@ import { storageDir } from "@/jobs/creative-intake";
 /** GET /api/creatives/:code/thumb/:n — a candidate thumbnail (signed-in only; files live in the private storage). */
 export async function GET(_req: Request, { params }: { params: { code: string; n: string } }) {
   try {
-    await requireCapability("view");
+    await requireCapability("ads.view");
     const asset = await db.creativeAsset.findUnique({ where: { crCode: params.code }, include: { thumbnails: true } });
     const t = asset?.thumbnails.find((x) => x.frameIndex === Number(params.n));
     if (!t) throw new HttpError(404, "مش موجود");

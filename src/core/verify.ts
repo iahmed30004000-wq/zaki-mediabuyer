@@ -72,6 +72,8 @@ export const READ_FIELDS = {
   adset: "optimization_goal,destination_type,promoted_object,targeting,bid_strategy,is_dynamic_creative,status,daily_budget",
   creative: "object_story_spec,url_tags,degrees_of_freedom_spec,contextual_multi_ads",
   ad: "status,creative",
+  rule: "name,status,evaluation_spec,execution_spec",
+  account: "spend_cap",
 } as const;
 
 /** One read-back against the expectation stored on its change item. */
@@ -81,5 +83,6 @@ export function verifyCreated(name: string, actual: Obj, e: import("./templates"
   if (e.type === "campaign") return [...paused, ...verifyCampaign(name, actual, e.budgetSharingOff ?? false)];
   if (e.type === "adset") return [...paused, ...verifyAdSet(name, actual, { countries: e.countries ?? [], minAge: e.minAge ?? 18, pixelId: e.pixelId ?? "" })];
   if (e.type === "creative") return verifyCreative(name, actual, { pageId: e.pageId ?? "", videoId: e.videoId ?? "" });
+  if (e.type === "rule") return get(actual, "status") === "ENABLED" ? [] : [{ object: name, field: "status", expected: "ENABLED", actual: get(actual, "status"), sentence: "القاعدة انعملت بس مش مفعّلة عند ميتا" }];
   return paused;
 }

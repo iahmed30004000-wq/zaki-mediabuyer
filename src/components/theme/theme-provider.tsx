@@ -2,16 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  DECOR_COOKIE,
-  DEFAULT_DECOR,
   DEFAULT_THEME,
   THEME_COOKIE,
   THEME_LIST,
-  decorLevelOf,
   isDarkTheme,
   prefCookieString,
   themeOf,
-  type DecorLevel,
   type ThemeInfo,
   type ThemeKey,
 } from "@/lib/themes/registry";
@@ -27,8 +23,6 @@ import { themeColorOf } from "@/lib/themes/palettes";
 export interface ThemeContextValue {
   theme: ThemeKey;
   setTheme: (key: ThemeKey) => void;
-  decor: DecorLevel;
-  setDecor: (level: DecorLevel) => void;
   themes: readonly ThemeInfo[];
 }
 
@@ -38,7 +32,7 @@ let saving: Promise<void> = Promise.resolve();
  * The Media Buyer keeps the choice in the cookie only (one owner, few devices). When accounts land
  * (T1.2), a per-person save goes here.
  */
-function save(_body: { theme: ThemeKey } | { decor: DecorLevel }): void {}
+function save(_body: { theme: ThemeKey }): void {}
 
 /** Resolves when every choice made so far has been sent (tests, and anything that must wait for it). */
 export function savedPreferences(): Promise<void> {
@@ -62,15 +56,6 @@ export function chooseTheme(key: ThemeKey): void {
   save({ theme });
 }
 
-/** Apply, remember and save a decoration level. */
-export function chooseDecor(level: DecorLevel): void {
-  const decor = decorLevelOf(level);
-  if (typeof document === "undefined") return;
-  document.documentElement.setAttribute("data-decor", decor);
-  remember(DECOR_COOKIE, decor);
-  save({ decor });
-}
-
 /**
  * Outside a provider (an isolated render) `useTheme()` still answers: the default theme, and
  * setters that apply and save without re-rendering anything.
@@ -78,47 +63,35 @@ export function chooseDecor(level: DecorLevel): void {
 const ThemeContext = createContext<ThemeContextValue>({
   theme: DEFAULT_THEME,
   setTheme: chooseTheme,
-  decor: DEFAULT_DECOR,
-  setDecor: chooseDecor,
   themes: THEME_LIST,
 });
 
 export function ThemeProvider({
   initialTheme,
-  initialDecor,
   children,
 }: {
   /** What the server painted (the cookie): anything unknown is the default. */
   initialTheme?: string;
-  initialDecor?: string;
   children: ReactNode;
 }) {
   const [theme, setThemeState] = useState<ThemeKey>(() => themeOf(initialTheme));
-  const [decor, setDecorState] = useState<DecorLevel>(() => decorLevelOf(initialDecor));
 
   // A server refresh brings the cookie's current value (another tab may have changed it): follow it.
   useEffect(() => setThemeState(themeOf(initialTheme)), [initialTheme]);
-  useEffect(() => setDecorState(decorLevelOf(initialDecor)), [initialDecor]);
 
   const setTheme = useCallback((key: ThemeKey) => {
     const next = themeOf(key);
     setThemeState(next);
     chooseTheme(next);
   }, []);
-  const setDecor = useCallback((level: DecorLevel) => {
-    const next = decorLevelOf(level);
-    setDecorState(next);
-    chooseDecor(next);
-  }, []);
-
   const value = useMemo<ThemeContextValue>(
-    () => ({ theme, setTheme, decor, setDecor, themes: THEME_LIST }),
-    [theme, setTheme, decor, setDecor],
+    () => ({ theme, setTheme, themes: THEME_LIST }),
+    [theme, setTheme],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-/** The current theme and decoration level, and how to change them. */
+/** The current theme, and how to change it. */
 export function useTheme(): ThemeContextValue {
   return useContext(ThemeContext);
 }

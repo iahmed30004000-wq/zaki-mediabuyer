@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SCOPES } from "@/core/studio-contract";
+import { MCP_SCOPES } from "@/core/token-scopes";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { hashToken, newToken } from "@/server/api-token";
 import { audit } from "@/server/audit";
@@ -14,7 +15,7 @@ const Body = z.object({ name: z.string().trim().min(1).max(60), scope: z.enum(SC
 export async function GET() {
   try {
     await requireCapability("owner_only");
-    const tokens = await db.apiToken.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, scopes: true, prefix: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
+    const tokens = await db.apiToken.findMany({ where: { NOT: { scopes: { hasSome: ["mcp", "handoff", ...MCP_SCOPES] } } }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, scopes: true, prefix: true, lastUsedAt: true, revokedAt: true, createdAt: true } });
     return NextResponse.json({ tokens });
   } catch (e) {
     return errorResponse(e);

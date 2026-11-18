@@ -26,11 +26,11 @@ body {
 }
 
 body {
-  font-family: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
+  font-family: var(--font-cairo), var(--font-plex), "Segoe UI", Tahoma, sans-serif;
 }
 
 @layer base {
-  /* Titles wear the theme's display face (Reem Kufi on the Islamic themes); a utility class still wins. */
+  /* Titles wear the display face (the same Cairo as the text); a utility class still wins. */
   h1,
   h2,
   h3 {
@@ -49,8 +49,9 @@ body {
   background: transparent;
 }
 
+/* the focus ring is the accent: navy on the light page, gold on the dark one (gold on white would not reach 3:1) */
 *:focus-visible {
-  @apply outline-none ring-2 ring-accent/50 ring-offset-1 ring-offset-surface;
+  @apply outline-none ring-[3px] ring-accent ring-offset-1 ring-offset-surface;
 }
 
 .line-clamp-2 {

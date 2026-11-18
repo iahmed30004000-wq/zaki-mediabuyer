@@ -1,0 +1,335 @@
+{
+  "contract": "hermes-mediabuyer",
+  "version": "v1",
+  "status": "EXISTS on the media buyer's side (D29: send, claim, complete; src/adapters/hermes.ts, src/adapters/telegram.ts). PROPOSED for Hermes' side and for one Telegram detail (topics).",
+  "system": {
+    "name": "Hermes (hooks and scenarios agent); Telegram only through the OMS"
+  },
+  "direction": "Hermes PULLS from the media buyer (with an agent token minted on the media buyer's «توكنات الوكلاء» page, scope mcp:videos). The media buyer does NOT push to Hermes and holds NO Telegram bot token: a notification goes through the OMS (`POST /api/v1/notify`).",
+  "transport_priority": [
+    "1. Hermes pulls: GET /api/v1/video-requests → claim → complete (works from anywhere, no Telegram)",
+    "2. a Telegram notification to the group topic, asked of the OMS (`oms.notify`), as a nudge only"
+  ],
+  "base_url_env": "HERMES_BASE_URL (push) · the media buyer's own site (pull)",
+  "auth": {
+    "pull_from_media_buyer": {
+      "rule": "System token — the OMS model (owner's decision, 17/11 17:30). The system that OWNS the data mints the token on its «الإعدادات ← توكنات الأنظمة» page: one token per consuming system, with named scopes and an expiry. The owner pastes it ONCE into the media buyer's «الإعدادات ← الربط» (write-only, AES-256-GCM at rest, never shown again — only «محفوظ ✓ · آخر 4 خانات»). The Bearer header on each call is unchanged. No OAuth flow between our systems.",
+      "issued_by": "the media buyer — «الإعدادات ← الفريق ← توكنات الوكلاء» (exists: agent tokens with scopes)",
+      "system_name": "Hermes",
+      "pasted_into": "Hermes' own settings",
+      "scopes": [
+        "mcp:videos",
+        "mcp:read"
+      ],
+      "status": "EXISTS — the page and the scopes (D61 added OAuth for claude.ai only; Hermes uses a plain agent token)",
+      "expiry": "chosen when the token is minted (suggested 90 days). The media buyer does not store it: after expiry the system answers 401 and «اختبر الربط» says «انتهى أو انسحب» — the owner mints a new one and pastes it over the old.",
+      "revoke": "delete or rotate the token on the same page; the very next call is refused (401)."
+    },
+    "telegram": "none in the media buyer. The OMS owns the bot (TELEGRAM_BOT_TOKEN only there) and the webhook."
+  },
+  "rate_limit": "pull: 60 per minute per token; Telegram: the bot API's own limits",
+  "error_envelope": {
+    "note": "media buyer v1 door: {code, message}; Hermes: any 2xx is delivered, otherwise the media buyer shows `Hermes answered <status>` and keeps the request «طلب» for a retry"
+  },
+  "idempotency": "A request has one id; claiming twice answers 409; completing is idempotent on (request id, v_name).",
+  "endpoints": [
+    {
+      "id": "request.list",
+      "status": "EXISTS",
+      "method": "GET",
+      "path": "{media-buyer}/api/v1/video-requests",
+      "query": {
+        "status": "comma list: asked,with_hermes,ready,uploaded",
+        "product": "optional product code"
+      },
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "requests"
+        ],
+        "properties": {
+          "requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "status"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "product": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "example_response": {
+        "requests": [
+          {
+            "id": "vr_example",
+            "kind": "new_hooks",
+            "status": "asked",
+            "product": "TRF01"
+          }
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "unauthorized",
+          "when": "token refused"
+        },
+        {
+          "status": 403,
+          "code": "forbidden",
+          "when": "token lacks the handoff queue / mcp:videos scope"
+        }
+      ]
+    },
+    {
+      "id": "request.claim",
+      "status": "EXISTS",
+      "method": "POST",
+      "path": "{media-buyer}/api/v1/video-requests/{id}/claim",
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "request"
+        ],
+        "properties": {
+          "request": {
+            "type": "object",
+            "required": [
+              "id",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "with_hermes"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "example_response": {
+        "request": {
+          "id": "vr_example",
+          "status": "with_hermes"
+        }
+      },
+      "errors": [
+        {
+          "status": 409,
+          "code": "conflict",
+          "when": "someone already claimed it"
+        },
+        {
+          "status": 404,
+          "code": "not_found",
+          "when": "no such request"
+        }
+      ]
+    },
+    {
+      "id": "request.complete",
+      "status": "EXISTS",
+      "method": "POST",
+      "path": "{media-buyer}/api/v1/video-requests/{id}/complete",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "result": {
+            "type": "object",
+            "maxProperties": 20,
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number"
+              ]
+            }
+          },
+          "new_videos": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "properties": {
+                "job": {
+                  "type": "string"
+                },
+                "v_name": {
+                  "type": "string"
+                },
+                "drive_file_id": {
+                  "type": "string"
+                },
+                "scenario_file_id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "example_request": {
+        "note": "4 هوكات جديدة جاهزة",
+        "result": {
+          "hooks": 4
+        },
+        "new_videos": [
+          {
+            "job": "JOB-12",
+            "v_name": "V4",
+            "drive_file_id": "1ZyXwVuTsRqPoNmLkJiHgFeDcBa987654",
+            "scenario_file_id": "1MnBvCxZaSdFgHjKlQwErTyUiOp123456"
+          }
+        ]
+      },
+      "response_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "request"
+        ],
+        "properties": {
+          "request": {
+            "type": "object",
+            "required": [
+              "id",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ready"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "example_response": {
+        "request": {
+          "id": "vr_example",
+          "status": "ready"
+        }
+      },
+      "errors": [
+        {
+          "status": 400,
+          "code": "validation",
+          "when": "a field outside the schema (no customer data accepted)"
+        },
+        {
+          "status": 404,
+          "code": "not_found",
+          "when": "no such request"
+        }
+      ],
+      "notes": "The new videos land in the bank as «جاهز» with their Drive ids; the owner uploads them to Meta and marks the request «مرفوع»."
+    },
+    {
+      "id": "request.notify",
+      "status": "ADD",
+      "method": "POST",
+      "path": "{OMS}/api/v1/notify",
+      "change": "When a video request is made, the media buyer asks the OMS to post one line to the group's «requests» topic (target {chat_id, topic_id}); advice goes to the «suggestions» topic. The ids are the owner's, saved in the media buyer's settings, never in the repo. Hermes does not depend on this message: it pulls.",
+      "request_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": [
+          "target",
+          "text",
+          "key"
+        ],
+        "properties": {
+          "target": {
+            "type": "object",
+            "required": [
+              "chat_id"
+            ],
+            "properties": {
+              "chat_id": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "topic_id": {
+                "type": "integer"
+              }
+            }
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "key": {
+            "type": "string",
+            "minLength": 8
+          }
+        }
+      },
+      "example_request": {
+        "target": {
+          "chat_id": "-1001234567890",
+          "topic_id": 1001
+        },
+        "text": "طلب جديد: هوكات جديدة — TRF01 / JOB-12",
+        "key": "mb-vr-vr_example-asked"
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "TARGET_UNKNOWN",
+          "when": "the OMS bot is not in that group or the topic does not exist"
+        }
+      ],
+      "size": "small — it is the OMS's endpoint (see oms.notify); the media buyer side is one adapter",
+      "blocking": false
+    }
+  ],
+  "env": {
+    "media_buyer": {
+      "NOTIFY_HERMES_REQUESTS_TARGET": "chat -1001234567890 · topic 1001 (kept in the media buyer's settings page, not in the repo)",
+      "NOTIFY_HERMES_SUGGESTIONS_TARGET": "chat -1001234567890 · topic 1002",
+      "DRIVE_PRODUCTION_FOLDER_ID": "1AbCdEfGhIjKlMnOpQrStUvWxYz012345 (a folder id, not a secret)",
+      "GOOGLE_SERVICE_ACCOUNT_JSON": "(external secret — entered on the site's tokens page, never pasted into another system)",
+      "note": "no bot token and no Hermes token in the media buyer"
+    },
+    "hermes": {
+      "note": "stores the agent token the media buyer minted for it"
+    }
+  },
+  "$comment": "Written by the media buyer (docs/INTEGRATION_CONTRACTS.md). A published version never breaks: only optional fields are added; a removed, renamed or retyped field is v2. No customer name, phone or address in any field, under any name."
+}

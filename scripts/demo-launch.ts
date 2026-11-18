@@ -53,11 +53,12 @@ const check = (ok: boolean, label: string) => {
   const creative = sent.find((s, n) => items[n]!.objectType === "creative")!.wouldPost!;
   check(Object.keys(creative.degrees_of_freedom_spec.creative_features_spec).length === CREATIVE_FEATURES_OFF.length, `   …each creative opts out of all ${CREATIVE_FEATURES_OFF.length} enhancements by name`);
   const ad = items.find((i) => i.objectType === "ad" && i.op === "create")!;
-  check(JSON.stringify(ad.apiResponse).includes("dry_adset1") && ad.objectId === "dry_ad_CR09147", "   …the ad points at the ad set and creative made just before it");
+  const madeSet = items.find((i) => i.objectType === "adset" && i.op === "create")!.objectId;
+  check(JSON.stringify(ad.apiResponse).includes(madeSet) && ad.objectId.startsWith("dry_ad_CR09147_"), "   …the ad points at the ad set and creative made just before it");
   check(items.slice(9).every((i) => i.op === "resume"), "   …and switched on last: ads → ad sets → campaign");
 
   const running = await db.experiment.findUniqueOrThrow({ where: { id: out.experimentId } });
-  check(running.status === "running" && running.campaignMetaId === "dry_campaign" && !!running.endsAt, `3. the test is running until ${running.endsAt?.toISOString().slice(0, 10)}`);
+  check(running.status === "running" && !!running.campaignMetaId?.startsWith("dry_campaign_") && !!running.endsAt, `3. the test is running until ${running.endsAt?.toISOString().slice(0, 10)}`);
   const back = await rollback(out.changeSet.id, owner);
   const backItems = await db.changeItem.findMany({ where: { changeSetId: back.id } });
   check(back.state === "executed" && backItems.every((i) => i.op === "pause") && backItems.length === 6, `   …«رجّع» paused the ${backItems.length} objects it switched on (creatives stay, nothing deleted)`);

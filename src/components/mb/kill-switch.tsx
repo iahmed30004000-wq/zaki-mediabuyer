@@ -4,6 +4,7 @@ import { useState } from "react";
 import { OctagonX } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
 import { ACCOUNTS } from "@/lib/mock/data";
@@ -24,19 +25,21 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        data-tour="kill"
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg border border-danger/60 bg-danger/10 font-semibold text-danger transition-colors hover:bg-danger/15",
-          compact ? "size-9 justify-center" : "h-9 px-3 text-sm",
-        )}
-        aria-label="الإيقاف الكامل"
-      >
-        <OctagonX className="size-4" />
-        {compact ? null : <span>إيقاف كامل</span>}
-      </button>
+      {compact ? (
+        <IconButton tone="danger" onClick={() => setOpen(true)} data-tour="kill" aria-label="الإيقاف الكامل" title="الإيقاف الكامل">
+          <OctagonX className="size-5" aria-hidden />
+        </IconButton>
+      ) : (
+        <>
+          <IconButton tone="danger" className="md:hidden" onClick={() => setOpen(true)} aria-label="الإيقاف الكامل" title="الإيقاف الكامل">
+            <OctagonX className="size-5" aria-hidden />
+          </IconButton>
+          <Button variant="secondary" data-tour="kill" className="hidden border-danger text-danger hover:bg-danger/10 md:inline-flex" onClick={() => setOpen(true)} aria-label="الإيقاف الكامل">
+            <OctagonX className="size-4" aria-hidden />
+            إيقاف كامل
+          </Button>
+        </>
+      )}
       <Modal
         open={open}
         title="إيقاف كامل"
@@ -50,7 +53,7 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
           <fieldset className="space-y-2">
             <legend className="mb-1 text-xs font-medium text-fg-muted">شو بدك توقف؟</legend>
             {[{ id: "all", name: "كل الحسابات" }, ...ACCOUNTS.map((a) => ({ id: a.id, name: a.name }))].map((o) => (
-              <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5">
+              <label key={o.id} className="flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5">
                 <input type="radio" name="scope" value={o.id} checked={scope === o.id} onChange={() => setScope(o.id)} className="accent-[rgb(var(--danger))]" />
                 <span className="text-sm text-fg">{o.name}</span>
               </label>
@@ -58,7 +61,7 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
           </fieldset>
           <label className="block space-y-1">
             <span className="text-xs font-medium text-fg-muted">للتأكيد اكتب «اوقف»</span>
-            <input value={typed} onChange={(e) => setTyped(e.target.value)} className="h-11 w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+            <input value={typed} onChange={(e) => setTyped(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
           </label>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>

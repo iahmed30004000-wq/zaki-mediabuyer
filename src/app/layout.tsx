@@ -1,40 +1,41 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
-import localFont from "next/font/local";
+import { Cairo, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
+import { PwaRegister } from "@/components/pwa-register";
+import { THEME_COOKIE, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
 
-/** The body face of every theme. */
-const plex = IBM_Plex_Sans_Arabic({
+/** One face for everything: Cairo (400 · 600 · 700 · 800). */
+const cairo = Cairo({
   subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700", "800"],
   display: "swap",
-  variable: "--font-plex",
+  variable: "--font-cairo",
 });
 
-/** The title face of «إزنيق» and «المرصد» (self-hosted, SIL OFL, not preloaded: only those themes fetch it). */
-const reem = localFont({
-  src: "../../public/fonts/reem-kufi-var.woff2",
-  weight: "400 700",
+/** The fallback in the font stack (not preloaded: it is only used while Cairo loads). */
+const plex = IBM_Plex_Sans_Arabic({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "600"],
   display: "swap",
   preload: false,
-  variable: "--font-reem",
-  adjustFontFallback: false,
+  variable: "--font-plex",
 });
 
 export const metadata: Metadata = {
   title: { default: "الميديا باير · Zaki", template: "%s · الميديا باير" },
   description: "مدير إعلانات ميتا للدفع عند الاستلام: الحقيقة من الـ OMS، الأمان تلقائي، والصرف بموافقتك.",
+  applicationName: "الميديا باير",
+  appleWebApp: { capable: true, title: "الميديا باير", statusBarStyle: "default" },
+  icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }], apple: [{ url: "/icons/apple-touch.png", sizes: "180x180" }] },
 };
 
 function chosen() {
   const store = cookies();
   return {
     theme: themeOf(store.get(THEME_COOKIE)?.value),
-    decor: decorLevelOf(store.get(DECOR_COOKIE)?.value),
   };
 }
 
@@ -44,15 +45,16 @@ export function generateViewport(): Viewport {
 
 /** The theme is painted on the server from the cookie, so the first frame is already right. */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { theme, decor } = chosen();
-  const attrs = rootThemeAttributes(theme, decor);
-  const className = [plex.variable, reem.variable, attrs.dark ? "dark" : ""].filter(Boolean).join(" ");
+  const { theme } = chosen();
+  const attrs = rootThemeAttributes(theme);
+  const className = [cairo.variable, plex.variable, attrs.dark ? "dark" : ""].filter(Boolean).join(" ");
   return (
-    <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} data-decor={attrs["data-decor"]} className={className} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} className={className} suppressHydrationWarning>
       <body>
-        <Providers theme={theme} decor={decor}>
+        <Providers theme={theme}>
           {children}
         </Providers>
+        <PwaRegister />
       </body>
     </html>
   );

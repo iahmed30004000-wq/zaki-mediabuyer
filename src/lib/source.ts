@@ -6,18 +6,27 @@
 import { db } from "@/server/db";
 import { lastOmsSync, omsStale } from "@/jobs/oms-health";
 import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type Product, type RowStatus } from "@/lib/mock/data";
+import { forViewer } from "@/server/redact";
 
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
 const SHIPPED = new Set(["shipped", "delivered", "returned"]);
 
-function statusOf(meta: string, learning?: string | null): RowStatus {
+export function statusOf(meta: string, learning?: string | null): RowStatus {
   if (meta === "PAUSED" || meta === "CAMPAIGN_PAUSED" || meta === "ADSET_PAUSED" || meta === "ARCHIVED") return "paused";
   if (meta === "DISAPPROVED" || meta === "WITH_ISSUES") return "rejected";
   if (learning === "LEARNING") return "learning";
   return "active";
 }
 
-export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> {
+/** A product's economics row as the calculator reads it. */
+export function toProduct(p: { productCode: string; name: string; market: string; price: unknown; unitCost: unknown; deliveryFee: unknown; returnFee: unknown; codFeePct: unknown; confirmCost: unknown; stockDays: number | null; source: string }): Product {
+  return {
+    code: p.productCode, name: p.name, market: p.market as Product["market"], price: Number(p.price), unitCost: Number(p.unitCost), delivery: Number(p.deliveryFee),
+    returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: p.source === "actual" ? 50 : 0,
+  };
+}
+
+async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
   if (process.env.MOCK_MODE === "1") return DEMO;
   const since = new Date(now.getTime() - days * 86_400_000);
 
@@ -32,10 +41,7 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
     db.attributedOrder.findMany({ where: { createdAtOms: { gte: since }, isFake: false, adId: { not: null } }, select: { adId: true, status: true, matureAt: true, channel: true } }),
   ]);
 
-  const products: Product[] = econ.map((p) => ({
-    code: p.productCode, name: p.name, market: p.market as Product["market"], price: Number(p.price), unitCost: Number(p.unitCost), delivery: Number(p.deliveryFee),
-    returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: !stale && p.source === "actual" ? 50 : 0,
-  }));
+  const products: Product[] = econ.map((p) => (stale ? { ...toProduct(p), shipmentsToDate: 0 } : toProduct(p)));
 
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);
@@ -87,3 +93,6 @@ export async function loadDataset(days = 7, now = new Date()): Promise<Dataset> 
 
   return { products, accounts, campaigns, demo: false, omsStale: stale };
 }
+
+/** loadDataset for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */
+export const loadDataset = async (...a: Parameters<typeof loadDatasetRaw>) => forViewer(await loadDatasetRaw(...a));

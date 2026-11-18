@@ -27,7 +27,7 @@ function side(items: { op: string; objectType?: string; before: unknown; after: 
   return items.length > 1 ? `${one} (+${items.length - 1})` : one;
 }
 
-export type ChangeView = ChangeSet & { live: boolean; writeMode?: string; checks?: { key: string; ok: boolean; note: string }[]; spendTodayAfter?: number };
+export type ChangeView = ChangeSet & { live: boolean; atIso?: string; launch?: boolean; writeMode?: string; checks?: { key: string; ok: boolean; note: string }[]; spendTodayAfter?: number };
 
 export async function loadChanges(): Promise<ChangeView[]> {
   if (process.env.MOCK_MODE === "1") return CHANGES.map((c) => ({ ...c, live: false }));
@@ -43,6 +43,8 @@ export async function loadChanges(): Promise<ChangeView[]> {
     after: side(r.items, "after"),
     spendDeltaDaily: Number(r.spendDeltaDaily),
     at: when(r.createdAt),
+    atIso: r.createdAt.toISOString(),
+    launch: r.items.some((i) => i.op === "create"),
     auto: r.source === "rule" && r.state !== "pending_approval",
     live: true,
     writeMode: r.writeMode,

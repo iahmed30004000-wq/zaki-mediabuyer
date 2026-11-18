@@ -38,6 +38,13 @@ export async function requireCapability(capability: Capability): Promise<Caller>
   return caller;
 }
 
+/** Any signed-in person (the demo owner counts): for an answer that carries nothing a role may not see, or that filters itself by the caller's role. */
+export async function requireSignedIn(): Promise<Caller> {
+  const caller = await currentCaller();
+  if (!caller) throw new HttpError(401, "لازم تسجّل دخول");
+  return caller;
+}
+
 /** Turns an HttpError into a JSON answer in Arabic; anything else is a 500 without details. */
 export function errorResponse(e: unknown) {
   if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
@@ -48,8 +55,9 @@ export function errorResponse(e: unknown) {
 export async function verifyPassword(email: string, password: string) {
   const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   // compare even when the person does not exist, so timing does not reveal who has an account
-  const ok = await bcrypt.compare(password, user?.passwordHash ?? "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv");
-  return ok && user?.active ? user : null;
+  // an invited member has no password yet (""): they sign in with their one-time code first
+  const ok = await bcrypt.compare(password, user?.passwordHash || "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv").catch(() => false);
+  return ok && user?.active && user.passwordHash ? user : null;
 }
 
 export async function startSession(user: { id: string; role: RoleKey; sessionVer: number }) {

@@ -17,7 +17,8 @@ export type ActionKind =
   | "test_campaign"
   | "customer_audience"
   | "above_cap"
-  | "connect_asset";
+  | "connect_asset"
+  | "safety_net";
 
 export type Mode = "suggest" | "auto" | "approval" | "owner";
 export type AutonomyLevel = 0 | 1 | 2 | 3;
@@ -33,6 +34,8 @@ const TABLE: Record<ActionKind, [Mode, Mode, Mode, Mode]> = {
   customer_audience: ["suggest", "approval", "approval", "approval"],
   above_cap: ["suggest", "owner", "owner", "owner"],
   connect_asset: ["owner", "owner", "owner", "owner"],
+  // the account's spend cap and Meta's own rules are account controls: the owner, at every level (spec 3)
+  safety_net: ["owner", "owner", "owner", "owner"],
 };
 
 export function modeFor(kind: ActionKind, level: AutonomyLevel): Mode {
@@ -56,4 +59,17 @@ export function effectiveLevel(configured: AutonomyLevel, s: DowngradeSignals): 
   if (s.sourceDown) return { level: 0, why: "مصدر بيانات واقف" };
   if (s.bigGap) return { level: 0, why: "فرق كبير بين ميتا والحقيقة" };
   return { level: configured, why: null };
+}
+
+/**
+ * May the owner switch an account to `to`? (spec 10.1: level 1 for everyone at the start · level 2 after two weeks of
+ * reviewing the decisions · level 3 off). Going down is always allowed — that is a safety move.
+ */
+export function levelChange(from: AutonomyLevel, to: number, o: { daysOfDecisions: number; restricted: boolean }): { ok: boolean; why: string } {
+  if (![0, 1, 2, 3].includes(to)) return { ok: false, why: "مستوى مش معروف" };
+  if (to === 3) return { ok: false, why: "المستوى 3 (مدير) مطفي بهالمرحلة" };
+  if (to <= from) return { ok: true, why: to < from ? "نزول — مسموح دايماً" : "نفس المستوى" };
+  if (o.restricted) return { ok: false, why: "الحساب عليه تنبيه سلامة — بيضل صفر لحد ما ينحل" };
+  if (to === 2 && o.daysOfDecisions < 14) return { ok: false, why: `المستوى 2 بعد أسبوعين من مراجعة القرارات — مرّ ${o.daysOfDecisions} يوم` };
+  return { ok: true, why: "تمام" };
 }

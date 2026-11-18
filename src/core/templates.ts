@@ -183,7 +183,7 @@ export function launchDailySpend(r: LaunchRequest): number {
 
 /** What the post-create check must find on each object (kept on the change item, so the check runs from the item alone). */
 export interface Expectation {
-  type: PlannedObject["type"];
+  type: PlannedObject["type"] | "rule" | "account";
   countries?: string[];
   minAge?: number;
   pixelId?: string;

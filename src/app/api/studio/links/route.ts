@@ -16,7 +16,7 @@ const Body = z.object({
 /** GET /api/studio/links — which video (CR#####) came from which studio script (VP-…). */
 export async function GET() {
   try {
-    await requireCapability("view");
+    await requireCapability("ads.view");
     const links = await db.creativeAsset.findMany({ where: { sourceRef: { not: null } }, orderBy: { crCode: "desc" }, select: { crCode: true, sourceRef: true, productCode: true, source: true, createdAt: true } });
     return NextResponse.json({ links });
   } catch (e) {
@@ -30,7 +30,7 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
-    const caller = await requireCapability("propose_change");
+    const caller = await requireCapability("ads.propose");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "الرقم لازم يكون متل CR00147، والسكربت متل VP-TRF01-0012-v2");
     const { crCode, vpId, productCode } = parsed.data;

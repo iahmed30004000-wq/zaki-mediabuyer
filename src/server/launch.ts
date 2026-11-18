@@ -14,6 +14,7 @@ import { estimateTargets } from "@/core/economics";
 import { nextFreeCampaignName, parseCampaignName, yymmdd, type Market } from "@/core/naming";
 import { launchDailySpend, launchItems, TEMPLATES, type LaunchCreative, type LaunchRequest, type TemplateKey } from "@/core/templates";
 import { creativeTestBudget, KIND_AR, stopRulesFor, type ExperimentKind } from "@/core/experiments";
+import { guardText } from "@/agents/guard";
 
 export interface LaunchInput {
   template: TemplateKey;
@@ -108,9 +109,12 @@ export async function prepareLaunch(input: LaunchInput) {
 
 /** «أطلق»: the change set waits for the owner (or runs at level 3), the test is written next to it. */
 export async function launch(input: LaunchInput, caller: Caller) {
-  if (!can(caller.role, "propose_change")) throw new HttpError(403, "دورك ما بيسمح بالإطلاق");
+  if (!can(caller.role, "ads.propose")) throw new HttpError(403, "دورك ما بيسمح بالإطلاق");
   const prep = await prepareLaunch(input);
   if (!prep.ok) throw new HttpError(422, prep.problems.join(" · "));
+  // the guard reads the text once more at the launch itself (dictionary first; the model may only add issues)
+  const guard = await guardText({ "النص": input.message, "العنوان": input.title });
+  if (guard.verdict !== "pass") throw new HttpError(422, `الحارس: ${guard.issues.map((i) => `«${i.text}» (${i.rule})${i.alternative ? ` ← «${i.alternative}»` : ""}`).join(" · ")}`);
   const { request, name, targets, perDay } = prep;
   const kind = KIND_OF[request.template];
   const concepts = new Set(request.creatives.map((c) => c.conceptId)).size;
@@ -126,6 +130,8 @@ export async function launch(input: LaunchInput, caller: Caller) {
     },
     { type: "user", id: caller.id },
   );
+  // a studio launch request waiting on one of these creatives now follows this change set (E1: its status is derived from it)
+  await db.launchRequest.updateMany({ where: { crCode: { in: input.crCodes }, closedStatus: null }, data: { changeSetId: cs.id } });
   const t = TEMPLATES[request.template];
   const experiment = await db.experiment.create({
     data: {

@@ -14,9 +14,11 @@ import { processVideo } from "../src/jobs/creative-intake";
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "mb-demo-"));
 const ff = (args: string[]) => spawnSync(process.env.FFMPEG_PATH || "ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args]);
+const runTag = `${Date.now()}-${process.pid}`;
+// every run's files differ by a metadata tag, so a second run never finds the first run's file as a «duplicate»
 const make = (name: string, args: string[]) => {
   const out = path.join(dir, name);
-  ff([...args, out]);
+  ff([...args, "-metadata", `comment=mb-demo-${runTag}-${name}`, out]);
   return out;
 };
 const check = (ok: boolean, label: string) => {

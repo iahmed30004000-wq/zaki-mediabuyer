@@ -3,6 +3,7 @@
  * (MOCK_MODE=1) or the real rows from the database, mapped to plain shapes the client can take.
  */
 import { db } from "@/server/db";
+import { getSetting } from "@/server/settings";
 import { ACCOUNTS, CREATIVES, PRODUCTS, targetsOf } from "@/lib/mock/data";
 import { productTargets } from "@/server/launch";
 import { judgeExperiment, KIND_AR, type ExperimentKind, type StopRules } from "@/core/experiments";
@@ -17,6 +18,8 @@ export interface LaunchOptions {
   accounts: { metaId: string; name: string; market: string }[];
   pages: { metaId: string; code: string; name: string }[];
   datasets: { metaId: string; name: string }[];
+  /** the product's landing pages from the settings (LP1 → its link) */
+  landing: { productCode: string; lpCode: string; url: string }[];
 }
 
 export async function loadLaunchOptions(): Promise<LaunchOptions> {
@@ -28,6 +31,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
       accounts: ACCOUNTS.map((a) => ({ metaId: a.id, name: a.name, market: a.market })),
       pages: [{ metaId: "demo-sp", code: "SP", name: "صحة بلس" }],
       datasets: [{ metaId: "demo-px", name: "البكسل" }],
+      landing: [{ productCode: "TRF01", lpCode: "LP1", url: "https://crm.zakiai.io/lp/kamaa" }],
     };
   }
   const [econ, assets, accounts, pages, datasets] = await Promise.all([
@@ -45,6 +49,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
     accounts: accounts.map((a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "SY" })),
     pages: pages.map((p) => ({ metaId: p.metaId, code: p.code!, name: p.name })),
     datasets: datasets.map((d) => ({ metaId: d.metaId, name: d.name })),
+    landing: (await getSetting("landing.pages")) as LaunchOptions["landing"],
   };
 }
 
@@ -160,4 +165,44 @@ export async function loadSafety(): Promise<SafetyView[] | null> {
       };
     }),
   );
+}
+
+export interface ReportsView {
+  archive: { id: string; kind: string; label: string; sent: boolean }[];
+  selected: { id: string; label: string; text: string } | null;
+  plan: { total: number; by: string; lines: { product: string; bucket: string; usd: number; reason: string }[]; risks: string[]; needs: string[]; tests: string[] } | null;
+  lessons: { text: string; evidence: string; week: string }[];
+  analysis: { by: string; products: { product_code: string; status: string; weak_point: string; likely_cause: string; proposed_action: string; sample: string }[]; top: string[] } | null;
+}
+
+const KIND_LABEL: Record<string, string> = { morning: "الصباحي", weekly: "الأسبوعي", monthly: "الشهري" };
+
+/** The report archive, the week's plan (M03) and the lessons log (T5.3) — real rows only. */
+export async function loadReportsView(selectedId?: string): Promise<ReportsView | null> {
+  if (process.env.MOCK_MODE === "1") return null;
+  const day = (d: Date) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "UTC", weekday: "long", day: "numeric", month: "numeric" }).format(d);
+  const rows = await db.report.findMany({ where: { kind: { in: ["morning", "weekly", "monthly"] } }, orderBy: [{ forDate: "desc" }, { kind: "asc" }], take: 14 });
+  const archive = rows.map((r) => ({ id: r.id, kind: r.kind, label: `${KIND_LABEL[r.kind] ?? r.kind} — ${day(r.forDate)}`, sent: !!r.sentAt }));
+  // no report chosen: the latest one that was written (the screen never invents a report from demo numbers)
+  const pick = selectedId ? rows.find((r) => r.id === selectedId) ?? (await db.report.findUnique({ where: { id: selectedId } })) : rows[0] ?? null;
+  const planRow = await db.report.findFirst({ where: { kind: "plan" }, orderBy: { forDate: "desc" } });
+  const BUCKET: Record<string, string> = { scale: "تكبير", test: "اختبار", new: "جديد" };
+  const plan = planRow
+    ? (() => {
+        const p = JSON.parse(planRow.text) as { total_usd: number; by?: string; daily_allocation: { product_code: string; bucket: string; usd: number; reason: string }[]; risks: string[]; creative_needs: string[]; tests: { hypothesis: string; budget_usd: number; days: number }[] };
+        return {
+          total: p.total_usd,
+          by: p.by === "agent" ? "الأرقام من الكود · الكلام من المخطط" : "من الكود (بلا موديل)",
+          lines: p.daily_allocation.map((a) => ({ product: a.product_code, bucket: BUCKET[a.bucket] ?? a.bucket, usd: a.usd, reason: a.reason })),
+          risks: p.risks,
+          needs: p.creative_needs,
+          tests: p.tests.map((t) => `${t.hypothesis} — ${t.budget_usd}$ على ${t.days} أيام`),
+        };
+      })()
+    : null;
+  const lessons = (await db.lesson.findMany({ orderBy: [{ week: "desc" }, { createdAt: "desc" }], take: 10 })).map((l) => ({ text: l.text, evidence: l.evidence, week: day(l.week) }));
+  const an = await db.report.findFirst({ where: { kind: "analysis" }, orderBy: { forDate: "desc" } });
+  const a = an ? (JSON.parse(an.text) as { by: string; products: NonNullable<ReportsView["analysis"]>["products"]; top_decisions: string[] }) : null;
+  const analysis = a ? { by: a.by === "agent" ? "النقطة من الكود · الكلام من المحلل" : "من الكود (بلا موديل)", products: a.products, top: a.top_decisions } : null;
+  return { analysis, archive, selected: pick ? { id: pick.id, label: `${KIND_LABEL[pick.kind] ?? pick.kind} — ${day(pick.forDate)}`, text: pick.text } : null, plan, lessons };
 }

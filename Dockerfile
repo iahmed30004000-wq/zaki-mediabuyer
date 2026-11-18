@@ -22,6 +22,9 @@ RUN npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+# the commit this image was built from — /api/health reports it, so the deploy can prove the new image is the one running
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3140 TZ=Asia/Amman STORAGE_DIR=/app/storage
 # ffmpeg/ffprobe: the creative intake probes every video and cuts its thumbnail frames (spec 7.2, 7.5)
 RUN apt-get update -qq && apt-get install -y --no-install-recommends openssl ca-certificates tzdata ffmpeg && rm -rf /var/lib/apt/lists/* \

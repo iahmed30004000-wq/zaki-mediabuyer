@@ -8,6 +8,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { db } from "@/server/db";
 import { writeMode } from "@/meta/write";
+import { metaWriteGate } from "@/core/readiness";
 import { uploadVideo } from "@/meta/video-upload";
 import { metaToken } from "./meta-sync";
 import { storageDir } from "./creative-intake";
@@ -15,6 +16,9 @@ import { storageDir } from "./creative-intake";
 const MAX_ATTEMPTS = 5;
 
 export async function uploadReadyCreatives(limit = 10) {
+  // live asked for but not allowed (no META_LIVE_VERIFIED / no token): stop with the sentence, do not pretend it was a dry-run
+  const gate = metaWriteGate(process.env, !!(await metaToken()));
+  if (gate.error) throw new Error(gate.error);
   const mode = writeMode();
   const token = mode === "live" ? await metaToken() : null;
   const assets = await db.creativeAsset.findMany({ where: { status: "ready", metaVideoId: null }, take: limit, orderBy: { dateIn: "asc" } });
@@ -45,7 +49,7 @@ export async function uploadReadyCreatives(limit = 10) {
       const next = attempts + 1;
       const notes = `${(a.notes ?? "").replace(/\s*upload_attempts=\d+/, "")} upload_attempts=${next}`.trim();
       await db.creativeAsset.update({ where: { id: a.id }, data: { notes, ...(next >= MAX_ATTEMPTS ? { status: "dead" } : {}) } });
-      if (next >= MAX_ATTEMPTS) await db.alert.create({ data: { kind: "creative.upload_dead", tone: "warn", text: `${a.crCode} ما انرفع لميتا بعد ${MAX_ATTEMPTS} محاولات: ${String(e).slice(0, 160)}`, href: "/creatives" } });
+      if (next >= MAX_ATTEMPTS) await db.alert.create({ data: { kind: "creative.upload_dead", tone: "warn", text: `${a.crCode} ما انرفع لميتا بعد ${MAX_ATTEMPTS} محاولات: ${String(e).slice(0, 160)}`, href: "/ads/videos" } });
     }
   }
   return stats;

@@ -10,6 +10,7 @@ import { evaluateAccount, evaluateAd, evaluateAdSet, evaluateProduct, type Decis
 import type { ChangeItemDraft } from "@/core/changeset";
 import { propose } from "@/server/changes";
 import { lastSuccess } from "./runner";
+import { explainSafety } from "@/agents/monitor";
 
 const HOUR = 3_600_000;
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
@@ -18,7 +19,7 @@ const SHIPPED = new Set(["shipped", "delivered", "returned"]);
 /** Cooldown per rule, in hours (spec 6.4); the others act once a day per target at most. */
 const COOLDOWN: Partial<Record<Decision["rule"], number>> = { high_cpa: 24, spend_spike: 6, stale_data: 1 };
 
-async function targetsOf(productCode: string) {
+export async function targetsOf(productCode: string) {
   const p = await db.productEconomics.findUnique({ where: { productCode } });
   if (!p) return { tOrder: null, ceiling: null };
   const e = estimateTargets({ price: p.price.toString(), unitCost: p.unitCost.toString(), shipping: p.deliveryFee.toString(), returnFee: p.returnFee.toString(), codFee: p.codFeePct.toString(), confirmCost: p.confirmCost.toString(), confirmRate: "0.65", deliveryRate: "0.75", profitMinShare: "0.30" });
@@ -130,13 +131,15 @@ export async function runRules(now = new Date()) {
         const cs = await propose({ source: "rule", sourceRef: d.rule, reasonCode: d.reasonCode, sentence: d.sentence, kind: d.action === "pause" ? "safety_pause" : "safety_reduce", accountMetaId, items, cooldownHours: cooldown }, { type: "rule", id: d.rule });
         changeSetId = cs.id;
         stats.changes++;
+        // M01 reads the first few safety actions of the run (internal model; nothing changes on its word)
+        if (cs.state === "executed" && stats.changes <= 3) await explainSafety(cs.id, [d.sentence, JSON.stringify(context), ...items.map((i) => `${i.op} ${i.objectType} ${i.objectId}`)]).catch(() => null);
       }
     } else if (!d.alertOnly && (d.action === "freeze_scale" || d.action === "freeze_create")) {
       await db.freeze.create({ data: { scope: d.level, targetId: d.targetId, kind: d.action === "freeze_scale" ? "scale" : "create", reason: d.sentence, until: new Date(now.getTime() + cooldown * HOUR) } });
       stats.freezes++;
     }
     if (d.alertOnly || d.action === "alert" || d.rule === "spend_spike" || d.rule === "high_return") {
-      await db.alert.create({ data: { kind: `rule.${d.rule}`, tone: d.rule === "daily_cap" || d.rule === "spend_spike" ? "danger" : "warn", text: d.alertOnly ? `اقتراح (دفعة جديدة، تنبيه بس): ${d.sentence}` : d.sentence, href: "/decisions" } });
+      await db.alert.create({ data: { kind: `rule.${d.rule}`, tone: d.rule === "daily_cap" || d.rule === "spend_spike" ? "danger" : "warn", text: d.alertOnly ? `اقتراح (دفعة جديدة، تنبيه بس): ${d.sentence}` : d.sentence, href: "/tasks" } });
       stats.alerts++;
     }
     await db.ruleRun.create({ data: { rule: d.rule, level: d.level, targetId: d.targetId, action: d.action, alertOnly: d.alertOnly, sentence: d.sentence, changeSetId } });

@@ -111,6 +111,9 @@ const ON = [
 const MEANINGS = ["accent", "ok", "warn", "danger", "info"] as const;
 const CATS = ["cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6"] as const;
 
+/** The one gold of the identity. On a light page it is a signal (a line, an underline), never text or the only carrier of a meaning, so the 3:1 shape rule does not apply to it. */
+export const SIGNAL_GOLD = "#F2B705";
+
 /** The opacity of the tinted ground a status chip is drawn on: `bg-ok/10 text-ok`. */
 export const CHIP_TINT = 0.1;
 /**
@@ -155,6 +158,8 @@ export function checkPalette(colors: Readonly<Record<ColorToken, string>>): Gate
       need("chip", `${text} on ${text}/10 over ${ground}`, contrastRatio(colors[text], tint), AA_TEXT);
     }
     for (const shape of ["accent", "accent-2"] as const) {
+      // the signal gold is exempt on a light page: it never carries meaning alone (a line, a tab underline, a number) — docs/rebuild/03-look.md §1
+      if (shape === "accent-2" && colors[shape].toUpperCase() === SIGNAL_GOLD && contrastRatio(colors[shape], colors[ground]) < AA_UI) continue;
       need("ui", `${shape} on ${ground}`, contrastRatio(colors[shape], colors[ground]), AA_UI);
     }
   }

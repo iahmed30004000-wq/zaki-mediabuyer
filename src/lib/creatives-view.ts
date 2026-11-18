@@ -2,14 +2,18 @@
 import { db } from "@/server/db";
 import { CREATIVES, type Creative, type CreativeStage } from "@/lib/mock/data";
 
-export type CreativeView = Creative & { live: boolean; thumb?: string | null; fileName?: string | null; metaVideoId?: string | null };
+export type CreativeView = Creative & { live: boolean; thumb?: string | null; fileName?: string | null; metaVideoId?: string | null; studioMode?: "test" | "active" };
 
 const STAGE: Record<string, CreativeStage> = { inbox: "inbox", review: "review", ready: "ready", uploaded: "ready", dead: "ready", live: "live", paused: "live", winner: "live", fatigued: "fatigued", excluded: "excluded" };
 
 export async function loadCreatives(): Promise<CreativeView[]> {
   if (process.env.MOCK_MODE === "1") return CREATIVES.map((c) => ({ ...c, live: false }));
   const rows = await db.creativeAsset.findMany({ orderBy: { dateIn: "desc" }, take: 200, include: { thumbnails: { orderBy: { frameIndex: "asc" }, take: 1 } } });
+  // a creative the studio sent as a launch request wears a small badge (E1): its mode is the studio's, never ours to change
+  const requests = await db.launchRequest.findMany({ where: { crCode: { in: rows.map((r) => r.crCode) } }, orderBy: { createdAt: "asc" }, select: { crCode: true, mode: true } });
+  const modeOf = new Map(requests.map((q) => [q.crCode, q.mode === "test" ? ("test" as const) : ("active" as const)]));
   return rows.map((r) => ({
+    studioMode: modeOf.get(r.crCode),
     code: r.crCode,
     product: r.productCode ?? "—",
     stage: STAGE[r.status] ?? "inbox",

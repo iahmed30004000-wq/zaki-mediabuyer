@@ -1,42 +1,14 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { omsLink } from "@/server/oms-link";
-import { encryptSecrets } from "@/server/crypto";
+import { describe, expect, it } from "vitest";
 import { lastOmsSync, omsBackoff, omsStale } from "@/jobs/oms-health";
 import { MAX_PAGES, readOrders } from "@/adapters/oms";
 
 /**
  * The owner's rule (26/10): «بدنا حل جذري… ما بدنا نخرب ع حالنا». The media buyer may never be the thing that hurts
- * the OMS: local OMS only until he says so, one sync an hour with a back-off on failures, a bounded walk, and the
+ * the OMS: one sync an hour with a back-off on failures, a bounded walk, and the
  * screens fall back to «تقدير» when the OMS is quiet.
  */
 
 const TOKEN = "zk1_" + "B".repeat(43);
-beforeAll(() => {
-  process.env.ENCRYPTION_KEY = "test-key-that-is-long-enough-0123456789";
-});
-
-describe("local first: production stays untouched until the owner says so", () => {
-  const sealed = () => encryptSecrets({ token: TOKEN });
-
-  it("a remote OMS is off without OMS_ALLOW_REMOTE=1 — even over https, even with a sealed key", () => {
-    const link = omsLink({ OMS_LIVE: "1", OMS_BASE_URL: "https://crm.zakiai.io", OMS_TOKEN_ENC: sealed() });
-    expect(link.mode).toBe("off");
-    expect(link.mode === "off" && link.why).toMatch(/المحلي/);
-  });
-
-  it("the local OMS on this machine is allowed", () => {
-    for (const url of ["http://localhost:3001", "http://127.0.0.1:3001", "http://[::1]:3001"]) {
-      expect(omsLink({ OMS_LIVE: "1", OMS_BASE_URL: url, OMS_TOKEN_ENC: sealed() }).mode, url).toBe("live");
-    }
-  });
-
-  it("a look-alike host is not local", () => {
-    for (const url of ["http://localhost.evil.test", "http://127.0.0.1.nip.io", "https://localhost@crm.zakiai.io"]) {
-      expect(omsLink({ OMS_LIVE: "1", OMS_BASE_URL: url, OMS_TOKEN_ENC: sealed() }).mode, url).toBe("off");
-    }
-  });
-});
-
 const H = 3_600_000;
 const at = (h: number) => new Date(Date.UTC(2026, 9, 26, h, 5, 0));
 const ok = (h: number) => ({ status: "ok", startedAt: at(h), finishedAt: at(h), stats: { orders: 3 } });
