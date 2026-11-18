@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 37 · done-local-only 38 · blocked 20 · not-started 9 (المجموع 104).
+> **العدّ:** done-live 37 · done-local-only 39 · blocked 20 · not-started 9 (المجموع 105).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -25,6 +25,7 @@
 | T1.5 | عميل ميتا الآمن (قراءة) | `blocked` — META_SYSTEM_USER_TOKEN | الحقول متأكد منها مقابل SDK v24.0 · بانتظار P0.4 للتوكن |
 | T1.6 | سحب الأرقام والأرشفة + تنبيه النافذة | `blocked` — META_SYSTEM_USER_TOKEN + MOCK_MODE=0 | `npm run demo:pipeline`: السحب التاني ما كرّر شي |
 | T1.7 | محوّل الـ OMS + الحقيقة + الإسناد | `blocked` — OMS_BASE_URL + OMS_TOKEN (مش بترتيب المفاتيح اللي حدّده المالك — لازم تنضاف) | مثال 17.1 طالع حرفياً من الـ pipeline · بانتظار P0.3 |
+| T1.7b | مزامنة الـOMS بالساعة + انتظار بعد الفشل (1·2·4·8 ساعات) + «تقدير» فوق 3 ساعات | `done-local-only` | `src/jobs/oms-health.ts` · D64 · `tests/oms-safety.test.ts` · بيشتغل لما ينربط الـOMS |
 | T1.8 | الشاشات بأرقام حقيقية | `done-local-only` | `MOCK_MODE=0` بتقرا من القاعدة (`src/lib/source.ts`) — CR00147 طلع 5.51$ حقيقي |
 | T1.9 | تيليجرام + التقرير الصباحي | `blocked` — TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_CHAT_ID (مش بترتيب المفاتيح اللي حدّده المالك — لازم تنضاف) | بالكود من الحقيقة · بيوصل لما يتحط التوكن (P0.7) · `npm run worker` |
 | T1.10 | تصدير Excel بشرح المؤشرات | `done-local-only` | `/api/export` |

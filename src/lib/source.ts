@@ -4,6 +4,7 @@
  * screen, the report and the export read real numbers through the very same calculator.
  */
 import { db } from "@/server/db";
+import { lastOmsSync, omsStale } from "@/jobs/oms-health";
 import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type Product, type RowStatus } from "@/lib/mock/data";
 import { forViewer } from "@/server/redact";
 
@@ -29,6 +30,9 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
   if (process.env.MOCK_MODE === "1") return DEMO;
   const since = new Date(now.getTime() - days * 86_400_000);
 
+  // The OMS answers once an hour at most; when its last real answer is over 3 h old, nothing here may say «حقيقي».
+  const stale = omsStale(lastOmsSync(await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 })), now);
+
   const [econ, accountsDb, campaignsDb, insights, orders] = await Promise.all([
     db.productEconomics.findMany(),
     db.adAccount.findMany(),
@@ -37,7 +41,7 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
     db.attributedOrder.findMany({ where: { createdAtOms: { gte: since }, isFake: false, adId: { not: null } }, select: { adId: true, status: true, matureAt: true, channel: true } }),
   ]);
 
-  const products: Product[] = econ.map(toProduct);
+  const products: Product[] = econ.map((p) => (stale ? { ...toProduct(p), shipmentsToDate: 0 } : toProduct(p)));
 
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);
@@ -87,7 +91,7 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
     };
   });
 
-  return { products, accounts, campaigns, demo: false };
+  return { products, accounts, campaigns, demo: false, omsStale: stale };
 }
 
 /** loadDataset for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */

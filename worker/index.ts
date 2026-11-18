@@ -37,6 +37,7 @@ import { startOverlay } from "../src/server/connections";
 import { metaToken, syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
+import { omsBackoff } from "../src/jobs/oms-health";
 import { runRules } from "../src/jobs/rules-run";
 import { intakeDrive } from "../src/jobs/creative-intake";
 import { capiDataset, enqueueCapi, sendCapi } from "../src/jobs/capi";
@@ -95,7 +96,12 @@ export async function tick(now = new Date()) {
     await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
       requireKeys("oms");
       const o = omsOptions();
-      return o ? syncOms(o, new Date(now.getTime() - 3 * DAY)) : { skipped: "OMS not linked (demo)" };
+      if (!o) return { skipped: "OMS not linked (demo)" };
+      // After failures, leave the OMS alone for 1 h, 2 h, 4 h, then 8 h (src/jobs/oms-health.ts).
+      const runs = await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 });
+      const back = omsBackoff(runs, now);
+      if (back.wait) return { skipped: "backoff", backoff: true, failures: back.failures, until: back.until?.toISOString() };
+      return syncOms(o, new Date(now.getTime() - 3 * DAY));
     });
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
