@@ -112,6 +112,8 @@ export interface LoopDeps<C> {
   /** asked before every call to the model: a sentence stops the loop with that sentence (a cap was reached) */
   budget?: () => Promise<string | null>;
   record?: (e: CallRecord) => Promise<void>;
+  /** what a call cost, when the model is not one of Claude's (an OpenAI-compatible one has its own price); left out = Claude's table */
+  price?: (u: Usage) => number;
   /** a «write» tool ran */
   wrote?: (e: { tool: string; ok: boolean }) => Promise<void>;
   onStatus?: (text: string) => void;
@@ -232,7 +234,7 @@ export async function runLoop<C>(deps: LoopDeps<C>, input: LoopInput): Promise<L
       throw toAssistantError(e);
     }
     const u = usageOf(res.usage);
-    const c = costUsd(deps.model, u);
+    const c = deps.price ? deps.price(u) : costUsd(deps.model, u);
     usage = addUsage(usage, u);
     cost += c;
     await deps.record?.({ ok: true, ms: Date.now() - t0, usage: u, costUsd: c, stop: res.stop_reason ?? undefined }).catch(() => undefined);

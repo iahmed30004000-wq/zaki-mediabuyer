@@ -6,8 +6,31 @@ import { DEFAULT_MODEL } from "@/core/assistant";
 import { envAny } from "../env";
 import { resolveKey } from "./key";
 
-/** A key is there: ANTHROPIC_API_KEY (or CLAUDE_API_KEY) in Coolify, else the one the owner linked from the site. */
-export const assistantConfigured = async (): Promise<boolean> => (await resolveKey()) !== null;
+/**
+ * An OpenAI-compatible model for the assistant: ASSISTANT_BASE_URL (ending in /v1) + ASSISTANT_API_KEY + ASSISTANT_MODEL, all three
+ * in Coolify. When they are there they win over Claude; when any is missing the assistant stays on Claude as before.
+ */
+export function compatConfig(): { baseUrl: string; apiKey: string; model: string } | null {
+  const baseUrl = envAny("ASSISTANT_BASE_URL");
+  const apiKey = envAny("ASSISTANT_API_KEY");
+  const model = envAny("ASSISTANT_MODEL");
+  return baseUrl && apiKey && model ? { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey, model } : null;
+}
+
+/** Which model the assistant talks to now — for the log, never a key. */
+export const assistantProvider = (): "openai-compatible" | "anthropic" => (compatConfig() ? "openai-compatible" : "anthropic");
+
+/**
+ * USD per 1k tokens (input and output alike) for the OpenAI-compatible model, from ASSISTANT_USD_PER_1K; null = not set, and then a
+ * call is priced as the dearest Claude so the daily cap never under-counts.
+ */
+export function compatUsdPer1k(): number | null {
+  const v = Number(envAny("ASSISTANT_USD_PER_1K") ?? NaN);
+  return Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+/** A model is there: the OpenAI-compatible one, else ANTHROPIC_API_KEY (or CLAUDE_API_KEY) in Coolify, else the key linked from the site. */
+export const assistantConfigured = async (): Promise<boolean> => compatConfig() !== null || (await resolveKey()) !== null;
 
 /** ASSISTANT_MODEL, else the default (claude-opus-5-5). */
 export const assistantModel = (): string => envAny("ASSISTANT_MODEL") ?? DEFAULT_MODEL;
