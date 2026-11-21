@@ -12,7 +12,7 @@
  *              keeps the assistant off (it is an external model)
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { ASSISTANT_AGENT, DEFAULT_DAILY_CAP_USD, systemPrompt, tokensIn, type Artifact, type ChatTurn, type Fact, type SourceRef } from "@/core/assistant";
+import { ASSISTANT_AGENT, DEFAULT_DAILY_CAP_USD, systemPrompt, tokensIn, type Artifact, type ChatTurn, type Fact, type SourceRef, type Usage } from "@/core/assistant";
 import { ammanKey } from "@/core/dates";
 import { dayBounds } from "@/core/day";
 import { fmt } from "@/lib/format";
@@ -22,7 +22,8 @@ import type { Caller } from "../auth";
 import { db } from "../db";
 import { getSetting } from "../settings";
 import { AssistantError, runLoop, type Llm, type LlmResponse } from "./loop";
-import { NO_KEY, OFF_BY_PRIVACY, assistantModel, externalModelsOff } from "./config";
+import { NO_KEY, OFF_BY_PRIVACY, assistantModel, assistantProvider, compatConfig, compatUsdPer1k, externalModelsOff } from "./config";
+import { makeCompatLlm } from "./openai-compat";
 import { resolveKey } from "./key";
 import { canWrite, defaultDeps, makeTools, type Tool, type ToolCtx } from "./tools";
 
@@ -43,6 +44,15 @@ export function makeLlm(apiKey: string, baseURL?: string): Llm {
 }
 
 async function realLlm(): Promise<Llm | null> {
+  // an OpenAI-compatible model set in Coolify wins; otherwise Claude, as before
+  const compat = compatConfig();
+  if (compat) {
+    const k = `compat|${compat.baseUrl}|${compat.apiKey}`;
+    if (cached?.key === k) return cached.llm;
+    const llm = makeCompatLlm(compat);
+    cached = { key: k, llm };
+    return llm;
+  }
   const apiKey = (await resolveKey())?.key;
   if (!apiKey) return null;
   if (cached?.key === apiKey) return cached.llm;
@@ -83,7 +93,7 @@ export interface AssistantReply {
 
 async function logCall(model: string, e: { ok: boolean; ms: number; tokensIn: number; tokensOut: number; costUsd: number; blocked?: string; error?: string }) {
   try {
-    await db.agentRun.create({ data: { agent: ASSISTANT_AGENT, provider: "anthropic", model, ok: e.ok, blocked: e.blocked ?? null, tokensIn: e.tokensIn, tokensOut: e.tokensOut, costUsd: e.costUsd, ms: e.ms, error: e.error ?? null } });
+    await db.agentRun.create({ data: { agent: ASSISTANT_AGENT, provider: assistantProvider(), model, ok: e.ok, blocked: e.blocked ?? null, tokensIn: e.tokensIn, tokensOut: e.tokensOut, costUsd: e.costUsd, ms: e.ms, error: e.error ?? null } });
   } catch (err) {
     console.error("[assistant] could not log a call", err);
   }
@@ -136,6 +146,8 @@ export async function askAssistant(input: AskInput, caller: Caller, hooks: AskHo
       canWrite: canWrite(caller),
       now,
       budget: () => budgetLeft(now),
+      // an OpenAI-compatible model priced by ASSISTANT_USD_PER_1K; unset, it is priced as the dearest Claude (the cap never under-counts)
+      ...(compatConfig() && !hooks.llm && compatUsdPer1k() !== null ? { price: (u: Usage) => ((u.input + u.cacheRead + u.cacheWrite + u.output) / 1000) * compatUsdPer1k()! } : {}),
       record: (e) => logCall(model, { ok: e.ok, ms: e.ms, tokensIn: tokensIn(e.usage), tokensOut: e.usage.output, costUsd: e.costUsd, error: e.error }),
       wrote: async (e) => {
         await audit({ type: "agent", id: ASSISTANT_AGENT }, "assistant.tool", { type: "user", id: caller.id }, { after: { tool: e.tool, ok: e.ok } });
