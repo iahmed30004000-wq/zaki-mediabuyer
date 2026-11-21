@@ -104,7 +104,10 @@ const TESTS: Record<string, Tester> = {
     if (why) return { ok: false, message: why.replace("بـ Coolify.", "هون (العنوان والتوكن).") };
     const r = await bearerGet(process.env.WORKSPACE_BASE_URL!, "/api/v1/boards", process.env.WORKSPACE_API_TOKEN!, "Workspace", fetchImpl);
     if (!r.ok) return r;
-    const n = Array.isArray(r.json) ? r.json.length : Array.isArray((r.json as { boards?: unknown[] })?.boards) ? (r.json as { boards: unknown[] }).boards.length : 0;
+    // the door answers `{ data: [...] }` (workspace-door.v1, the same envelope syncWorkspace reads); a bare array or `{ boards }` still counts
+    const j = r.json as { data?: unknown; boards?: unknown } | unknown[] | null;
+    const list = Array.isArray(j) ? j : Array.isArray(j?.data) ? j.data : Array.isArray(j?.boards) ? j.boards : [];
+    const n = list.length;
     return { ok: true, message: `تمام — Workspace ردّ: ${n} لوح. قراءة بس` };
   },
 };
