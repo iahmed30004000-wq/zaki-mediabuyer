@@ -66,14 +66,20 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft != true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # event fields go through env, never straight into the script: an expression is pasted in before bash runs,
+          # so a backtick or $(...) in a pull request title would execute here (PR #57's title lost its `data` that way)
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          gh pr merge ${{ github.event.pull_request.number }} --repo "$GITHUB_REPOSITORY" --merge --subject "Merge #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --merge --subject "Merge #$PR_NUMBER: $PR_TITLE"
           echo "merged=true" >> "$GITHUB_OUTPUT"
 
       - name: Publish
         if: (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') || steps.merge.outputs.merged == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/zaki-mediabuyer"
           for tag in main "sha-${GITHUB_SHA::7}"; do
             docker tag mb:test "$image:$tag"
@@ -88,12 +94,13 @@ jobs:
         env:
           COOLIFY_WEBHOOK_URL: ${{ vars.COOLIFY_WEBHOOK_URL || 'https://coolify.zakiai.io/api/v1/services/wqsoxkdltpwmcqudnqgybom9/restart?latest=true' }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APP_HEALTH_URL: ${{ vars.APP_HEALTH_URL || 'https://mediabuyer.zakiai.io/api/health' }}
         run: |
           if [ -z "${COOLIFY_TOKEN:-}" ]; then echo "COOLIFY_TOKEN not set yet — deploy by hand in Coolify («Pull latest and restart»)"; exit 0; fi
           # the call is retried on a dropped connection (the Coolify host can be busy pulling); restarting twice is harmless
           curl -fsS --retry 4 --retry-all-errors --retry-delay 10 --max-time 120 -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json"             || echo "the deploy call did not get an answer — checking whether the new version came up anyway"
           echo
-          app_url="${{ vars.APP_HEALTH_URL || 'https://mediabuyer.zakiai.io/api/health' }}"
+          app_url="$APP_HEALTH_URL"
           want="${GITHUB_SHA::7}"
           sleep 30
           for i in $(seq 1 60); do
