@@ -50,6 +50,21 @@ services:
       - HERMES_BASE_URL=${HERMES_BASE_URL:-}
       - HERMES_TOKEN=${HERMES_TOKEN:-}
       - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      # Keys the code reads that were never passed through (Coolify only hands a container what is listed here).
+      # SECRETS_MASTER_KEY seals the keys pasted on «الإعدادات ← الربط» (D62) — without it nothing is saved there.
+      - SECRETS_MASTER_KEY=${SECRETS_MASTER_KEY:-}
+      - META_DATASET_ID=${META_DATASET_ID:-}
+      - CAPI_TEST_EVENT_CODE=${CAPI_TEST_EVENT_CODE:-}
+      - DRIVE_PRODUCTION_FOLDER_ID=${DRIVE_PRODUCTION_FOLDER_ID:-}
+      - DRIVE_REGISTER_FILE_ID=${DRIVE_REGISTER_FILE_ID:-}
+      - TELEGRAM_HERMES_CHAT_ID=${TELEGRAM_HERMES_CHAT_ID:-}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
+      - INTERNAL_MODEL_KEY=${INTERNAL_MODEL_KEY:-}
+      - EXTERNAL_MODEL_BASE_URL=${EXTERNAL_MODEL_BASE_URL:-}
+      - EXTERNAL_MODEL_KEY=${EXTERNAL_MODEL_KEY:-}
+      - EXTERNAL_MODEL_NAME=${EXTERNAL_MODEL_NAME:-}
+      - EXTERNAL_MODEL_USD_PER_1K=${EXTERNAL_MODEL_USD_PER_1K:-0.002}
+      - OAUTH_REDIRECT_HOSTS=${OAUTH_REDIRECT_HOSTS:-}
     volumes:
       - mediabuyer_storage:/app/storage
     depends_on:
@@ -106,6 +121,18 @@ services:
       - HERMES_BASE_URL=${HERMES_BASE_URL:-}
       - HERMES_TOKEN=${HERMES_TOKEN:-}
       - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      # Same key as the site: the worker reads the keys saved from the site too (D62).
+      - SECRETS_MASTER_KEY=${SECRETS_MASTER_KEY:-}
+      - DRIVE_PRODUCTION_FOLDER_ID=${DRIVE_PRODUCTION_FOLDER_ID:-}
+      - DRIVE_REGISTER_FILE_ID=${DRIVE_REGISTER_FILE_ID:-}
+      - TELEGRAM_HERMES_CHAT_ID=${TELEGRAM_HERMES_CHAT_ID:-}
+      - ASSISTANT_MODEL=${ASSISTANT_MODEL:-}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
+      - INTERNAL_MODEL_KEY=${INTERNAL_MODEL_KEY:-}
+      - EXTERNAL_MODEL_BASE_URL=${EXTERNAL_MODEL_BASE_URL:-}
+      - EXTERNAL_MODEL_KEY=${EXTERNAL_MODEL_KEY:-}
+      - EXTERNAL_MODEL_NAME=${EXTERNAL_MODEL_NAME:-}
+      - EXTERNAL_MODEL_USD_PER_1K=${EXTERNAL_MODEL_USD_PER_1K:-0.002}
     volumes:
       - mediabuyer_storage:/app/storage
     healthcheck:
