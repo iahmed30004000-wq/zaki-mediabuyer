@@ -387,6 +387,8 @@ model JobRun {
   finishedAt DateTime?
   error      String?
   stats      Json?
+  /// how many times this slot has been tried (a failed slot of a job with retries is tried again by the next round)
+  attempt    Int       @default(1)
 
   @@unique([job, slot])
   @@index([job, startedAt])

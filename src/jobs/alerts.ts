@@ -5,7 +5,7 @@
  * message. Info alerts stay on the site. Without Telegram linked, nothing is sent and nothing is lost.
  */
 import { db } from "@/server/db";
-import { omsLinked } from "@/server/env";
+import { envProblems, omsLinked } from "@/server/env";
 import { detect, reading, telegramText, type AlertFacts, type Signal } from "@/core/alerts";
 import { lastSuccess } from "./runner";
 import { sendTelegram, type TelegramOptions } from "@/adapters/telegram";
@@ -27,11 +27,14 @@ export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
   const spendToday = todayRows.reduce((n, r) => n + Number(r.spend), 0);
   const metaAt = await lastSuccess("meta.sync");
   const omsAt = await lastSuccess("oms.sync");
+  const backupAt = (await lastSuccess("db.backup")) ?? (await db.jobRun.findFirst({ orderBy: { startedAt: "asc" }, select: { startedAt: true } }))?.startedAt ?? null;
   const attr = await db.report.findFirst({ where: { kind: "attribution" }, orderBy: { forDate: "desc" }, select: { text: true } });
   const conn = await db.metaConnection.findFirst({ where: { status: { not: "revoked" } }, orderBy: { createdAt: "desc" }, select: { expiresAt: true, status: true } });
   const lastReplies = process.env.REPLIES_BASE_URL?.trim() ? await db.jobRun.findFirst({ where: { job: "replies.sync", status: "ok" }, orderBy: { finishedAt: "desc" }, select: { stats: true } }) : null;
   const repliesStats = (lastReplies?.stats ?? null) as { ok?: boolean; sentence?: string | null } | null;
   return {
+    backupAgeHours: backupAt ? (now.getTime() - backupAt.getTime()) / 3_600_000 : null,
+    envProblems: envProblems().map((p) => p.name),
     repliesProblem: repliesStats && repliesStats.ok === false ? repliesStats.sentence ?? null : null,
     hour: ammanHour(now),
     adsets: adsets.filter((s) => s.ads.length).map((s) => ({ id: s.metaId, name: s.name, dailyBudget: Number(s.dailyBudget), impressionsToday: s.ads.reduce((n, a) => n + (imp.get(a.metaId) ?? 0), 0) })),

@@ -32,6 +32,10 @@ export interface AlertFacts {
   tokenDaysLeft: number | null;
   /** the replies system's own verdict (src/jobs/replies.ts): null when not linked or all good */
   repliesProblem?: string | null;
+  /** hours since the last SUCCESSFUL db.backup (or since the site first ran, when none ever succeeded); null when the site is new */
+  backupAgeHours?: number | null;
+  /** names of production variables that are missing or weak (src/core/env-check.ts) */
+  envProblems?: string[];
 }
 
 const median = (xs: number[]) => {
@@ -60,6 +64,10 @@ export function detect(f: AlertFacts): Signal[] {
   if (f.omsLinked && (f.omsAgeHours === null || f.omsAgeHours > 2)) out.push({ key: "stale:oms", kind: "alert.stale", tone: "warn", text: `الـ OMS ما تحدّث ${f.omsAgeHours === null ? "أبداً" : `من ${Math.round(f.omsAgeHours)} ساعات`} — قواعد الحقيقة مجمّدة لحد ما يرجع`, href: "/settings/connections" });
   // the replies inbox cannot keep up, or cannot be seen — message campaigns are held, so say it
   if (f.repliesProblem) out.push({ key: "replies", kind: "alert.replies", tone: "warn", text: f.repliesProblem, href: "/settings/connections" });
+  // the nightly copy: nothing valid for more than 26 hours means the next disaster has no way back
+  if (f.backupAgeHours != null && f.backupAgeHours > 26) out.push({ key: "backup", kind: "alert.backup", tone: "warn", text: `ما في نسخة احتياطية ناجحة من ${Math.round(f.backupAgeHours)} ساعة — شوف «التشغيل»`, href: "/ops" });
+  // the site's own settings: a missing one is said by name, never by value
+  if (f.envProblems?.length) out.push({ key: "env", kind: "alert.env", tone: "warn", text: `إعدادات ناقصة بـ Coolify: ${f.envProblems.join("، ")}`, href: "/settings/connections" });
   // weak attribution
   if (f.attributedPct !== null && f.attributedPct < 70) out.push({ key: "attribution", kind: "alert.attribution", tone: "warn", text: `إسناد ضعيف: ${f.attributedPct}% بس من الطلبات واصلة لإعلانها (تحت 70%)`, href: "/ads/health" });
   // conversion events refused by Meta

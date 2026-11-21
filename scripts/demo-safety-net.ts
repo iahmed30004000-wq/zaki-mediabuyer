@@ -6,6 +6,8 @@
 import { db } from "../src/server/db";
 import { proposeSafetyNet, safetyNetState } from "../src/server/safety-net";
 import { approve, rollback } from "../src/server/changes";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const owner = { id: "demo-owner", role: "OWNER" as const, demo: true };
 const manager = { id: "demo-manager", role: "ADS_MANAGER" as const, demo: true };

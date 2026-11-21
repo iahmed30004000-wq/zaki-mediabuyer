@@ -32,7 +32,9 @@
  *   report.weekly  Saturday 10:00 · report.monthly the 1st at 10:00 — built by code, sent to Telegram
  *   `npm run worker`
  */
-import { runOnce } from "../src/jobs/runner";
+import { runOnce, stopStarting, sweepInterrupted } from "../src/jobs/runner";
+import { JOB_RETRIES } from "../src/core/job-slot";
+import { WORKER_TICK_KEY } from "../src/core/health";
 import { startOverlay } from "../src/server/connections";
 import { metaToken, syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
@@ -78,6 +80,8 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const utcDay = (s: string) => new Date(`${s}T00:00:00Z`);
 
 export async function tick(now = new Date()) {
+  // a row left «running» by a process that died (a deploy restarts the worker at any hour) is closed, so its job can be tried again
+  await sweepInterrupted(now).catch(() => undefined);
   const t = amman(now);
   const yesterday = iso(new Date(utcDay(t.date).getTime() - DAY));
   const halfHour = `${t.date}T${String(t.hour).padStart(2, "0")}:${t.minute < 30 ? "00" : "30"}`;
@@ -90,8 +94,8 @@ export async function tick(now = new Date()) {
       return syncMeta({ since: yesterday, until: t.date });
     });
   }
-  if (t.hour > 2 || (t.hour === 2 && t.minute >= 30)) await runOnce("db.backup", t.date, () => dailyBackup(db, now));
-  if (t.hour === 3) await runOnce("meta.final", t.date, () => syncMeta({ since: iso(new Date(utcDay(t.date).getTime() - 8 * DAY)), until: yesterday }));
+  if (t.hour > 2 || (t.hour === 2 && t.minute >= 30)) await runOnce("db.backup", t.date, () => dailyBackup(db, now), { retries: JOB_RETRIES["db.backup"] });
+  if (t.hour >= 3) await runOnce("meta.final", t.date, () => syncMeta({ since: iso(new Date(utcDay(t.date).getTime() - 8 * DAY)), until: yesterday }));
   if (t.minute >= 5) {
     await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
       requireKeys("oms");
@@ -168,7 +172,7 @@ export async function tick(now = new Date()) {
   }
   if (t.hour > 7 || (t.hour === 7 && t.minute >= 30)) await runOnce("creatives.fatigue", t.date, () => runFatigue(now));
   if (t.minute >= 17) await runOnce("rules.scale", `${t.date}T${t.hour}`, () => runScale(now));
-  if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 30))) await runOnce("plan.week", t.date, () => storePlan(now));
+  if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 30))) await runOnce("plan.week", t.date, () => storePlan(now), { retries: JOB_RETRIES["plan.week"] });
   for (const kind of ["weekly", "monthly"] as const) {
     if ((kind === "weekly" ? t.saturday : t.firstOfMonth) && t.hour >= 10) {
       await runOnce(`report.${kind}`, t.date, async () => {
@@ -182,14 +186,14 @@ export async function tick(now = new Date()) {
         await sendTelegram(tg, report.text);
         await db.report.update({ where: { id: report.id }, data: { sentAt: new Date() } });
         return { ...r, sent: true };
-      });
+      }, { retries: kind === "weekly" ? JOB_RETRIES["report.weekly"] : 0 });
     }
   }
   if (t.minute >= 20) await runOnce("account.safety", `${t.date}T${t.hour}`, () => checkAccounts(now));
   if (t.hour >= 8) await runOnce("analysis", t.date, () => storeAnalysis(now));
   if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 45))) await runOnce("creatives.week", t.date, () => weeklyCreativeRequests(now));
   if (t.hour >= 8) await runOnce("attribution.health", t.date, () => storeAttributionHealth(now));
-  if (t.hour === 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));
+  if (t.hour >= 7) await runOnce("truth.week", t.date, () => computeTruthDays(new Date(utcDay(t.date).getTime() - 7 * DAY), utcDay(t.date), now));
   if (t.hour >= 9) {
     await runOnce("report.morning", t.date, async () => {
       const text = await buildMorningReport(utcDay(yesterday));
@@ -202,19 +206,37 @@ export async function tick(now = new Date()) {
       await sendTelegram(tg, text);
       await db.report.update({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, data: { sentAt: new Date() } });
       return { sent: true, chars: text.length };
-    });
+    }, { retries: JOB_RETRIES["report.morning"] });
   }
 }
 
 if (process.argv[1]?.includes("worker")) {
   console.log("worker started (Asia/Amman)");
-  const loop = async () => {
-    try {
-      await tick();
-    } catch (e) {
-      console.error("tick failed:", e instanceof Error ? e.message : e);
-    }
+  let inflight: Promise<void> = Promise.resolve();
+  const loop = () => {
+    inflight = (async () => {
+      try {
+        // the heartbeat: /api/health says «worker ok» only while this is newer than 3 minutes (src/core/health.ts)
+        const at = new Date().toISOString();
+        await db.setting.upsert({ where: { key: WORKER_TICK_KEY }, create: { key: WORKER_TICK_KEY, value: { at } }, update: { value: { at } } });
+      } catch (e) {
+        console.error("heartbeat failed:", e instanceof Error ? e.message : e);
+      }
+      try {
+        await tick();
+      } catch (e) {
+        console.error("tick failed:", e instanceof Error ? e.message : e);
+      }
+    })();
+    return inflight;
   };
+  // SIGTERM (a deploy): no new job starts, the one running gets a few seconds to finish; a row it leaves «running» is closed as interrupted later
+  for (const sig of ["SIGTERM", "SIGINT"] as const) {
+    process.once(sig, () => {
+      stopStarting();
+      void Promise.race([inflight, new Promise((r) => setTimeout(r, 8_000))]).then(() => process.exit(0));
+    });
+  }
   // the site's own values (D62) go over the environment before the first tick, and again every 30 s — a save made on the site reaches this process within 30 s
   void startOverlay().catch(() => undefined).then(() => loop());
   setInterval(loop, 60_000);

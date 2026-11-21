@@ -10,6 +10,8 @@ import { guardText } from "../src/agents/guard";
 import { weeklyCreativeRequests } from "../src/agents/strategist";
 import { explainSafety } from "../src/agents/monitor";
 import { modelConnected } from "../src/gateway";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "✓" : "✗"} ${label}`);

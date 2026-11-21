@@ -8,6 +8,7 @@ import { N8N_CREATOR } from "@/core/n8n-starters";
 import { metaToken } from "@/jobs/meta-sync";
 import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
 import { db } from "@/server/db";
+import { envProblems, type EnvProblem } from "@/core/env-check";
 
 export interface LastCall {
   /** ISO time of the last real call, or null when there never was one */
@@ -34,6 +35,8 @@ export interface ReadinessRow {
 export interface Readiness {
   demo: boolean;
   rows: ReadinessRow[];
+  /** the variables production cannot do without that are missing or weak (names only; empty in development) */
+  env: EnvProblem[];
   /** the Meta write lock, said in one line */
   metaWrite: { mode: "dry_run" | "live"; line: string };
 }
@@ -115,5 +118,5 @@ export async function loadReadiness(env: Record<string, string | undefined> = pr
   }
   const line =
     gate.mode === "live" ? "حقيقية — كل قرار بيوصل لميتا" : gate.error ? gate.error : "تجريبية (dry-run) — كل قرار بيسجّل شو كان رح ينبعت وما بينبعت. بتتفتح بـ META_WRITE_MODE=live و META_LIVE_VERIFIED=1 بعد فحص الحساب التجريبي";
-  return { demo: isDemo(env), rows, metaWrite: { mode: gate.mode, line } };
+  return { demo: isDemo(env), rows, env: envProblems(env, process.env.NODE_ENV === "production"), metaWrite: { mode: gate.mode, line } };
 }

@@ -9,6 +9,8 @@
 import { db } from "../src/server/db";
 import { runRules } from "../src/jobs/rules-run";
 import { killSwitch, propose, rollback } from "../src/server/changes";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const owner = { id: "demo-owner", role: "OWNER" as const, demo: true };
 const check = (ok: boolean, label: string) => {

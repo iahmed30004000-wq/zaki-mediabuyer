@@ -11,6 +11,8 @@ import os from "node:os";
 import path from "node:path";
 import { db } from "../src/server/db";
 import { processVideo } from "../src/jobs/creative-intake";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const dir = mkdtempSync(path.join(os.tmpdir(), "mb-demo-"));
 const ff = (args: string[]) => spawnSync(process.env.FFMPEG_PATH || "ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args]);

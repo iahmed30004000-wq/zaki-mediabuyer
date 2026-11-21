@@ -10,6 +10,8 @@ import { hashToken, newToken } from "../src/server/api-token";
 import { GET as readQueue } from "../src/app/api/vidpattern/queue/route";
 import { POST as claim } from "../src/app/api/vidpattern/queue/[id]/claim/route";
 import { POST as result } from "../src/app/api/vidpattern/queue/[id]/result/route";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const DAY = 86_400_000;
 const check = (ok: boolean, label: string) => {

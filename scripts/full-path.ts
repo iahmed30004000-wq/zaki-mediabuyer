@@ -22,6 +22,8 @@ import { buildMorningReport } from "../src/jobs/morning-report";
 import { enqueueCapi, sendCapi } from "../src/jobs/capi";
 import { fakeFetch, FAKE_OMS_URL } from "../src/adapters/fixtures";
 import { MetaClient } from "../src/meta/client";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const owner = { id: "demo-owner", role: "OWNER" as const, demo: true };
 const DAY = 86_400_000;

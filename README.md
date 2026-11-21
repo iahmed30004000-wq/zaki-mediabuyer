@@ -120,11 +120,13 @@
   npm run db:backup
   ```
 - **الاسترجاع** (لقاعدة فاضية بس — بيرفض قاعدة فيها بيانات):
-  1. أوقف `worker`.
+  0. تأكد إنو `OWNER_EMAIL` مضبوط بالمتغيّرات (هو بريد حساب المالك لما القاعدة فاضية).
+  1. أوقف `worker`، ولا تفتح الرابط للعموم لحد ما يخلص الاسترجاع.
   2. بالـ Terminal تبع `db`: `dropdb -U mediabuyer mediabuyer && createdb -U mediabuyer mediabuyer`
   3. «Restart» لـ `app` (بيعمل الجداول فاضية).
-  4. بالـ Terminal تبع `app`: `npm run db:restore -- /app/storage/backups/<التاريخ>`
+  4. بالـ Terminal تبع `app`: `npm run db:restore -- /app/storage/backups/<التاريخ>` (مجلد فيه `manifest.json`؛ مجلد بلا manifest يعني النسخة ما كملت).
   5. بيتأكد إنه كل جدول عدده مطابق للنسخة، بعدين شغّل `worker`.
+  - النسخة بتاخد لقطة وحدة للقاعدة كلها (جداولها متّسقة مع بعض)، وبتنكتب بمجلد مؤقت وبتنقل لمكانها لما تكمل.
 - **تجربة الاسترجاع** (على الجهاز، ولا بتلمس القاعدة الحقيقية): `npm run check:backup`.
 
 ---

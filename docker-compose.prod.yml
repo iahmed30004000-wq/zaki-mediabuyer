@@ -15,7 +15,7 @@ services:
       - AUTH_SECRET=${SERVICE_PASSWORD_64_AUTH}
       - TZ=Asia/Amman
       - OWNER_EMAIL=${OWNER_EMAIL:-}
-      - MOCK_MODE=${MOCK_MODE:-1}
+      - MOCK_MODE=${MOCK_MODE:-0}
       - META_API_VERSION=${META_API_VERSION:-v24.0}
       - META_SYSTEM_USER_TOKEN=${META_SYSTEM_USER_TOKEN:-}
       - OMS_BASE_URL=${OMS_BASE_URL:-}
@@ -51,6 +51,8 @@ services:
       - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET:-}
       - N8N_ALLOWED_PATHS=${N8N_ALLOWED_PATHS:-}
       - STEP_HTTP_ALLOW=${STEP_HTTP_ALLOW:-}
+      # hosts the studio may send video links from (optional: empty = any public https host; internal addresses are refused either way)
+      - STUDIO_URL_ALLOW=${STUDIO_URL_ALLOW:-}
       - HERMES_BASE_URL=${HERMES_BASE_URL:-}
       - HERMES_TOKEN=${HERMES_TOKEN:-}
       - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON:-}
@@ -90,7 +92,7 @@ services:
       - ENCRYPTION_KEY=${SERVICE_PASSWORD_64_ENCRYPTION}
       - AUTH_SECRET=${SERVICE_PASSWORD_64_AUTH}
       - TZ=Asia/Amman
-      - MOCK_MODE=${MOCK_MODE:-1}
+      - MOCK_MODE=${MOCK_MODE:-0}
       - META_API_VERSION=${META_API_VERSION:-v24.0}
       - META_SYSTEM_USER_TOKEN=${META_SYSTEM_USER_TOKEN:-}
       - OMS_BASE_URL=${OMS_BASE_URL:-}

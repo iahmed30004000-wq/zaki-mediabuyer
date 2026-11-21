@@ -13,6 +13,8 @@ import { launch, prepareLaunch, type LaunchInput } from "../src/server/launch";
 import { approve, propose, rollback } from "../src/server/changes";
 import { buildAttributionHealth, checkAccounts } from "../src/jobs/account-safety";
 import { CREATIVE_FEATURES_OFF } from "../src/core/templates";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const owner = { id: "demo-owner", role: "OWNER" as const, demo: true };
 const check = (ok: boolean, label: string) => {

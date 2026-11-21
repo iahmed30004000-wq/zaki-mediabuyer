@@ -8,6 +8,8 @@ import { db } from "../src/server/db";
 import { fakeFetch, fixtureDate, metaIdOf, FAKE_OMS_URL } from "../src/adapters/fixtures";
 import { syncMeta } from "../src/jobs/meta-sync";
 import { syncOms, computeTruthDays } from "../src/jobs/truth";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 async function counts() {
   const [campaigns, ads, insights, orders, truth] = await Promise.all([db.campaign.count(), db.ad.count(), db.insightDaily.count(), db.attributedOrder.count(), db.truthDaily.count()]);

@@ -33,6 +33,16 @@ export function ReadinessPanel({ data }: { data: Readiness }) {
           {linked} من {data.rows.length} مربوطين. كل سطر بيقول إذا المفتاح موجود (بأسماء الناقص بس، ولا قيمة) ومتى صار آخر نداء حقيقي وكيف خلص. الفحص الحي: <code dir="ltr">docs/LIVE_CHECKS.md</code>
         </p>
       </div>
+      {data.env.length ? (
+        <Panel className="space-y-1.5">
+          <p className="text-sm font-semibold text-warn">ناقص من إعدادات الموقع نفسه</p>
+          {data.env.map((p) => (
+            <p key={p.name} className="text-xs text-fg-muted">
+              <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg">{p.name}</code> — {p.why}
+            </p>
+          ))}
+        </Panel>
+      ) : null}
       <div className="grid gap-2 md:grid-cols-2">
         {data.rows.map((r) => {
           const v = verdict(r);

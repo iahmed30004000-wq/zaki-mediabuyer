@@ -7,7 +7,7 @@
  *   backup   → STORAGE_DIR/backups/YYYY-MM-DD/ (daily at 02:30, the last 14 kept)
  *   restore  → into an EMPTY database that already ran `prisma migrate deploy`; refuses a database with data in it
  */
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createGunzip, createGzip } from "node:zlib";
 import { createInterface } from "node:readline";
@@ -43,23 +43,43 @@ export interface Manifest {
   counts: Record<string, number>;
 }
 
-export async function backupAll(db: PrismaClient, dir: string): Promise<Manifest> {
-  mkdirSync(dir, { recursive: true });
+/**
+ * The fields that make a row unique, in the order a backup reads them: the single `@id`, or the fields of a composite
+ * `@@id`, or (no id at all) the first unique key. A table with none of them cannot be copied in a stable order, so it throws —
+ * tests/backup-models.test.ts walks every model, which means a new kind of key breaks that test and never the nightly copy.
+ */
+export function keyFields(m: Model): string[] {
+  const id = m.fields.find((f) => f.isId);
+  if (id) return [id.name];
+  if (m.primaryKey?.fields?.length) return [...m.primaryKey.fields];
+  const unique = m.uniqueFields?.[0] ?? (m.fields.find((f) => f.isUnique) ? [m.fields.find((f) => f.isUnique)!.name] : undefined);
+  if (unique?.length) return [...unique];
+  throw new Error(`the table ${m.name} has no key to copy it in a stable order`);
+}
+
+const PAGE = 1000;
+/** A copy takes one snapshot (RepeatableRead): the tables agree with each other even while the site writes. */
+const SNAPSHOT_MS = 30 * 60_000;
+
+async function copyTables(db: Pick<PrismaClient, "$queryRaw">, dir: string): Promise<Manifest> {
   const counts: Record<string, number> = {};
   for (const m of Prisma.dmmf.datamodel.models) {
-    const d = delegate(db, m);
-    const id = m.fields.find((f) => f.isId)?.name ?? "id";
+    const d = delegate(db as PrismaClient, m);
+    const keys = keyFields(m);
+    const orderBy = keys.map((k) => ({ [k]: "asc" as const }));
     const gz = createGzip();
     const file = createWriteStream(path.join(dir, `${m.name}.ndjson.gz`));
     gz.pipe(file);
     let n = 0;
     let cursor: unknown;
     for (;;) {
-      const rows = await d.findMany({ take: 1000, orderBy: { [id]: "asc" }, ...(cursor !== undefined ? { cursor: { [id]: cursor }, skip: 1 } : {}) });
+      // one key: a cursor (cheap on a big table). A composite key: skip/take over the same order (those tables are small)
+      const page = keys.length === 1 ? { ...(cursor !== undefined ? { cursor: { [keys[0]!]: cursor }, skip: 1 } : {}) } : { skip: n };
+      const rows = await d.findMany({ take: PAGE, orderBy, ...page });
       for (const r of rows) if (!gz.write(`${JSON.stringify(r)}\n`)) await once(gz, "drain");
       n += rows.length;
-      if (rows.length < 1000) break;
-      cursor = rows[rows.length - 1]![id];
+      if (rows.length < PAGE) break;
+      cursor = rows[rows.length - 1]![keys[0]!];
     }
     gz.end();
     await once(file, "finish");
@@ -69,6 +89,11 @@ export async function backupAll(db: PrismaClient, dir: string): Promise<Manifest
   const manifest: Manifest = { at: new Date().toISOString(), migration, counts };
   writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(manifest, null, 2));
   return manifest;
+}
+
+export async function backupAll(db: PrismaClient, dir: string): Promise<Manifest> {
+  mkdirSync(dir, { recursive: true });
+  return db.$transaction((tx) => copyTables(tx, dir), { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: SNAPSHOT_MS, maxWait: 30_000 });
 }
 
 /** Turn a JSON row back into what Prisma takes: dates as Date, nulls kept, relation fields dropped. */
@@ -84,11 +109,14 @@ function revive(m: Model, row: Record<string, unknown>): Record<string, unknown>
   return out;
 }
 
+/** Tables a migration fills with starter rows (20261117120000_team_actors): a freshly migrated database is "empty" with them in it, and the copy's rows replace them. */
+const MIGRATION_SEEDED = new Set(["Actor"]);
+
 export async function restoreAll(db: PrismaClient, dir: string, opts: { allowNonEmpty?: boolean } = {}): Promise<Record<string, number>> {
   const manifest = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8")) as Manifest;
   const models = restoreOrder(Prisma.dmmf.datamodel.models);
   if (!opts.allowNonEmpty) {
-    for (const m of models) if ((await delegate(db, m).count()) > 0) throw new Error(`the target database is not empty (${m.name}) — restore goes into an empty one`);
+    for (const m of models) if (!MIGRATION_SEEDED.has(m.name) && (await delegate(db, m).count()) > 0) throw new Error(`the target database is not empty (${m.name}) — restore goes into an empty one`);
   }
   const restored: Record<string, number> = {};
   for (const m of models) {
@@ -98,6 +126,8 @@ export async function restoreAll(db: PrismaClient, dir: string, opts: { allowNon
       continue;
     }
     const d = delegate(db, m);
+    // the migration's own starter rows are replaced by the copy's (it holds the owner's edits of them)
+    if (MIGRATION_SEEDED.has(m.name) && !opts.allowNonEmpty) await (db as unknown as Record<string, { deleteMany: () => Promise<unknown> }>)[m.name.charAt(0).toLowerCase() + m.name.slice(1)]!.deleteMany();
     let batch: Record<string, unknown>[] = [];
     let n = 0;
     const flush = async () => {
@@ -123,12 +153,23 @@ export function backupRoot(): string {
   return path.join(process.env.STORAGE_DIR?.trim() || path.join(process.cwd(), "storage"), "backups");
 }
 
-/** The daily job: today's folder, then keep the last `keep` days. */
+/** The daily job: today's folder, then keep the last `keep` days. The copy is written beside it and moved in only when complete, so a failed night never costs the last good folder of the same day. */
 export async function dailyBackup(db: PrismaClient, now = new Date(), keep = 14) {
   const root = backupRoot();
-  const dir = path.join(root, now.toISOString().slice(0, 10));
+  mkdirSync(root, { recursive: true });
+  for (const left of readdirSync(root)) if (/^\.\d{4}-\d{2}-\d{2}\.partial$/.test(left)) rmSync(path.join(root, left), { recursive: true, force: true });
+  const day = now.toISOString().slice(0, 10);
+  const dir = path.join(root, day);
+  const partial = path.join(root, `.${day}.partial`);
+  let manifest: Manifest;
+  try {
+    manifest = await backupAll(db, partial);
+  } catch (e) {
+    rmSync(partial, { recursive: true, force: true });
+    throw e;
+  }
   rmSync(dir, { recursive: true, force: true });
-  const manifest = await backupAll(db, dir);
+  renameSync(partial, dir);
   const days = readdirSync(root).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
   for (const old of days.slice(0, Math.max(0, days.length - keep))) rmSync(path.join(root, old), { recursive: true, force: true });
   return { dir, tables: Object.keys(manifest.counts).length, rows: Object.values(manifest.counts).reduce((a, b) => a + b, 0), kept: Math.min(days.length, keep) };

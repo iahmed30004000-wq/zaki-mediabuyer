@@ -13,6 +13,8 @@ import { storePlan } from "../src/agents/planner";
 import { storePeriodReport } from "../src/jobs/weekly-report";
 import { consult } from "../src/agents/consultant";
 import { levelChange } from "../src/core/autonomy";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const DAY = 86_400_000;
 const check = (ok: boolean, label: string) => {

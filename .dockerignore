@@ -8,3 +8,4 @@ node_modules
 .claude
 art-inbox
 *.log
+scripts/demo-*.ts
