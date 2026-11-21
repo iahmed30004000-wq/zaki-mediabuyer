@@ -1,6 +1,7 @@
 import { PrintButton } from "@/components/numbers/print-button";
 import { GROUPS, STATS, formatStat, type NumbersSet } from "@/core/numbers";
 import { loadNumbers } from "@/lib/numbers-view";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "أرقام اليوم — للطباعة" };
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ function Table({ title, set, extra }: { title: string; set: NumbersSet; extra?: 
 
 /** The day, laid out for paper and for «حفظ كـ PDF» on a phone: light, plain, one product after another. A session is required. */
 export default async function PrintNumbersPage({ searchParams }: { searchParams: { d?: string; from?: string; to?: string } }) {
+  await requirePage("money.view");
   const data = await loadNumbers(searchParams);
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "medium", timeStyle: "short" }).format(new Date());
   return (

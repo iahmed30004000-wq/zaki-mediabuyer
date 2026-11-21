@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { effectivePages } from "@/core/customize";
 import { BUILTIN_PAGES } from "@/lib/nav";
 import { getUiConfig } from "@/server/ui-config";
+import { requirePage } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export async function generateMetadata({ params }: { params: { key: string } }) 
  * buttons). A link just goes where it points. An old bookmark or a stored alert keeps working; new pages of this kind are not made any more.
  */
 export default async function CustomPage({ params }: { params: { key: string } }) {
+  await requirePage(["tasks.own", "tasks.manage"]);
   const page = await pageOf(params.key);
   if (!page) notFound();
   if (page.kind === "link") redirect(page.href);

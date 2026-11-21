@@ -46,8 +46,15 @@ async function move(id: string, from: ChangeState, to: ChangeState, data: Prisma
   } catch {
     throw new HttpError(409, `هالتغيير ${STATE_AR[from] ?? from} — ما بينفع هالخطوة عليه`);
   }
-  return db.changeSet.update({ where: { id }, data: { ...data, state: to } });
+  // compare-and-set: the row moves only if it is STILL in `from`. Two approvals at the same moment (a double click, two people) cannot both pass: the second finds 0 rows and stops.
+  const moved = await db.changeSet.updateMany({ where: { id, state: from }, data: { ...data, state: to } });
+  if (moved.count !== 1) throw new HttpError(409, "هالتغيير انتقل لحالة تانية قبل لحظة — حدّث الصفحة");
+  return db.changeSet.findUniqueOrThrow({ where: { id } });
 }
+
+/** The kinds only the owner decides (and rolls back), and a change the loop guard froze. */
+const OWNER_ONLY_KINDS = ["above_cap", "test_campaign", "connect_asset", "customer_audience", "safety_net"];
+const isOwnerOnly = (cs: { kind: string; error: string | null }) => OWNER_ONLY_KINDS.includes(cs.kind) || cs.error === "loop_guard";
 
 async function tokenExpired(): Promise<boolean> {
   const c = await db.metaConnection.findFirst({ where: { status: { not: "revoked" } }, orderBy: { createdAt: "desc" } });
@@ -140,7 +147,7 @@ export async function propose(p: Proposal, actor: Actor) {
 /** Approve on the site. Telegram never reaches here (spec 3.13). */
 export async function approve(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
-  const ownerOnly = ["above_cap", "test_campaign", "connect_asset", "customer_audience", "safety_net"].includes(cs.kind) || cs.error === "loop_guard";
+  const ownerOnly = isOwnerOnly(cs);
   if (!can(caller.role, ownerOnly ? "owner_only" : "ads.approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
   const sim = cs.simulation as { ok?: boolean } | null;
   if (sim && sim.ok === false && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, "التجربة ما نجحت (سقف أو تعلّم أو تعارض) — شوف «جرّب»");
@@ -202,6 +209,8 @@ export async function execute(id: string, actor: Actor) {
   }
   await move(id, "executing", allVerified ? "executed" : "failed", { executedAt: new Date(), verifiedAt: allVerified ? new Date() : null, error: allVerified ? null : `verify_mismatch: ${mismatch}`.slice(0, 1000) });
   await audit(actor, "change.execute", { type: "changeset", id }, { after: { writeMode: cs.writeMode, verified: allVerified } });
+  // the approved inverse of a rollback that raised spend: the original is rolled back once its inverse really ran
+  if (allVerified && cs.sourceRef?.startsWith("rollback:")) await db.changeSet.updateMany({ where: { id: cs.sourceRef.slice("rollback:".length), state: "executed" }, data: { state: "rolled_back", rolledBackAt: new Date(), rolledBackBy: cs.approvedBy } });
   if (cs.kind === "test_campaign" && allVerified) {
     // the launch is on: its test starts counting days now
     const days = await db.experiment.findFirst({ where: { changeSetId: id }, select: { stopRules: true } });
@@ -216,6 +225,8 @@ export async function rollback(id: string, caller: Caller) {
   if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   if (cs.state !== "executed") throw new HttpError(409, "بس التغيير المنفّذ بينرجع");
+  // the same rule as approve(): what only the owner may decide, only the owner may undo (the account cap, a launch…)
+  if (isOwnerOnly(cs) && !can(caller.role, "owner_only")) throw new HttpError(403, "هالقرار بدو المالك");
   // a launch is undone by pausing what it made (never deleting): the switches first, then the created objects
   const inverse: ChangeItemDraft[] = [...cs.items].sort((a, b) => b.seq - a.seq).flatMap((i): ChangeItemDraft[] => {
     const before = i.before as ChangeItemDraft["before"];
@@ -226,6 +237,13 @@ export async function rollback(id: string, caller: Caller) {
     if (i.op === "set_account_cap") return [{ op: "set_account_cap", objectType, objectId: i.objectId, before: { spendCap: after.spendCap }, after: { spendCap: before.spendCap ?? 0, reset: false } }];
     return [{ op: i.op === "pause" ? "resume" : i.op === "resume" ? "pause" : "set_budget", objectType, objectId: i.objectId, before: after, after: before }];
   }).filter((x, n, all) => all.findIndex((y) => y.objectId === x.objectId) === n);
+  // an inverse that RAISES spend (un-pausing, restoring a bigger budget) is a new decision, not an undo: it goes through the caps and the learning guard and waits for approval like any other
+  if (spendDeltaDaily(inverse) > 0) {
+    const kind: ActionKind = inverse.every((i) => i.op === "resume") ? "resume" : "raise_step";
+    const proposed = await propose({ source: "user", sourceRef: `rollback:${id}`, reasonCode: "S11", sentence: `رجوع عن: ${cs.sentence}`, kind, accountMetaId: cs.accountMetaId, items: inverse }, { type: "user", id: caller.id });
+    await audit({ type: "user", id: caller.id }, "change.rollback", { type: "changeset", id }, { after: { proposed: proposed.id, state: proposed.state } });
+    return proposed;
+  }
   const back = await db.changeSet.create({
     data: {
       state: "approved",

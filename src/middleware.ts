@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, authRequired, readSession } from "@/lib/session-token";
+import { ownHosts, sameSiteRequest } from "@/core/auth-guards";
 
 /**
  * Paths anybody may open: the login door, the OMS’s signed event (it checks its own HMAC), health, the static brand files, and what installing the app needs
@@ -18,6 +19,10 @@ export async function middleware(req: NextRequest) {
     h.set("x-pathname", path);
     return NextResponse.next({ request: { headers: h } });
   };
+  // a request that changes something must come from a page of this site (its Origin); token routes are exempt
+  if (!sameSiteRequest({ method: req.method, path, origin: req.headers.get("origin"), secFetchSite: req.headers.get("sec-fetch-site"), hosts: ownHosts({ host: req.headers.get("host"), forwardedHost: req.headers.get("x-forwarded-host"), appUrl: process.env.APP_URL }) })) {
+    return NextResponse.json({ error: "الطلب مش جاي من الموقع نفسه" }, { status: 403 });
+  }
   if (!authRequired() || OPEN.some((r) => r.test(path))) return pass();
   const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value);
   if (session) return pass();

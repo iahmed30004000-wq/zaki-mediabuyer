@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Panel } from "@/components/mb/section";
 import { loadAudit } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "السجل" };
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ const FILTERS = [
 
 /** الإعدادات ← متقدّم ← السجل: مين عمل شو ومتى — إنسان أو قاعدة أو وكيل أو النظام. ما بينحذف منه شي، وما فيه سرّ ولا بيانات زبون. */
 export default async function LogPage({ searchParams }: { searchParams: { audit?: string } }) {
+  await requirePage("settings.view");
   const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
   const audit = await loadAudit({ actor, take: 25 });
   if (!audit) return <Panel className="text-sm text-fg-muted">السجل بيبيّن لما يشتغل الموقع على البيانات الحقيقية (مش التجريبية).</Panel>;

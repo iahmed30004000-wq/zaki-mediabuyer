@@ -4,13 +4,14 @@ import { InboxCard } from "@/components/inbox/inbox-card";
 import { DecisionCard } from "@/components/ui/decision-card";
 import { Pill } from "@/components/ui/pill";
 import { getInboxItem } from "@/server/inbox";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 
 export const metadata = { title: "قرار" };
 export const dynamic = "force-dynamic";
 
 /** One decision on its own page: the card, and what happened to it if it is already decided. The links in Telegram and the ring screen open this. */
 export default async function InboxItemPage({ params }: { params: { id: string } }) {
+  await requirePage("inbox.view");
   const caller = await currentCaller();
   if (!caller) notFound();
   const found = await getInboxItem(caller, decodeURIComponent(params.id));

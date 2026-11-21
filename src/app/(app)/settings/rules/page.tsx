@@ -14,7 +14,7 @@ import { isDemo } from "@/core/readiness";
 import { can } from "@/core/roles";
 import { loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { loadWorkflowCards } from "@/lib/workflow-view";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { db } from "@/server/db";
 import { currentMode } from "@/server/mode";
 import { listOrders } from "@/server/orders";
@@ -44,6 +44,7 @@ function RuleCard({ id, title, summary, children }: { id: string; title: string;
  * rules, the awake / asleep hours — and the archive of the standing orders. The editors are the ones that already existed, moved here whole.
  */
 export default async function RulesPage() {
+  await requirePage("settings.view");
   const [real, edit, me, rulesView, mode, wf, productRows, archive, active] = await Promise.all([
     loadSettingsView(),
     loadEditView(),

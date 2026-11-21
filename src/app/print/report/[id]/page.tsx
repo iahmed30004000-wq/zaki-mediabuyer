@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/numbers/print-button";
 import { getReport } from "@/server/reports";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "تقرير — للطباعة" };
 export const dynamic = "force-dynamic";
 
 /** One report on paper (A4, white, plain): the title and time, the line, the full text, the run's numbers. A session is required. */
 export default async function PrintReportPage({ params }: { params: { id: string } }) {
+  await requirePage("work.view");
   const r = await getReport(decodeURIComponent(params.id));
   if (!r) notFound();
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "full", timeStyle: "short" }).format(new Date(r.at));

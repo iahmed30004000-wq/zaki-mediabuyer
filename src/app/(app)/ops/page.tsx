@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { SectionSkeleton } from "@/components/home/home-sections";
 import { FunnelSection, LeakSection, OpsJobs, OpsOrders, StockSummary, TeamSummary } from "@/components/ops/ops-sections";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "التشغيل" };
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export const dynamic = "force-dynamic";
  * and the standing orders that touch them. Read only: no button changes an order or a shipment. A section whose numbers were never sent says so or
  * is not shown — nothing is made up.
  */
-export default function OpsDashboardPage() {
+export default async function OpsDashboardPage() {
+  await requirePage("ops.view");
   return (
     <div className="space-y-6">
       <Suspense fallback={<SectionSkeleton rows={1} />}>

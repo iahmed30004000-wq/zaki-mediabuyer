@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { ADVANCED_PAGES } from "@/lib/settings-nav";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "متقدّم" };
 
 /** الإعدادات ← متقدّم: اللي بتحتاجه قليل — التخصيص، الأتمتة والجدولة، الإدخال اليدوي، السجل، الدليل. */
-export default function AdvancedPage() {
+export default async function AdvancedPage() {
+  await requirePage("settings.view");
   return (
     <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface-1">
       {ADVANCED_PAGES.map((p) => (

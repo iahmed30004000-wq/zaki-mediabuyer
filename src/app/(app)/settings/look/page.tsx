@@ -1,10 +1,12 @@
 import { Panel } from "@/components/mb/section";
 import { ThemePicker } from "@/components/theme/theme-picker";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "المظهر" };
 
 /** الإعدادات ← المظهر: فاتح أو داكن. بيتبدّل فوراً وبيتذكّره المتصفح. */
-export default function LookPage() {
+export default async function LookPage() {
+  await requirePage("settings.view");
   return (
     <Panel>
       <ThemePicker />

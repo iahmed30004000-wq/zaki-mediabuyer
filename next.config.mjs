@@ -30,16 +30,33 @@ export const LEGACY_REDIRECTS = [
   { source: "/setup", destination: "/settings/connections", permanent: false },
 ];
 
+/**
+ * Headers on every answer (v6 P0-1, N-17): the site is not framed, the browser does not guess a type, the connection stays https, and the address is not sent to other sites.
+ * Kept to what cannot break a page: a full script policy waits for the look phase (Next writes inline scripts).
+ */
+export const SECURITY_HEADERS = [
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+];
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   eslint: { ignoreDuringBuilds: true },
+  // the site has no pictures that need Next's image optimizer (the code never uses next/image), so the optimizer endpoint is switched off
+  images: { unoptimized: true },
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: ["bcryptjs", "@prisma/client", "exceljs"],
   },
   async redirects() {
     return LEGACY_REDIRECTS;
+  },
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
 };
 

@@ -17,6 +17,8 @@ const PATTERNS: [PrivacyHit, RegExp][] = [
   ["phone", /(?:\+|00)\s?\d{3}[\s-]?\d{2,3}[\s-]?\d{3}[\s-]?\d{3,4}/],
   ["phone", /\b0?9\d{8}\b/],
   ["phone", /\b0?7[789]\d{7}\b/],
+  // a number written with the country code and no plus: 963944123456 · 962791234567
+  ["phone", /\b(963|962)\d{8,9}\b/],
   ["email", /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/],
 ];
 
@@ -25,9 +27,14 @@ function westernDigits(s: string): string {
   return s.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
 }
 
+/** Spaces, dashes and dots BETWEEN digits are not a break: «0944 123 456» and «0944-123-456» are the number 0944123456. */
+const joinDigits = (s: string): string => s.replace(/(?<=\d)[\s.-]+(?=\d)/g, "");
+
 export function privacyHits(text: string): PrivacyHit[] {
   const t = westernDigits(text);
-  return [...new Set(PATTERNS.filter(([, re]) => re.test(t)).map(([hit]) => hit))];
+  const joined = joinDigits(t);
+  // a phone is looked for in the text as written AND with the separators between its digits taken out; the other kinds only as written
+  return [...new Set(PATTERNS.filter(([hit, re]) => re.test(t) || (hit === "phone" && re.test(joined))).map(([hit]) => hit))];
 }
 
 export class PrivacyRefusal extends Error {

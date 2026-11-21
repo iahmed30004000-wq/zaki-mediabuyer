@@ -10,6 +10,7 @@ import { isDemo } from "@/core/readiness";
 import { loadReadiness } from "@/lib/readiness-view";
 import { loadEditView } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "الربط" };
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
  * ربط Claude والاستوديو · الكتابة على ميتا. A value saved here wins over Coolify's; delete it and Coolify's comes back (D62).
  */
 export default async function ConnectionsPage() {
+  await requirePage("owner_only");
   const [readiness, edit] = await Promise.all([loadReadiness(), loadEditView()]);
   const linked = readiness.rows.filter((r) => r.linked).length;
   return (

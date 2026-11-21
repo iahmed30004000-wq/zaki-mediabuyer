@@ -1,13 +1,14 @@
 import { InboxCard } from "@/components/inbox/inbox-card";
 import { EmptyState } from "@/components/ui/card";
 import { loadInboxLater } from "@/server/inbox";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 
 export const metadata = { title: "مؤجّلة" };
 export const dynamic = "force-dynamic";
 
 /** بانتظارك ← مؤجّلة: what you put off, and when each one comes back (it comes back by itself). */
 export default async function InboxLaterPage() {
+  await requirePage("inbox.view");
   const caller = await currentCaller();
   const items = caller ? await loadInboxLater(caller) : [];
   return items.length ? (

@@ -8,6 +8,7 @@ import { isKey } from "@/core/dates";
 import { DOMAIN_AR } from "@/core/jobs";
 import { loadReports } from "@/server/reports";
 import { cn } from "@/lib/utils";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "التقارير" };
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ const STATE: Record<string, { label: string; tone: "ok" | "danger" | "info" | "n
 
 /** الشغل ← التقارير: every run's report and the periodic ones, newest first; filter by domain and by day. The old `?r=<id>` opens that report. */
 export default async function WorkReportsPage({ searchParams }: { searchParams: { r?: string; domain?: string; day?: string } }) {
+  await requirePage("work.view");
   if (searchParams.r) redirect(`/work/reports/${encodeURIComponent(`report:${searchParams.r}`)}`);
   const domain = searchParams.domain === "ads" || searchParams.domain === "ops" ? searchParams.domain : undefined;
   const day = isKey(searchParams.day) ? searchParams.day : undefined;

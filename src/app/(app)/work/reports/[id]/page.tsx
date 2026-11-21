@@ -7,6 +7,7 @@ import { JobNumber } from "@/components/ui/job-number";
 import { Pill } from "@/components/ui/pill";
 import { SectionTitle } from "@/components/ui/section-title";
 import { getReport } from "@/server/reports";
+import { requirePage } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "تقرير" };
@@ -16,6 +17,7 @@ const STATE: Record<string, { label: string; tone: "ok" | "danger" | "info" | "n
 
 /** One report: the full text, the run's numbers as a table, the links it left, and a copy for paper. */
 export default async function ReportPage({ params }: { params: { id: string } }) {
+  await requirePage("work.view");
   const id = decodeURIComponent(params.id);
   const r = await getReport(id);
   if (!r) notFound();

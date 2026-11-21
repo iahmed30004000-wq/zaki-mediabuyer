@@ -68,12 +68,19 @@ export function isPrivateIp(ip: string): boolean {
     const s = ip.toLowerCase();
     const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (mapped) return isPrivateIp(mapped[1]!);
+    // the same address written in hex, which is how a URL parser prints it: ::ffff:7f00:1 is 127.0.0.1
+    const hex = s.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (hex) {
+      const hi = parseInt(hex[1]!, 16);
+      const lo = parseInt(hex[2]!, 16);
+      return isPrivateIp(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
     return s === "::" || s === "::1" || /^f[cd]/.test(s) || /^fe[89ab]/.test(s) || s.startsWith("ff");
   }
   return true; // not an address at all: not safe
 }
 
-const hostAllowed = (host: string, allow: string[]) => allow.some((a) => (a.startsWith("*.") ? host.endsWith(a.slice(1)) && host.length > a.length - 1 : host === a));
+export const hostAllowed = (host: string, allow: string[]) => allow.some((a) => (a.startsWith("*.") ? host.endsWith(a.slice(1)) && host.length > a.length - 1 : host === a));
 
 export type Target = { ok: true; executor: SiteExecutor; url?: string; host?: string } | { ok: false; why: string };
 

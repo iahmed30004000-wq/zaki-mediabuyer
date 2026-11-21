@@ -143,7 +143,9 @@ const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: P
   { test: /^\/inbox(\/|$)/, any: ["inbox.view"], place: "inbox" },
   { test: /^\/work\/tasks(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
   { test: /^\/work(\/|$)/, any: ["work.view"], place: "work" },
-  { test: /^\/print\/(work|report)(\/|$)/, any: ["work.view"] },
+  { test: /^\/print\/(work|report|day)(\/|$)/, any: ["work.view"] },
+  { test: /^\/print\/numbers(\/|$)/, any: ["money.view"] }, // every product's spend and revenue
+  { test: /^\/ring\//, any: ["inbox.view"] }, // the full-screen approval a push opens
   { test: /^\/(ads|products)(\/|$)/, any: ["ads.view"], place: "ads" },
   { test: /^\/ops(\/|$)/, any: ["ops.view"], place: "ops" },
   { test: /^\/settings\/connections(\/|$)/, any: ["owner_only"] }, // the keys and links (D62): the owner alone, like the API behind it

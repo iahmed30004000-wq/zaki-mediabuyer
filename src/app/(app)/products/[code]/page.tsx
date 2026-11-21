@@ -12,7 +12,7 @@ import { loadNumbers } from "@/lib/numbers-view";
 import { loadBoard } from "@/lib/videos-board";
 import { OrdersSection } from "@/components/work/orders-section";
 import { can } from "@/core/roles";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { listOrders } from "@/server/orders";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,7 @@ export const metadata = { title: "منتج" };
  * (the jobs that touch it) arrives later; the standing orders on it are above.
  */
 export default async function ProductPage({ params, searchParams }: { params: { code: string }; searchParams: { d?: string; from?: string; to?: string } }) {
+  await requirePage("ads.view");
   const code = decodeURIComponent(params.code);
   const range = parseRange(searchParams, new Date());
   const [data, board, me] = await Promise.all([loadNumbers(searchParams), loadBoard(), currentCaller()]);

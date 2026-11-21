@@ -6,10 +6,12 @@ import { stripMoney } from "@/core/redact-money";
 import { can, type RoleKey } from "@/core/roles";
 import { currentCaller } from "./auth";
 
-/** The role of whoever is looking, or null outside a request (a job, a test): nothing is filtered for those. */
+/**
+ * The role of whoever is looking, or null outside a request (a job, a test): nothing is filtered for those. Inside a request with nobody signed in it answers the least role there is.
+ */
 export async function viewerRole(): Promise<RoleKey | null> {
   try {
-    return (await currentCaller())?.role ?? null;
+    return (await currentCaller())?.role ?? "MEMBER";
   } catch {
     return null;
   }
@@ -22,6 +24,7 @@ export async function forViewer<T>(data: T): Promise<T> {
   } catch {
     return data; // outside a request: no cookies, no caller
   }
-  if (!caller || can(caller.role, "money.view")) return data;
+  // inside a request the money is stripped unless the caller may see it; a job or a test has no request and reads the real numbers
+  if (caller && can(caller.role, "money.view")) return data;
   return stripMoney(data);
 }

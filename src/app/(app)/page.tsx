@@ -5,6 +5,7 @@ import { AlertsSection, DayLineSection, InboxSection, ReportsSection, SectionSke
 import { isDemo } from "@/core/readiness";
 import { loadMorning } from "@/lib/today-view";
 import { currentMode } from "@/server/mode";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "الرئيسية" };
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
  * slow one never holds the rest. The numbers per product are `/products`.
  */
 export default async function HomePage() {
+  await requirePage();
   const [mode, morning] = await Promise.all([currentMode(), loadMorning()]);
   return (
     <div className="space-y-6">
