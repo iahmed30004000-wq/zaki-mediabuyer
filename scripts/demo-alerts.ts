@@ -1,10 +1,9 @@
 /**
  * Instant alerts (spec 12.3) on the local database: a condition is raised on the second reading in a row, an event
- * (a change with spend waiting) at once, and every unsent alert goes to Telegram in ONE message — here to a pretend
- * Telegram that records what it would send. `npx tsx --env-file=.env scripts/demo-alerts.ts`
+ * (a change with spend waiting) at once, and every unsent alert becomes a notice (a Notification row) for the one sender. `npx tsx --env-file=.env scripts/demo-alerts.ts`
  */
 import { db } from "../src/server/db";
-import { readAlerts, sendAlerts } from "../src/jobs/alerts";
+import { readAlerts, queueAlerts } from "../src/jobs/alerts";
 import { propose } from "../src/server/changes";
 import { assertLocalDatabase } from "./_guard";
 assertLocalDatabase();
@@ -36,11 +35,11 @@ const check = (ok: boolean, label: string) => {
   await readAlerts(new Date(t0.getTime() + 30 * 60_000));
   check((await db.alert.count({ where: { sentAt: null, kind: "alert.attribution" } })) === 1, "   …a third reading raises nothing again");
 
-  let sent = "";
-  const fakeTelegram = { token: "demo", chatId: "1", fetch: (async (_: unknown, init?: RequestInit) => { sent += JSON.parse(String(init?.body)).text; return new Response("{}"); }) as typeof fetch };
-  const s = await sendAlerts(fakeTelegram);
-  check(s.sent >= 2 && sent.startsWith("تنبيهات الميديا باير") && sent.includes("إسناد ضعيف") && sent.includes("بانتظار موافقتك"), `3. one Telegram message with ${s.sent} alerts:\n      ${sent.split("\n").slice(0, 4).join("\n      ")}`);
-  check((await sendAlerts(fakeTelegram)).sent === 0, "   …and nothing is sent twice");
+  // v6 · P7: the alerts become notices (one row each, keyed by the alert's id); the one sender (src/jobs/notify-dispatch.ts) takes them to the phone / Telegram / the bell
+  const s = await queueAlerts();
+  const notices = await db.notification.findMany({ where: { key: { startsWith: "alert:" }, createdAt: { gte: t0 } } });
+  check(s.written >= 2 && notices.some((n) => n.body?.includes("إسناد ضعيف")) && notices.some((n) => n.body?.includes("بانتظار موافقتك")), `3. ${s.written} alerts became notices:\n      ${notices.slice(0, 4).map((n) => n.title).join("\n      ")}`);
+  check((await queueAlerts()).written === 0, "   …and nothing is written twice");
   await db.report.deleteMany({ where: { kind: "attribution", forDate: today } });
   await db.changeSet.updateMany({ where: { sentence: "زيادة تجريبية للتنبيه", state: "pending_approval" }, data: { state: "rejected" } });
   process.exit();

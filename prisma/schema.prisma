@@ -1113,9 +1113,19 @@ model Notification {
   /// when it left (Telegram / the phone), if it did
   sentAt    DateTime?
   createdAt DateTime  @default(now())
+  /// approval.new · run.missed · … (docs/rebuild-v6/05-notify.md §4); null on the older rows
+  kind      String?
+  /// counted «rings» when it was sent
+  ring      Boolean   @default(false)
+  /// where it really went: push · telegram · site
+  channels  String[]  @default([])
+  attempts  Int       @default(0)
+  nextTryAt DateTime?
+  lastError String?
 
   @@unique([audience, key])
   @@index([audience, createdAt])
+  @@index([sentAt, nextTryAt])
 }
 
 /// A task of the team or of an agent — one place for «what waits for whom». Archived, never deleted.
@@ -1172,7 +1182,7 @@ model CustomValue {
 model PushDevice {
   id         String    @id @default(cuid())
   userId     String?
-  /// fcm · webpush
+  /// fcm (a registration token) · fcm_fid (a Firebase Installation ID) · webpush
   kind       String
   token      String    @unique
   /// Web Push keys (p256dh, auth); null for FCM
@@ -1182,6 +1192,10 @@ model PushDevice {
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  /// android · ios · desktop
+  platform   String?
+  /// when FCM last refused it
+  failedAt   DateTime?
 }
 
 /// Everything about one product on one business day (Asia/Amman) — v4.1 «الأرقام». Raw counts and amounts only, pushed by

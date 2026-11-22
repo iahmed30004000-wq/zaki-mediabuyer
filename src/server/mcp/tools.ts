@@ -212,7 +212,8 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     run: async (a, ctx) => {
       try {
         const r = await requestApproval(a as z.infer<typeof ApprovalInput>, ctx.actor);
-        const how = { ring: "رنّ التلفون", notify: "إشعار بصوت", silent: "صامت (بيظهر بـ اليوم)", queue: "المالك نايم — بيطلع بكرت صباح الخير", already: "موجود من قبل (نفس الـ ref)" }[r.delivery];
+        // what is true now — never «رنّ التلفون»: the notice is queued for his phone, held while he sleeps, or only in the bell (the sender may still fail; the bell has it either way)
+        const how = { queued: "انبعت للإشعارات (بيوصل لجواله خلال دقيقة)", held_asleep: "المالك نايم — بيطلع بإشعار «وإنت نايم» لما يصحى", site_only: "بالجرس بالموقع بس (ما في جهاز مربوط أو هيك اختار)", already: "موجود من قبل (نفس الـ ref)" }[r.delivery];
         return ok(`${r.created ? "انبعت" : "الطلب موجود"}: «${r.approval.title}» — ${how}. رقمه ${r.approval.id}`, { approval: r.approval, delivery: r.delivery });
       } catch (e) {
         if (e instanceof Refused) return fail(e.message);
@@ -278,8 +279,9 @@ export const TOOLS: ToolDef<McpCtx>[] = [
       if (refusal) return fail(refusal);
       if (i.href && !i.href.startsWith("/")) return fail("href: مسار داخلي بيبدأ بـ /");
       const n = await createNotification({ ...i, source: "mcp" });
-      const d = n.created ? await dispatchNotification(n.id) : { delivered: true, reason: "موجود من قبل" };
-      return ok(`${n.created ? "انحفظ" : "موجود"} التنبيه — ${d.delivered ? "وصل" : (d.reason ?? "ما انبعت")}`, { id: n.id, created: n.created, delivered: d.delivered, reason: "reason" in d ? d.reason : undefined });
+      const d = n.created ? await dispatchNotification(n.id) : { delivered: true, delivery: "queued" as const, reason: "موجود من قبل" };
+      // `delivery` is what is true now (queued · held_asleep · site_only); `delivered` is true only when a channel really took it
+      return ok(`${n.created ? "انحفظ" : "موجود"} التنبيه — ${d.delivered ? "انبعت" : (d.reason ?? "ما انبعت")}`, { id: n.id, created: n.created, delivered: d.delivered, delivery: d.delivery, reason: "reason" in d ? d.reason : undefined });
     },
   },
   {

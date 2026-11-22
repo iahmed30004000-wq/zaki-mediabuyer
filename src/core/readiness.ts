@@ -43,7 +43,7 @@ export const INTEGRATIONS: Integration[] = [
   { key: "studioDrive", label: "درايف — الاستوديو", needs: [["GOOGLE_SERVICE_ACCOUNT_JSON"], ["DRIVE_STUDIO_FOLDER_ID"]], writes: false, jobs: ["creative.intake.studio"], why: "قراءة مجلد الاستوديو" },
   { key: "replies", label: "نظام الردود", needs: [["REPLIES_BASE_URL"], ["REPLIES_TOKEN"]], writes: false, jobs: ["replies.sync"], why: "قدرة الرد وتجميد تكبير الرسائل" },
   { key: "hermes", label: "هيرمز (طلبات الفيديو)", needs: [["HERMES_BASE_URL", "TELEGRAM_HERMES_CHAT_ID"], ["HERMES_TOKEN", "TELEGRAM_HERMES_CHAT_ID"]], writes: true, jobs: [], probe: "hermes", why: "وصول طلبات الفيديو لهيرمز" },
-  { key: "firebase", label: "الإشعارات للجوال (Firebase)", needs: [["FIREBASE_SERVICE_ACCOUNT_JSON"]], writes: true, jobs: [], probe: "none", why: "التطبيق الأصلي — بعدين بقرار المالك", later: true },
+  { key: "firebase", label: "الإشعارات للجوال (Firebase)", needs: [["FIREBASE_API_KEY"], ["FIREBASE_PROJECT_ID"], ["FIREBASE_MESSAGING_SENDER_ID"], ["FIREBASE_APP_ID"], ["FIREBASE_VAPID_KEY"], ["FIREBASE_SERVICE_ACCOUNT_JSON"]], writes: true, jobs: [], probe: "none", why: "إشعار على الجوال والموقع مسكّر (من «الربط»)" },
 ];
 
 export const integrationOf = (key: string): Integration => {

@@ -23,7 +23,8 @@
  *   capi.send      every 15 min — the truth back to Meta as conversion events (queued always, sent only when live)
  *   report.morning 09:00 — built by code, sent to Telegram
  *   alerts.read    every 15 min — the instant alerts of spec 12.3 (two readings in a row, the instant ones at once)
- *   alerts.send    every 5 min — every unsent danger/warning alert in ONE Telegram message
+ *   alerts.send    every 5 min — every unsent danger/warning alert becomes a notice (a Notification row); the sender below takes it from there
+ *   (notify)       every minute, no slot row — the ONE sender of notices: the phone (Firebase), Telegram when no phone can be reached, the bell; src/jobs/notify-dispatch.ts
  *   workflow.timeouts every 5 min — a workflow step «running» past its own timeout goes to the handoff queue (once each)
  *   (watchdog)     every minute, no slot row (N-14): the site's one clock — asks for the runs of the jobs it wakes, writes «فاتت» and «انقطعت», src/jobs/watchdog.ts
  *   db.cleanup     Sunday from 04:00 — the tables that grow are trimmed (30 days of worker slots, 90 of tool-call audit rows, expired codes), src/jobs/cleanup.ts
@@ -55,7 +56,9 @@ import { runFatigue } from "../src/jobs/fatigue";
 import { proposeSafetyNet } from "../src/server/safety-net";
 import { storeAnalysis } from "../src/agents/analyst";
 import { weeklyCreativeRequests } from "../src/agents/strategist";
-import { readAlerts, sendAlerts } from "../src/jobs/alerts";
+import { readAlerts, queueAlerts } from "../src/jobs/alerts";
+import { dispatchDue } from "../src/jobs/notify-dispatch";
+import { createNotification } from "../src/server/notify";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
 import { metaWriteGate, missingText, requireKeys } from "../src/core/readiness";
@@ -153,10 +156,8 @@ export async function tick(now = new Date()) {
   await runOnce("meta.upload", quarter, () => uploadReadyCreatives());
   await runOnce("alerts.read", quarter, () => readAlerts(now));
   const five = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 5) * 5).padStart(2, "0")}`;
-  await runOnce("alerts.send", five, async () => {
-    requireKeys("telegram");
-    return sendAlerts(telegramFromEnv(), now);
-  });
+  // v6 · P7: the alerts become notices (rows); the one sender below takes them to the phone / Telegram / the bell, so no key is required for this to run
+  await runOnce("alerts.send", five, () => queueAlerts(now));
   await runOnce("workflow.timeouts", five, () => sweepTimeouts(now));
   await runOnce("workspace.sync", five, async () => {
     requireKeys("workspace");
@@ -164,6 +165,8 @@ export async function tick(now = new Date()) {
   });
   // the site's one clock (docs/rebuild-v6/01-model.md §6): every minute, under its own lock, with no row of its own — a failure here never stops the rest of the round
   await runWatchdog(now).catch((e) => console.error("watchdog failed:", e instanceof Error ? e.message : e));
+  // the one sender of notices (docs/rebuild-v6/05-notify.md §2): every minute, no row of its own. Two workers never send the same notice (each row is claimed first).
+  await dispatchDue(now).catch((e) => console.error("notify dispatch failed:", e instanceof Error ? e.message : e));
   if (t.sunday && t.hour >= 4) await runOnce("db.cleanup", t.date, () => weeklyCleanup(now));
   await runOnce("capi.send", quarter, async () => {
     // R-11: the OMS is the only sender of conversion events (owner, 17/11): off unless CAPI_SEND=1
@@ -220,6 +223,8 @@ export async function tick(now = new Date()) {
       const empty = isEmptyReport("morning", text);
       await db.report.upsert({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, create: { kind: "morning", forDate: utcDay(yesterday), text, empty }, update: { text, empty } });
       if (empty) return { empty: true, chars: text.length };
+      // v6 · P7: «تقرير الصبح جاهز» — a silent notice (the report itself still goes to Telegram below, as its own message)
+      await createNotification({ urgency: "yellow", kind: "report.morning", title: "تقرير الصبح جاهز", body: "أرقام أمس كاملة بالموقع.", href: "/work/reports", source: "report", key: `report.morning:${yesterday}` }).catch(() => undefined);
       const tg = telegramFromEnv();
       if (!tg) {
         requireKeys("telegram");
