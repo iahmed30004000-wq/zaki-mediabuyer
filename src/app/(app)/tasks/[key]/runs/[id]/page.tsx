@@ -29,7 +29,9 @@ export default async function TaskRunPage({ params: paramsP }: { params: Promise
   const params = await paramsP;
   const key = decodeURIComponent(params.key);
   const id = decodeURIComponent(params.id);
-  const [data, me, directory] = await Promise.all([loadRunPage(key, id), currentCaller(), loadDirectory().catch(() => [])]);
+  const [me, directory] = await Promise.all([currentCaller(), loadDirectory().catch(() => [])]);
+  // the least role when nobody is known: the result and the decisions are read by role, as on the results screen
+  const data = await loadRunPage(key, id, me?.role ?? "MEMBER");
   if (!data) notFound();
   const { job, run } = data;
   const canControl = !!me && !me.demo && can(me.role, "work.control");
@@ -75,7 +77,7 @@ export default async function TaskRunPage({ params: paramsP }: { params: Promise
         {canHand ? <ReassignControl jobKey={job.key} runId={run.id} options={agents} /> : null}
       </section>
 
-      {run.report || run.metrics || run.artifacts.length ? (
+      {data.resultHidden ? null : run.report || run.metrics || run.artifacts.length ? (
         <section className="space-y-3">
           <SectionTitle>النتيجة</SectionTitle>
           {run.summary ? <p className="text-base font-semibold leading-7 text-fg">{run.summary}</p> : null}
@@ -86,9 +88,11 @@ export default async function TaskRunPage({ params: paramsP }: { params: Promise
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <ButtonLink href={`/print/report/${encodeURIComponent(`run:${run.id}`)}`} variant="secondary" size="sm" target="_blank">
-          نسخة للطباعة
-        </ButtonLink>
+        {data.resultHidden ? null : (
+          <ButtonLink href={`/print/report/${encodeURIComponent(`run:${run.id}`)}`} variant="secondary" size="sm" target="_blank">
+            نسخة للطباعة
+          </ButtonLink>
+        )}
         <ButtonLink href={`/tasks/${encodeURIComponent(job.key)}`} variant="ghost" size="sm">
           صفحة المهمة
         </ButtonLink>

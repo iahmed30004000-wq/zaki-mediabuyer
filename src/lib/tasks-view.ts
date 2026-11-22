@@ -16,6 +16,9 @@ import type { StripStep } from "@/core/light-strip";
 import { workdayBounds, workdayOf } from "@/core/timeline";
 import type { JobDomain } from "@/core/jobs";
 import { STATE_WORDS, type WordState } from "@/core/state-word";
+import { fromApproval } from "@/core/inbox";
+import { canReadRunResult, canSeeRunApproval, runMetricsFor } from "@/core/run-access";
+import type { RoleKey } from "@/core/roles";
 import { db } from "@/server/db";
 import { directoryNames } from "@/server/directory";
 import { loadReports, type ReportRow } from "@/server/reports";
@@ -270,11 +273,16 @@ export interface RunPageData {
   actions: CardAction[];
   live: boolean;
   duration: string | null;
+  /** this role may not read the result of the job (its area is not theirs): the summary, report, numbers and links are empty */
+  resultHidden: boolean;
   approvals: { id: string; title: string; why: string; numbers: { label: string; value: string }[]; options: { key: string; label: string }[]; amount: number | null; urgency: "red" | "orange" | "yellow"; kind: string | null; source: string; workflowKey: string | null; expiresAt: string | null; postponedUntil: string | null; createdAt: string; nodeId: string | null; analysis: Record<string, unknown> | null }[];
 }
 
-/** One run: the rope drawn from the steps it BEGAN with (its own version), every state exactly as it was stored, the sentence, the decisions that wait on its steps. Null: no such run. */
-export async function loadRunPage(key: string, runId: string, now = new Date()): Promise<RunPageData | null> {
+/**
+ * One run: the rope drawn from the steps it BEGAN with (its own version), every state exactly as it was stored, the sentence, the decisions that wait on its steps. Null: no such run.
+ * `role` is who is looking (null: a job or a test). As on the results screen, the result needs the area of the job, the money numbers need `money.view`, and a decision needs the inbox.
+ */
+export async function loadRunPage(key: string, runId: string, role: RoleKey | null, now = new Date()): Promise<RunPageData | null> {
   if (isDemo(process.env)) return null;
   const job = await db.workflow.findUnique({ where: { key } });
   if (!job) return null;
@@ -288,10 +296,30 @@ export async function loadRunPage(key: string, runId: string, now = new Date()):
     const g = v ? GraphSchema.safeParse(v.graph) : null;
     if (g?.success) graph = g.data;
   }
-  const [req, approvals] = await Promise.all([
+  const [req, approvalRows] = await Promise.all([
     openRequests(),
     db.approval.findMany({ where: { workflowKey: key, runRef: run.ref, status: { in: ["pending", "postponed"] } }, orderBy: { createdAt: "asc" } }),
   ]);
+  const mapped = approvalRows.map((a) => ({
+    id: a.id,
+    title: a.title,
+    why: a.why,
+    numbers: (a.numbers as { label: string; value: string }[] | null) ?? [],
+    options: (a.options as { key: string; label: string }[] | null) ?? [],
+    amount: a.amount === null ? null : Number(a.amount),
+    urgency: (a.urgency === "red" || a.urgency === "yellow" ? a.urgency : "orange") as "red" | "orange" | "yellow",
+    kind: a.kind,
+    source: a.source,
+    workflowKey: a.workflowKey,
+    expiresAt: iso(a.expiresAt),
+    postponedUntil: iso(a.postponedUntil),
+    createdAt: a.createdAt.toISOString(),
+    nodeId: a.nodeId,
+    analysis: (a.analysis as Record<string, unknown> | null) ?? null,
+  }));
+  const seeResult = canReadRunResult(role, jobView.domain);
+  // a decision belongs to the inbox: it is drawn here only for a role whose inbox holds its area (the same filter as the inbox itself) AND who may read this job's area — its numbers are the job's numbers
+  const approvals = seeResult ? mapped.filter((a) => canSeeRunApproval(role, fromApproval({ ...a, analysis: a.analysis as { text?: string } | null }).domain)) : [];
   const v = asRun(run, key, req.get(`${key}:${run.ref}`) ?? null);
   const states = v.nodeStates;
   const forRun = { ...jobView, graph };
@@ -325,7 +353,7 @@ export async function loadRunPage(key: string, runId: string, now = new Date()):
   const artifacts = Array.isArray(run.artifacts) ? (run.artifacts as { label?: string; url?: string; text?: string }[]).filter((a) => a?.label).map((a) => ({ label: String(a.label), ...(a.url ? { url: a.url } : {}), ...(a.text ? { text: a.text } : {}) })) : [];
   return {
     job: { ...jobView, id: job.id, domainLabel: jobView.domain === "ops" ? "فريق وتشغيل" : "إعلانات" },
-    run: { ...v, ref: run.ref, metrics, artifacts, report: run.report, graphVersion: run.graphVersion },
+    run: { ...v, summary: seeResult ? v.summary : null, ref: run.ref, metrics: seeResult ? runMetricsFor(role, metrics) : null, artifacts: seeResult ? artifacts : [], report: seeResult ? run.report : null, graphVersion: run.graphVersion },
     state,
     word: STATE_WORDS[state].word,
     sentence: sentenceOf(forRun, v, names, now),
@@ -335,23 +363,8 @@ export async function loadRunPage(key: string, runId: string, now = new Date()):
     actions: actionsFor(state),
     live: isLiveRun(run.status),
     duration: durationWords(v.startedAt, v.finishedAt),
-    approvals: approvals.map((a) => ({
-      id: a.id,
-      title: a.title,
-      why: a.why,
-      numbers: (a.numbers as { label: string; value: string }[] | null) ?? [],
-      options: (a.options as { key: string; label: string }[] | null) ?? [],
-      amount: a.amount === null ? null : Number(a.amount),
-      urgency: (a.urgency === "red" || a.urgency === "yellow" ? a.urgency : "orange") as "red" | "orange" | "yellow",
-      kind: a.kind,
-      source: a.source,
-      workflowKey: a.workflowKey,
-      expiresAt: iso(a.expiresAt),
-      postponedUntil: iso(a.postponedUntil),
-      createdAt: a.createdAt.toISOString(),
-      nodeId: a.nodeId,
-      analysis: (a.analysis as Record<string, unknown> | null) ?? null,
-    })),
+    resultHidden: !seeResult,
+    approvals,
   };
 }
 
