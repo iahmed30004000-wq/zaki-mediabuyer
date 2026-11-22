@@ -8,7 +8,8 @@ import { IconButton } from "./icon-button";
 /**
  * A step as a block (docs/rebuild-v6/03-look.md §7): its number, its KIND («اقرا المخزون»), its text, two arrows to move it and a cross to remove it. Blocks stand on top of
  * each other, joined by `StepJoint`; this is how a job is built and edited (no drawing board). The buttons are 44 wide: a finger. A button that has no
- * handler is left out (the first block has no «up», the last no «down»).
+ * handler is left out (the first block has no «up», the last no «down»). `wide`: what is inside (a text box) goes on a row of its own under the head, the whole width of the block — for a phone,
+ * where a box beside three 44-wide buttons would be a sliver.
  */
 export function StepBlock({
   n,
@@ -17,6 +18,7 @@ export function StepBlock({
   onUp,
   onDown,
   onRemove,
+  wide = false,
   className,
 }: {
   n: number;
@@ -25,16 +27,17 @@ export function StepBlock({
   onUp?: () => void;
   onDown?: () => void;
   onRemove?: () => void;
+  wide?: boolean;
   className?: string;
 }) {
   return (
-    <li className={cn("grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border bg-surface-1 px-3 py-2.5", className)}>
+    <li className={cn("grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-surface-1 px-3 py-2.5", className)}>
       <span aria-hidden className="inline-grid size-8 shrink-0 place-items-center rounded-full border border-border bg-surface-2 font-display text-base font-extrabold tabular-nums">
         {n}
       </span>
       <div className="min-w-0">
         <b className="block text-base font-semibold text-fg">{kind}</b>
-        {children ? <div className="text-sm text-fg-muted">{children}</div> : null}
+        {children && !wide ? <div className="text-sm text-fg-muted">{children}</div> : null}
       </div>
       <div className="flex shrink-0 items-center">
         {onUp ? (
@@ -53,6 +56,7 @@ export function StepBlock({
           </IconButton>
         ) : null}
       </div>
+      {children && wide ? <div className="col-span-3 min-w-0">{children}</div> : null}
     </li>
   );
 }
