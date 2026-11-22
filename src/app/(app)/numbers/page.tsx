@@ -3,6 +3,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { missingCount } from "@/core/numbers-readiness";
 import { periodQuery } from "@/core/compare";
 import { addDays, ammanKey } from "@/core/dates";
+import { compareForRole, seesAdsNumbers } from "@/core/numbers-scope";
 import { canOpenPath } from "@/core/roles";
 import { loadCompare } from "@/lib/compare-view";
 import { chartRange, loadEvents } from "@/lib/events-view";
@@ -18,15 +19,18 @@ export const dynamic = "force-dynamic";
  * ends yesterday, and «اليوم لهلق» is shown on its own, with no difference.
  */
 export default async function NumbersPage({ searchParams: searchParamsP }: { searchParams: Promise<{ p?: string; from?: string; to?: string }> }) {
-  await requirePage(["ads.view", "ops.view"]);
+  const caller = await requirePage(["ads.view", "ops.view"]);
+  // the ads' side (spend, cost, products, «شو عملنا») is for a role with `ads.view`; a role that only has the operations' numbers is never handed it (src/core/numbers-scope.ts)
+  const ads = seesAdsNumbers(caller.role);
   const search = await searchParamsP;
   const now = new Date();
-  const [me, c, events, today] = await Promise.all([
+  const [me, loaded, events, today] = await Promise.all([
     currentCaller(),
     loadCompare({ now, period: search }),
-    loadEvents(chartRange(now)).catch(() => []),
-    loadNumbers({ d: "today" }, now).catch(() => null),
+    ads ? loadEvents(chartRange(now)).catch(() => []) : Promise.resolve([]),
+    ads ? loadNumbers({ d: "today" }, now).catch(() => null) : Promise.resolve(null),
   ]);
+  const c = compareForRole(loaded, caller.role);
   const canOpen = (href: string) => !!me && canOpenPath(me.role, href);
   const query = periodQuery({ period: c.period, from: c.range.from, to: c.range.to });
   return (
@@ -50,14 +54,16 @@ export default async function NumbersPage({ searchParams: searchParamsP }: { sea
         {today ? <TodaySoFar spend={today.totals.current.spend} orders={today.totals.current.ordersIn} cost={today.totals.current.costPerOrder} facts={c.facts} /> : null}
       </section>
 
-      <SummaryChart c={c} events={events} now={now} />
+      {ads ? <SummaryChart c={c} events={events} now={now} /> : null}
 
-      <section className="space-y-3" data-tour="products" aria-label="كل منتج: كنا وصرنا">
-        <SectionTitle hint={`آخر ${c.range.days === 1 ? "يوم" : `${c.range.days} يوم`} مقابل اللي قبلهم`} href={`/numbers/products${query ? `?${query}` : ""}`} linkLabel="كل الأرقام">
-          كل منتج: كنا وصرنا
-        </SectionTitle>
-        <ProductsCompareTable rows={c.products} query={query} />
-      </section>
+      {ads ? (
+        <section className="space-y-3" data-tour="products" aria-label="كل منتج: كنا وصرنا">
+          <SectionTitle hint={`آخر ${c.range.days === 1 ? "يوم" : `${c.range.days} يوم`} مقابل اللي قبلهم`} href={`/numbers/products${query ? `?${query}` : ""}`} linkLabel="كل الأرقام">
+            كل منتج: كنا وصرنا
+          </SectionTitle>
+          <ProductsCompareTable rows={c.products} query={query} />
+        </section>
+      ) : null}
 
       <FunnelView steps={c.funnel} />
 
