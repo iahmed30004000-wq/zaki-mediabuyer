@@ -42,7 +42,7 @@ export function MorningCard({ m }: { m: Morning }) {
         {m.executed ? <li><span className="font-semibold">قرارات أمان تنفّذت لحالها:</span> {m.executed}</li> : null}
         {m.approvalsQueued ? (
           <li>
-            <span className="font-semibold">بانتظارك:</span> {m.approvalsQueued} قرار استنى للصبح — <Link href="/tasks#approval" className="font-medium text-accent hover:underline">افتحهم</Link>
+            <span className="font-semibold">بانتظارك:</span> {m.approvalsQueued} قرار استنى للصبح — <Link href="/inbox" className="font-medium text-accent hover:underline">افتحهم</Link>
           </li>
         ) : null}
         {m.notifications.length ? (

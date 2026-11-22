@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { safeFetch } from "@/lib/call";
 
 /** «سجّل الـ webhook» and «افحصه» for Telegram's «اوقف»: the site does it with the keys it already has — nobody types a token. */
 export function TelegramHook() {
@@ -12,7 +13,7 @@ export function TelegramHook() {
 
   async function call(method: "GET" | "POST") {
     setBusy(true);
-    const r = await fetch("/api/telegram/register", { method }).catch(() => null);
+    const r = await safeFetch("/api/telegram/register", { method }).catch(() => null);
     const d = (await r?.json().catch(() => ({}))) as { error?: string; demo?: boolean; registered?: boolean; pending?: number; lastError?: string | null; url?: string };
     setBusy(false);
     if (!r || !r.ok) return toast(d?.error ?? "ما زبط، جرّب كمان مرة", "error");

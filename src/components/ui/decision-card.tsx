@@ -58,7 +58,7 @@ export function DecisionCard({
   className,
 }: {
   item: InboxItem;
-  onAction?: (key: InboxActionKey, extra?: { until?: string }) => void;
+  onAction?: (key: InboxActionKey, extra?: { until?: string; option?: string }) => void;
   busy?: boolean;
   /** Replaces the buttons once the item is decided («وافقت»). */
   resolved?: string | null;
@@ -145,7 +145,7 @@ export function DecisionCard({
                   size={compact ? "sm" : i === 0 ? "lg" : "md"}
                   disabled={busy}
                   {...(a.confirm ? { confirm: "متأكد؟" } : {})}
-                  onClick={() => onAction(a.key)}
+                  onClick={() => onAction(a.key, a.option ? { option: a.option } : undefined)}
                 >
                   {a.label}
                 </Button>

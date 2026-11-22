@@ -14,15 +14,15 @@ describe("the status badge — one line of the table each, in order", () => {
     expect(jobStatus(job({ kind: "window", endsAt: "2026-11-16T09:00:00Z" }), null, now).key).toBe("finished");
     expect(jobStatus(job({ kind: "window", endsAt: "2026-11-17T09:00:00Z" }), null, now).key).toBe("window");
   });
-  it("a failed last run is red «فشلت»; a waiting one with an open handoff is red «متوقفة»; waiting alone is just running", () => {
-    expect(jobStatus(job(), { status: "failed" }, now)).toMatchObject({ key: "failed", tone: "danger" });
-    expect(jobStatus(job(), { status: "waiting" }, now, true)).toMatchObject({ key: "stuck", tone: "danger" });
-    expect(jobStatus(job(), { status: "waiting" }, now, false).key).toBe("running");
+  it("a failed last run is red «وقفت»; a waiting one with an open handoff is «واقفة — بدها حدا» (v6: orange, it needs somebody); waiting alone is just on", () => {
+    expect(jobStatus(job(), { status: "failed" }, now)).toMatchObject({ key: "failed", label: "وقفت", tone: "danger" });
+    expect(jobStatus(job(), { status: "waiting" }, now, true)).toMatchObject({ key: "stuck", label: "واقفة — بدها حدا", tone: "warn" });
+    expect(jobStatus(job(), { status: "waiting" }, now, false).key).toBe("on");
   });
-  it("then once · window · manual · running", () => {
+  it("then once · window · manual · on («مفعّلة» — the switch; «شغّالة» is a run that is going, see tests/p3-decisions-scope.test.ts)", () => {
     expect(jobStatus(job({ kind: "once" }), null, now)).toMatchObject({ key: "once", label: "مرة وحدة جاية", tone: "warn" });
     expect(jobStatus(job({ kind: "manual" }), null, now)).toMatchObject({ key: "manual", tone: "neutral" });
-    expect(jobStatus(job(), { status: "ok" }, now)).toMatchObject({ key: "running", label: "شغّالة", tone: "ok" });
+    expect(jobStatus(job(), { status: "ok" }, now)).toMatchObject({ key: "on", label: "مفعّلة", tone: "ok" });
   });
   it("a failure outranks the kind: a manual job whose last run failed is «فشلت»", () => {
     expect(jobStatus(job({ kind: "manual" }), { status: "failed" }, now).key).toBe("failed");

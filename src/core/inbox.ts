@@ -12,10 +12,12 @@ export type InboxKind = (typeof INBOX_KINDS)[number];
 export type InboxDomain = "ads" | "ops" | "work";
 export type InboxUrgency = "red" | "orange" | "yellow";
 
-export type InboxActionKey = "approve" | "reject" | "later" | "send" | "edit" | "keep" | "cancel" | "retry" | "reassign" | "open" | "complete" | "merge";
+export type InboxActionKey = "approve" | "reject" | "later" | "send" | "edit" | "keep" | "cancel" | "retry" | "reassign" | "open" | "complete" | "merge" | "choose";
 
 export interface InboxAction {
   key: InboxActionKey;
+  /** An answer the agent wrote itself (`options` of its request): it is sent by this key, never squeezed into «موافق» or «رفض» (W-09). */
+  option?: string;
   /** One or two words with a verb: «وافق» · «ارفض» · «أجّل». */
   label: string;
   variant: "primary" | "secondary" | "ghost";
@@ -150,15 +152,26 @@ export function kindOfApproval(a: Pick<ApprovalIn, "kind" | "amount">): InboxKin
 
 const domainOfApproval = (a: ApprovalIn): InboxDomain => (a.kind === "stock" || isTeamMessage({ kind: a.kind, amount: a.amount, analysis: a.analysis }) ? "ops" : a.workflowKey ? "work" : "ads");
 
+/**
+ * The buttons of a request: ONE per option the agent wrote, in its order, each sent by its own key (W-09). The first is the main one («وافق» — or «ابعت» for a
+ * message); an option whose key is `reject` is the refusal; any other option is an answer of its own — it is sent as an answer with its key, so the agent reads
+ * exactly which one the owner chose. (v5 showed two buttons only: the third option could not be chosen and the second was always sent as a refusal.)
+ */
+export function optionActions(options: readonly { key: string; label: string }[], message: boolean, capability: Capability): InboxAction[] {
+  const list = options.length ? options : [{ key: "approve", label: message ? "ابعت" : "وافق" }, { key: "reject", label: message ? "لا" : "ارفض" }];
+  return list.slice(0, 5).map((o, i): InboxAction => {
+    if (i === 0) return { key: message ? "send" : "approve", option: o.key, label: o.label, variant: "primary", capability };
+    if (o.key === "reject") return { key: "reject", option: o.key, label: o.label, variant: "secondary", capability };
+    return { key: "choose", option: o.key, label: o.label, variant: "secondary", capability };
+  });
+}
+
 /** A request Claude made with `request_approval`. Its options are the answers (the first is the primary one); «أجّل» is always there. */
 export function fromApproval(a: ApprovalIn): InboxItem {
   // who may answer is decided by what the request carries, not by the `kind` the agent wrote (the server decides the same way): a «message» with no text to show is the owner's
   const kind = kindOfApproval(a) === "message" && !isTeamMessage({ kind: a.kind, amount: a.amount, analysis: a.analysis }) ? "other" : kindOfApproval(a);
-  const [first, second] = a.options;
-  const actions: InboxAction[] =
-    kind === "message"
-      ? [{ key: "send", label: first?.label ?? "ابعت", variant: "primary", capability: "ops.send" }, A.reject(second?.label ?? "لا", "ops.send"), A.later("ops.send")]
-      : [A.approve(first?.label ?? "وافق"), A.reject(second?.label ?? "ارفض"), A.later()];
+  const capability: Capability = kind === "message" ? "ops.send" : "owner_only";
+  const actions: InboxAction[] = [...optionActions(a.options, kind === "message", capability), A.later(capability)];
   return {
     id: itemId("approval", a.id),
     kind,
@@ -313,7 +326,7 @@ export const KIND_AR: Record<InboxKind, string> = {
   message: "رسالة",
   order: "أمر",
   advice: "توصية",
-  stuck: "متوقفة",
+  stuck: "واقفة",
   creative: "فيديو",
   stock: "مخزون",
   other: "قرار",

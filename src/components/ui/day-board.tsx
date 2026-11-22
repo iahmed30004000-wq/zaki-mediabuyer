@@ -12,6 +12,8 @@ export interface DayBoardRow {
   /** who carries it out («Claude الرئيسي») */
   who?: string | null;
   state: WordState;
+  /** one line under the name: the result, or why it is where it is */
+  line?: string | null;
   /** the moment has passed: the line is quiet */
   past?: boolean;
   href?: string;
@@ -37,7 +39,13 @@ export function DayBoard({ rows, label, className }: { rows: readonly DayBoardRo
             ) : (
               <b className={cn("block break-words text-base font-semibold", r.past ? "text-fg-muted" : "text-fg")}>{r.title}</b>
             )}
-            {r.who ? <span className="text-sm text-fg-muted">{r.who}</span> : null}
+            {r.who || r.line ? (
+              <span className="block text-sm text-fg-muted">
+                {r.who}
+                {r.who && r.line ? " · " : ""}
+                {r.line}
+              </span>
+            ) : null}
           </div>
           <div className="col-start-2 sm:col-start-3">
             <StateWord state={r.state} who={r.who} />

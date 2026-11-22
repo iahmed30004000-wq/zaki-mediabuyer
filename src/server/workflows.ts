@@ -268,6 +268,10 @@ export interface WorkflowCard {
   assigneeKey: string | null;
   /** the fields the owner edited by hand: the agent's map does not write over them */
   ownerEdited: string[];
+  /** what the owner wants to hear about: missed · stuck · failed · done */
+  notifyOn: string[];
+  /** the job the site itself carries out (docs/rebuild-v6/01-model.md §9), or null */
+  recipe: string | null;
 }
 
 const LIVE_HOURS = 6;
@@ -333,6 +337,8 @@ export async function listWorkflows(now = new Date(), only?: { key: string }): P
       maxRunMin: w.maxRunMin,
       assigneeKey: w.assigneeKey,
       ownerEdited: w.ownerEdited,
+      notifyOn: w.notifyOn,
+      recipe: w.recipe,
     };
   });
 }

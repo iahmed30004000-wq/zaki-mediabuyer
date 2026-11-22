@@ -274,3 +274,17 @@ export function planRegister(rows: RegisterRow[], bank: { job: string | null; vN
   }
   return plan;
 }
+
+/** Up to this many folder names are written in the alert; more than that is a count and a link (U-11: one alert with 24 folder names is a wall). */
+export const FOLDER_NAMES_IN_ALERT = 3;
+
+/**
+ * The sentence of the alert «folders with no product» — the names when they are few, else «24 مجلد درايف ما إلهم منتج — اربطهم» (the link is the alert's `href`, the products
+ * settings). `where` is what the folders belong to: «درايف» or «الاستوديو».
+ */
+export function unmappedFoldersSentence(names: readonly string[], where: "درايف" | "الاستوديو" = "درايف"): string {
+  if (names.length > FOLDER_NAMES_IN_ALERT) return `${names.length} مجلد ${where} ما إلهم منتج — اربطهم`;
+  return where === "درايف"
+    ? `مجلد درايف «${names.join("، ")}» ما إله منتج معروف — ضيف اسم بديل للمنتج من الإعدادات وبينربط ملفه لحاله`
+    : `مجلد الاستوديو «${names.join("، ")}» ما إله منتج معروف — ضيف اسم بديل للمنتج من الإعدادات وبيندخل الفيديو عالوارد لحاله`;
+}

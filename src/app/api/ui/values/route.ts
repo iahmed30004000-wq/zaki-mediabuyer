@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ENTITIES } from "@/core/customize";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { setValues } from "@/server/customize";
+import { assertTasksInScope } from "@/server/task-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,8 @@ export async function PUT(req: Request) {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
     if (caller.demo) return NextResponse.json({ ok: true, demo: true });
+    // S-19: the fields of a task card are written only by somebody whose scope holds that task
+    if (parsed.data.entity === "task") await assertTasksInScope(caller, [parsed.data.entityId]);
     return NextResponse.json({ ok: true, values: await setValues(parsed.data.entity, parsed.data.entityId, parsed.data.values, caller) });
   } catch (e) {
     return errorResponse(e);

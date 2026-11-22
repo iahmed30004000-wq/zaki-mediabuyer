@@ -9,6 +9,7 @@ import { safeFetch } from "@/lib/call";
 
 const DONE: Partial<Record<InboxActionKey, string>> = {
   approve: "وافقت ✓",
+  choose: "سجّلت اختيارك ✓",
   send: "وافقت ✓ — Claude بيبعتها",
   reject: "رفضت",
   later: "تأجّلت",
@@ -19,7 +20,7 @@ const DONE: Partial<Record<InboxActionKey, string>> = {
 };
 
 /** Sends a press to the endpoint that already does it — nothing new can spend money from here. Returns an error sentence, or null. */
-async function send(item: InboxItem, key: InboxActionKey, extra?: { until?: string }): Promise<{ error: string | null; demo: boolean }> {
+async function send(item: InboxItem, key: InboxActionKey, extra?: { until?: string; option?: string }): Promise<{ error: string | null; demo: boolean }> {
   const ids = splitItemId(item.id);
   if (!ids) return { error: "قرار مش معروف", demo: false };
   let url = "";
@@ -30,7 +31,8 @@ async function send(item: InboxItem, key: InboxActionKey, extra?: { until?: stri
     body = { action: key === "approve" ? "approve" : "reject" };
   } else if (ids.source === "approval") {
     url = `/api/approvals/${ids.rowId}`;
-    body = key === "later" ? { action: "postpone", until: extra?.until ?? "1h" } : { action: key === "reject" ? "reject" : "approve" };
+    // W-09: the answer goes with its own key — «reject» only for the refusal, any other option is an answer of its own
+    body = key === "later" ? { action: "postpone", until: extra?.until ?? "1h" } : { action: key === "reject" ? "reject" : "approve", ...(extra?.option ? { option: extra.option } : {}) };
   } else if (ids.source === "order") {
     url = `/api/orders/${ids.rowId}`;
     body = { action: key === "reject" ? "reject" : "approve" };
@@ -57,7 +59,7 @@ export function InboxCard({ item, compact, afterDecide }: { item: InboxItem; com
   const [busy, setBusy] = useState(false);
   const [resolved, setResolved] = useState<string | null>(null);
 
-  async function act(key: InboxActionKey, extra?: { until?: string }) {
+  async function act(key: InboxActionKey, extra?: { until?: string; option?: string }) {
     if (key === "open") return router.push(inboxHref(item.id));
     if (busy) return;
     if (item.demo) {

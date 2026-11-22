@@ -76,3 +76,54 @@ export const GLOSSARY = {
 } satisfies Record<string, Term>;
 
 export type TermKey = keyof typeof GLOSSARY;
+
+/**
+ * THE OWNER'S WORD FOR A NUMBER OF A RUN (v6 · P3, docs/rebuild-v6/02-screens.md §3.6). An agent reports its numbers under keys it chose (`orders_read`, `ads_paused` …);
+ * a run page shows them in a table with these names. A key that is not here is shown as it is (with the `_` as a space) and is written in `docs/rebuild-v6/NOTES.md`,
+ * so the next phase can name it — the site never invents a name for a number it does not know.
+ */
+export const METRIC_AR: Readonly<Record<string, string>> = {
+  spend: "الصرف",
+  spend_usd: "الصرف بالدولار",
+  orders: "الطلبات",
+  orders_read: "طلبات انقرت",
+  orders_confirmed: "طلبات مؤكدة",
+  confirmed: "مؤكدة",
+  delivered: "مُسلَّمة",
+  shipped: "انشحنت",
+  returned: "مرتجعة",
+  alerts: "تنبيهات",
+  alerts_raised: "تنبيهات انرفعت",
+  checked: "انفحصوا",
+  products: "منتجات",
+  products_checked: "منتجات انفحصت",
+  campaigns: "حملات",
+  campaigns_checked: "حملات انفحصت",
+  ads: "إعلانات",
+  ads_paused: "إعلانات موقوفة",
+  ads_scaled: "إعلانات اتكبّرت",
+  ads_reduced: "إعلانات انخفضت",
+  videos: "فيديوهات",
+  videos_found: "فيديوهات انلقت",
+  videos_uploaded: "فيديوهات انرفعت",
+  videos_ready: "فيديوهات جاهزة",
+  proposals: "اقتراحات",
+  changes_proposed: "تغييرات انقترحت",
+  tasks: "مهام",
+  tasks_created: "مهام انعملت",
+  messages: "رسائل",
+  messages_sent: "رسائل انبعتت",
+  stock_red: "منتجات مخزونها أحمر",
+  stock_orange: "منتجات مخزونها برتقالي",
+  errors: "أخطاء",
+  warnings: "تنبيهات خفيفة",
+  duration_sec: "المدة بالثواني",
+  duration_min: "المدة بالدقائق",
+  day: "اليوم",
+  rows: "صفوف",
+};
+
+/** The word for a metric key: the owner's, else the key as it is with `_` as a space. */
+export const metricLabel = (key: string): string => METRIC_AR[key] ?? key.replace(/[_-]+/g, " ").trim();
+/** Which of these keys have no word yet (what goes to NOTES.md). */
+export const unnamedMetrics = (keys: readonly string[]): string[] => [...new Set(keys.filter((k) => !(k in METRIC_AR)))];

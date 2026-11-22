@@ -50,7 +50,7 @@ export interface JobLike {
   finishedAt: string | null;
 }
 
-export type BadgeKey = "paused" | "finished" | "failed" | "stuck" | "once" | "window" | "manual" | "running";
+export type BadgeKey = "paused" | "finished" | "failed" | "stuck" | "once" | "window" | "manual" | "on" | "running" | "queued" | "missed";
 export type BadgeTone = "ok" | "warn" | "info" | "danger" | "neutral";
 export interface JobBadge {
   key: BadgeKey;
@@ -58,30 +58,39 @@ export interface JobBadge {
   tone: BadgeTone;
 }
 
+/** One word for each state, the same on every screen (docs/rebuild-v6/03-look.md §9): «مفعّلة» is the switch, «شغّالة» is a run that is going. */
 const BADGES: Record<BadgeKey, JobBadge> = {
-  paused: { key: "paused", label: "موقوفة", tone: "neutral" },
+  paused: { key: "paused", label: "مطفية", tone: "neutral" },
   finished: { key: "finished", label: "خلصت", tone: "neutral" },
-  failed: { key: "failed", label: "فشلت", tone: "danger" },
-  stuck: { key: "stuck", label: "متوقفة", tone: "danger" },
+  failed: { key: "failed", label: "وقفت", tone: "danger" },
+  stuck: { key: "stuck", label: "واقفة — بدها حدا", tone: "warn" },
   once: { key: "once", label: "مرة وحدة جاية", tone: "warn" },
   window: { key: "window", label: "بتخلص لحالها", tone: "info" },
   manual: { key: "manual", label: "عند الطلب", tone: "neutral" },
-  running: { key: "running", label: "شغّالة", tone: "ok" },
+  on: { key: "on", label: "مفعّلة", tone: "ok" },
+  running: { key: "running", label: "شغّالة", tone: "info" },
+  queued: { key: "queued", label: "بانتظار حدا ياخدها", tone: "warn" },
+  missed: { key: "missed", label: "فاتت", tone: "neutral" },
 };
 
 /**
- * The badge of a job, the first line of the table that fits (04 §2): switched off → finished (a one-off that ran, or a window that
- * ended) → its last run failed → its last run waits and a handoff is open → one-off → window → manual → running.
+ * The badge of a job, the first line of the table that fits (04 §2): switched off → finished (a one-off that ran, or a window that ended) → a run is going now
+ * («شغّالة») → the request of its last run waits in the queue («بانتظار <مين>», orange — not a stop) → its last run stopped or was lost → its last run waits and a
+ * request is open → its last slot was missed → one-off → window → on request → «مفعّلة». `who` completes «بانتظار …».
  */
-export function jobStatus(job: JobLike, lastRun: { status: string } | null, now: Date, hasOpenHandoff = false): JobBadge {
+export function jobStatus(job: JobLike, lastRun: { status: string } | null, now: Date, hasOpenHandoff = false, who?: string | null): JobBadge {
   if (!job.enabled) return BADGES.paused;
   if (job.finishedAt || (job.kind === "window" && job.endsAt && Date.parse(job.endsAt) <= now.getTime())) return BADGES.finished;
+  if (lastRun?.status === "running") return BADGES.running;
+  if (lastRun?.status === "queued") return { ...BADGES.queued, label: who?.trim() ? `بانتظار ${who.trim()}` : BADGES.queued.label };
   if (lastRun?.status === "failed") return BADGES.failed;
+  if (lastRun?.status === "lost") return { ...BADGES.failed, label: "انقطعت" };
   if (lastRun?.status === "waiting" && hasOpenHandoff) return BADGES.stuck;
+  if (lastRun?.status === "missed") return BADGES.missed;
   if (job.kind === "once") return BADGES.once;
   if (job.kind === "window") return BADGES.window;
   if (job.kind === "manual") return BADGES.manual;
-  return BADGES.running;
+  return BADGES.on;
 }
 
 export interface JobCounters {
@@ -95,11 +104,11 @@ export interface JobCounters {
   byBadge: Record<BadgeKey, number>;
 }
 
-/** The counters over the map: a count of the badges, grouped in five (running · problem · coming · on request · off or finished). */
+/** The counters over the map: a count of the badges, grouped in five (on or running · a problem · coming · on request · off or finished). A request that waits in the queue is not a problem. */
 export function jobCounters(badges: readonly JobBadge[]): JobCounters {
-  const by: Record<BadgeKey, number> = { paused: 0, finished: 0, failed: 0, stuck: 0, once: 0, window: 0, manual: 0, running: 0 };
+  const by: Record<BadgeKey, number> = { paused: 0, finished: 0, failed: 0, stuck: 0, once: 0, window: 0, manual: 0, on: 0, running: 0, queued: 0, missed: 0 };
   for (const b of badges) by[b.key]++;
-  return { total: badges.length, running: by.running, problem: by.failed + by.stuck, upcoming: by.once + by.window, manual: by.manual, off: by.paused + by.finished, byBadge: by };
+  return { total: badges.length, running: by.on + by.running + by.queued, problem: by.failed + by.stuck + by.missed, upcoming: by.once + by.window, manual: by.manual, off: by.paused + by.finished, byBadge: by };
 }
 
 /**
@@ -116,6 +125,15 @@ export function branchNumbers(job: { number: number | null; graph: WfGraph }): M
     out.set(n.id, `${job.number}.${i}`);
   }
   return out;
+}
+
+/**
+ * How a step is named to an agent in a message of the site («الفرع 11.3» on the decision sheet): the number the owner sees on screen — the job's number and the
+ * step's place in the order the steps RUN in. A job with no number, or a step the job no longer has, falls back to `<key>/<step id>` (W-19: the old text counted by the
+ * order of the drawing's list, which is not the running order, so it could name another step).
+ */
+export function stepNumberOf(job: { key: string; number: number | null; graph: WfGraph }, nodeId: string): string {
+  return branchNumbers(job).get(nodeId) ?? `${job.key}/${nodeId}`;
 }
 
 // ── the schedule in words ──

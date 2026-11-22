@@ -5,12 +5,13 @@
  * the one with a condition (`has`) comes before the plain one of the same source. tests/nav.test.ts holds this table.
  *
  * Left out on purpose: `/?tab=summary` and `/ads?tab=products` — their destination IS the source, so Next would loop (the pages ignore `tab`).
+ * `/tasks` is NOT here any more (v6 · P3): it is a real place now («المهام»). It used to lead to `/inbox`, so every `href: "/tasks"` the code and the database kept for a
+ * decision was moved to `/inbox` (the code, and a data migration for the alerts and notices already written).
  */
 const tab = (value) => [{ type: "query", key: "tab", value }];
 
 export const LEGACY_REDIRECTS = [
   { source: "/", has: tab("numbers"), destination: "/products", permanent: false },
-  { source: "/tasks", destination: "/inbox", permanent: false },
   { source: "/workflow/:key", destination: "/work/job/:key", permanent: false },
   { source: "/workflow", destination: "/work", permanent: false },
   { source: "/done", has: tab("reports"), destination: "/work/reports", permanent: false },

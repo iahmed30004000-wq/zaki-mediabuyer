@@ -97,7 +97,7 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
                     <td />
                     <td className="px-3 py-1.5 text-center">
                       {b.disabled ? null : (
-                        <Checkbox aria-label={`ألغي الفرع ${b.number ?? b.label}`} checked={!!off[j.key]?.[b.id]} onChange={(e) => setOff((o) => ({ ...o, [j.key]: { ...o[j.key], [b.id]: e.target.checked } }))} className="justify-center" />
+                        <Checkbox aria-label={`ألغي الخطوة ${b.number ?? b.label}`} checked={!!off[j.key]?.[b.id]} onChange={(e) => setOff((o) => ({ ...o, [j.key]: { ...o[j.key], [b.id]: e.target.checked } }))} className="justify-center" />
                       )}
                     </td>
                   </tr>
@@ -114,7 +114,7 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
         <Button variant="ghost" onClick={onClose}>
           سكّر الورقة
         </Button>
-        <span className="text-sm text-fg-muted">{items.length ? `${items.length} مهمة بالقرار` : "اختار على الأقل مهمة أو فرع"}</span>
+        <span className="text-sm text-fg-muted">{items.length ? `${items.length} مهمة بالقرار` : "اختار على الأقل مهمة أو خطوة"}</span>
       </div>
     </section>
   );

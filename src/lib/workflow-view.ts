@@ -49,6 +49,8 @@ export async function loadWorkflowCards(now = new Date()): Promise<{ cards: Work
       maxRunMin: 90,
       assigneeKey: assigneeOfExecutor(s.executor),
       ownerEdited: [],
+      notifyOn: ["missed", "stuck", "failed"],
+      recipe: null,
     })),
   };
 }

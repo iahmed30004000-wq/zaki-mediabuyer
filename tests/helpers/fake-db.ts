@@ -226,6 +226,7 @@ export function makeFakeDb(start = new Date("2026-11-22T09:00:00Z")) {
     handoff: makeTable(() => ({ runRef: null, nodeId: null, context: {}, assignee: "claude", status: "open", claimedBy: null, claimedAt: null, result: null, resultNote: null, doneBy: null, doneAt: null, createdBy: null, scheduledFor: null, expiresAt: null, leaseUntil: null, claimNonce: null }), [], clock),
     approval: makeTable(() => ({ ref: null, analysis: null, numbers: null, options: null, amount: null, urgency: "orange", status: "pending", source: "mcp", workflowKey: null, kind: null, expiresAt: null, postponedUntil: null, chosenOption: null, decisionNote: null, decidedBy: null, decidedAt: null, wakeOwner: false, notifiedAt: null, runRef: null, nodeId: null, actedAt: null }), [["ref"]], clock),
     standingOrder: makeTable(() => ({}), [], clock),
+    task: makeTable(() => ({ assignee: null, status: "new", dueAt: null, archivedAt: null, priority: "normal" }), [], clock),
     notification: makeTable(() => ({ audience: "owner", body: null, href: null, source: "mcp", key: null, readAt: null, sentAt: null }), [["audience", "key"]], clock),
     setting: makeTable(() => ({ version: 1 }), [["key"]], clock),
     actor: makeTable(() => ({ lastSeenAt: null, active: true, telegram: null, kind: "agent" }), [["key"]], clock),

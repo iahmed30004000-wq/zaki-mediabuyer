@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import type { EffPage } from "@/core/customize";
-import { READY_PLACES, placeOf, type Place } from "@/lib/nav";
+import { READY_PLACES, placeOf, placesFor, type NavMap, type Place } from "@/lib/nav";
 
 /** The tabs of the edit panel. */
 export type PanelTab = "boards" | "fields" | "buttons" | "trash";
@@ -19,6 +19,8 @@ interface Shell {
   places: readonly string[];
   /** may open the settings (read) */
   settings: boolean;
+  /** which map of places this person sees (cookie `mb_nav`, docs/rebuild-v6/02-screens.md §1) */
+  navMap: NavMap;
   /** the capabilities of this person's role (the buttons that are not theirs are not drawn; the server refuses them anyway) */
   caps: readonly string[] | null;
   /** the real ad accounts the full stop can be aimed at (read on the server) */
@@ -39,7 +41,7 @@ const KEY = "mb:edit";
  * What the shell shares: the pages as the owner left them (the layout read them on the server), whether edit mode is on (a
  * person's switch, kept in this browser), and the edit panel's state. A page that is not the owner's to change never shows any of it.
  */
-export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = true, caps, stopAccounts = [], children }: { pages: EffPage[]; canEdit: boolean; inbox?: number; places?: readonly string[]; settings?: boolean; caps?: readonly string[]; stopAccounts?: { id: string; name: string }[]; children: ReactNode }) {
+export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = true, navMap = "old", caps, stopAccounts = [], children }: { pages: EffPage[]; canEdit: boolean; inbox?: number; places?: readonly string[]; settings?: boolean; navMap?: NavMap; caps?: readonly string[]; stopAccounts?: { id: string; name: string }[]; children: ReactNode }) {
   const [editing, setEditingState] = useState(false);
   const [panel, setPanel] = useState<{ open: boolean; tab: PanelTab }>({ open: false, tab: "boards" });
 
@@ -70,6 +72,7 @@ export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = tr
       inbox,
       places: places ?? READY_PLACES.map((p) => p.key),
       settings,
+      navMap,
       caps: caps ?? null,
       stopAccounts,
       editing: canEdit && editing,
@@ -79,7 +82,7 @@ export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = tr
       closePanel: () => setPanel((p) => ({ ...p, open: false })),
       setTab: (tab) => setPanel((p) => ({ ...p, tab })),
     }),
-    [pages, canEdit, inbox, places, settings, caps, stopAccounts, editing, setEditing, panel],
+    [pages, canEdit, inbox, places, settings, navMap, caps, stopAccounts, editing, setEditing, panel],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -92,8 +95,8 @@ export function useShell(): Shell {
 
 /** The places this role sees in the bar, and whether the settings are open to it. */
 export function useMyPlaces(): { places: readonly Place[]; settings: boolean } {
-  const { places, settings } = useShell();
-  return { places: READY_PLACES.filter((p) => places.includes(p.key)), settings };
+  const { places, settings, navMap } = useShell();
+  return { places: navMap === "v6" ? placesFor("v6", places) : READY_PLACES.filter((p) => places.includes(p.key)), settings };
 }
 
 /** Does this person's role hold the capability? (No role known = the demo owner: yes.) */
@@ -122,12 +125,12 @@ export interface CurrentPlace {
 /** Where the person is: a place, the settings, the products — or one of his own pages (`/p/<key>`). */
 export function useCurrentPlace(): CurrentPlace {
   const pathname = usePathname() ?? "/";
-  const { pages } = useShell();
+  const { pages, navMap } = useShell();
   const custom = /^\/p\/([^/?#]+)/.exec(pathname);
   if (custom) {
     const p = pages.find((x) => x.key === custom[1]);
     if (p) return { key: p.key, label: p.label, title: p.label, question: p.question, href: p.href, builtin: false };
   }
-  const here = placeOf(pathname);
+  const here = placeOf(pathname, navMap);
   return { key: here.key, label: here.label, title: here.title, question: here.question, href: here.href, builtin: true };
 }

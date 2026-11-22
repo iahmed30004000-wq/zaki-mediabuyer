@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { BOARD_TEMPLATES, ENTITIES, ENTITY_AR, FIELD_TYPES, FIELD_TYPE_AR, MAX_PHONE_BAR, MAX_SIDEBAR, type Entity, type FieldType, type UiOpShape } from "@/core/customize";
 import { useShell, type PanelTab } from "@/components/shell/shell-context";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 import type { PanelData } from "@/server/customize";
 
 const TABS: { key: PanelTab; label: string }[] = [
@@ -568,7 +569,7 @@ export function EditPanel() {
 
   const load = useCallback(async () => {
     setFailed(false);
-    const r = await fetch("/api/ui", { cache: "no-store" }).catch(() => null);
+    const r = await safeFetch("/api/ui", { cache: "no-store" }).catch(() => null);
     const d = (await r?.json().catch(() => null)) as (PanelData & { demo?: boolean }) | null;
     if (r?.ok && d && !d.demo) setData(d);
     else setFailed(true);
@@ -581,7 +582,7 @@ export function EditPanel() {
   const run: Run = useCallback(
     async (op) => {
       setBusy(true);
-      const r = await fetch("/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(op) }).catch(() => null);
+      const r = await safeFetch("/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(op) }).catch(() => null);
       const d = (await r?.json().catch(() => ({}))) as { error?: string; demo?: boolean; note?: string; panel?: PanelData; moved?: number; copied?: number; conflicts?: number; movedBack?: number };
       setBusy(false);
       if (!r || !r.ok) {

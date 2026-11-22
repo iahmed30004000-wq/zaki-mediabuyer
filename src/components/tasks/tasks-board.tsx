@@ -15,6 +15,7 @@ import { usePeople, usePersonName } from "@/components/shell/people-context";
 import { PRIORITIES, TASK_BOARDS, TASK_COLUMNS, dueState, duplicateGroups, groupByStatus, type TaskColumn } from "@/core/tasks";
 import { cn } from "@/lib/utils";
 import type { TasksCustom } from "@/lib/ui-view";
+import { safeFetch } from "@/lib/call";
 import type { TaskView } from "@/server/tasks";
 
 const DUE_STYLE = { late: "bg-danger/10 text-danger", today: "bg-warn/10 text-warn", soon: "bg-surface-2 text-fg" } as const;
@@ -273,7 +274,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
   const customOf = (t: TaskView): CardCustom => ({ fields: onBoard(custom.fields, t.board), buttons: onBoard(custom.buttons, t.board), values: values[t.id] });
 
   const reload = useCallback(async () => {
-    const r = await fetch("/api/tasks", { cache: "no-store" }).catch(() => null);
+    const r = await safeFetch("/api/tasks", { cache: "no-store" }).catch(() => null);
     if (r?.ok) {
       const d = (await r.json()) as { tasks: TaskView[]; values?: Record<string, CardValues> };
       setTasks(d.tasks);
@@ -283,7 +284,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
 
   /** Calls the API; an error is said in words and `null` comes back. */
   async function call(url: string, method: string, body?: unknown): Promise<Record<string, unknown> | null> {
-    const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }).catch(() => null);
+    const r = await safeFetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }).catch(() => null);
     const d = ((await r?.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
     if (!r || !r.ok) {
       toast((d.error as string | undefined) ?? "صار خطأ، جرّب كمان مرة", "error");

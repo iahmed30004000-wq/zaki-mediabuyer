@@ -180,8 +180,8 @@ async function loadTodayRaw(now = new Date()): Promise<TodayView> {
     currentMode(now),
   ]);
   const stalled = [
-    ...stalledRuns.map((r) => ({ key: `run:${r.id}`, title: r.workflow.name, detail: `${r.status === "failed" ? "فشل" : "متوقف"}${r.summary ? ` — ${r.summary}` : ""}`, href: "/workflow" })),
-    ...stalledTasks.map((t) => ({ key: `task:${t.id}`, title: t.title, detail: t.assignee ? `عند ${t.assignee}` : "بلا مسؤول", href: "/tasks" })),
+    ...stalledRuns.map((r) => ({ key: `run:${r.id}`, title: r.workflow.name, detail: `${r.status === "failed" ? "فشل" : "متوقف"}${r.summary ? ` — ${r.summary}` : ""}`, href: "/tasks" })),
+    ...stalledTasks.map((t) => ({ key: `task:${t.id}`, title: t.title, detail: t.assignee ? `عند ${t.assignee}` : "بلا مسؤول", href: "/tasks/team" })),
   ];
   const endOfToday = ordersTo.getTime();
   const todays = tasks.filter((t) => t.status === "doing" || (t.dueAt && new Date(t.dueAt).getTime() < endOfToday)).slice(0, 8);

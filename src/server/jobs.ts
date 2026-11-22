@@ -6,7 +6,7 @@
  * `replace` marks the jobs Claude made that are not in its list as «خلصت». Every text passes the customer-data filter.
  */
 import { z } from "zod";
-import { JOB_ADVICE, JOB_DOMAINS, JOB_KINDS, JOB_DECISIONS } from "@/core/jobs";
+import { JOB_ADVICE, JOB_DOMAINS, JOB_KINDS, JOB_DECISIONS, stepNumberOf } from "@/core/jobs";
 import { refuseIfPrivate } from "@/core/push-rows";
 import { isValidCron } from "@/core/cron";
 import { findNameClash } from "@/core/job-map";
@@ -302,13 +302,11 @@ export async function applyDecisions(input: DecisionsInputT, actor: Actor, now =
   for (const u of graphUpdates) await updateWorkflow(u.key, { graph: u.graph, note: "من ورقة القرار" }, actor);
 
   // ONE handoff for Claude, in numbers
-  const numberOf = new Map(rows.map((r) => [r.key, r.number]));
+  // W-19: the step is named by the number the owner sees (the order the steps RUN in), not by its place in the drawing's list
   const branchNum = res.branchesOff.map((b) => {
     const row = byKey.get(b.key)!;
     const g = GraphSchema.safeParse(row.graph);
-    const order = g.success ? g.data.nodes.filter((n) => n.type !== "trigger").map((n) => n.id) : [];
-    const idx = order.indexOf(b.branch);
-    return numberOf.get(b.key) && idx >= 0 ? `${numberOf.get(b.key)}.${idx + 1}` : `${b.key}/${b.branch}`;
+    return stepNumberOf({ key: row.key, number: row.number, graph: g.success ? g.data : { nodes: [], edges: [] } }, b.branch);
   });
   const parts = [res.cancelled.length ? `ألغي ${res.cancelled.join(" · ")}` : "", branchNum.length ? `الفرع ${branchNum.join(" · ")}` : "", res.merged.length ? `ادمج ${res.merged.join(" · ").replace(/>/g, " بـ ")}` : ""].filter(Boolean);
   if (parts.length) {

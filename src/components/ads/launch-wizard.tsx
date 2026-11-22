@@ -90,7 +90,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
   useEffect(() => {
     if (step !== 3 || !formOk || !options.live) return;
     const t = setTimeout(async () => {
-      const r = await fetch("/api/launch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, preview: true }) }).catch(() => null);
+      const r = await safeFetch("/api/launch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, preview: true }) }).catch(() => null);
       const j = (await r?.json().catch(() => null)) as (Preview & { error?: string }) | null;
       setPreview(j?.error ? { ok: false, problems: [j.error] } : j);
     }, 400);

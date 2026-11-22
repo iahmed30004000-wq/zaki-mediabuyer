@@ -12,11 +12,11 @@ import { DecisionSheet } from "./decision-sheet";
 import { JobCard } from "./job-card";
 
 const TILES: { key: keyof Pick<JobCounters, "running" | "problem" | "upcoming" | "manual" | "off">; label: string; tone: string }[] = [
-  { key: "running", label: "شغّالة", tone: "text-ok" },
+  { key: "running", label: "مفعّلة", tone: "text-ok" },
   { key: "problem", label: "مشكلة", tone: "text-danger" },
   { key: "upcoming", label: "جاية", tone: "text-warn" },
   { key: "manual", label: "عند الطلب", tone: "text-fg" },
-  { key: "off", label: "موقوفة أو خلصت", tone: "text-fg-muted" },
+  { key: "off", label: "مطفية أو خلصت", tone: "text-fg-muted" },
 ];
 
 /**

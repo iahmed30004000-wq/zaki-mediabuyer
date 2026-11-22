@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { db } from "@/server/db";
 import { download, listChildren, type DriveOptions } from "@/adapters/drive";
+import { unmappedFoldersSentence } from "@/core/drive-library";
 import { latestVersions, vpIdOfFile } from "@/core/studio-contract";
 import { processVideo, productOfFolder } from "./creative-intake";
 
@@ -68,7 +69,7 @@ export async function intakeStudioDrive(o: DriveOptions, rootId: string) {
     }
   }
   if (stats.unmapped.length) {
-    const text = `مجلد الاستوديو «${stats.unmapped.join("، ")}» ما إله منتج معروف — ضيف اسم بديل للمنتج من الإعدادات وبيندخل الفيديو عالوارد لحاله`;
+    const text = unmappedFoldersSentence(stats.unmapped, "الاستوديو");
     const dup = await db.alert.findFirst({ where: { kind: "creative.studio_unmapped", text, createdAt: { gte: new Date(Date.now() - 86_400_000) } } });
     if (!dup) await db.alert.create({ data: { kind: "creative.studio_unmapped", tone: "warn", text, href: "/settings/products" } });
   }
