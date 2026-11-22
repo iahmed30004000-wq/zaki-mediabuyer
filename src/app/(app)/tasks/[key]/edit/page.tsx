@@ -3,7 +3,7 @@ import { EditSteps } from "@/components/tasks/edit-steps";
 import { WorkflowEditor } from "@/components/workflow/editor/editor";
 import { BackLink } from "@/components/ui/back-link";
 import { ButtonLink } from "@/components/ui/button-link";
-import { graphToSteps, OLD_BOARD_NOTE } from "@/core/job-draft";
+import { graphToSteps, OLD_BOARD_NOTE, VERB_AR } from "@/core/job-draft";
 import { can } from "@/core/roles";
 import type { Executor } from "@/core/workflow";
 import { loadWorkflowCards } from "@/lib/workflow-view";
@@ -37,6 +37,28 @@ export default async function TaskEditPage({ params: paramsP, searchParams: sear
           <BackLink href={owner && lineOf.ok ? `${href}/edit` : href}>{owner && lineOf.ok ? "ارجع للخطوات" : card.name}</BackLink>
         </div>
         <WorkflowEditor card={card} demo={demo} canEdit={owner} />
+      </div>
+    );
+  }
+  // a recipe is the site's own: its three steps are written in code, so there are no blocks to edit — the page says so and shows what it does
+  if (card.recipe) {
+    return (
+      <div className="space-y-4">
+        <BackLink href={href}>{card.name}</BackLink>
+        <section className="space-y-3 rounded-2xl border border-border bg-surface-1 p-4">
+          <h2 className="font-display text-lg font-extrabold text-fg">هاي وصفة جاهزة — خطواتها ثابتة</h2>
+          <p className="text-base leading-7 text-fg-muted">الموقع بينفّذها لحاله بأرقامه، فما في بلوكات تتعدّل. لو بدك غيرها، اعمل مهمة جديدة بوصفة تانية أو بنفس الوصفة وحدودك الجداد.</p>
+          {lineOf.ok ? (
+            <ol className="list-decimal space-y-1 ps-5 text-base text-fg">
+              {lineOf.steps.map((s, i) => (
+                <li key={i}>{`${VERB_AR[s.verb]}: ${s.text}`}</li>
+              ))}
+            </ol>
+          ) : null}
+          <ButtonLink href={href} variant="secondary" size="md">
+            ارجع للمهمة
+          </ButtonLink>
+        </section>
       </div>
     );
   }

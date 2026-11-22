@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ChoiceTile } from "@/components/ui/choice-tile";
@@ -27,15 +27,20 @@ import {
   splitInstant,
   suggestName,
   validateDraft,
+  SITE_KEY,
   type JobDraft,
   type When,
   type WhenKind,
 } from "@/core/job-draft";
 import { JOB_TEMPLATES, templateDraft } from "@/core/job-templates";
+import { RECIPE_DOMAIN, suggestRecipeName } from "@/core/recipes";
 import { callJson } from "@/lib/call";
+import { takeJobDraft } from "@/lib/job-draft-handoff";
+import { RecipeFields, defaultRecipe, type RecipeProduct, type RecipeValue } from "./recipe-fields";
 import { StepsBuilder } from "./steps-builder";
+import { WriteIt } from "./write-it";
 
-/** Somebody the job can be given to: an agent or a person from the team directory (the site's own row is not one — its jobs are recipes). */
+/** Somebody the job can be given to: an agent or a person from the team directory, or the site itself (`site`: its jobs are the four recipes). */
 export interface DoerOption {
   key: string;
   name: string;
@@ -171,22 +176,56 @@ function WhenFields({ when, onChange, today }: { when: When; onChange: (w: When)
 /**
  * «مهمة جديدة» (docs/rebuild-v6/02-screens.md §3.7): a switch between «ركّبها» (four questions on top of each other, each with big keys) and «من قالب» (six drafts half built) — both fill the
  * same draft. Under it a bar that stays: the draft in one sentence and «اعتمد المهمة». Nothing is saved before that press; the site checks the draft again and answers with a sentence the
- * screen puts next to the question it is about. The times are on the Amman clock. «اكتبها بجملة» joins when the assistant can draft a job (P4-2).
+ * screen puts next to the question it is about. The times are on the Amman clock. «اكتبها بجملة» (P4-2) is the third way: a sentence the assistant turns into a draft, shown as «هيك فهمتها — صح؟»;
+ * it needs the assistant's key, and without one the tab says so (the other two ways do not). When the owner picks «الموقع لحاله», the third question is the four recipes and their fields, not blocks.
  */
-export function NewJob({ people }: { people: DoerOption[] }) {
+export function NewJob({ people, products = [], assistant = { on: false, message: "" } }: { people: DoerOption[]; products?: RecipeProduct[]; assistant?: { on: boolean; message: string } }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [mode, setMode] = useState<"build" | "tpl">("build");
+  const [mode, setMode] = useState<"build" | "write" | "tpl">("build");
   const [draft, setDraft] = useState<JobDraft>(() => emptyDraft());
   const [nameTouched, setNameTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [today] = useState(() => ammanKey(new Date()));
-  const names = Object.fromEntries(people.map((p) => [p.key, p.name]));
+  const names: Record<string, string> = { ...Object.fromEntries(products.map((p) => [p.code, p.name])), ...Object.fromEntries(people.map((p) => [p.key, p.name])) };
+  const persons = people.filter((p) => p.kind === "person");
+  // the owner's own blocks, kept while he looks at the site's recipes (switching back brings them back)
+  const stash = useRef<JobDraft["steps"]>([]);
+
+  // a draft the assistant's card left in the panel: filled in once, for the owner to look at and approve
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("from")) return;
+    const d = takeJobDraft();
+    if (!d) return;
+    setDraft(d);
+    setNameTouched(true);
+    toast("جهّزها المساعد — راجعها واعتمدها", "info");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
 
   const edit = (patch: Partial<JobDraft>) => {
     setError(null);
     setDraft((d) => ({ ...d, ...patch }));
+  };
+  const pickDoer = (key: string) => {
+    setError(null);
+    if (key === SITE_KEY) {
+      const recipe: RecipeValue = draft.recipe ?? defaultRecipe("stock_alert", persons);
+      if (draft.steps.length) stash.current = draft.steps;
+      setDraft((d) => ({ ...d, assigneeKey: key, steps: [], recipe, domain: RECIPE_DOMAIN[recipe.name], ...(nameTouched ? {} : { name: suggestRecipeName(recipe.name, recipe.params, names) }) }));
+    } else {
+      const steps = draft.steps.length ? draft.steps : stash.current;
+      setDraft((d) => {
+        const { recipe: _recipe, ...rest } = d;
+        void _recipe;
+        return { ...rest, assigneeKey: key, steps, ...(draft.recipe && !nameTouched ? { name: suggestName(steps) } : {}) };
+      });
+    }
+  };
+  const setRecipe = (v: RecipeValue) => {
+    setError(null);
+    setDraft((d) => ({ ...d, recipe: v, ...(d.recipe?.name !== v.name ? { domain: RECIPE_DOMAIN[v.name] } : {}), ...(nameTouched ? {} : { name: suggestRecipeName(v.name, v.params, names) }) }));
   };
   const setSteps = (steps: JobDraft["steps"]) => {
     setError(null);
@@ -208,14 +247,37 @@ export function NewJob({ people }: { people: DoerOption[] }) {
     document.getElementById(PANEL_OF(field))?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
 
-  const save = async () => {
-    const d = normalizeDraft(draft);
+  /** «عدّلها بإيدي»: the assistant's draft opens in «ركّبها», filled in */
+  const openForEdit = (d: JobDraft) => {
+    setError(null);
+    setNameTouched(true);
+    setDraft(d);
+    setMode("build");
+    window.scrollTo({ top: 0 });
+  };
+
+  /** `from` is the draft to save: the one on the screen, or the one the assistant made and the owner approved («اعتمدها») */
+  const save = async (from: JobDraft = draft) => {
+    const d = normalizeDraft(from);
     const check = validateDraft(d, new Date());
-    if (!check.ok) return fail(check.message, check.field);
+    if (!check.ok) {
+      // a draft that came from the sentence and is not sound opens in «ركّبها», where the field it is about is
+      if (from !== draft) {
+        openForEdit(from);
+        return toast(check.message, "error");
+      }
+      return fail(check.message, check.field);
+    }
     setSaving(true);
     try {
       const r = await callJson<Saved>("/api/jobs", { method: "POST", body: { draft: d } });
-      if (!r.ok) return fail(r.error ?? "صار خطأ", r.data?.field);
+      if (!r.ok) {
+        if (from !== draft) {
+          openForEdit(from);
+          return toast(r.error ?? "صار خطأ", "error");
+        }
+        return fail(r.error ?? "صار خطأ", r.data?.field);
+      }
       if (r.data?.demo) return toast("بالوضع التجريبي ما انحفظ شي", "info");
       const out = r.data;
       if (out?.kind === "task") toast("تمّت ✓ — انحفظت كمهمة على لوحة الفريق بموعدها", "success");
@@ -236,12 +298,17 @@ export function NewJob({ people }: { people: DoerOption[] }) {
           onChange={setMode}
           options={[
             { value: "build", label: "ركّبها" },
+            { value: "write", label: "اكتبها بجملة" },
             { value: "tpl", label: "من قالب" },
           ]}
         />
       </div>
 
-      {mode === "tpl" ? (
+      {mode === "write" ? (
+        <Question n={null} id="q-write" title="اكتبها بجملة">
+          <WriteIt on={assistant.on} needsKey={assistant.message} names={names} saving={saving} onApprove={(d) => void save(d)} onEdit={openForEdit} />
+        </Question>
+      ) : mode === "tpl" ? (
         <Question n={null} id="q-templates" title="قوالب جاهزة من شغلك">
           <p className="text-base text-fg-muted">اختار واحد، وبيفتحلك «ركّبها» معبّاية وبتعدّل اللي بدك.</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -256,7 +323,7 @@ export function NewJob({ people }: { people: DoerOption[] }) {
             {people.length ? (
               <div role="group" aria-label="مين بدّه يعملها" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {people.map((p) => (
-                  <ChoiceTile key={p.key} title={p.name} hint={p.hint} pressed={draft.assigneeKey === p.key} onClick={() => edit({ assigneeKey: p.key })} />
+                  <ChoiceTile key={p.key} title={p.name} hint={p.hint} pressed={draft.assigneeKey === p.key} onClick={() => pickDoer(p.key)} />
                 ))}
               </div>
             ) : (
@@ -274,16 +341,22 @@ export function NewJob({ people }: { people: DoerOption[] }) {
             <p className="text-sm text-fg-muted">الأوقات كلها بتوقيت عمّان.</p>
           </Question>
 
-          <Question n={3} id="q-steps" tour="steps" title="شو تعمل؟ خطوة خطوة">
-            <StepsBuilder
-              steps={draft.steps}
-              onText={(at, text) => setSteps(setStepText(draft.steps, at, text))}
-              onElse={(at, to) => setSteps(setElse(draft.steps, at, to))}
-              onMove={(at, by) => setSteps(moveStep(draft.steps, at, by))}
-              onRemove={(at) => setSteps(removeStep(draft.steps, at))}
-              onAdd={(verb) => setSteps(addStep(draft.steps, verb))}
-            />
-          </Question>
+          {draft.assigneeKey === SITE_KEY && draft.recipe ? (
+            <Question n={3} id="q-steps" tour="steps" title="شو تعمل؟ وصفة جاهزة">
+              <RecipeFields value={draft.recipe} onChange={setRecipe} products={products} people={persons.map((p) => ({ key: p.key, name: p.name }))} />
+            </Question>
+          ) : (
+            <Question n={3} id="q-steps" tour="steps" title="شو تعمل؟ خطوة خطوة">
+              <StepsBuilder
+                steps={draft.steps}
+                onText={(at, text) => setSteps(setStepText(draft.steps, at, text))}
+                onElse={(at, to) => setSteps(setElse(draft.steps, at, to))}
+                onMove={(at, by) => setSteps(moveStep(draft.steps, at, by))}
+                onRemove={(at) => setSteps(removeStep(draft.steps, at))}
+                onAdd={(verb) => setSteps(addStep(draft.steps, verb))}
+              />
+            </Question>
+          )}
 
           <Question n={4} id="q-tell" tour="tell" title="إيمتى أخبّرك؟">
             <div role="group" aria-label="إيمتى أخبّرك" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -294,7 +367,7 @@ export function NewJob({ people }: { people: DoerOption[] }) {
           </Question>
 
           <Question n={null} id="q-name" title="شو نسمّيها؟">
-            <Field label="اسم المهمة" hint="بينقترح من أول خطوة، وبتعدّله براحتك">
+            <Field label="اسم المهمة" hint="بينقترح من أول خطوة (أو من الوصفة)، وبتعدّله براحتك">
               <Input
                 value={draft.name}
                 maxLength={140}
@@ -323,7 +396,7 @@ export function NewJob({ people }: { people: DoerOption[] }) {
             <p className="min-w-0 flex-1 text-base text-fg" aria-live="polite">
               {draftSentence(draft, names)}
             </p>
-            <Button size="lg" loading={saving} onClick={save}>
+            <Button size="lg" loading={saving} onClick={() => void save()}>
               اعتمد المهمة
             </Button>
           </div>

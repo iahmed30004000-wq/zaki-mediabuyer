@@ -7,8 +7,11 @@ import { Check, Copy, ExternalLink, FileText, ListChecks, Workflow } from "lucid
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import type { Artifact, Fact, SourceRef } from "@/core/assistant";
+import { VERB_AR } from "@/core/job-draft";
+import { RECIPE_TITLE } from "@/core/recipes";
 import { assigneeName } from "@/core/tasks";
 import { stepOrder } from "@/core/workflow";
+import { FROM_ASSISTANT, leaveJobDraft } from "@/lib/job-draft-handoff";
 import { fmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/call";
@@ -147,6 +150,32 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
           ) : (
             <p className="text-xs text-fg-muted">المالك بيفتح الرسم وبيحفظها.</p>
           )}
+        </div>
+      );
+    }
+
+    case "job_draft": {
+      const open = () => {
+        if (!leaveJobDraft(a.draft)) return toast("المتصفح ما سمح بنقل المسودة", "error");
+        onNavigate();
+        router.push(`/tasks/new${FROM_ASSISTANT}`);
+      };
+      return (
+        <div className={card}>
+          <Head icon={<ListChecks className="size-4" />}>مسودة مهمة: {a.draft.name}</Head>
+          <p className="text-sm leading-6 text-fg-muted">{a.sentence} — لسا ما انحفظت</p>
+          {a.draft.recipe ? (
+            <p className="text-sm text-fg-muted">وصفة «{RECIPE_TITLE[a.draft.recipe.name]}» — الموقع بينفّذها لحاله</p>
+          ) : (
+            <ol className="list-decimal space-y-0.5 ps-5 text-sm leading-6 text-fg-muted">
+              {a.draft.steps.slice(0, 8).map((s, i) => (
+                <li key={i}>{`${VERB_AR[s.verb]}: ${s.text}`}</li>
+              ))}
+            </ol>
+          )}
+          <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={open}>
+            افتحها بـ«مهمة جديدة» وراجعها
+          </Button>
         </div>
       );
     }

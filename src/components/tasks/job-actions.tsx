@@ -14,6 +14,10 @@ interface Answer {
   demo?: boolean;
   created?: boolean;
   since?: string;
+  /** a recipe: the site carried it out right now, and this is how it ended */
+  site?: boolean;
+  status?: "ok" | "failed";
+  summary?: string;
 }
 
 /** The job's own switch (it turns the job off — nothing is deleted): «مفعّلة» ↔ «مطفية». The save carries nothing but the switch. */
@@ -62,6 +66,11 @@ export function RunNowButton({ jobKey, size = "lg", variant = "primary" }: { job
           const r = await callJson<Answer>(`/api/workflow/${encodeURIComponent(jobKey)}/run`, { method: "POST" });
           if (!r.ok) return toast(r.error ?? "صار خطأ", "error");
           if (r.data?.demo) return toast("بالوضع التجريبي ما تغيّر شي", "info");
+          if (r.data?.site) {
+            toast(r.data.status === "failed" ? `اشتغلت من الموقع ووقفت: ${r.data.summary ?? ""}`.trim() : `اشتغلت من الموقع ✓ ${r.data.summary ?? ""}`.trim(), r.data.status === "failed" ? "error" : "success");
+            router.refresh();
+            return;
+          }
           const since = r.data?.created === false && r.data.since ? Math.max(0, Math.round((Date.now() - Date.parse(r.data.since)) / 60_000)) : null;
           toast(since !== null ? `مطلوبة ${waitingText(since)} — لسا ما حدا استلمها` : "انطلبت — بتشتغل بأقرب فرصة", since !== null ? "info" : "success");
           router.refresh();

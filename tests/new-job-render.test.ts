@@ -107,7 +107,7 @@ describe("the screen", () => {
     expect(out.indexOf("شو تعمل؟ خطوة خطوة")).toBeLessThan(out.indexOf("إيمتى أخبّرك؟"));
   });
 
-  it("the «site by itself» is not offered (its jobs are recipes, not built yet) and nothing is chosen at first: no tile is pressed for the doer", () => {
+  it("the «site by itself» is not offered when the directory has no row for it, and nothing is chosen at first: no tile is pressed for the doer", () => {
     const out = render(h(NewJob, { people }));
     expect(out).not.toContain("الموقع لحاله</b>");
     const who = out.slice(out.indexOf('id="q-who"'), out.indexOf('id="q-when"'));
