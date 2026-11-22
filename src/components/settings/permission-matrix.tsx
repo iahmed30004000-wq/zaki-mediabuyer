@@ -16,7 +16,7 @@ function Mark({ cell }: { cell: Cell }) {
     <span title={label} className={cn("inline-flex items-center justify-center gap-1", s.tone)}>
       <s.Icon aria-hidden className="size-4" />
       <span className="sr-only">{label}</span>
-      {cell.basis === "instruction" ? <span aria-hidden className="text-xs font-bold text-fg-muted">تعليمة</span> : null}
+      {cell.basis === "instruction" ? <span aria-hidden className="text-sm font-bold text-fg-muted">تعليمة</span> : null}
     </span>
   );
 }
@@ -28,11 +28,11 @@ function Table<R extends { key: string; label: string; locked: boolean }>({ sect
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr className="border-b border-border bg-surface-2">
-            <th scope="col" className="sticky start-0 z-10 w-[260px] bg-surface-2 px-3 py-2 text-start text-xs font-bold text-fg-muted">
+            <th scope="col" className="sticky start-0 z-10 w-[260px] bg-surface-2 px-3 py-2 text-start text-sm font-bold text-fg-muted">
               العمل
             </th>
             {columns.map((c) => (
-              <th key={c.key} scope="col" title={c.note} className="px-2 py-2 text-center text-xs font-bold text-fg">
+              <th key={c.key} scope="col" title={c.note} className="px-2 py-2 text-center text-sm font-bold text-fg">
                 {c.label}
               </th>
             ))}
@@ -41,7 +41,7 @@ function Table<R extends { key: string; label: string; locked: boolean }>({ sect
         {sections.map((sec) => (
           <tbody key={sec.title}>
             <tr>
-              <th colSpan={columns.length + 1} scope="colgroup" className="bg-surface-2/60 px-3 py-1.5 text-start text-xs font-extrabold text-fg">
+              <th colSpan={columns.length + 1} scope="colgroup" className="bg-surface-2/60 px-3 py-1.5 text-start text-sm font-extrabold text-fg">
                 {sec.title}
               </th>
             </tr>
@@ -84,7 +84,7 @@ export function AgentsTable({ sections, agents }: { sections: Section<AgentRow>[
 /** What the marks mean, once, under the tables. */
 export function MatrixLegend() {
   return (
-    <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-fg-muted">
+    <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-fg-muted">
       <li className="inline-flex items-center gap-1"><Check aria-hidden className="size-4 text-ok" /> لحاله</li>
       <li className="inline-flex items-center gap-1"><Clock aria-hidden className="size-4 text-warn" /> بموافقة المالك من الموقع</li>
       <li className="inline-flex items-center gap-1"><X aria-hidden className="size-4" /> ممنوع</li>

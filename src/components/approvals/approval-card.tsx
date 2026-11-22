@@ -38,11 +38,11 @@ export function Why({ a }: { a: ApprovalView }) {
       <p className="text-fg">{a.why}</p>
       {shown.map(([k, v]) => (
         <div key={k}>
-          <p className="text-xs font-semibold text-fg-muted">{k}</p>
+          <p className="text-sm font-semibold text-fg-muted">{k}</p>
           <p className="whitespace-pre-wrap text-fg">{v}</p>
         </div>
       ))}
-      {!shown.length ? <p className="text-xs text-fg-muted">Claude ما بعت تحليل أكتر من السطر فوق.</p> : null}
+      {!shown.length ? <p className="text-sm text-fg-muted">Claude ما بعت تحليل أكتر من السطر فوق.</p> : null}
     </div>
   );
 }
@@ -94,7 +94,7 @@ export function ApprovalCard({ approval, compact = false }: { approval: Approval
   const left = timeText(minutesLeft(approval.expiresAt));
   return (
     <article className={cn("rounded-card border bg-surface-1 p-4 shadow-card", approval.urgency === "red" && open_ ? "border-danger/40" : "border-border")}>
-      <div className="flex flex-wrap items-center gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className={cn("rounded-md px-1.5 py-0.5 font-semibold", u.cls)}>
           {u.icon} {u.label}
         </span>
@@ -104,14 +104,14 @@ export function ApprovalCard({ approval, compact = false }: { approval: Approval
             Claude
           </span>
         ) : null}
-        {approval.kind ? <span dir="ltr" className="font-mono text-fg-muted">{approval.kind}</span> : null}
+        {approval.kind ? <span dir="ltr" className="tabular-nums text-fg-muted">{approval.kind}</span> : null}
         <span className="ms-auto text-fg-muted">{left ? `ينتهي ${left}` : ""}</span>
       </div>
       <h3 className="mt-2 text-base font-semibold leading-6 text-fg">{approval.title}</h3>
       <p className="text-sm leading-6 text-fg-muted">{approval.why}</p>
 
       {approval.amount !== null || approval.numbers.length ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           {approval.amount !== null ? (
             <span dir="ltr" className="rounded-md bg-warn/10 px-2 py-1 text-sm font-bold tabular-nums text-warn">
               ${approval.amount}
@@ -126,12 +126,12 @@ export function ApprovalCard({ approval, compact = false }: { approval: Approval
         </div>
       ) : null}
 
-      {approval.status === "postponed" && approval.postponedUntil ? <p className="mt-2 text-xs text-warn">مأجّل — بيرجع {timeText(minutesLeft(approval.postponedUntil))}</p> : null}
+      {approval.status === "postponed" && approval.postponedUntil ? <p className="mt-2 text-sm text-warn">مأجّل — بيرجع {timeText(minutesLeft(approval.postponedUntil))}</p> : null}
 
       {open ? <Why a={approval} /> : null}
       <div className="mt-3 space-y-3">
-        {open_ ? <AnswerButtons id={approval.id} big={!compact} /> : <p className="text-xs text-fg-muted">{approval.status}</p>}
-        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="text-xs font-medium text-accent hover:underline">
+        {open_ ? <AnswerButtons id={approval.id} big={!compact} /> : <p className="text-sm text-fg-muted">{approval.status}</p>}
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="text-sm font-medium text-accent hover:underline">
           {open ? "سكّر" : "ليش؟"}
         </button>
       </div>

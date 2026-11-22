@@ -26,7 +26,7 @@ export function DayLineMini({ line, now = new Date() }: { line: DayLineData; now
     <div className="space-y-3">
       <div className="relative h-10 max-md:h-[44px]" role="img" aria-label={`اليوم على الخط: ${line.dots.length} تشغيلة`}>
         <span aria-hidden className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border" />
-        <span aria-hidden className="absolute top-0 h-full w-0.5 rounded-full bg-accent-2" style={{ insetInlineStart: `${here}%` }} title="هلأ" />
+        <span aria-hidden className="absolute top-0 h-full w-0.5 rounded-full bg-fg" style={{ insetInlineStart: `${here}%` }} title="هلأ" />
         {line.dots.map((d: DayDot, i) => (
           <Link
             key={`${d.jobKey}:${d.at}:${i}`}

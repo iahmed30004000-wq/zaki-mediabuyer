@@ -63,7 +63,7 @@ export function CardCustom({ entity, entityId, custom, canEdit }: { entity: Enti
       {open && canEdit ? (
         <div className="space-y-2 rounded-lg border border-border bg-surface-2/40 p-2">
           {fields.map((f) => (
-            <label key={f.id} className="block text-xs text-fg-muted">
+            <label key={f.id} className="block text-sm text-fg-muted">
               {f.label}
               <FieldInput field={f} value={current(f)} disabled={busy} onChange={(v) => setDraft((m) => ({ ...m, [f.id]: v }))} />
             </label>

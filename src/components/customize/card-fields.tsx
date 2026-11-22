@@ -102,7 +102,7 @@ export function RunButton({ button, entityId, entity = "task", large }: { button
     toast(d.created ? "انطلب من Claude ✓ — بتشوفه بـ «المهمة»" : "في طلب مفتوح لهالبطاقة من قبل", d.created ? "success" : "info");
   }
 
-  const size = large ? "min-h-10 max-md:min-h-[44px] px-3 text-sm" : "min-h-10 max-md:min-h-[44px] px-2 text-xs";
+  const size = large ? "min-h-10 max-md:min-h-[44px] px-3 text-sm" : "min-h-10 max-md:min-h-[44px] px-2 text-sm";
   if (armed) {
     return (
       <span className={cn("inline-flex items-center gap-2 rounded-md border border-accent/50 bg-accent/5", size)}>

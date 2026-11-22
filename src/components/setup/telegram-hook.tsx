@@ -32,7 +32,7 @@ export function TelegramHook() {
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => void call("GET")}>
         افحصه
       </Button>
-      {line ? <span className="text-xs text-fg-muted">{line}</span> : null}
+      {line ? <span className="text-sm text-fg-muted">{line}</span> : null}
     </div>
   );
 }

@@ -64,8 +64,8 @@ export function ImportPanel() {
   return (
     <div className="grid gap-3 lg:grid-cols-[1fr_16rem]">
       <Panel className="space-y-3">
-        <p className="text-sm font-semibold text-fg">استيراد من مدير الإعلانات</p>
-        <p className="text-xs text-fg-muted">تقرير يومي على مستوى الإعلان (CSV أو Excel، عربي أو إنجليزي): اليوم · رقم الإعلان أو اسمه · المبلغ المصروف · مرات الظهور، والباقي إذا موجود. مفيد للأيام اللي قبل الربط.</p>
+        <p className="text-base font-semibold text-fg">استيراد من مدير الإعلانات</p>
+        <p className="text-sm text-fg-muted">تقرير يومي على مستوى الإعلان (CSV أو Excel، عربي أو إنجليزي): اليوم · رقم الإعلان أو اسمه · المبلغ المصروف · مرات الظهور، والباقي إذا موجود. مفيد للأيام اللي قبل الربط.</p>
         <label className={cn("flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-fg hover:border-accent/50", busy && "opacity-50")}>
           <FileUp className="size-4" /> {file ? file.name : "اختار الملف"}
           <input type="file" accept=".csv,.xlsx,text/csv" className="hidden" disabled={busy} onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
@@ -83,15 +83,15 @@ export function ImportPanel() {
                 </label>
               ))}
             </div>
-            {p.errors.length ? <ul className="space-y-1 rounded-lg bg-warn/10 p-2 text-xs text-fg">{p.errors.map((e) => <li key={e}>{e}</li>)}</ul> : null}
-            {p.already ? <p className="rounded-lg bg-surface-2 p-2 text-xs text-fg-muted">هالملف انستورد قبل ({p.already.rows} سطر) — استيراده مرة تانية ما بيغيّر شي.</p> : null}
+            {p.errors.length ? <ul className="space-y-1 rounded-lg bg-warn/10 p-2 text-sm text-fg">{p.errors.map((e) => <li key={e}>{e}</li>)}</ul> : null}
+            {p.already ? <p className="rounded-lg bg-surface-2 p-2 text-sm text-fg-muted">هالملف انستورد قبل ({p.already.rows} سطر) — استيراده مرة تانية ما بيغيّر شي.</p> : null}
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead className="text-fg-muted"><tr><th className="py-1 text-start font-medium">اليوم</th><th className="py-1 text-start font-medium">الإعلان</th><th className="py-1 text-start font-medium">الصرف</th><th className="py-1 text-start font-medium">الظهور</th><th className="py-1 text-start font-medium">شراء</th></tr></thead>
                 <tbody>
                   {p.preview.map((r, i) => (
                     <tr key={i} className={cn("border-t border-border", !r.known && "text-fg-muted line-through")}>
-                      <td dir="ltr" className="py-1 text-start">{r.day}</td><td dir="ltr" className="py-1 text-start font-mono">{r.ad}</td><td className="py-1">{r.spend}</td><td className="py-1">{r.impressions}</td><td className="py-1">{r.purchases}</td>
+                      <td dir="ltr" className="py-1 text-start">{r.day}</td><td dir="ltr" className="py-1 text-start tabular-nums">{r.ad}</td><td className="py-1">{r.spend}</td><td className="py-1">{r.impressions}</td><td className="py-1">{r.purchases}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -112,7 +112,7 @@ export function ImportPanel() {
               >
                 <Upload className="size-4" /> استورد {p.rows} سطر
               </Button>
-              {p.unknownAds ? <span className="text-xs text-fg-muted">{p.unknownAds} سطر لإعلانات مش معروفة عنا (مشطوبة) — ما رح ينحفظوا</span> : null}
+              {p.unknownAds ? <span className="text-sm text-fg-muted">{p.unknownAds} سطر لإعلانات مش معروفة عنا (مشطوبة) — ما رح ينحفظوا</span> : null}
             </div>
           </>
         ) : null}

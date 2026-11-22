@@ -26,7 +26,7 @@ export function GuideBody() {
                 <p.icon className="size-4 text-accent" />
                 {p.label}
               </p>
-              <p className="mt-1 text-xs leading-5 text-fg-muted">{PAGE_GUIDE[p.key].what}</p>
+              <p className="mt-1 text-sm leading-5 text-fg-muted">{PAGE_GUIDE[p.key].what}</p>
             </Link>
           ))}
         </div>
@@ -39,7 +39,7 @@ export function GuideBody() {
             <details key={a.slug} id={a.slug} className="group rounded-card border border-border bg-surface-1 p-4 shadow-card">
               <summary className="flex min-h-10 cursor-pointer list-none items-center text-sm font-semibold text-fg group-open:text-accent max-md:min-h-[44px]">{a.title}</summary>
               {a.body.map((b, i) => (
-                <p key={i} className="mt-2 text-sm leading-6 text-fg">{b}</p>
+                <p key={i} className="mt-2 text-base leading-6 text-fg">{b}</p>
               ))}
             </details>
           ))}
@@ -54,8 +54,8 @@ export function GuideBody() {
               {Object.values(GLOSSARY).map((t) => (
                 <tr key={t.name}>
                   <td className="px-3 py-2 font-medium text-fg">{t.name}</td>
-                  <td className="px-3 py-2 text-xs text-fg-muted">{t.formula}</td>
-                  <td className="px-3 py-2 text-xs text-fg-muted">{SOURCE_AR[t.source]}</td>
+                  <td className="px-3 py-2 text-sm text-fg-muted">{t.formula}</td>
+                  <td className="px-3 py-2 text-sm text-fg-muted">{SOURCE_AR[t.source]}</td>
                 </tr>
               ))}
             </tbody>

@@ -30,7 +30,7 @@ export function ThemePicker({ className }: { className?: string }) {
               key={info.key}
               className={cn(
                 "relative flex cursor-pointer flex-col gap-2 rounded-card border bg-surface-1 p-2 text-start transition-colors",
-                "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent-2 has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-surface",
+                "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-info has-[:focus-visible]:ring-offset-1 has-[:focus-visible]:ring-offset-surface",
                 selected ? "border-accent" : "border-border hover:border-fg-muted",
               )}
             >
@@ -67,7 +67,7 @@ function ThemePreview({ theme }: { theme: ThemeKey }) {
   return (
     <span data-theme={theme} aria-hidden="true" className="flex h-16 flex-col gap-1.5 overflow-hidden rounded-lg border border-border bg-surface p-2">
       <span className="h-1.5 w-2/3 rounded-full bg-fg" />
-      <span className="h-0.5 w-1/4 rounded-full bg-accent-2" />
+      <span className="h-0.5 w-1/4 rounded-full bg-accent" />
       <span className="flex h-4 items-center rounded-md border border-border bg-surface-1 px-1">
         <span className="h-1 flex-1 rounded-full bg-fg-muted/50" />
       </span>

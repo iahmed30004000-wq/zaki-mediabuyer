@@ -9,10 +9,10 @@ export function Section({ title, hint, tour, link, children, className }: { titl
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-fg">{title}</h2>
-          {hint ? <p className="text-xs text-fg-muted">{hint}</p> : null}
+          {hint ? <p className="text-sm text-fg-muted">{hint}</p> : null}
         </div>
         {link ? (
-          <Link href={link.href} className="shrink-0 text-xs font-medium text-accent hover:underline">
+          <Link href={link.href} className="shrink-0 text-sm font-medium text-accent hover:underline">
             {link.label}
           </Link>
         ) : null}

@@ -12,7 +12,7 @@ const TONE: Record<PillTone, string> = {
   neutral: "bg-surface-2 text-fg-muted",
 };
 
-/** A status badge: 24px, a word (never a dot alone), five tones only. */
+/** A status badge: 24px, a word (never a dot alone), five tones only. The tone is a STATE (done · running · needs you · stopped), never decoration. */
 export function Pill({ tone = "neutral", children, className }: { tone?: PillTone; children: ReactNode; className?: string }) {
   return <span className={cn("inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-xs font-bold", TONE[tone], className)}>{children}</span>;
 }

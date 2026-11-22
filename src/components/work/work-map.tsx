@@ -43,7 +43,7 @@ export function WorkMap({ jobs, counters, canDecide = false }: { jobs: JobView[]
         {TILES.map((t) => (
           <div key={t.key} className="rounded-card border border-border bg-surface-1 p-3">
             <p className="text-xs font-semibold text-fg-muted">{t.label}</p>
-            <p dir="ltr" className={`text-3xl font-extrabold tabular-nums ${t.tone}`}>
+            <p dir="ltr" className={`font-display text-3xl font-extrabold tabular-nums ${t.tone}`}>
               {counters[t.key]}
             </p>
           </div>

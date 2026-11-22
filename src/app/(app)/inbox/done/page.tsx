@@ -44,7 +44,7 @@ export default async function InboxDonePage({ searchParams: searchParamsP }: { s
               <Link href={d.href} className="inline-flex min-h-10 min-w-0 flex-1 items-center text-sm font-semibold text-fg hover:underline max-md:min-h-[44px]">
                 {d.title}
               </Link>
-              <span className="text-xs text-fg-muted">
+              <span className="text-sm text-fg-muted">
                 {d.by} · {when(d.at)}
               </span>
               {d.canRollback ? <RollbackButton id={d.id.replace(/^change:/, "")} /> : null}

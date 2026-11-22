@@ -43,8 +43,8 @@ export default async function ProductPage({ params: paramsP, searchParams: searc
         <Link href="/products" className="text-sm font-semibold text-info hover:underline">
           ← المنتجات
         </Link>
-        <h2 className="text-xl font-extrabold text-fg">{p.name}</h2>
-        <span dir="ltr" className="font-mono text-xs text-fg-muted">
+        <h2 className="font-display text-lg font-extrabold text-fg">{p.name}</h2>
+        <span dir="ltr" className="tabular-nums text-xs text-fg-muted">
           {p.code}
         </span>
       </div>

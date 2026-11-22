@@ -52,7 +52,7 @@ export function DayLineFull({ line, rows, now = new Date() }: { line: DayLine; r
               </Link>
               <div className="relative h-7 flex-1 rounded-md bg-surface-2/40">
                 <span aria-hidden className="absolute inset-y-0 rounded-md bg-surface-2" style={{ insetInlineStart: `${NIGHT_FROM}%`, insetInlineEnd: 0 }} />
-                <span aria-hidden className="absolute top-0 h-full w-0.5 bg-accent-2" style={{ insetInlineStart: `${here}%` }} />
+                <span aria-hidden className="absolute top-0 h-full w-0.5 bg-fg" style={{ insetInlineStart: `${here}%` }} />
                 {(by.get(r.key) ?? []).map((d, i) => (
                   <span
                     key={`${d.at}-${i}`}

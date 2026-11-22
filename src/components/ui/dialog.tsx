@@ -106,7 +106,7 @@ export const DialogCloseButton = React.forwardRef<HTMLButtonElement, React.Compo
         ref={ref}
         aria-label={t("ui.close")}
         className={cn(
-          "absolute end-2 top-2 flex size-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg",
+          "absolute end-2 top-2 flex size-11 items-center justify-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg",
           className,
         )}
         {...props}

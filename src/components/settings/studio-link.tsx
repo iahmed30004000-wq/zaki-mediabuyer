@@ -56,8 +56,8 @@ export function StudioLink() {
   return (
     <Panel className="space-y-4 md:col-span-2">
       <div>
-        <p className="text-sm font-semibold text-fg">استوديو المحتوى</p>
-        <p className="text-xs text-fg-muted">الاستوديو بيسحب من هون كم صرف كل فيديو منه وكم طلب انسلّم، لحتى يتعلّم شو الرابح. حط عنوان الميديا باير بإعدادات الاستوديو مكان «عنوان الـ OMS»، والتوكن بخانته.</p>
+        <p className="text-base font-semibold text-fg">استوديو المحتوى</p>
+        <p className="text-sm text-fg-muted">الاستوديو بيسحب من هون كم صرف كل فيديو منه وكم طلب انسلّم، لحتى يتعلّم شو الرابح. حط عنوان الميديا باير بإعدادات الاستوديو مكان «عنوان الـ OMS»، والتوكن بخانته.</p>
       </div>
 
       <div className="space-y-2">
@@ -65,22 +65,22 @@ export function StudioLink() {
           <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
             <KeyRound className="size-4 text-fg-muted" />
             <span className="text-fg">{t.name}</span>
-            <span className="text-xs text-fg-muted">{t.scopes.map((s) => STUDIO_NAME[s] ?? s).join(" · ")}</span>
-            <span dir="ltr" className="font-mono text-xs text-fg-muted">{t.prefix}…</span>
-            <span className="ms-auto text-xs text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
+            <span className="text-sm text-fg-muted">{t.scopes.map((s) => STUDIO_NAME[s] ?? s).join(" · ")}</span>
+            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{t.prefix}…</span>
+            <span className="ms-auto text-sm text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
             <Button size="sm" variant="ghost" onClick={async () => (await call(`/api/studio/tokens/${t.id}`, { method: "DELETE" })) && load()}>
               وقّفه
             </Button>
           </div>
         ))}
-        {tokens && !live.length ? <p className="text-xs text-fg-muted">ما في توكن. اعمل «توكن القراءة» أول شي.</p> : null}
+        {tokens && !live.length ? <p className="text-sm text-fg-muted">ما في توكن. اعمل «توكن القراءة» أول شي.</p> : null}
       </div>
 
       {fresh ? (
         <div className="space-y-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
-          <p className="text-xs text-fg">هاد التوكن بيظهر هلأ بس. انسخه وحطه بالاستوديو، وما تبعته بأي محادثة.</p>
+          <p className="text-sm text-fg">هاد التوكن بيظهر هلأ بس. انسخه وحطه بالاستوديو، وما تبعته بأي محادثة.</p>
           <div className="flex items-center gap-2">
-            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 font-mono text-xs text-fg">{fresh}</code>
+            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-xs text-fg">{fresh}</code>
             <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(fresh).then(() => toast("انسخ ✓ — حطه بالاستوديو هلأ", "success"))}>
               <Copy className="size-3.5" /> انسخ
             </Button>
@@ -109,8 +109,8 @@ export function StudioLink() {
       )}
 
       <div className="space-y-2 border-t border-border pt-3">
-        <p className="text-xs font-medium text-fg">أي فيديو من أي سكربت</p>
-        <p className="text-xs text-fg-muted">لحد ما يصير الاستلام من الاستوديو تلقائي: اكتب رقم الفيديو بالميديا باير (مثلاً <span dir="ltr" className="whitespace-nowrap font-mono">CR00147</span>) ورقم سكربته بالاستوديو (مثلاً <span dir="ltr" className="whitespace-nowrap font-mono">VP-TRF01-0012-v2</span>).</p>
+        <p className="text-sm font-medium text-fg">أي فيديو من أي سكربت</p>
+        <p className="text-sm text-fg-muted">لحد ما يصير الاستلام من الاستوديو تلقائي: اكتب رقم الفيديو بالميديا باير (مثلاً <span dir="ltr" className="whitespace-nowrap tabular-nums">CR00147</span>) ورقم سكربته بالاستوديو (مثلاً <span dir="ltr" className="whitespace-nowrap tabular-nums">VP-TRF01-0012-v2</span>).</p>
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={async (e) => {
@@ -123,8 +123,8 @@ export function StudioLink() {
             }
           }}
         >
-          <Input aria-label="رمز الفيديو" dir="ltr" placeholder="CR00147" value={cr} onChange={(e) => setCr(e.target.value)} className="w-32 font-mono" />
-          <Input aria-label="رمز الطلب" dir="ltr" placeholder="VP-TRF01-0012-v2" value={vp} onChange={(e) => setVp(e.target.value)} className="w-56 font-mono" />
+          <Input aria-label="رمز الفيديو" dir="ltr" placeholder="CR00147" value={cr} onChange={(e) => setCr(e.target.value)} className="w-32 tabular-nums" />
+          <Input aria-label="رمز الطلب" dir="ltr" placeholder="VP-TRF01-0012-v2" value={vp} onChange={(e) => setVp(e.target.value)} className="w-56 tabular-nums" />
           <Button size="sm" variant="secondary" type="submit" disabled={!cr || !vp}>
             <Link2 className="size-3.5" /> اربط
           </Button>
@@ -132,7 +132,7 @@ export function StudioLink() {
         {links.length ? (
           <ul className="flex flex-wrap gap-2">
             {links.map((l) => (
-              <li key={l.crCode} dir="ltr" className="rounded-full bg-surface-2 px-2.5 py-1 font-mono text-xs text-fg-muted">
+              <li key={l.crCode} dir="ltr" className="rounded-full bg-surface-2 px-2.5 py-1 tabular-nums text-xs text-fg-muted">
                 {l.crCode} ↔ {l.sourceRef}
               </li>
             ))}

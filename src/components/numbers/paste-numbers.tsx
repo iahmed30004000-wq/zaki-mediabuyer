@@ -83,7 +83,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
               }}
               aria-label="الجدول الملصوق"
               placeholder={"Day, Ad ID, Ad name, Amount spent, Impressions, Link clicks, Purchases\n2026-11-14, 120001, TIN_V01, 12.50, 3400, 85, 2"}
-              className={cn(field, "py-2 font-mono text-xs leading-6")}
+              className={cn(field, "py-2 tabular-nums text-xs leading-6")}
             />
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
@@ -118,7 +118,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
                 {pre.sample.length ? (
                   <ul className="space-y-1 text-fg">
                     {pre.sample.map((r, i) => (
-                      <li key={i} dir="ltr" className="truncate text-start font-mono text-xs">
+                      <li key={i} dir="ltr" className="truncate text-start tabular-nums text-xs">
                         {String(r.date)} · {String(r.level)} · {String(r.id)}
                         {r.name ? ` · ${String(r.name)}` : ""}
                         {r.spend !== undefined ? ` · $${String(r.spend)}` : ""}

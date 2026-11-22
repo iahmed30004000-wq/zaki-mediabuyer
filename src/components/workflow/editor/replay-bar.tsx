@@ -110,7 +110,7 @@ export function ReplayBar({ workflowKey, graph, startRef, onStates, onClose }: {
               <ChevronLeft className="size-4" />
             </button>
             <input type="range" min={0} max={last} step={1} value={frame} disabled={!last} aria-label="مكانك بالتشغيل" onChange={(e) => { setPlaying(false); setFrame(Number(e.target.value)); }} className="min-w-0 flex-1 basis-40 accent-accent" />
-            <span dir="ltr" className="shrink-0 font-mono text-xs text-fg-muted">
+            <span dir="ltr" className="shrink-0 tabular-nums text-xs text-fg-muted">
               {frame}/{last}
             </span>
           </div>

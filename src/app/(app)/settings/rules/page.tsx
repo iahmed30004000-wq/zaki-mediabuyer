@@ -71,7 +71,7 @@ export default async function RulesPage() {
             real.levels.map((a) => (
               <Panel key={a.metaId} className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-fg">{a.name}</p>
+                  <p className="text-base font-semibold text-fg">{a.name}</p>
                   <LevelStars level={a.level as 0 | 1 | 2 | 3} />
                 </div>
                 <LevelPicker row={a} />
@@ -101,7 +101,7 @@ export default async function RulesPage() {
                 <li key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                   <Pill tone="neutral">{o.status === "rejected" ? "انرفض" : "انتهى"}</Pill>
                   <span className="min-w-0 flex-1 text-fg">{o.text}</span>
-                  <span className="text-xs text-fg-muted">
+                  <span className="text-sm text-fg-muted">
                     {EFFECT_AR[o.effect]} · {DOMAIN_AR[o.domain as OrderDomain] ?? o.domain} · {o.endedBy ? `${untilWords(o.endsAt)} · ${o.endedBy === "system" ? "انتهى لحاله" : "إنت"}` : untilWords(o.endsAt)}
                   </span>
                 </li>

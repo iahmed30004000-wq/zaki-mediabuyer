@@ -4,7 +4,7 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-import { buttonVariants } from "./button-variants";
+import { DANGER_FILL, buttonVariants } from "./button-variants";
 
 export interface ButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "color">, Omit<VariantProps<typeof buttonVariants>, "block"> {
   /** Shows a spinner in place of the icon, keeps the text, and locks the button. */
@@ -32,10 +32,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     if (confirm && asking) {
       return (
         <span role="group" aria-label={confirm} className={cn("inline-flex items-center gap-1", block && "w-full")}>
-          <span className="px-1 text-sm font-semibold text-fg">{confirm}</span>
+          <span className="px-1 text-base font-semibold text-fg">{confirm}</span>
           <button
             type="button"
-            className={cn(buttonVariants({ variant: variant === "danger" ? "danger" : "primary", size }), className)}
+            className={cn(buttonVariants({ variant: variant === "danger" ? "danger" : "primary", size }), variant === "danger" && DANGER_FILL, className)}
             onClick={(e) => {
               setAsking(false);
               onClick?.(e);

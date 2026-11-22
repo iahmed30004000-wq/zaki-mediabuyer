@@ -178,10 +178,10 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                 <button key={x.code} onClick={() => { setProduct(x.code); setPicked([]); }} className={choice(product === x.code)}>
                   <span className="flex items-center gap-2 text-sm font-semibold text-fg">
                     {x.name}
-                    <span dir="ltr" className="font-mono text-xs text-fg-muted">{x.code}</span>
-                    {x.stockDays !== null && x.stockDays < 5 ? <span className="ms-auto text-xs text-warn">المخزون {x.stockDays} أيام</span> : null}
+                    <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{x.code}</span>
+                    {x.stockDays !== null && x.stockDays < 5 ? <span className="ms-auto text-sm text-warn">المخزون {x.stockDays} أيام</span> : null}
                   </span>
-                  <span className="text-xs text-fg-muted">هدف الطلب {fmt(x.tOrder, "$")} {x.estimated ? "(تقدير)" : ""}</span>
+                  <span className="text-sm text-fg-muted">هدف الطلب {fmt(x.tOrder, "$")} {x.estimated ? "(تقدير)" : ""}</span>
                 </button>
               ))
             ) : (
@@ -191,7 +191,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
             TEMPLATES.map((t) => (
               <button key={t.key} onClick={() => setTemplate(t.key)} className={choice(template === t.key)}>
                 <span className="block text-sm font-semibold text-fg">{t.title}</span>
-                <span className="text-xs text-fg-muted">{t.text}</span>
+                <span className="text-sm text-fg-muted">{t.text}</span>
               </button>
             ))}
           {step === 2 &&
@@ -202,8 +202,8 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                   <button key={c.code} onClick={() => setPicked((l) => (on ? l.filter((x) => x !== c.code) : [...l, c.code]))} className={choice(on)}>
                     <span className="flex items-center gap-2 text-sm">
                       <span className={cn("inline-flex size-5 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-fg" : "border-border")}>{on ? <Check className="size-3.5" /> : null}</span>
-                      <span dir="ltr" className="font-mono text-fg">{c.code}</span>
-                      <span className="text-xs text-fg-muted">{c.label}</span>
+                      <span dir="ltr" className="tabular-nums text-fg">{c.code}</span>
+                      <span className="text-sm text-fg-muted">{c.label}</span>
                     </span>
                   </button>
                 );
@@ -214,8 +214,8 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
           {step === 3 && p && tpl ? (
             <div className="space-y-3 text-sm">
               <div className="rounded-xl border border-border p-3">
-                <p className="text-xs text-fg-muted">اسم الحملة (بيعمله النظام)</p>
-                <p dir="ltr" className="text-start font-mono text-fg">{preview?.name ?? localName}</p>
+                <p className="text-sm text-fg-muted">اسم الحملة (بيعمله النظام)</p>
+                <p dir="ltr" className="text-start tabular-nums text-fg">{preview?.name ?? localName}</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="block">
@@ -234,11 +234,11 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                   <Label>رابط صفحة الهبوط</Label>
                   <div className="flex gap-2">
                     <Input dir="ltr" value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder="https://crm.zakiai.io/lp/…" />
-                    <Input dir="ltr" value={lp} onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setLp(v); const hit = options.landing.find((l) => l.productCode === product && l.lpCode === v); if (hit) setUrl(hit.url); }} className="w-20 text-center font-mono" aria-label="رمز صفحة الهبوط" />
+                    <Input dir="ltr" value={lp} onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setLp(v); const hit = options.landing.find((l) => l.productCode === product && l.lpCode === v); if (hit) setUrl(hit.url); }} className="w-20 text-center tabular-nums" aria-label="رمز صفحة الهبوط" />
                   </div>
                 </label>
                 <div className="sm:col-span-2">
-                  <Button type="button" variant="ghost" disabled={writing} onClick={write} className="min-h-10 max-md:min-h-[44px] px-2 text-xs">
+                  <Button type="button" variant="ghost" disabled={writing} onClick={write} className="min-h-10 max-md:min-h-[44px] px-2 text-sm">
                     <PenLine className="size-3.5" />
                     {writing ? "عم يكتب…" : "اكتبلي نسخ (بتنفحص بالقاموس)"}
                   </Button>
@@ -248,8 +248,8 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                         <button key={v.body} type="button" onClick={() => { setMessage(`${v.hook}
 ${v.body}`); setTitle(v.headline); setVariants(null); }} className={choice(false)}>
                           <span className="block text-sm text-fg">{v.hook}</span>
-                          <span className="block text-xs text-fg-muted">{v.body}</span>
-                          {v.flag === "yellow" ? <span className="mt-1 block text-xs text-warn">بدها موافقتك: {v.note}</span> : null}
+                          <span className="block text-sm text-fg-muted">{v.body}</span>
+                          {v.flag === "yellow" ? <span className="mt-1 block text-sm text-warn">بدها موافقتك: {v.note}</span> : null}
                         </button>
                       ))}
                     </div>
@@ -265,18 +265,18 @@ ${v.body}`); setTitle(v.headline); setVariants(null); }} className={choice(false
                 </label>
               </div>
               {preview && !preview.ok ? (
-                <ul className="space-y-1 rounded-xl border border-danger/40 bg-danger/5 p-3 text-xs text-fg">
+                <ul className="space-y-1 rounded-xl border border-danger/40 bg-danger/5 p-3 text-sm text-fg">
                   {preview.problems?.map((x) => (
                     <li key={x} className="flex gap-1.5"><TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-danger" />{x}</li>
                   ))}
                 </ul>
               ) : null}
               <div className="rounded-xl border border-warn/40 bg-warn/5 p-3">
-                <p className="text-xs text-fg-muted">الأثر المالي</p>
+                <p className="text-sm text-fg-muted">الأثر المالي</p>
                 <p className="text-base font-bold text-warn" dir="ltr">+{fmt(daily, "$", 0)} / يوم</p>
-                <p className="text-xs text-fg-muted">لـ {tpl.days} أيام · {picked.length} فيديو · بالحساب {account?.name ?? "—"}</p>
+                <p className="text-sm text-fg-muted">لـ {tpl.days} أيام · {picked.length} فيديو · بالحساب {account?.name ?? "—"}</p>
               </div>
-              <ul className="space-y-1 text-xs text-fg">
+              <ul className="space-y-1 text-sm text-fg">
                 {["بتنشأ موقوفة، وبتتفعّل بعد ما النظام يقرأها من ميتا ويتأكد إنها مطابقة للقالب", "تحسينات الإبداع التلقائية كلها مطفية بالاسم، وإعلانات المعلنين المتعددين مطفية", "الجمهور: السوق بس، 18+، بدون اهتمامات ولا جمهور Advantage+", "رابط صفحة الهبوط فيه رقم الإعلان عشان الطلب ينربط فيه"].map((x) => (
                   <li key={x} className="flex gap-1.5">
                     <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-ok" />

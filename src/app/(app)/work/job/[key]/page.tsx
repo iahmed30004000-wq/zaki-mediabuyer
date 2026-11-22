@@ -44,7 +44,7 @@ export default async function JobPage({ params: paramsP }: { params: Promise<{ k
       <header className="space-y-3 rounded-card border border-border bg-surface-1 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <JobNumber n={job.number} />
-          <h2 className="min-w-0 flex-1 text-xl font-extrabold text-fg">{job.name}</h2>
+          <h2 className="min-w-0 flex-1 font-display text-lg font-extrabold text-fg">{job.name}</h2>
           <Pill tone={job.badge.tone}>{job.badge.label}</Pill>
         </div>
         <p className="text-sm text-fg-muted">

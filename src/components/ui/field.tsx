@@ -17,18 +17,18 @@ export function Field({ label, hint, error, required, children, className }: { l
     : children;
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={id} className="block text-sm font-semibold text-fg">
+      <label htmlFor={id} className="block text-base font-semibold text-fg">
         {label}
         {required ? <span aria-hidden className="ms-1 text-danger">*</span> : null}
       </label>
       {control}
       {hint ? (
-        <p id={hintId} className="text-xs text-fg-muted">
+        <p id={hintId} className="text-sm text-fg-muted">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={errId} role="alert" className="text-xs font-semibold text-danger">
+        <p id={errId} role="alert" className="text-sm font-semibold text-danger">
           {error}
         </p>
       ) : null}

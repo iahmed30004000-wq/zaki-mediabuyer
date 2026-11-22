@@ -54,7 +54,7 @@ function TryPrompt({ prompt }: { prompt: string }) {
           <div className="grid gap-2 sm:grid-cols-2">
             {t.vars.map((v) => (
               <label key={v} className="block space-y-1">
-                <span dir="ltr" className="block text-start font-mono text-xs text-fg-muted">{`{{${v}}}`}</span>
+                <span dir="ltr" className="block text-start tabular-nums text-xs text-fg-muted">{`{{${v}}}`}</span>
                 <input value={values[v] ?? ""} dir="auto" maxLength={200} onChange={(e) => setValues((x) => ({ ...x, [v]: e.target.value }))} placeholder="قيمة تجريبية" className="min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg" />
               </label>
             ))}
@@ -283,7 +283,7 @@ export function NodeForm({
         معطّلة (بتنتخطّى وقت التشغيل)
       </label>
 
-      <p dir="ltr" className="text-start font-mono text-xs text-fg-muted">id: {node.id}</p>
+      <p dir="ltr" className="text-start tabular-nums text-xs text-fg-muted">id: {node.id}</p>
 
       {readOnly ? null : (
         <div className="flex flex-wrap gap-2 border-t border-border pt-3">

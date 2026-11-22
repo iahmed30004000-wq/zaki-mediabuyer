@@ -27,7 +27,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-fg-muted",
+        "inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-xs font-semibold text-fg-muted",
         className,
       )}
     >
@@ -57,8 +57,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 rounded-card border border-dashed border-border p-8 text-center">
-      <p className="text-sm font-bold text-fg">{title}</p>
-      {hint ? <p className="text-xs text-fg-muted">{hint}</p> : null}
+      <p className="text-base font-bold text-fg">{title}</p>
+      {hint ? <p className="text-sm text-fg-muted">{hint}</p> : null}
       {children}
       {action ? (
         <ButtonLink href={action.href} className="mt-2">

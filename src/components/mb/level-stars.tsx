@@ -11,7 +11,7 @@ export function LevelStars({ level, showLabel = true, className }: { level: 0 | 
     <span className={cn("inline-flex items-center gap-1.5", className)} title={`${LEVEL_AR[level]}: ${LEVEL_HINT[level]}`}>
       <span className="inline-flex" aria-hidden="true">
         {[1, 2, 3].map((i) => (
-          <Star key={i} className={cn("size-3.5", i <= level ? "fill-accent-2 text-accent-2" : "text-border")} strokeWidth={2} />
+          <Star key={i} className={cn("size-3.5", i <= level ? "fill-fg text-fg" : "text-border")} strokeWidth={2} />
         ))}
       </span>
       {showLabel ? <span className="text-xs text-fg-muted">المستوى {level} · {LEVEL_AR[level]}</span> : <span className="sr-only">المستوى {level}: {LEVEL_AR[level]}</span>}

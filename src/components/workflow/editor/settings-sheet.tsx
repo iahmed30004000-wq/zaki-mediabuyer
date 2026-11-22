@@ -73,7 +73,7 @@ export function SettingsSheet({ open, onClose, workflowKey, meta, canEdit, demo,
 
           <div className="space-y-1.5">
             <label htmlFor="wf-cron" className="text-xs font-semibold text-fg">متى بيشتغل (توقيت عمّان)</label>
-            <input id="wf-cron" dir="ltr" value={m.schedule} disabled={!canEdit} placeholder="دقيقة ساعة يوم شهر يوم-بالأسبوع  مثل: 0 10 * * *" onChange={(e) => setM({ ...m, schedule: e.target.value })} className={cn(field, "font-mono", !cronOk && "border-danger")} />
+            <input id="wf-cron" dir="ltr" value={m.schedule} disabled={!canEdit} placeholder="دقيقة ساعة يوم شهر يوم-بالأسبوع  مثل: 0 10 * * *" onChange={(e) => setM({ ...m, schedule: e.target.value })} className={cn(field, "tabular-nums", !cronOk && "border-danger")} />
             <div className="flex flex-wrap gap-1.5">
               {PRESETS.map(([label, cron]) => (
                 <button key={label} type="button" disabled={!canEdit} onClick={() => setM({ ...m, schedule: cron })} className={cn("min-h-10 max-md:min-h-[44px] rounded-full border px-3 text-xs", m.schedule.trim() === cron ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted")}>

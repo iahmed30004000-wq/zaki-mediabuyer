@@ -52,7 +52,7 @@ function Confirm({ label, sure, onGo, className, ...rest }: { label: React.React
 function Steps({ status }: { status: RequestStatus }) {
   const at = REQUEST_STEPS.indexOf(status as (typeof REQUEST_STEPS)[number]);
   return (
-    <ol className="flex flex-wrap items-center gap-1 text-xs" aria-label="مراحل الطلب">
+    <ol className="flex flex-wrap items-center gap-1 text-sm" aria-label="مراحل الطلب">
       {REQUEST_STEPS.map((s, i) => (
         <li key={s} className="flex items-center gap-1">
           <span className={cn("rounded-full px-2 py-0.5 font-medium", i === at ? "bg-accent text-accent-fg" : i < at ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-muted")}>{REQUEST_STATUS_AR[s]}</span>
@@ -74,19 +74,19 @@ function RequestRow({ r, move }: { r: BoardRequest; move: (r: BoardRequest, to: 
   return (
     <li className="space-y-2 rounded-xl border border-border bg-surface-2/40 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-fg">
-          <span dir="ltr" className="me-1 font-mono">{r.label}</span>
+        <p className="text-base font-semibold text-fg">
+          <span dir="ltr" className="me-1 tabular-nums">{r.label}</span>
           <span className="text-fg-muted">— {r.kindLabel}</span>
         </p>
-        <Link href="/work/tasks" className="text-xs font-medium text-accent hover:underline">شوفه بالمهام</Link>
+        <Link href="/work/tasks" className="text-sm font-medium text-accent hover:underline">شوفه بالمهام</Link>
       </div>
       <Steps status={r.status} />
       {r.via === "none" && r.status === "asked" ? (
-        <p className="text-xs leading-5 text-fg-muted">{r.deliveryError ? `ما وصل لهيرمز (${r.deliveryError}). ` : ""}محفوظ بالمهام، وهيرمز بيسحبه من الطابور (GET /api/v1/video-requests).</p>
+        <p className="text-sm leading-5 text-fg-muted">{r.deliveryError ? `ما وصل لهيرمز (${r.deliveryError}). ` : ""}محفوظ بالمهام، وهيرمز بيسحبه من الطابور (GET /api/v1/video-requests).</p>
       ) : r.via !== "none" ? (
-        <p className="text-xs text-fg-muted">وصل لهيرمز {r.via === "api" ? "بالربط المباشر" : "بتيليجرام"}.</p>
+        <p className="text-sm text-fg-muted">وصل لهيرمز {r.via === "api" ? "بالربط المباشر" : "بتيليجرام"}.</p>
       ) : null}
-      {r.status === "ready" && r.resultNote ? <p className="rounded-lg bg-ok/10 p-2 text-xs leading-5 text-fg">{r.resultNote}</p> : null}
+      {r.status === "ready" && r.resultNote ? <p className="rounded-lg bg-ok/10 p-2 text-sm leading-5 text-fg">{r.resultNote}</p> : null}
       <div className="flex flex-wrap gap-2">
         {next ? (
           <Button size="sm" className="min-h-10 max-md:min-h-[44px]" onClick={() => move(r, next.to)}>
@@ -104,7 +104,7 @@ function RequestRow({ r, move }: { r: BoardRequest; move: (r: BoardRequest, to: 
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-fg-muted">{label}</dt>
+      <dt className="text-sm text-fg-muted">{label}</dt>
       <dd className="truncate text-sm font-semibold text-fg">{children}</dd>
     </div>
   );
@@ -120,11 +120,11 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2">
             {rank ? <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-bold text-accent">{rank}</span> : null}
-            <span dir="ltr" className="truncate font-mono text-sm font-semibold text-fg">{v.label}</span>
+            <span dir="ltr" className="truncate tabular-nums text-sm font-semibold text-fg">{v.label}</span>
             <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">{v.statusLabel}</span>
           </p>
           {v.request ? (
-            <p className="mt-1 text-xs text-fg-muted">
+            <p className="mt-1 text-sm text-fg-muted">
               طلب مفتوح: {v.request.kindLabel} — <span className="font-medium text-fg">{v.request.statusLabel}</span>
             </p>
           ) : null}
@@ -150,11 +150,11 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
         <Cell label="أيام العرض"><Num value={v.days} term="daysRunning" /></Cell>
       </dl>
 
-      {tired ? <p className="rounded-lg bg-warn/5 p-2 text-xs leading-5 text-fg">{v.fatigue.text}</p> : null}
+      {tired ? <p className="rounded-lg bg-warn/5 p-2 text-sm leading-5 text-fg">{v.fatigue.text}</p> : null}
 
       <CardCustom entity="video" entityId={v.key} custom={custom} canEdit={canEdit} />
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         {v.previewUrl ? (
           <button type="button" onClick={() => setPeek((o) => !o)} aria-expanded={peek} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 font-medium text-accent hover:underline">
             <Play className="size-3.5" /> {peek ? "سكّر المعاينة" : "شوف الفيديو"}
@@ -239,12 +239,12 @@ function Gauge({ p }: { p: BoardProduct }) {
         <span className="font-semibold text-fg">
           البنك: <Num value={b.count} term="bankCount" /> من {b.target}
         </span>
-        {b.short > 0 ? <span className="text-xs text-fg-muted">ناقص {b.short}</span> : <span className="text-xs text-ok">كامل ✓</span>}
+        {b.short > 0 ? <span className="text-sm text-fg-muted">ناقص {b.short}</span> : <span className="text-sm text-ok">كامل ✓</span>}
       </div>
       <div role="progressbar" aria-valuemin={0} aria-valuemax={b.target} aria-valuenow={Math.min(b.count, b.target)} aria-label={`بنك ${p.name}`} className="h-2.5 overflow-hidden rounded-full bg-surface-2">
         <div className={cn("h-full rounded-full", b.pct >= 100 ? "bg-ok" : b.pct >= 50 ? "bg-accent" : "bg-warn")} style={{ width: `${b.pct}%` }} />
       </div>
-      <p className="flex flex-wrap gap-x-3 text-xs text-fg-muted">
+      <p className="flex flex-wrap gap-x-3 text-sm text-fg-muted">
         {parts.filter(([, n]) => n).map(([label, n]) => (
           <span key={label}>{label} {n}</span>
         ))}
@@ -259,7 +259,7 @@ function ProductBoard({ p, busy, ask, move }: { p: BoardProduct; busy: string | 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-0.5">
           <h2 className="text-base font-bold text-fg">{p.name}</h2>
-          <p dir="ltr" className="text-start font-mono text-xs text-fg-muted">{p.code}</p>
+          <p dir="ltr" className="text-start tabular-nums text-xs text-fg-muted">{p.code}</p>
         </div>
         <div className="w-full sm:w-72">
           <Gauge p={p} />
@@ -281,11 +281,11 @@ function ProductBoard({ p, busy, ask, move }: { p: BoardProduct; busy: string | 
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-sm font-bold text-fg">الرابحين — الأرخص طلب حقيقي أول</h3>
           {p.minSpend !== null ? (
-            <span className="text-xs text-fg-muted">
+            <span className="text-sm text-fg-muted">
               بعد ما يصرف <Num value={p.minSpend} unit="$" term="minSpend" /> {p.minSpendFrom === "target" ? "(ضعف هدفك)" : "(اللي كتبته)"} بآخر 7 أيام
             </span>
           ) : (
-            <span className="text-xs text-fg-muted">ما في حد أدنى للصرف — اكتبه فوق</span>
+            <span className="text-sm text-fg-muted">ما في حد أدنى للصرف — اكتبه فوق</span>
           )}
         </div>
         {p.winners.length ? (
@@ -302,7 +302,7 @@ function ProductBoard({ p, busy, ask, move }: { p: BoardProduct; busy: string | 
       {p.learning.length ? (
         <div className="space-y-2">
           <h3 className="text-sm font-bold text-fg">لسا بيتقيّم ({p.learning.length})</h3>
-          <p className="text-xs text-fg-muted">صرف بس لسا ما وصل للحد أو ما جاب طلب — ما بنحكم عليه.</p>
+          <p className="text-sm text-fg-muted">صرف بس لسا ما وصل للحد أو ما جاب طلب — ما بنحكم عليه.</p>
           <ul className="space-y-2">
             {p.learning.map((v) => (
               <VideoCard key={v.key} v={v} busy={busy} ask={ask} />
@@ -413,15 +413,15 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
           ["طلبات مفتوحة", t.openRequests],
         ].map(([label, n]) => (
           <div key={label as string} className="rounded-xl border border-border bg-surface-1 px-3 py-2">
-            <p className="text-xs text-fg-muted">{label}</p>
-            <p className="text-xl font-bold tabular-nums text-fg">{n}</p>
+            <p className="text-sm text-fg-muted">{label}</p>
+            <p className="font-display text-lg font-bold tabular-nums text-fg">{n}</p>
           </div>
         ))}
       </div>
 
       <div className="space-y-2 rounded-xl border border-border bg-surface-1 p-3">
         <MinSpend typed={data.typedMinSpend} />
-        <p className="text-xs leading-5 text-fg-muted">
+        <p className="text-sm leading-5 text-fg-muted">
           {direct || data.hermes.chat
             ? `الطلبات بتوصل لهيرمز ${direct ? "بالربط المباشر" : "بتيليجرام"}، وبتنزل كبطاقة بالمهام.`
             : "لسا ما في قناة لهيرمز (HERMES_BASE_URL + HERMES_TOKEN، أو TELEGRAM_HERMES_CHAT_ID). الطلب بينحفظ بالمهام، وهيرمز بيسحبه من الطابور."}

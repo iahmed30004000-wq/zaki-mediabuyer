@@ -15,7 +15,7 @@ export function SettingsCrumb() {
       <ButtonLink href={parent.href} variant="ghost" size="sm">
         ← {parent.title}
       </ButtonLink>
-      {title ? <h2 className="text-xl font-extrabold text-fg">{title}</h2> : null}
+      {title ? <h2 className="font-display text-lg font-extrabold text-fg">{title}</h2> : null}
     </div>
   );
 }

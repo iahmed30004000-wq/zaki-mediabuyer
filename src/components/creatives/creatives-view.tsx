@@ -58,8 +58,8 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
           return (
             <li key={f.key}>
               <button onClick={() => setStage(f.key)} aria-pressed={active} className={cn("relative flex w-full flex-col items-center gap-0.5 rounded-xl border px-1 py-2.5 transition-colors sm:py-3", active ? "border-accent bg-accent text-accent-fg" : "border-border bg-surface-1 text-fg hover:border-accent/50")}>
-                <span className="text-base font-bold tabular-nums sm:text-xl">{n}</span>
-                <span className="text-xs font-medium sm:text-xs">{f.label}</span>
+                <span className="font-display text-base font-bold tabular-nums sm:text-lg">{n}</span>
+                <span className="text-sm font-medium sm:text-sm">{f.label}</span>
                 {f.key === "review" && n > 0 && !active ? <span className="absolute -top-1 end-1 size-2.5 rounded-full bg-warn" /> : null}
               </button>
               {i < flow.length - 1 ? null : null}
@@ -67,7 +67,7 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
           );
         })}
       </ol>
-      <p className="-mt-3 text-xs text-fg-muted">{flow.find((f) => f.key === stage)?.hint}</p>
+      <p className="-mt-3 text-sm text-fg-muted">{flow.find((f) => f.key === stage)?.hint}</p>
 
       {inStage.length ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -81,24 +81,24 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.thumb} alt="" loading="lazy" className={cn("shrink-0 rounded-lg bg-surface-2 object-cover", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")} />
                   ) : (
-                    <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-xs text-fg-muted", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")}>{c.aspect}</div>
+                    <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-sm text-fg-muted", c.aspect === "9:16" ? "h-24 w-[54px]" : c.aspect === "4:5" ? "h-24 w-[77px]" : "size-24")}>{c.aspect}</div>
                   )}
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="flex items-center gap-2">
-                      <span dir="ltr" className="font-mono text-sm font-semibold text-fg">{c.code}</span>
-                      <span className="text-xs text-fg-muted">{name(c.product)}</span>
+                      <span dir="ltr" className="tabular-nums text-sm font-semibold text-fg">{c.code}</span>
+                      <span className="text-sm text-fg-muted">{name(c.product)}</span>
                     </p>
-                    <p className="text-xs text-fg-muted">{[c.hook && `خطّاف: ${c.hook}`, c.angle && `زاوية: ${c.angle}`, c.dialect, `${c.duration}ث`].filter(Boolean).join(" · ")}</p>
-                    <p className={cn("inline-flex items-center gap-1 text-xs font-medium", P.cls)}>
+                    <p className="text-sm text-fg-muted">{[c.hook && `خطّاف: ${c.hook}`, c.angle && `زاوية: ${c.angle}`, c.dialect, `${c.duration}ث`].filter(Boolean).join(" · ")}</p>
+                    <p className={cn("inline-flex items-center gap-1 text-sm font-medium", P.cls)}>
                       <P.icon className="size-3.5" />
                       {P.label}
                     </p>
-                    {c.studioMode ? <p className="text-xs text-fg-muted">طلب إطلاق من الاستوديو · {c.studioMode === "test" ? "تست" : "منتج شغّال"}</p> : null}
+                    {c.studioMode ? <p className="text-sm text-fg-muted">طلب إطلاق من الاستوديو · {c.studioMode === "test" ? "تست" : "منتج شغّال"}</p> : null}
                   </div>
                 </div>
-                {c.policyNote ? <p className={cn("rounded-lg p-2 text-xs leading-5", c.policy === "red" ? "bg-danger/5 text-fg" : "bg-warn/5 text-fg")}>{c.policyNote}</p> : null}
+                {c.policyNote ? <p className={cn("rounded-lg p-2 text-sm leading-5", c.policy === "red" ? "bg-danger/5 text-fg" : "bg-warn/5 text-fg")}>{c.policyNote}</p> : null}
                 {c.stage === "live" || c.stage === "fatigued" ? (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                     <span>Hook <Num value={c.hookRate} unit="%" term="hook" /></span>
                     <span>Hold <Num value={c.holdRate} unit="%" term="hold" /></span>
                     <span>مؤكد <Num value={c.costPerConfirmed} unit="$" term="costPerConfirmed" /></span>
@@ -135,7 +135,7 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
           art={stage === "inbox" ? "empty-inbox" : "empty-creatives"}
         >
           {stage === "inbox" ? (
-            <span className="mt-1 inline-flex items-center gap-1 text-xs text-fg-muted">
+            <span className="mt-1 inline-flex items-center gap-1 text-sm text-fg-muted">
               <FolderInput className="size-3.5" /> المنتجات / [المنتج] / 01_inbox
             </span>
           ) : null}
@@ -145,17 +145,17 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
       <Section title="المكرر والمستبعد" hint="بالبصمة (MD5) — بينقل لمجلد excluded ولا بينحذف أبداً" tour="dups">
         <Panel className="divide-y divide-border p-0">
           {duplicates.map((d, i) => (
-            <div key={`real-${i}`} className="flex items-center gap-2 px-4 py-2.5 text-xs">
+            <div key={`real-${i}`} className="flex items-center gap-2 px-4 py-2.5 text-sm">
               <Copy className="size-3.5 text-fg-muted" />
               <span className="text-fg">{d.name}</span>
-              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="font-mono">{d.dupOf}</span></> : d.reason}</span>
+              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="tabular-nums">{d.dupOf}</span></> : d.reason}</span>
             </div>
           ))}
           {dups.map((d, i) => (
-            <div key={i} className="flex items-center gap-2 px-4 py-2.5 text-xs">
+            <div key={i} className="flex items-center gap-2 px-4 py-2.5 text-sm">
               <Copy className="size-3.5 text-fg-muted" />
               <span className="text-fg">{name(d.product)}</span>
-              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="font-mono">{d.dupOf}</span></> : d.policy === "red" ? "ممنوع بالسياسات — بدو نسخة معدّلة" : "انستبعد يدوياً"}</span>
+              <span className="text-fg-muted">{d.dupOf ? <>نسخة طبق الأصل من <span dir="ltr" className="tabular-nums">{d.dupOf}</span></> : d.policy === "red" ? "ممنوع بالسياسات — بدو نسخة معدّلة" : "انستبعد يدوياً"}</span>
             </div>
           ))}
         </Panel>

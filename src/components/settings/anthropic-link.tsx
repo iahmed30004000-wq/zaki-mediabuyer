@@ -68,18 +68,18 @@ export function AnthropicLink() {
           <KeyRound className="size-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-fg">ربط مفتاح Claude</p>
-          <p className="text-xs leading-5 text-fg-muted">
+          <p className="text-base font-semibold text-fg">ربط مفتاح Claude</p>
+          <p className="text-sm leading-5 text-fg-muted">
             مفتاحك من console.anthropic.com. الموقع بيجرّبه مع Anthropic، وبيخزّنه مشفّر، وما بيرجّعه لأي شاشة (بيعرض آخر 4 حروف بس). المساعد بيجاوب منه، وكل رقم بيحسبه الكود مش الموديل. مفتاح Coolify لو موجود بيغلب هاد.
           </p>
-          <p className="mt-1 text-xs text-fg">{line}</p>
+          <p className="mt-1 text-sm text-fg">{line}</p>
         </div>
       </div>
 
       {st?.demo ? (
-        <p className="text-xs text-fg-muted">الموقع على البيانات التجريبية — الربط بيشتغل لما الموقع يشتغل على أرقامك الحقيقية وتفتح كمالك مسجّل دخول.</p>
+        <p className="text-sm text-fg-muted">الموقع على البيانات التجريبية — الربط بيشتغل لما الموقع يشتغل على أرقامك الحقيقية وتفتح كمالك مسجّل دخول.</p>
       ) : st?.privacyOff ? (
-        <p className="text-xs text-fg-muted">PRIVACY_MODE=internal_only شغّال — أي موديل خارجي مقفول. غيّره لـ off بـ Coolify لو بدك تربط.</p>
+        <p className="text-sm text-fg-muted">PRIVACY_MODE=internal_only شغّال — أي موديل خارجي مقفول. غيّره لـ off بـ Coolify لو بدك تربط.</p>
       ) : !st ? null : linkedEnv ? (
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" disabled={busy} onClick={() => act({ action: "check" }, "المفتاح شغّال")}>
@@ -88,7 +88,7 @@ export function AnthropicLink() {
         </div>
       ) : (
         <div className="space-y-2">
-          {!st.canStore ? <p className="text-xs text-danger">ما في ENCRYPTION_KEY بـ Coolify — بدونه الموقع ما بيخزّن مفاتيح.</p> : null}
+          {!st.canStore ? <p className="text-sm text-danger">ما في ENCRYPTION_KEY بـ Coolify — بدونه الموقع ما بيخزّن مفاتيح.</p> : null}
           <div className="flex flex-wrap items-center gap-2">
             <Input
               type="password"
