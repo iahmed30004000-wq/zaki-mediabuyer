@@ -73,9 +73,22 @@ describe("«بدّها منك»", () => {
     expect(out).not.toContain("قرار رقم 4");
     expect(out).toContain("كل القرارات (4)");
     expect(out).toContain("كل اللي واقف (1)");
-    expect(out).toContain("و 1 تنبيه كمان بالجرس");
-    expect(out).not.toContain("الاختبارات أخدت"); // the alert was beyond the first three
-    expect(out).not.toContain("تنبيهات المخزون"); // so was the stopped run
+    expect(out).not.toContain("بالجرس"); // the bell is not claimed: nothing writes alerts to it yet
+    expect(out).toContain("الاختبارات أخدت"); // a red alert is never cut off by the first three
+    expect(out).not.toContain("تنبيهات المخزون"); // the stopped run was beyond them
+  });
+
+  it("orange alerts past the first three are listed behind «كل التنبيهات (n)», not hidden; an informational one is a quiet «للعلم» line", async () => {
+    state.inbox = [1, 2, 3].map((n) => fromApproval(ask(`a${n}`, `قرار رقم ${n}`)));
+    state.alerts = [
+      { key: "w", tone: "warn", text: "مخزون TIN01: بيكفي 4 يوم", href: "/ads?product=TIN01" },
+      { key: "i", tone: "info", text: "معلومة بس", href: "/ads" },
+    ];
+    const out = render(await NeedsSection({ plan: homePlan("OWNER") }));
+    expect(out).toContain("كل التنبيهات (1)");
+    expect(out).toContain("مخزون TIN01"); // inside the expander, still on the page
+    expect(out).toContain("للعلم: معلومة بس");
+    expect(out).toContain(">4<"); // the informational one is not counted: 3 decisions + 1 orange alert
   });
 
   it("a stopped run is the same card as in «هلق»: its number, its word, its rope and the buttons of its state", async () => {
@@ -88,7 +101,7 @@ describe("«بدّها منك»", () => {
     expect(out).toContain('role="img"'); // the light strip
   });
 
-  it("an alert that only informs is not drawn; one that asks something is, and opens the place that fixes it", async () => {
+  it("an alert that only informs is a quiet line, not a card and not counted; one that asks something is a card, and opens the place that fixes it", async () => {
     state.alerts = [
       { key: "i", tone: "info", text: "معلومة بس", href: "/ads" },
       { key: "w", tone: "warn", text: "مخزون TIN01: بيكفي 4 يوم", href: "/ads?product=TIN01" },
@@ -96,7 +109,8 @@ describe("«بدّها منك»", () => {
     const out = render(await NeedsSection({ plan: homePlan("OWNER") }));
     expect(out).toContain("مخزون TIN01");
     expect(out).toContain('href="/ads?product=TIN01"');
-    expect(out).not.toContain("معلومة بس");
+    expect(out).toContain("للعلم: معلومة بس");
+    expect(out).toContain(">1<"); // only the orange one is counted
   });
 
   it("a role with no inbox gets no link to it, and one that may not control a run gets no button that changes it", async () => {

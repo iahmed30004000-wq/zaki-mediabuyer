@@ -3,7 +3,7 @@
  * runs that stopped or were missed, then the alerts — the first three shown, the rest counted. Pure.
  */
 import { describe, expect, it } from "vitest";
-import { NEEDS_SHOWN, asksSomething, homePlan, needsOf } from "@/core/home";
+import { NEEDS_SHOWN, asksSomething, homePlan, isUrgent, needsOf } from "@/core/home";
 import { ROLES, hasHome } from "@/core/roles";
 
 describe("homePlan — a role is given only the sections whose screens it may open", () => {
@@ -27,10 +27,16 @@ describe("homePlan — a role is given only the sections whose screens it may op
 });
 
 describe("what asks something of him", () => {
-  it("a red or orange alert does; an informational one goes to the bell and is not counted", () => {
+  it("a red or orange alert does; an informational one is only told and is not counted", () => {
     expect(asksSomething({ tone: "danger" })).toBe(true);
     expect(asksSomething({ tone: "warn" })).toBe(true);
     expect(asksSomething({ tone: "info" })).toBe(false);
+  });
+
+  it("only a red alert is urgent: the cap never cuts it", () => {
+    expect(isUrgent({ tone: "danger" })).toBe(true);
+    expect(isUrgent({ tone: "warn" })).toBe(false);
+    expect(isUrgent({ tone: "info" })).toBe(false);
   });
 });
 
@@ -60,9 +66,18 @@ describe("needsOf — one list: decisions, then stopped runs, then alerts", () =
     expect(n.left).toEqual({ decisions: 0, stuck: 0, alerts: 3 });
   });
 
+  it("red alerts are never cut by the cap: all of them are shown after the capped items and counted; the orange ones that did not fit are returned", () => {
+    const n = needsOf({ decisions: d(5), stuck: s(1), alerts: a(2), urgent: ["u1", "u2"] });
+    expect(n.shown.map((x) => x.item)).toEqual(["d1", "d2", "d3", "u1", "u2"]);
+    expect(n.total).toBe(10);
+    expect(n.counts).toEqual({ decisions: 5, stuck: 1, alerts: 4 });
+    expect(n.left).toEqual({ decisions: 2, stuck: 1, alerts: 2 });
+    expect(n.leftAlerts).toEqual(["a1", "a2"]);
+  });
+
   it("nothing waits: total zero, nothing shown (the home says «ما في شي بدّه منك ✓»)", () => {
     const n = needsOf({ decisions: [], stuck: [], alerts: [] });
-    expect(n).toMatchObject({ total: 0, shown: [], counts: { decisions: 0, stuck: 0, alerts: 0 }, left: { decisions: 0, stuck: 0, alerts: 0 } });
+    expect(n).toMatchObject({ total: 0, shown: [], counts: { decisions: 0, stuck: 0, alerts: 0 }, left: { decisions: 0, stuck: 0, alerts: 0 }, leftAlerts: [] });
   });
 
   it("the limit can be changed, and never below zero", () => {

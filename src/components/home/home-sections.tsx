@@ -10,7 +10,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StateWord } from "@/components/ui/state-word";
 import { WasNow } from "@/components/ui/was-now";
-import { asksSomething, needsOf, type HomePlan } from "@/core/home";
+import { asksSomething, isUrgent, needsOf, type HomePlan } from "@/core/home";
 import { canOpenPath, can } from "@/core/roles";
 import { runWordState } from "@/core/state-word";
 import type { TodayAlert } from "@/core/today";
@@ -39,18 +39,20 @@ const linkClass = "inline-flex min-h-11 items-center text-base font-semibold tex
 
 /**
  * «بدّها منك» (section 1): everything that waits for him in ONE list — the decisions first, then the runs that stopped or were missed, then the alerts that ask something of him —
- * the first three shown, the rest counted behind «كل القرارات» and «كل اللي واقف». With nothing waiting it says so in one line (never an empty block). The number beside the title is
+ * the first three shown, the rest counted behind «كل القرارات» and «كل اللي واقف». A red alert is never cut off by the three; the orange ones past the three are behind «كل التنبيهات (n)»;
+ * the informational ones are a quiet «للعلم» line (the bell is not claimed until P7 writes alerts to it). With nothing waiting it says so in one line (never an empty block). The number beside the title is
  * everything that waits, shown or not. A decision is the same card as the inbox's, a run the same card as «هلق»: pressing is the same press.
  */
 export async function NeedsSection({ plan }: { plan: HomePlan }) {
   const me = await currentCaller();
   const keys = me && plan.tasks ? await taskKeysFor(me) : [];
   const [decisions, tasks, today] = await Promise.all([me && plan.decisions ? loadInbox(me) : Promise.resolve([]), plan.tasks ? loadHomeTasks(keys) : Promise.resolve(null), loadToday()]);
-  const alerts: TodayAlert[] = today.alerts.filter(asksSomething);
-  const needs = needsOf({ decisions, stuck: tasks?.stuck.cards ?? [], alerts });
+  const urgent: TodayAlert[] = today.alerts.filter(isUrgent);
+  const warns: TodayAlert[] = today.alerts.filter((a) => a.tone === "warn");
+  const told: TodayAlert[] = today.alerts.filter((a) => !asksSomething(a));
+  const needs = needsOf({ decisions, stuck: tasks?.stuck.cards ?? [], alerts: warns, urgent });
   const canControl = !!me && !me.demo && can(me.role, "work.control");
   const shownAlerts = needs.shown.flatMap((n) => (n.kind === "alert" ? [n.item] : []));
-  const bell = needs.left.alerts;
   return (
     <section className="space-y-3" data-tour="needs" aria-label="بدّها منك">
       <SectionTitle {...(plan.decisions ? { href: "/inbox", linkLabel: "كل القرارات" } : {})}>
@@ -71,7 +73,7 @@ export async function NeedsSection({ plan }: { plan: HomePlan }) {
             ) : null,
           )}
           {shownAlerts.length ? <AlertStrip alerts={shownAlerts} /> : null}
-          {needs.left.decisions > 0 || needs.left.stuck > 0 || bell > 0 ? (
+          {needs.left.decisions > 0 || needs.left.stuck > 0 ? (
             <p className="flex flex-wrap items-center gap-x-4 text-base text-fg-muted">
               {needs.left.decisions > 0 ? (
                 <Link href="/inbox" className={linkClass}>
@@ -83,11 +85,29 @@ export async function NeedsSection({ plan }: { plan: HomePlan }) {
                   كل اللي واقف ({needs.counts.stuck})
                 </Link>
               ) : null}
-              {bell > 0 ? <span>و {bell} تنبيه كمان بالجرس.</span> : null}
             </p>
+          ) : null}
+          {needs.leftAlerts.length > 0 ? (
+            <details className="rounded-card border border-border bg-surface-1 p-3">
+              <summary className="min-h-11 cursor-pointer text-base font-semibold text-info">كل التنبيهات ({needs.counts.alerts})</summary>
+              <div className="pt-2">
+                <AlertStrip alerts={needs.leftAlerts} />
+              </div>
+            </details>
           ) : null}
         </div>
       )}
+      {told.length > 0 ? (
+        <ul className="m-0 list-none space-y-1 p-0 text-sm text-fg-muted" aria-label="للعلم">
+          {told.map((a) => (
+            <li key={a.key}>
+              <Link href={a.href} className="hover:underline">
+                للعلم: {a.text}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </section>
   );
 }
