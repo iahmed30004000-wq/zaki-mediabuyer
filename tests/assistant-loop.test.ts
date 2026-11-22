@@ -326,7 +326,7 @@ describe("what it may do", () => {
   it("the real tool list has no tool that approves, executes, rolls back, deletes, pushes or reaches Meta", () => {
     const tools = makeTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(["calculate", "create_task", "draft_node", "draft_prompt", "draft_workflow", "edit_node", "explain", "get_ads", "get_changes", "get_day", "get_numbers", "get_overview", "get_summary", "get_tasks", "get_videos", "get_workflows", "propose_change", "update_task"]);
+    expect(names).toEqual(["calculate", "create_task", "draft_job", "draft_node", "draft_prompt", "draft_workflow", "edit_node", "explain", "get_ads", "get_changes", "get_day", "get_numbers", "get_overview", "get_summary", "get_tasks", "get_videos", "get_workflows", "propose_change", "update_task"]);
     expect(names.join(" ")).not.toMatch(/approve|execute|rollback|delete|remove|push|meta|spend|launch|pause|budget/);
     expect(tools.filter((t) => t.access === "write").map((t) => t.name).sort()).toEqual(["create_task", "propose_change", "update_task"]);
     // every description is Arabic (what the model reads) and every tool says what the panel shows while it runs

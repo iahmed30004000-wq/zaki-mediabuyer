@@ -39,4 +39,6 @@ export const assistantModel = (): string => envAny("ASSISTANT_MODEL") ?? DEFAULT
 export const externalModelsOff = (): boolean => process.env.PRIVACY_MODE === "internal_only";
 
 export const OFF_BY_PRIVACY = "وضع الخصوصية PRIVACY_MODE=internal_only شغّال — المساعد (Claude) موديل خارجي فهو مقفول. غيّر PRIVACY_MODE لـ off بـ Coolify (مع إعادة تشغيل) لو بدك تشغّله.";
-export const NO_KEY = "المساعد مش موصول — اربط مفتاح Claude من الإعدادات (ربط مفتاح Claude)، أو ضيف ANTHROPIC_API_KEY بـ Coolify.";
+/** What «اكتبها بجملة» says when no assistant is connected (v6 · P4-2): the other two ways of making a job work without one. */
+export const DRAFT_NEEDS_KEY = "هاي بدها مفتاح المساعد — اربطه من الإعدادات ← الربط. والطريقتين التانيين («ركّبها» و«من قالب») شغّالين بلا مفتاح.";
+export const NO_KEY ="المساعد مش موصول — اربط مفتاح Claude من الإعدادات (ربط مفتاح Claude)، أو ضيف ANTHROPIC_API_KEY بـ Coolify.";

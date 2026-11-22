@@ -64,7 +64,7 @@ export interface Llm {
 
 // ───────────────────────────── errors, in words ─────────────────────────────
 
-export type ErrorCode = "auth" | "rate" | "billing" | "model" | "connection" | "server" | "budget" | "privacy" | "off" | "cut" | "aborted";
+export type ErrorCode = "auth" | "rate" | "billing" | "model" | "connection" | "server" | "budget" | "privacy" | "off" | "cut" | "aborted" | "busy";
 
 export class AssistantError extends Error {
   constructor(public status: number, message: string, public code: ErrorCode = "server") {
