@@ -9,6 +9,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { describeRules, missingRules, type CampaignRules } from "@/core/rules-v2";
+import { safeFetch } from "@/lib/call";
 
 type Kind = "int" | "money" | "pct" | "factor" | "bool" | "time";
 interface Field {
@@ -158,7 +159,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
   async function save() {
     setBusy(true);
     try {
-      const r = await fetch("/api/rules", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(rules) });
+      const r = await safeFetch("/api/rules", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(rules) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; version?: number };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       toast(d.demo ? "بالوضع التجريبي ما تغيّر شي" : `انحفظت القواعد — النسخة ${d.version} ✓ (Claude بيقراها بالتشغيل الجاي)`, d.demo ? "info" : "success");

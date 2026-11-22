@@ -79,7 +79,7 @@ export const ROWS: readonly ConnRow[] = [
     ],
     testable: true,
   },
-  { key: "telegram", title: "تيليجرام", kind: "info", fields: [], testable: false, note: "بيصير عبر الـOMS (`/api/v1/notify`): الـOMS عنده البوت والويبهوك. ما بدك بوت هون." },
+  { key: "telegram", title: "تيليجرام", kind: "info", fields: [], testable: false, note: "التنبيهات وتقرير الصبح لسا بتنبعت من بوت الموقع نفسه، ومفاتيحه (TELEGRAM_BOT_TOKEN · TELEGRAM_OWNER_CHAT_ID) بتنكتب بـ Coolify مش من هون. بعد ما ينتقل الإرسال إلى الـOMS (`/api/v1/notify`) بيصير عنده البوت." },
   { key: "hermes", title: "هيرمز", kind: "info", fields: [], testable: false, note: "هيرمز هو اللي بيسحب منّا بتوكن بنعمله هون من «الفريق ← توكنات الوكلاء». ما في شي يتكتب بهالسطر." },
   { key: "assistant", title: "مفتاح الذكاء الاصطناعي (Claude)", kind: "info", fields: [], testable: false, note: "من «ربط مفتاح Claude» تحت." },
 ];

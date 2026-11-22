@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
 import { FIELDS, FIELD_AR, REQUIRED, type Field } from "@/io/import";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 interface Preview {
   headers: string[];
@@ -30,7 +31,7 @@ export function ImportPanel() {
   const send = async (body: Record<string, unknown>) => {
     setBusy(true);
     try {
-      const r = await fetch("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await safeFetch("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const j = (await r.json()) as Preview & { error?: string; message?: string; ok?: boolean };
       if (!r.ok) {
         toast(j.error ?? "ما زبط", "error");

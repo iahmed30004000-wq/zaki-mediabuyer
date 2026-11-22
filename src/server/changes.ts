@@ -23,6 +23,7 @@ import { metaWriteGate } from "@/core/readiness";
 import { resolveRefs } from "@/core/templates";
 import { MetaClient } from "@/meta/client";
 import { metaToken } from "@/jobs/meta-sync";
+import { stopResult, type StopResult } from "@/core/stop-result";
 
 export interface Proposal {
   source: "rule" | "agent" | "user" | "kill_switch" | "telegram";
@@ -127,6 +128,12 @@ export async function propose(p: Proposal, actor: Actor) {
     }
   }
 
+  // a person asked for a safety stop (kill switch, «اوقف», a pause by hand): it goes through at once — BEFORE the account's level is looked at.
+  // A level-0 account (restricted, a payment problem, an expired token) must still be stoppable: a stop only ever lowers spend.
+  if ((p.source === "user" || p.source === "kill_switch" || p.source === "telegram") && SAFETY.has(p.kind)) {
+    await move(created.id, "simulated", "approved", { approvedBy: actor.id ?? p.source, approvedAt: new Date() });
+    return execute(created.id, actor);
+  }
   const mode = modeFor(p.kind, level);
   if (mode === "suggest") return db.changeSet.findUniqueOrThrow({ where: { id: created.id } });
   // an agent only ever suggests: its changes wait for a person, whatever the level (spec 11.1)
@@ -134,13 +141,7 @@ export async function propose(p: Proposal, actor: Actor) {
     await move(created.id, "simulated", "approved", { approvedBy: `level-${level}`, approvedAt: new Date() });
     return execute(created.id, actor);
   }
-  if (p.source === "user" || p.source === "kill_switch" || p.source === "telegram") {
-    // a person asked for it: safety goes through at once (kill switch, «اوقف»); anything that spends waits for approve()
-    if (SAFETY.has(p.kind)) {
-      await move(created.id, "simulated", "approved", { approvedBy: actor.id ?? p.source, approvedAt: new Date() });
-      return execute(created.id, actor);
-    }
-  }
+  // anything that spends waits for approve()
   return move(created.id, "simulated", "pending_approval");
 }
 
@@ -176,6 +177,8 @@ export async function execute(id: string, actor: Actor) {
   const client = await metaClientIfLive();
   let allVerified = true;
   let mismatch = "";
+  // R-05: a stop or a cut keeps going when one item fails and answers per item; a launch (a chain of creates) still stops at the first problem
+  const keepGoing = SAFETY.has(cs.kind as ActionKind);
   // a live write was asked for but is not allowed yet (no META_LIVE_VERIFIED, no token): the change FAILS with the sentence — it is not run as a quiet dry-run
   const gate = metaWriteGate(process.env, !!(await metaToken()));
   // a launch creates objects in order: the ids Meta gives are kept by ref and filled into the items after them
@@ -189,16 +192,26 @@ export async function execute(id: string, actor: Actor) {
     for (const item of [...cs.items].sort((a, b) => a.seq - b.seq)) {
       if (item.apiResponse !== null) continue; // already sent once: never twice
       const objectId = resolveRefs(item.objectId, ids);
-      const draft: ChangeItemDraft = { op: item.op as ChangeItemDraft["op"], objectType: item.objectType as ChangeItemDraft["objectType"], objectId, before: item.before as ChangeItemDraft["before"], after: resolveRefs(item.after as ChangeItemDraft["after"], ids) };
-      if (draft.op !== "create" && objectId.includes("{{ref:")) throw new Error(`ما انعرف رقم ${objectId} — العنصر اللي قبله ما انعمل`);
-      const r = await applyItem(draft, cs.writeMode === "live" ? "live" : "dry_run", client);
-      if (r.createdId && draft.after.ref) ids[draft.after.ref] = r.createdId;
-      allVerified &&= r.verified;
-      await db.changeItem.update({ where: { id: item.id }, data: { objectId: r.createdId ?? objectId, apiResponse: json(r.response), verifyResult: json({ verified: r.verified, readBack: r.readBack, mismatches: r.mismatches ?? [] }) } });
-      // a created object that does not match its template: stop here — nothing after it is created or switched on
-      if (!r.verified) {
-        mismatch = (r.mismatches ?? []).map((m) => `${m.object}: ${m.sentence}`).join(" · ") || "القراءة بعد الكتابة ما طابقت";
-        break;
+      try {
+        const draft: ChangeItemDraft = { op: item.op as ChangeItemDraft["op"], objectType: item.objectType as ChangeItemDraft["objectType"], objectId, before: item.before as ChangeItemDraft["before"], after: resolveRefs(item.after as ChangeItemDraft["after"], ids) };
+        if (draft.op !== "create" && objectId.includes("{{ref:")) throw new Error(`ما انعرف رقم ${objectId} — العنصر اللي قبله ما انعمل`);
+        const r = await applyItem(draft, cs.writeMode === "live" ? "live" : "dry_run", client);
+        if (r.createdId && draft.after.ref) ids[draft.after.ref] = r.createdId;
+        allVerified &&= r.verified;
+        const why = r.verified ? null : (r.mismatches ?? []).map((m) => `${m.object}: ${m.sentence}`).join(" · ") || "القراءة بعد الكتابة ما طابقت";
+        await db.changeItem.update({ where: { id: item.id }, data: { objectId: r.createdId ?? objectId, apiResponse: json(r.response), verifyResult: json({ verified: r.verified, readBack: r.readBack, mismatches: r.mismatches ?? [], ...(why ? { error: why.slice(0, 300) } : {}) }) } });
+        if (!r.verified) {
+          mismatch ||= why ?? "";
+          // a created object that does not match its template: stop here — nothing after it is created or switched on
+          if (!keepGoing) break;
+        }
+      } catch (e) {
+        if (!keepGoing) throw e;
+        // a stop or a cut goes on past a campaign that fails (deleted on Meta, a refused call): the others still get paused, and this one's answer is kept
+        const error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+        allVerified = false;
+        mismatch ||= error;
+        await db.changeItem.update({ where: { id: item.id }, data: { verifyResult: json({ verified: false, error }) } });
       }
     }
   } catch (e) {
@@ -270,13 +283,16 @@ export async function rollback(id: string, caller: Caller) {
   return done;
 }
 
-/** The full stop (spec 10.3): every active campaign of one account, or of all, paused at once, logged. */
-export async function killSwitch(scope: string, caller: Caller) {
+/**
+ * The full stop (spec 10.3): every active campaign of one account, or of all, paused at once, logged.
+ * It answers with what REALLY happened per campaign (R-04): the screen says one of four sentences from this, never a made-up «انوقف».
+ */
+export async function killSwitch(scope: string, caller: Caller): Promise<StopResult> {
   if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالإيقاف الكامل");
   const campaigns = await db.campaign.findMany({ where: { status: { notIn: ["PAUSED", "ARCHIVED", "DELETED"] }, ...(scope === "all" ? {} : { account: { metaId: scope } }) }, include: { account: true } });
   if (!campaigns.length) {
     await db.killSwitchEvent.create({ data: { scope, byUser: caller.id, objects: 0 } });
-    return { changeSetId: null, objects: 0 };
+    return stopResult({ objects: 0, changeSetId: null, csState: "none", writeMode: "dry_run", csError: null, items: [] });
   }
   const cs = await propose(
     {
@@ -291,5 +307,6 @@ export async function killSwitch(scope: string, caller: Caller) {
     { type: "user", id: caller.id },
   );
   await db.killSwitchEvent.create({ data: { scope, byUser: caller.id, changeSetId: cs.id, objects: campaigns.length } });
-  return { changeSetId: cs.id, objects: campaigns.length, state: cs.state };
+  const full = await db.changeSet.findUniqueOrThrow({ where: { id: cs.id }, include: { items: true } });
+  return stopResult({ objects: campaigns.length, changeSetId: cs.id, csState: full.state, writeMode: full.writeMode, csError: full.error, items: full.items });
 }

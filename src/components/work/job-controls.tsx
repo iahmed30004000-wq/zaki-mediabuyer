@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import type { WfGraph } from "@/core/workflow";
+import { safeFetch } from "@/lib/call";
 
 async function call(url: string, method: string, body?: unknown): Promise<{ error: string | null; demo: boolean }> {
-  const r = await fetch(url, { method, headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const r = await safeFetch(url, { method, headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
   return { error: r.ok ? null : (d.error ?? "صار خطأ"), demo: !!d.demo };
 }

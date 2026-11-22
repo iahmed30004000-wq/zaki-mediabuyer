@@ -11,6 +11,7 @@ import { assigneeName } from "@/core/tasks";
 import { stepOrder } from "@/core/workflow";
 import { fmt } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 /** What the assistant made or drafted, as a card under its words. A draft is never saved by the card being shown: the owner opens it. */
 const card = "space-y-2 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm";
@@ -96,7 +97,7 @@ export function ArtifactCard({ a, canDraft, onNavigate }: { a: Artifact; canDraf
       const open = async () => {
         setBusy(true);
         try {
-          const r = await fetch("/api/workflow", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: a.name, ...(a.description ? { description: a.description } : {}), graph: a.graph, enabled: false, note: "مسودة من المساعد" }) });
+          const r = await safeFetch("/api/workflow", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: a.name, ...(a.description ? { description: a.description } : {}), graph: a.graph, enabled: false, note: "مسودة من المساعد" }) });
           const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; workflow?: { key: string } };
           if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
           if (d.demo || !d.workflow) return toast("بالوضع التجريبي ما انعمل شي", "info");

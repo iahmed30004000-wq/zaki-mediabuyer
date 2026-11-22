@@ -8,6 +8,7 @@ import { db } from "@/server/db";
 import { envProblems, omsLinked } from "@/server/env";
 import { detect, reading, telegramText, type AlertFacts, type Signal } from "@/core/alerts";
 import { lastSuccess } from "./runner";
+import { reachedMeta } from "@/core/reached-meta";
 import { sendTelegram, type TelegramOptions } from "@/adapters/telegram";
 
 const DAY = 86_400_000;
@@ -53,13 +54,18 @@ export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
   };
 }
 
+/** R-22: a safety action that only ran as a trial is said so — «تنفّذ» is for what really reached Meta. */
+export function safetyAlertText(sentence: string, reached: boolean): string {
+  return reached ? `قرار أمان تنفّذ: ${sentence}` : `تجربة: قرار أمان ما انبعت لميتا — ${sentence}`;
+}
+
 /** Event alerts: each safety action that ran and each change with spend waiting — once, at once. */
 async function eventSignals(now: Date): Promise<Signal[]> {
   const since = new Date(now.getTime() - 2 * 3_600_000);
-  const sets = await db.changeSet.findMany({ where: { createdAt: { gte: since }, OR: [{ source: "rule", state: "executed", kind: { in: ["safety_pause", "safety_reduce"] } }, { state: "pending_approval", spendDeltaDaily: { gt: 0 } }, { state: "pending_approval", kind: { in: ["test_campaign", "safety_net"] } }] }, select: { id: true, state: true, sentence: true, spendDeltaDaily: true } });
+  const sets = await db.changeSet.findMany({ where: { createdAt: { gte: since }, OR: [{ source: "rule", state: "executed", kind: { in: ["safety_pause", "safety_reduce"] } }, { state: "pending_approval", spendDeltaDaily: { gt: 0 } }, { state: "pending_approval", kind: { in: ["test_campaign", "safety_net"] } }] }, select: { id: true, state: true, sentence: true, spendDeltaDaily: true, writeMode: true } });
   return sets.map((c) =>
     c.state === "executed"
-      ? { key: `cs:${c.id}`, kind: "alert.safety", tone: "warn" as const, text: `قرار أمان تنفّذ: ${c.sentence}`, href: `/inbox/${encodeURIComponent(`change:${c.id}`)}`, instant: true }
+      ? { key: `cs:${c.id}`, kind: "alert.safety", tone: "warn" as const, text: safetyAlertText(c.sentence, reachedMeta({ writeMode: c.writeMode, state: c.state })), href: `/inbox/${encodeURIComponent(`change:${c.id}`)}`, instant: true }
       : { key: `cs:${c.id}`, kind: "alert.approval", tone: "warn" as const, text: `بانتظار موافقتك${Number(c.spendDeltaDaily) > 0 ? ` (+${Number(c.spendDeltaDaily)}$ باليوم)` : ""}: ${c.sentence.slice(0, 160)} — من الموقع بس`, href: `/inbox/${encodeURIComponent(`change:${c.id}`)}`, instant: true },
   );
 }

@@ -16,6 +16,7 @@ import { Panel, Section } from "@/components/mb/section";
 import { REQUEST_KINDS, REQUEST_KIND_AR, REQUEST_STATUS_AR, REQUEST_STEPS, canMoveRequest, type RequestKind, type RequestStatus } from "@/core/video-board";
 import type { BoardData, BoardProduct, BoardRequest, BoardVideo } from "@/lib/videos-board";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 /** The owner's fields and buttons for video cards (set in «وضع التعديل»), shared with every card of the board. */
 const CustomCtx = createContext<{ custom?: EntityCustom; canEdit: boolean }>({ canEdit: false });
@@ -338,7 +339,7 @@ function MinSpend({ typed }: { typed: number | null }) {
     if (n !== null && !(n > 0)) return toast("اكتب رقم أكبر من صفر، أو خلّيه فاضي", "error");
     setSaving(true);
     try {
-      const r = await fetch("/api/videos/min-spend", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ value: n }) });
+      const r = await safeFetch("/api/videos/min-spend", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ value: n }) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       toast(d.demo ? "بالوضع التجريبي ما انحفظ شي" : "انحفظ ✓", d.demo ? "info" : "success");
@@ -379,7 +380,7 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
   async function ask(v: BoardVideo, kind: RequestKind) {
     setBusy(`${v.key}:${kind}`);
     try {
-      const r = await fetch("/api/videos/request", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: v.key, kind }) });
+      const r = await safeFetch("/api/videos/request", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: v.key, kind }) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; created?: boolean; request?: { via: string } };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       if (d.demo) return toast("بالوضع التجريبي ما انبعت شي لحدا", "info");
@@ -393,7 +394,7 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
   }
 
   async function move(r: BoardRequest, to: RequestStatus) {
-    const res = await fetch(`/api/video-requests/${r.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ to }) });
+    const res = await safeFetch(`/api/video-requests/${r.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ to }) });
     const d = (await res.json().catch(() => ({}))) as { error?: string; demo?: boolean };
     if (!res.ok) return toast(d.error ?? "صار خطأ", "error");
     if (d.demo) return toast("بالوضع التجريبي ما انغيّر شي", "info");

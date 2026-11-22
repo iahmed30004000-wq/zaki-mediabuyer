@@ -65,13 +65,16 @@ describe("the lines", () => {
     expect(metricsText(null)).toEqual([]);
   });
   it("a decision: a person → the owner, a rule or the kill switch → the system, an agent → «وكيل»; with its money a day", () => {
-    expect(decisionItem({ source: "user", sentence: "وقف يدوي: X", at: "t", spendDeltaDaily: -12.5 })).toMatchObject({ actor: "owner", numbers: ["-12.5$ باليوم"] });
-    expect(decisionItem({ source: "rule", sentence: "وقّفت", at: "t", spendDeltaDaily: 0 })).toMatchObject({ actor: "system", numbers: [] });
-    expect(decisionItem({ source: "kill_switch", sentence: "x", at: "t", spendDeltaDaily: 0 }).actor).toBe("system");
-    expect(decisionItem({ source: "agent", sentence: "x", at: "t", spendDeltaDaily: 8 })).toMatchObject({ actor: "agent", numbers: ["+8$ باليوم"] });
+    expect(decisionItem({ source: "user", sentence: "وقف يدوي: X", at: "t", spendDeltaDaily: -12.5, writeMode: "live" })).toMatchObject({ actor: "owner", numbers: ["-12.5$ باليوم"] });
+    expect(decisionItem({ source: "rule", sentence: "وقّفت", at: "t", spendDeltaDaily: 0, writeMode: "live" })).toMatchObject({ actor: "system", numbers: [] });
+    expect(decisionItem({ source: "kill_switch", sentence: "x", at: "t", spendDeltaDaily: 0, writeMode: "live" }).actor).toBe("system");
+    expect(decisionItem({ source: "agent", sentence: "x", at: "t", spendDeltaDaily: 8, writeMode: "live" })).toMatchObject({ actor: "agent", numbers: ["+8$ باليوم"] });
     // a rule's proposal that the owner approved is his decision; one the level approved by itself is the system's
-    expect(decisionItem({ source: "rule", sentence: "x", at: "t", spendDeltaDaily: 8, approvedBy: "u_123" }).actor).toBe("owner");
-    expect(decisionItem({ source: "rule", sentence: "x", at: "t", spendDeltaDaily: -4, approvedBy: "level-1" }).actor).toBe("system");
+    expect(decisionItem({ source: "rule", sentence: "x", at: "t", spendDeltaDaily: 8, approvedBy: "u_123", writeMode: "live" }).actor).toBe("owner");
+    expect(decisionItem({ source: "rule", sentence: "x", at: "t", spendDeltaDaily: -4, approvedBy: "level-1", writeMode: "live" }).actor).toBe("system");
+    // R-22: a change that ran as a trial reads as a trial; one that reached Meta reads as it was written
+    expect(decisionItem({ source: "rule", sentence: "وقّفت الإعلان", at: "t", spendDeltaDaily: 0, writeMode: "dry_run" }).text).toBe("تجربة: وقّفت الإعلان");
+    expect(decisionItem({ source: "rule", sentence: "وقّفت الإعلان", at: "t", spendDeltaDaily: 0, writeMode: "live" }).text).toBe("وقّفت الإعلان");
   });
   it("an answer of the owner's", () => {
     expect(approvalItem({ status: "approved", title: "رفع السقف", at: "t", amount: 100 })).toMatchObject({ actor: "owner", text: "وافق على: رفع السقف", numbers: ["100$"] });
@@ -82,8 +85,11 @@ describe("the lines", () => {
   it("a closed task is its assignee's; a video only when it moved on from the bank", () => {
     expect(taskDoneItem({ title: "جرد", at: "t", assignee: "laith" }).actor).toBe("laith");
     expect(taskDoneItem({ title: "جرد", at: "t", assignee: null }).actor).toBe("owner");
-    expect(videoItem({ vName: "V45", job: "JOB-1", status: "uploaded", at: "t" })?.text).toBe("فيديو V45 (JOB-1): انرفع لميتا");
-    expect(videoItem({ vName: "V45", job: "JOB-1", status: "bank", at: "t" })).toBeNull();
+    expect(videoItem({ vName: "V45", job: "JOB-1", status: "uploaded", at: "t" }, true)?.text).toBe("فيديو V45 (JOB-1): انرفع لميتا");
+    // R-22: with Meta not written to, «انرفع لميتا» is not said
+    expect(videoItem({ vName: "V45", job: "JOB-1", status: "uploaded", at: "t" }, false)?.text).toBe("فيديو V45 (JOB-1): تجربة: ما انبعت لميتا");
+    expect(videoItem({ vName: "V45", job: "JOB-1", status: "ready", at: "t" }, false)?.text).toBe("فيديو V45 (JOB-1): جاهز");
+    expect(videoItem({ vName: "V45", job: "JOB-1", status: "bank", at: "t" }, true)).toBeNull();
   });
   it("a handover answered: Claude's, or whoever it was given to", () => {
     expect(handoffItem({ title: "قراءة الطلبات", assignee: "claude_desktop", at: "t", note: "3 طلبات" })).toMatchObject({ actor: "claude", text: "سلّمت: قراءة الطلبات — 3 طلبات" });

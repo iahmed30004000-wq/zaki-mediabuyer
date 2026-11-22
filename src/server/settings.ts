@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS = {
   /** the replies inbox limits (spec 9.3): above them message campaigns are not raised — src/core/replies.ts */
   "replies.limits": { maxUnanswered: 50, maxP50Min: 30, staleHours: 2 } as { maxUnanswered: number; maxP50Min: number; staleHours: number },
   "capi.purchase_on": "confirmed",
+  /** when the OMS address or token was last saved from the site (ISO): a failure before it is not counted against the OMS, and the worker pulls at its first turn after it (R-26) */
+  "oms.linkedAt": null as string | null,
   "market.SY": { msg_channel: "whatsapp", min_age: 18, team_hours_until: "17:00", payment_note: "الدفع من حساب مالي برّا سوريا" },
   "market.JO": { msg_channel: null, min_age: 18, team_hours_until: null },
   "pages.codes": { SP: "صحة بلس", VP: "فيتا فارما", AJ: "أسرار الجمال" },

@@ -181,7 +181,7 @@ const KIND_LABEL: Record<string, string> = { morning: "الصباحي", weekly: 
 export async function loadReportsView(selectedId?: string): Promise<ReportsView | null> {
   if (process.env.MOCK_MODE === "1") return null;
   const day = (d: Date) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "UTC", weekday: "long", day: "numeric", month: "numeric" }).format(d);
-  const rows = await db.report.findMany({ where: { kind: { in: ["morning", "weekly", "monthly"] } }, orderBy: [{ forDate: "desc" }, { kind: "asc" }], take: 14 });
+  const rows = await db.report.findMany({ where: { kind: { in: ["morning", "weekly", "monthly"] }, empty: false }, orderBy: [{ forDate: "desc" }, { kind: "asc" }], take: 14 });
   const archive = rows.map((r) => ({ id: r.id, kind: r.kind, label: `${KIND_LABEL[r.kind] ?? r.kind} — ${day(r.forDate)}`, sent: !!r.sentAt }));
   // no report chosen: the latest one that was written (the screen never invents a report from demo numbers)
   const pick = selectedId ? rows.find((r) => r.id === selectedId) ?? (await db.report.findUnique({ where: { id: selectedId } })) : rows[0] ?? null;

@@ -10,9 +10,10 @@ import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import { ACTOR_KEY, TEAMS, type DirEntry } from "@/core/directory";
 import { MCP_SCOPES, SCOPE_AR } from "@/core/token-scopes";
+import { safeFetch } from "@/lib/call";
 
 async function call(url: string, method: string, body?: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-  const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const r = await safeFetch(url, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   const data = (await r.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: r.ok, data };
 }

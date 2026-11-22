@@ -10,11 +10,12 @@ import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import type { ConnectionsView, FieldView, RowView } from "@/server/connections";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 const when = (iso: string) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
 
 async function call(url: string, method: string, body?: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-  const r = await fetch(url, { method, headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
+  const r = await safeFetch(url, { method, headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
   const data = (await r.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: r.ok, data };
 }
@@ -128,6 +129,20 @@ function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boole
   const { toast } = useToast();
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [pulling, setPulling] = useState(false);
+
+  /** «اسحب هلق» (the OMS only): one pull now — the orders, then the truth — instead of waiting for the next hour */
+  async function pullNow() {
+    setPulling(true);
+    setResult(null);
+    try {
+      const r = await call(`/api/connections/row/${row.key}/sync`, "POST");
+      if (!r.ok) return setResult({ ok: false, message: errorOf(r.data) });
+      setResult({ ok: true, message: String(r.data.sentence ?? "انسحب") });
+    } finally {
+      setPulling(false);
+    }
+  }
 
   async function test() {
     setTesting(true);
@@ -154,9 +169,16 @@ function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boole
       ))}
       {row.testable ? (
         <div className="space-y-1.5 border-t border-border pt-3">
-          <Button size="sm" variant="secondary" loading={testing} onClick={() => void test()}>
-            اختبر الربط
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" loading={testing} onClick={() => void test()}>
+              اختبر الربط
+            </Button>
+            {row.key === "oms" && row.linked ? (
+              <Button size="sm" variant="secondary" loading={pulling} onClick={() => void pullNow()}>
+                اسحب هلق
+              </Button>
+            ) : null}
+          </div>
           {result ? (
             <p role="status" className={cn("flex items-start gap-1.5 text-sm", result.ok ? "text-ok" : "text-danger")}>
               {result.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden /> : <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />}
@@ -180,7 +202,7 @@ export function ConnectionsPanel() {
   const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/connections", { cache: "no-store" });
+    const r = await safeFetch("/api/connections", { cache: "no-store" });
     if (!r.ok) {
       setFailed(true);
       return;

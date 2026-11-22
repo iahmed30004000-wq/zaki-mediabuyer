@@ -7,14 +7,20 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
-import { ACCOUNTS } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
+import { callJson } from "@/lib/call";
+import { stopSentence, type StopResult } from "@/core/stop-result";
 
 /**
  * The full stop (spec 10.3, 18.2): always visible at the top, in the risk frame. Two confirmations:
- * pick what to stop, then type «اوقف». Logged as a KillSwitchEvent once the backend lands.
+ * pick what to stop (the REAL ad accounts, read on the server), then type «اوقف». The answer is what the server counted per campaign — never a made-up «done».
  */
-export function KillSwitch({ compact = false }: { compact?: boolean }) {
+export interface StopAccount {
+  id: string;
+  name: string;
+}
+
+export function KillSwitch({ compact = false, accounts = [] }: { compact?: boolean; accounts?: StopAccount[] }) {
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<string>("all");
   const [typed, setTyped] = useState("");
@@ -49,10 +55,10 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
         }}
       >
         <div className="space-y-4">
-          <p className="text-sm text-fg">بيوقف كل الحملات فوراً بميتا. بترجعها من «القرارات» بزر رجوع، وكل شي بينسجّل.</p>
+          <p className="text-sm text-fg">بيوقف الحملات الشغّالة بميتا. بترجعها من «بانتظارك ← قررتها» بزر رجّع، وكل شي بينسجّل.</p>
           <fieldset className="space-y-2">
             <legend className="mb-1 text-xs font-medium text-fg-muted">شو بدك توقف؟</legend>
-            {[{ id: "all", name: "كل الحسابات" }, ...ACCOUNTS.map((a) => ({ id: a.id, name: a.name }))].map((o) => (
+            {[{ id: "all", name: "كل الحسابات" }, ...accounts].map((o) => (
               <label key={o.id} className="flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5">
                 <input type="radio" name="scope" value={o.id} checked={scope === o.id} onChange={() => setScope(o.id)} className="accent-[rgb(var(--danger))]" />
                 <span className="text-sm text-fg">{o.name}</span>
@@ -72,14 +78,20 @@ export function KillSwitch({ compact = false }: { compact?: boolean }) {
               disabled={!ready || busy}
               onClick={async () => {
                 setBusy(true);
-                const r = await fetch("/api/kill-switch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scope, confirm: typed.trim() }) });
-                const d = (await r.json().catch(() => ({}))) as { demo?: boolean; objects?: number; state?: string; error?: string };
+                const r = await callJson<StopResult & { demo?: boolean; sentence?: string }>("/api/kill-switch", { method: "POST", body: { scope, confirm: typed.trim() } });
                 setBusy(false);
                 setOpen(false);
                 setTyped("");
-                if (!r.ok) toast(d.error ?? "صار خطأ", "error");
-                else if (d.demo) toast("بالوضع التجريبي ما وقف شي فعلاً. بعد الربط بيوقف كل الحملات خلال ثواني.", "info");
-                else mission({ title: "وقف كل شي ✓", detail: `${d.objects ?? 0} حملة انوقفت — بترجعها من «القرارات» بزر رجوع` });
+                const d = r.data;
+                if (!r.ok || !d) {
+                  toast(r.error ?? "صار خطأ", "error");
+                  return;
+                }
+                // one of the four sentences, from what the server counted (src/core/stop-result.ts)
+                const sentence = d.sentence ?? stopSentence(d);
+                if (d.state === "stopped") mission({ title: sentence, detail: "بترجعها من «بانتظارك ← قررتها»" });
+                else toast(sentence, d.state === "partial" ? "error" : "info");
+
               }}
             >
               اوقف الكل

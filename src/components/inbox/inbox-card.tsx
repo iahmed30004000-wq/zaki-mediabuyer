@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DecisionCard } from "@/components/ui/decision-card";
 import { useToast } from "@/components/ui/toast";
 import { inboxHref, splitItemId, type InboxActionKey, type InboxItem } from "@/core/inbox";
+import { safeFetch } from "@/lib/call";
 
 const DONE: Partial<Record<InboxActionKey, string>> = {
   approve: "وافقت ✓",
@@ -41,7 +42,7 @@ async function send(item: InboxItem, key: InboxActionKey, extra?: { until?: stri
     method = "PATCH";
     body = key === "cancel" ? { action: "cancel" } : { action: "complete" };
   }
-  const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const r = await safeFetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
   return { error: r.ok ? null : (d.error ?? "صار خطأ"), demo: !!d.demo };
 }

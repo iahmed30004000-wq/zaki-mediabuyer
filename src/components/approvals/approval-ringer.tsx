@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { PhoneMissed } from "lucide-react";
 import type { ApprovalView } from "@/server/approvals";
 import { RingScreen } from "./ring-screen";
+import { safeFetch } from "@/lib/call";
 
 const POLL_MS = 60_000; // never faster: the phone's battery. The native app is pushed (FCM), not polled.
 const KEY = "mb:rang";
@@ -37,7 +38,7 @@ export function ApprovalRinger() {
   const poll = useCallback(async () => {
     if (document.visibilityState !== "visible") return;
     try {
-      const r = await fetch("/api/approvals/pending", { cache: "no-store" });
+      const r = await safeFetch("/api/approvals/pending", { cache: "no-store" });
       if (!r.ok) return;
       const d = (await r.json()) as { approvals: ApprovalView[]; mode: "awake" | "asleep" };
       const loud = d.approvals.filter((a) => a.urgency !== "yellow");

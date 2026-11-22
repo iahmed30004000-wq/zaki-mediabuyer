@@ -12,6 +12,7 @@ import { MARKETS, MARKET_AR } from "@/core/naming";
 import { ROLES, ROLE_AR, type RoleKey } from "@/core/roles";
 import type { EditView } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 /** One save: POST the body, say what happened, refresh the server numbers. Returns the answer (for one-time codes). */
 function useSave() {
@@ -21,7 +22,7 @@ function useSave() {
   const save = async (url: string, body: unknown, done = "انحفظ", method = "POST") => {
     setBusy(true);
     try {
-      const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await safeFetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const j = (await r.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
       if (!r.ok) {
         toast(j.error ?? "ما انحفظ", "error");
@@ -213,22 +214,6 @@ export function LandingEditor({ landing, products }: Pick<EditView, "landing" | 
         <label><Label>الرمز</Label><Input dir="ltr" className="text-center font-mono" value={n.lpCode} onChange={(e) => setN({ ...n, lpCode: e.target.value.toUpperCase() })} /></label>
         <label><Label>الرابط</Label><Input dir="ltr" placeholder="https://…" value={n.url} onChange={(e) => setN({ ...n, url: e.target.value.trim() })} /></label>
         <Button aria-label="ضيف صفحة هبوط" disabled={busy || !n.url} className="min-h-10 max-md:min-h-[44px]" onClick={async () => { if (await put([...landing, n], `${n.productCode} ${n.lpCode}: انضافت`)) setN({ ...n, url: "" }); }}><Plus className="size-4" /></Button>
-      </div>
-    </Panel>
-  );
-}
-
-export function PurchaseOnPicker({ value }: { value: EditView["purchaseOn"] }) {
-  const { save, busy } = useSave();
-  return (
-    <Panel className="space-y-2">
-      <p className="text-sm font-semibold text-fg">متى بنقول لميتا «شراء»؟</p>
-      <div className="grid grid-cols-2 gap-2">
-        {([["confirmed", "عند التأكيد", "أسرع تعلّم (الافتراضي)"], ["delivered", "عند التوصيل", "أدق، بس أبطأ"]] as const).map(([k, l, h]) => (
-          <button key={k} type="button" disabled={busy || value === k} onClick={() => save("/api/settings/capi.purchase_on", { value: k }, `صار: ${l}`)} className={cn("rounded-lg border p-2 text-start", value === k ? "border-accent bg-accent/10" : "border-border hover:border-accent/50")}>
-            <span className="block text-sm text-fg">{l}</span><span className="text-xs text-fg-muted">{h}</span>
-          </button>
-        ))}
       </div>
     </Panel>
   );

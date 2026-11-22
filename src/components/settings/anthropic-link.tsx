@@ -6,6 +6,7 @@ import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { safeFetch } from "@/lib/call";
 
 interface Status {
   source: "env" | "site" | "none";
@@ -29,7 +30,7 @@ export function AnthropicLink() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/assistant/connection");
+    const r = await safeFetch("/api/assistant/connection");
     setSt(r.ok ? ((await r.json()) as Status) : null);
   }, []);
   useEffect(() => {
@@ -39,7 +40,7 @@ export function AnthropicLink() {
   async function act(body: Record<string, string>, done: string) {
     setBusy(true);
     try {
-      const r = await fetch("/api/assistant/connection", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await safeFetch("/api/assistant/connection", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const d = (await r.json().catch(() => ({}))) as Partial<Status> & { error?: string };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       setKey("");

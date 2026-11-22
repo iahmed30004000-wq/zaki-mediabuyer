@@ -11,6 +11,8 @@ import { fakeFetch, FAKE_OMS_URL } from "../src/adapters/fixtures";
 import { MetaClient } from "../src/meta/client";
 import { assertLocalDatabase } from "./_guard";
 assertLocalDatabase();
+// the local demo of the sender runs with the switch on (it is off by default — src/core/capi.ts)
+process.env.CAPI_SEND = "1";
 
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "✓" : "✗"} ${label}`);

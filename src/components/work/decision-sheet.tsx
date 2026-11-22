@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import type { JobView } from "@/lib/jobs-view";
+import { safeFetch } from "@/lib/call";
 
 type Choice = "keep" | "cancel";
 
@@ -36,7 +37,7 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
   async function send() {
     setBusy(true);
     try {
-      const r = await fetch("/api/work/decisions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
+      const r = await safeFetch("/api/work/decisions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       if (d.demo) return toast("بالوضع التجريبي ما تغيّر شي", "info");

@@ -12,6 +12,7 @@ import { fmt } from "@/components/mb/num";
 import { nextFreeCampaignName, yymmdd, type Market } from "@/core/naming";
 import type { LaunchOptions } from "@/lib/launch-view";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 /** The templates of spec 5.3, in the owner's words. Every setting is explicit in code; everything is created PAUSED. */
 const TEMPLATES = [
@@ -110,7 +111,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
     if (!p) return;
     setWriting(true);
     try {
-      const r = await fetch("/api/agents/writer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productCode: p.code }) });
+      const r = await safeFetch("/api/agents/writer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ productCode: p.code }) });
       const j = (await r.json()) as { variants?: { hook: string; body: string; headline: string; flag: string; note: string | null }[]; dropped?: number; error?: string };
       if (!r.ok || !j.variants) {
         toast(j.error ?? "ما زبط الكاتب", "error");
@@ -136,7 +137,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
     }
     setBusy(true);
     try {
-      const r = await fetch("/api/launch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await safeFetch("/api/launch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const j = (await r.json()) as { ok?: boolean; error?: string; state?: string; name?: string };
       if (!r.ok || !j.ok) {
         toast(j.error ?? "ما زبط الإطلاق", "error");

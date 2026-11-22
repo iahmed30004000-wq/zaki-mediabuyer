@@ -48,6 +48,7 @@ import { ReplayBar } from "./replay-bar";
 import { SettingsSheet, type Meta } from "./settings-sheet";
 import { StepsView } from "./steps-view";
 import { VersionsSheet } from "./versions-sheet";
+import { safeFetch } from "@/lib/call";
 
 type Picker = { mode: "add" } | { mode: "edge"; edge: { from: string; to: string } } | { mode: "drop"; from: string; at: { x: number; y: number } } | { mode: "after"; id: string };
 
@@ -134,7 +135,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
     const loop = async () => {
       if (document.visibilityState === "visible") {
         try {
-          const r = await fetch("/api/workflow/live", { cache: "no-store" });
+          const r = await safeFetch("/api/workflow/live", { cache: "no-store" });
           if (r.ok) {
             const d = (await r.json()) as { workflows: WorkflowCard[] };
             const c = d.workflows.find((w) => w.key === card.key);
@@ -321,7 +322,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
     if (demo) return toast("بالوضع التجريبي ما انحفظ شي", "info");
     const saving_ = g();
     setSaving(true);
-    const r = await fetch(`/api/workflow/${card.key}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ graph: saving_, ...(note.trim() ? { note: note.trim() } : {}) }) });
+    const r = await safeFetch(`/api/workflow/${card.key}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ graph: saving_, ...(note.trim() ? { note: note.trim() } : {}) }) });
     const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; workflow?: WorkflowCard };
     setSaving(false);
     if (!r.ok) return toast(d.error ?? "صار خطأ", "error");

@@ -3,6 +3,7 @@
  * mapped to the same card shape.
  */
 import { db } from "@/server/db";
+import { reachedMeta } from "@/core/reached-meta";
 import { CHANGES, type ChangeSet } from "@/lib/mock/data";
 
 const BY: Record<string, string> = { rule: "قاعدة", agent: "وكيل", user: "إنت", kill_switch: "الإيقاف الكامل", telegram: "تيليجرام" };
@@ -27,14 +28,26 @@ function side(items: { op: string; objectType?: string; before: unknown; after: 
   return items.length > 1 ? `${one} (+${items.length - 1})` : one;
 }
 
-export type ChangeView = ChangeSet & { live: boolean; atIso?: string; launch?: boolean; writeMode?: string; checks?: { key: string; ok: boolean; note: string }[]; spendTodayAfter?: number };
+/** The states as they are in the database (R-22 · U-15): a rejected change is «رفضت», not «انرجع»; one that was approved but is not done yet is «عم يتنفّذ», not «تنفّذ». */
+export type ChangeViewState = ChangeSet["state"] | "rejected" | "executing";
+
+export type ChangeView = Omit<ChangeSet, "state"> & { state: ChangeViewState; /** it really went to Meta (never for a trial) */ reached: boolean; live: boolean; atIso?: string; launch?: boolean; writeMode?: string; checks?: { key: string; ok: boolean; note: string }[]; spendTodayAfter?: number };
+
+/** The stored state in the words the screens use: only what is really so (a proposal that waits is «بانتظار», an approved one that has not run is «عم يتنفّذ»). */
+export function changeViewState(state: string): ChangeViewState {
+  if (state === "simulated" || state === "draft") return "pending_approval";
+  if (state === "approved" || state === "executing") return "executing";
+  if (state === "pending_approval" || state === "executed" || state === "rolled_back" || state === "rejected" || state === "failed") return state;
+  return "failed";
+}
 
 export async function loadChanges(): Promise<ChangeView[]> {
-  if (process.env.MOCK_MODE === "1") return CHANGES.map((c) => ({ ...c, live: false }));
+  if (process.env.MOCK_MODE === "1") return CHANGES.map((c) => ({ ...c, reached: false, live: false }));
   const rows = await db.changeSet.findMany({ where: { state: { notIn: ["draft"] } }, include: { items: true }, orderBy: { createdAt: "desc" }, take: 60 });
   return rows.map((r) => ({
     id: r.id,
-    state: (r.state === "simulated" ? "pending_approval" : r.state === "rejected" ? "rolled_back" : r.state === "approved" || r.state === "executing" ? "executed" : r.state) as ChangeSet["state"],
+    state: changeViewState(r.state),
+    reached: reachedMeta({ writeMode: r.writeMode, state: r.state }),
     by: r.source === "rule" ? RULE_AR[r.sourceRef ?? ""] ?? "قاعدة" : BY[r.source] ?? r.source,
     reasonCode: r.reasonCode,
     sentence: r.error === "loop_guard" ? `${r.sentence} — ⚠️ انعكس القرار مرتين خلال 48 ساعة، بدو مراجعتك` : r.sentence,

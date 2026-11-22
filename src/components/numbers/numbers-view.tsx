@@ -13,6 +13,7 @@ import { GROUPS, STATS, costTone, type GroupKey, type NumbersSet, type ProductNu
 import type { TermKey } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
 import type { NumbersData } from "@/lib/numbers-view";
+import { safeFetch } from "@/lib/call";
 
 const URGENCY_ICON = { red: "🔴", orange: "🟠", yellow: "🟡" } as const;
 
@@ -142,7 +143,7 @@ function Share({ query }: { query: string }) {
   async function telegram() {
     setBusy(true);
     try {
-      const r = await fetch(`/api/numbers/share?${query}`, { method: "POST" });
+      const r = await safeFetch(`/api/numbers/share?${query}`, { method: "POST" });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       toast(d.demo ? "بالوضع التجريبي ما انبعت شي" : "انبعت الملخص على تيليجرام ✓", d.demo ? "info" : "success");

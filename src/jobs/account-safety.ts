@@ -5,6 +5,7 @@
 import { db } from "@/server/db";
 import { appealDraft, attributionHealth, judgeAccount } from "@/core/account-safety";
 import { capiHealth } from "@/core/capi";
+import { isEmptyReport } from "@/core/report-empty";
 
 const HOUR = 3_600_000;
 
@@ -81,7 +82,7 @@ export async function storeAttributionHealth(now = new Date()) {
   const forDate = new Date(now);
   forDate.setUTCHours(0, 0, 0, 0);
   const text = JSON.stringify(h);
-  await db.report.upsert({ where: { kind_forDate: { kind: "attribution", forDate } }, create: { kind: "attribution", forDate, text }, update: { text } });
+  await db.report.upsert({ where: { kind_forDate: { kind: "attribution", forDate } }, create: { kind: "attribution", forDate, text, empty: isEmptyReport("attribution", text) }, update: { text, empty: isEmptyReport("attribution", text) } });
   if (h.attribution_health === "broken") await db.alert.create({ data: { kind: "attribution", tone: "danger", text: `صحة الإسناد مكسورة: ${h.attributed_pct ?? "—"}% بس من الطلبات واصلة لإعلانها · CAPI ${h.capi_accepted_pct ?? "—"}% مقبول`, href: "/ads/health" } });
   return { health: h.attribution_health, gaps: h.gaps.length };
 }

@@ -21,6 +21,8 @@ interface Shell {
   settings: boolean;
   /** the capabilities of this person's role (the buttons that are not theirs are not drawn; the server refuses them anyway) */
   caps: readonly string[] | null;
+  /** the real ad accounts the full stop can be aimed at (read on the server) */
+  stopAccounts: { id: string; name: string }[];
   editing: boolean;
   setEditing: (v: boolean) => void;
   panel: { open: boolean; tab: PanelTab };
@@ -37,7 +39,7 @@ const KEY = "mb:edit";
  * What the shell shares: the pages as the owner left them (the layout read them on the server), whether edit mode is on (a
  * person's switch, kept in this browser), and the edit panel's state. A page that is not the owner's to change never shows any of it.
  */
-export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = true, caps, children }: { pages: EffPage[]; canEdit: boolean; inbox?: number; places?: readonly string[]; settings?: boolean; caps?: readonly string[]; children: ReactNode }) {
+export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = true, caps, stopAccounts = [], children }: { pages: EffPage[]; canEdit: boolean; inbox?: number; places?: readonly string[]; settings?: boolean; caps?: readonly string[]; stopAccounts?: { id: string; name: string }[]; children: ReactNode }) {
   const [editing, setEditingState] = useState(false);
   const [panel, setPanel] = useState<{ open: boolean; tab: PanelTab }>({ open: false, tab: "boards" });
 
@@ -69,6 +71,7 @@ export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = tr
       places: places ?? READY_PLACES.map((p) => p.key),
       settings,
       caps: caps ?? null,
+      stopAccounts,
       editing: canEdit && editing,
       setEditing,
       panel,
@@ -76,7 +79,7 @@ export function ShellProvider({ pages, canEdit, inbox = 0, places, settings = tr
       closePanel: () => setPanel((p) => ({ ...p, open: false })),
       setTab: (tab) => setPanel((p) => ({ ...p, tab })),
     }),
-    [pages, canEdit, inbox, places, settings, caps, editing, setEditing, panel],
+    [pages, canEdit, inbox, places, settings, caps, stopAccounts, editing, setEditing, panel],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

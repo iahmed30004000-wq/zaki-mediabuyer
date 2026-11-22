@@ -11,6 +11,7 @@ import { Panel, Section } from "@/components/mb/section";
 import type { CreativeStage } from "@/lib/mock/data";
 import type { CreativeView } from "@/lib/creatives-view";
 import { cn } from "@/lib/utils";
+import { callJson, safeFetch } from "@/lib/call";
 
 const POLICY = {
   green: { icon: ShieldCheck, label: "سليم", cls: "text-ok" },
@@ -34,10 +35,18 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
   /** A real video goes through /api/creatives/:code; a demo one only moves on this screen. */
   const decide = async (c: CreativeView, action: "approve" | "exclude"): Promise<boolean> => {
     if (!c.live) return true;
-    const r = await fetch(`/api/creatives/${c.code}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
+    const r = await safeFetch(`/api/creatives/${c.code}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
     const d = (await r.json().catch(() => ({}))) as { error?: string };
     if (!r.ok) toast(d.error ?? "صار خطأ", "error");
     return r.ok;
+  };
+
+  /** U-12: «اطلب نسخة معدّلة» / «اطلب هوكات جديدة» make a real request for Hermes (a card on المهام) — and say so only when it was made. The demo's videos are made up: nothing is asked. */
+  const ask = async (c: CreativeView, kind: "new_hooks" | "new_script", note?: string) => {
+    if (!c.live) return toast("تجربة: ما انبعت لأحد — هاد فيديو تجريبي", "info");
+    const r = await callJson<{ created?: boolean }>("/api/videos/request", { method: "POST", body: { key: c.code, kind, ...(note ? { note } : {}) } });
+    if (!r.ok) return toast(r.error ?? "صار خطأ", "error");
+    toast(r.data?.created === false ? "الطلب منبعت من قبل — لسا بانتظار الرد" : "انبعت الطلب لهيرمز", "success");
   };
 
   return (
@@ -98,11 +107,11 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
                 {c.stage === "review" ? (
                   <div className="flex flex-wrap gap-2">
                     {c.policy === "yellow" ? (
-                      <Button size="sm" onClick={async () => { if (!(await decide(c, "approve"))) return; move(c.code, "ready"); mission({ title: "تمّت ✓", detail: `${c.code} صار جاهز — بينرفع لميتا بالدورة الجاية` }); }}>
+                      <Button size="sm" onClick={async () => { if (!(await decide(c, "approve"))) return; move(c.code, "ready"); mission({ title: "تمّت ✓", detail: `${c.code} صار جاهز للرفع` }); }}>
                         <Check className="size-4" /> وافق
                       </Button>
                     ) : (
-                      <Button size="sm" variant="secondary" onClick={() => toast("انبعت طلب تعديل للاستديو مع البديل الآمن.", "success")}>
+                      <Button size="sm" variant="secondary" onClick={() => void ask(c, "new_script", "نسخة معدّلة بديل آمن للسياسة")}>
                         <Send className="size-4" /> اطلب نسخة معدّلة
                       </Button>
                     )}
@@ -111,7 +120,7 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
                     </Button>
                   </div>
                 ) : c.stage === "fatigued" ? (
-                  <Button size="sm" variant="secondary" onClick={() => toast("انطلب 4 هوكات جديدة على نفس جسم الفيديو من الاستديو.", "success")}>
+                  <Button size="sm" variant="secondary" onClick={() => void ask(c, "new_hooks")}>
                     <Send className="size-4" /> اطلب هوكات جديدة
                   </Button>
                 ) : null}

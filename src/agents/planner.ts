@@ -9,6 +9,7 @@ import { getSetting } from "@/server/settings";
 import { ask, AgentUnavailable, PrivacyRefusal } from "@/gateway";
 import { estimateTargets } from "@/core/economics";
 import { planWeek, type PlanProduct, type WeeklyPlan } from "@/core/plan";
+import { isEmptyReport } from "@/core/report-empty";
 
 const Notes = z.object({
   notes: z.array(z.object({ product_code: z.string(), reason: z.string().max(300) })).max(20),
@@ -76,6 +77,6 @@ export async function storePlan(now = new Date()) {
   const plan = await buildPlan(now);
   const forDate = new Date(now);
   forDate.setUTCHours(0, 0, 0, 0);
-  await db.report.upsert({ where: { kind_forDate: { kind: "plan", forDate } }, create: { kind: "plan", forDate, text: JSON.stringify(plan) }, update: { text: JSON.stringify(plan) } });
+  await db.report.upsert({ where: { kind_forDate: { kind: "plan", forDate } }, create: { kind: "plan", forDate, text: JSON.stringify(plan), empty: isEmptyReport("plan", JSON.stringify(plan)) }, update: { text: JSON.stringify(plan), empty: isEmptyReport("plan", JSON.stringify(plan)) } });
   return { total: plan.total_usd, lines: plan.daily_allocation.length, by: plan.by };
 }

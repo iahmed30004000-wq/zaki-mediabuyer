@@ -12,6 +12,8 @@ const s = vi.hoisted(() => ({
   proposals: [] as { p: Record<string, unknown>; actor: unknown }[],
   audits: [] as unknown[][],
   state: "executed",
+  writeMode: "live",
+  error: null as string | null,
 }));
 
 vi.mock("@/server/db", () => ({
@@ -21,7 +23,7 @@ vi.mock("@/server/db", () => ({
     campaign: { findMany: async (q: unknown) => (s.queries.push(["campaign", q]), s.campaigns) },
   },
 }));
-vi.mock("@/server/changes", () => ({ propose: async (p: Record<string, unknown>, actor: unknown) => (s.proposals.push({ p, actor }), { id: "cs-1", state: s.state }) }));
+vi.mock("@/server/changes", () => ({ propose: async (p: Record<string, unknown>, actor: unknown) => (s.proposals.push({ p, actor }), { id: "cs-1", state: s.state, writeMode: s.writeMode, error: s.error }) }));
 vi.mock("@/server/audit", () => ({ audit: async (...a: unknown[]) => void s.audits.push(a) }));
 
 import { stopByQuery } from "@/server/stop-by-query";
@@ -29,7 +31,7 @@ import { stopByQuery } from "@/server/stop-by-query";
 const ad = (name: string, metaId = "ad-1", account = "act-1") => ({ metaId, name, status: "ACTIVE", adSet: { campaign: { account: { metaId: account } } } });
 
 beforeEach(() => {
-  Object.assign(s, { ads: [], adsets: [], campaigns: [], queries: [], proposals: [], audits: [], state: "executed" });
+  Object.assign(s, { ads: [], adsets: [], campaigns: [], queries: [], proposals: [], audits: [], state: "executed", writeMode: "live", error: null });
   delete process.env.MOCK_MODE;
 });
 
@@ -73,6 +75,23 @@ describe("stopByQuery", () => {
     s.state = "proposed";
     const text = await stopByQuery("CR00147", { id: "oms:owner" }, "oms:owner");
     expect(text).toContain("بانتظار مراجعة");
+    expect(text).not.toContain("✓ وقف");
+  });
+
+  it("a pause that only ran as a trial is said as a trial — never «✓ وقف»", async () => {
+    s.ads = [ad("CR00147")];
+    s.writeMode = "dry_run";
+    const text = await stopByQuery("CR00147", { id: "oms:owner" }, "oms:owner");
+    expect(text).toContain("تجربة: ما انبعت لميتا");
+    expect(text).not.toContain("✓ وقف");
+  });
+
+  it("a pause that failed says so with the reason", async () => {
+    s.ads = [ad("CR00147")];
+    s.state = "failed";
+    s.error = "verify_mismatch: الإعلان محذوف";
+    const text = await stopByQuery("CR00147", { id: "oms:owner" }, "oms:owner");
+    expect(text).toContain("ما تنفّذ الإيقاف: الإعلان محذوف");
     expect(text).not.toContain("✓ وقف");
   });
 
