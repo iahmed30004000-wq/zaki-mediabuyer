@@ -53,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers theme={theme}>
           {children}
         </Providers>
-        <PwaRegister />
+        <PwaRegister version={process.env.APP_VERSION ?? "dev"} />
       </body>
     </html>
   );

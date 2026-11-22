@@ -10,6 +10,7 @@ import { PeopleProvider } from "@/components/shell/people-context";
 import { ShellProvider } from "@/components/shell/shell-context";
 import { EditPanel } from "@/components/customize/edit-panel";
 import { ApprovalRinger } from "@/components/approvals/approval-ringer";
+import { PushRefresh } from "@/components/shell/push-refresh";
 import { MissionProvider } from "@/components/mb/mission";
 import { ROLE_PLACES, ROLE_START, canOpenPath, can, capabilitiesOf, hasHome } from "@/core/roles";
 import { isDemo } from "@/core/readiness";
@@ -60,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {!me || can(me.role, "assistant.use") ? <Consultant /> : null}
         <CommandPalette />
         <ApprovalRinger />
+        <PushRefresh />
         <BottomNav />
         <EditPanel />
       </ShellProvider>
