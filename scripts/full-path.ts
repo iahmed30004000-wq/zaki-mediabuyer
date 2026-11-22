@@ -24,6 +24,8 @@ import { fakeFetch, FAKE_OMS_URL } from "../src/adapters/fixtures";
 import { MetaClient } from "../src/meta/client";
 import { assertLocalDatabase } from "./_guard";
 assertLocalDatabase();
+// the local full path includes the conversion sender: the switch is on here only (off by default — src/core/capi.ts)
+process.env.CAPI_SEND = "1";
 
 const owner = { id: "demo-owner", role: "OWNER" as const, demo: true };
 const DAY = 86_400_000;

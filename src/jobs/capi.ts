@@ -8,14 +8,16 @@
  */
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
-import { bodyOf, eventsOf, sendable, type Channel } from "@/core/capi";
+import { bodyOf, capiSendOn, eventsOf, sendable, type Channel } from "@/core/capi";
 import { readCapiIdentifiers, type OmsOptions } from "@/adapters/oms";
 import { MetaApiError, type MetaClient } from "@/meta/client";
 
 const DAY = 86_400_000;
 const MAX_ATTEMPTS = 3;
 
-export async function enqueueCapi(now = new Date()) {
+export async function enqueueCapi(now = new Date(), env: Record<string, string | undefined> = process.env) {
+  // R-11: off by default — the OMS is the only sender, so not even a pending row is made
+  if (!capiSendOn(env)) return { orders: 0, events: 0, queued: 0, off: true as const };
   const purchaseOn = String(await getSetting("capi.purchase_on")) === "delivered" ? "delivered" : "confirmed";
   // method «mcp» = order rows made from a tally Claude pushed: they stand for orders the OMS has not been asked about, so no
   // conversion event is ever sent for them (src/server/push.ts)
@@ -38,11 +40,14 @@ export interface SendOptions {
   testEventCode?: string | null;
   now?: Date;
   limit?: number;
+  env?: Record<string, string | undefined>;
 }
 
 export async function sendCapi(o: SendOptions) {
   const now = o.now ?? new Date();
   const stats = { sent: 0, rejected: 0, expired: 0, skipped: 0, waiting: 0 };
+  // R-11: nothing is read, expired or sent while the switch is off
+  if (!capiSendOn(o.env ?? process.env)) return { ...stats, off: true as const };
   const pending = await db.capiEvent.findMany({ where: { state: "pending" }, orderBy: { eventTime: "asc" }, take: o.limit ?? 500 });
   const fresh = [];
   for (const e of pending) {

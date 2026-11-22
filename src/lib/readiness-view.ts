@@ -17,6 +17,8 @@ export interface LastCall {
   ok: boolean | null;
   /** a short line: what the call was, or why it failed (an error already in words, cut short) */
   what: string | null;
+  /** the call ran as a trial (nothing was sent): it is not a «worked» — R-22 */
+  trial?: boolean;
 }
 
 export interface ReadinessRow {
@@ -51,6 +53,8 @@ async function lastJob(jobs: string[]): Promise<LastCall> {
   for (const r of runs) {
     const skipped = r.status === "ok" && !!(r.stats as { skipped?: unknown } | null)?.skipped;
     if (skipped || !r.finishedAt) continue;
+    // a run that only recorded what it WOULD have sent (dry-run) is a trial, not a real call
+    if (r.status === "ok" && (r.stats as { dryRun?: unknown } | null)?.dryRun === true) return { at: r.finishedAt.toISOString(), ok: null, what: "تجربة: ما انبعت شي لميتا", trial: true };
     return { at: r.finishedAt.toISOString(), ok: r.status === "ok", what: r.status === "ok" ? r.job : short(r.error) };
   }
   return NONE;

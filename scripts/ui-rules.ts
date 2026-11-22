@@ -10,7 +10,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-export const METRICS = ["rawButtons", "arbitraryText", "offScaleText", "offScaleHeights", "hexColors", "decorImports", "mockChecks", "jargon"] as const;
+export const METRICS = ["rawButtons", "arbitraryText", "offScaleText", "offScaleHeights", "hexColors", "decorImports", "mockChecks", "mockInUi", "jargon"] as const;
 export type Metric = (typeof METRICS)[number];
 export type Counts = Record<Metric, number>;
 
@@ -23,6 +23,7 @@ export const METRIC_NOTE: Record<Metric, string> = {
   hexColors: "#RRGGBB in code — colours come from the theme tokens",
   decorImports: "imports of the theme decoration (art-slot, theme-decor, door-shell, decor-visibility) — no decoration",
   mockChecks: "MOCK_MODE checks in screens — one line in the shell says «demo»",
+  mockInUi: "screens and components that import the demo data (@/lib/mock/data) — a screen shows real rows or «—», never an example",
   jargon: "words the owner does not use (workflow, handoff, dry-run, MCP, webhook…) inside Arabic UI text",
 };
 
@@ -47,7 +48,7 @@ export const RAW_BUTTON_EXCEPTIONS: Record<string, { allowed: number; why: strin
   "src/components/mb/num.tsx": { allowed: 1, why: "text that reads as a link inside a sentence, not a button — the number itself is the «why?» trigger" },
   "src/components/numbers/numbers-view.tsx": { allowed: 3, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
   "src/components/numbers/print-button.tsx": { allowed: 1, why: "the print view is black on white by design, whatever the theme" },
-  "src/components/settings/editors.tsx": { allowed: 2, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout — a remove-chip icon and the purchase-moment toggle" },
+  "src/components/settings/editors.tsx": { allowed: 1, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout — a remove-chip icon" },
   "src/components/settings/level-picker.tsx": { allowed: 1, why: "a tab, radio or pressed-toggle group with its own aria roles (the kit's Tabs/Segmented do not take this content)" },
   "src/components/settings/mode-settings.tsx": { allowed: 1, why: "a dense icon control inside a table, toolbar or canvas where the kit's 40px IconButton would break the layout" },
   "src/components/shell/command-palette.tsx": { allowed: 1, why: "a whole row or card is the click target (its content is arbitrary, a Button would wrap it wrongly)" },
@@ -83,6 +84,7 @@ export function countSource(source: string, file: string): Counts {
   c.hexColors = (source.match(/#[0-9A-Fa-f]{6}\b/g) ?? []).length;
   c.decorImports = (source.match(/from\s+["']@\/components\/theme\/(?:art-slot|theme-decor|door-shell|decor-visibility)["']/g) ?? []).length;
   c.mockChecks = (source.match(/MOCK_MODE/g) ?? []).length;
+  c.mockInUi = (source.match(/from\s+["']@\/lib\/mock\/data["']/g) ?? []).length;
   if (!file.includes("settings/advanced")) {
     for (const line of source.split("\n")) {
       if (!ARABIC.test(line) || COMMENT_LINE.test(line)) continue;

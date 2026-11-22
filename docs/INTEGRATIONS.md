@@ -93,6 +93,8 @@ Not verified: nothing ran against a real Postgres or the real Media Buyer; `ad_i
 
 > **⚠ SUPERSEDED (owner, 2026-11-17 — see `docs/INTEGRATION_CONTRACTS.md`):** the OMS is the ONLY sender of the confirmed / delivered conversion events; Media Buyer does not build them and does not ask for `capi.identifiers` (the endpoint stays published but frozen and unused). The 2026-11-04 decision below and its four consequences are kept for history only. `capi.send` still exists on main until it is removed or kept switched off by a separate decision, and its queue must stay empty and off meanwhile (no double sender on one pixel).
 
+> **v6 · P0-2 (2026-11-22): the sending is OFF by default in the code.** `enqueueCapi` and `sendCapi` do nothing unless `CAPI_SEND=1` is set on purpose (no `CapiEvent` row is made); the «when do we tell Meta «purchase»?» card is gone from the settings. The OMS is the only sender, per the 2026-11-17 decision — turn `CAPI_SEND` on only if that decision is ever reversed.
+
 **D-CAPI — DECIDED by the owner (2026-11-04): Media Buyer sends the purchase events.** `capi.send` on main stays (event id `oms-<order>-<status>`, mature-order truth, identifiers fetched from the OMS in memory, hashed, never stored).
 Consequences, in this order — none of it is optional:
 1. The OMS key for Media Buyer **must carry `capi.identifiers`** (the owner ticks it by hand when minting the token). Without it `capi_ref` is null and nothing is sent.

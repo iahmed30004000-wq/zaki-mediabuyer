@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bot } from "lucide-react";
 import { DOMAIN_AR, KIND_AR, inboxHref, type InboxActionKey, type InboxItem } from "@/core/inbox";
 import { fmt } from "@/lib/format";
@@ -15,6 +16,19 @@ const URGENCY: Record<InboxItem["urgency"], { tone: PillTone; label: string }> =
   orange: { tone: "warn", label: "مهم" },
   yellow: { tone: "neutral", label: "عادي" },
 };
+
+/** Is this path the item's own page (`/inbox/<id>`)? Compared decoded, so an encoded colon does not hide the match. */
+export function isItsOwnPage(pathname: string | null, id: string): boolean {
+  if (!pathname) return false;
+  const dec = (s: string) => {
+    try {
+      return decodeURIComponent(s);
+    } catch {
+      return s;
+    }
+  };
+  return dec(pathname).replace(/[/]+$/, "") === dec(inboxHref(id));
+}
 
 export const LATER_CHOICES = [
   { until: "15m", label: "15 دقيقة" },
@@ -54,6 +68,8 @@ export function DecisionCard({
   className?: string;
 }) {
   const [later, setLater] = useState(false);
+  // U-12: «جرّب أول» and «التفاصيل» lead to the item's own page — on that page they are not shown (they would only reload it)
+  const here = isItsOwnPage(usePathname(), item.id);
   const u = URGENCY[item.urgency];
   const delta = item.effect?.moneyDeltaDaily ?? null;
   const expires = left(item.expiresAt);
@@ -117,9 +133,11 @@ export function DecisionCard({
                   {a.label}
                 </Button>
               ) : a.key === "open" ? (
+                here ? null : (
                 <Link key={a.key} href={inboxHref(item.id)} className="inline-flex h-10 items-center rounded-lg px-3 text-sm font-bold text-fg-muted hover:bg-surface-2 hover:text-fg">
                   {a.label}
                 </Link>
+                )
               ) : (
                 <Button
                   key={a.key}
@@ -133,7 +151,7 @@ export function DecisionCard({
                 </Button>
               ),
             )}
-            {detailLink ? (
+            {detailLink && !here ? (
               <Link href={inboxHref(item.id)} className="ms-auto text-sm font-semibold text-info hover:underline">
                 التفاصيل
               </Link>

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { ask, AgentUnavailable, PrivacyRefusal } from "@/gateway";
 import { benchmarks, diagnose, type Diagnosis, type Funnel } from "@/core/diagnosis";
+import { isEmptyReport } from "@/core/report-empty";
 
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
 const SHIPPED = new Set(["shipped", "delivered", "returned"]);
@@ -72,6 +73,6 @@ export async function storeAnalysis(now = new Date()) {
   const a = await analyseDay(now);
   const forDate = new Date(now);
   forDate.setUTCHours(0, 0, 0, 0);
-  await db.report.upsert({ where: { kind_forDate: { kind: "analysis", forDate } }, create: { kind: "analysis", forDate, text: JSON.stringify(a) }, update: { text: JSON.stringify(a) } });
+  await db.report.upsert({ where: { kind_forDate: { kind: "analysis", forDate } }, create: { kind: "analysis", forDate, text: JSON.stringify(a), empty: isEmptyReport("analysis", JSON.stringify(a)) }, update: { text: JSON.stringify(a), empty: isEmptyReport("analysis", JSON.stringify(a)) } });
   return { products: a.products.length, weak: a.products.filter((p) => p.status === "weak").length, by: a.by };
 }

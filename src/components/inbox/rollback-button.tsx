@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { safeFetch } from "@/lib/call";
 
 /** «رجّع»: reverts a change that ran (the existing `rollback` of /api/changes/[id]). Asks «متأكد؟» first. */
 export function RollbackButton({ id }: { id: string }) {
@@ -19,7 +20,7 @@ export function RollbackButton({ id }: { id: string }) {
       onClick={async () => {
         setBusy(true);
         try {
-          const r = await fetch(`/api/changes/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "rollback" }) });
+          const r = await safeFetch(`/api/changes/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "rollback" }) });
           const d = (await r.json().catch(() => ({}))) as { error?: string };
           if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
           toast("انرجع ✓", "success");

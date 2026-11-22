@@ -12,6 +12,7 @@ import {
 } from "@/core/day";
 import { SEED_WORKFLOWS } from "@/core/workflow";
 import { db } from "@/server/db";
+import { writeMode } from "@/meta/write";
 
 export interface DayData {
   demo: boolean;
@@ -34,6 +35,7 @@ export async function loadDay(day: string, now = new Date()): Promise<DayData> {
   const planning = state !== "past";
   const demo = process.env.MOCK_MODE === "1";
   const iso = (d: Date | null) => (d ?? from).toISOString();
+  const metaLive = writeMode() === "live";
 
   const done: DayItem[] = [];
   const planned: DayItem[] = [];
@@ -48,14 +50,14 @@ export async function loadDay(day: string, now = new Date()): Promise<DayData> {
       db.handoff.findMany({ where: { status: "done", doneAt: { gte: from, lt: to } }, orderBy: { doneAt: "asc" }, take: CAP }),
     ]);
     for (const r of runs) done.push(runItem({ name: r.workflow.name, status: r.status, at: iso(r.finishedAt ?? r.startedAt), summary: r.summary, metrics: (r.metrics as Record<string, unknown> | null) ?? null, source: r.source }));
-    for (const c of changes) done.push(decisionItem({ source: c.source, sentence: c.sentence, at: iso(c.executedAt), spendDeltaDaily: Number(c.spendDeltaDaily), approvedBy: c.approvedBy }));
+    for (const c of changes) done.push(decisionItem({ source: c.source, sentence: c.sentence, at: iso(c.executedAt), spendDeltaDaily: Number(c.spendDeltaDaily), approvedBy: c.approvedBy, writeMode: c.writeMode }));
     for (const a of approvals) {
       const i = approvalItem({ status: a.status, title: a.title, at: iso(a.decidedAt), amount: a.amount === null ? null : Number(a.amount) });
       if (i) done.push(i);
     }
     for (const t of tasks) done.push(taskDoneItem({ title: t.title, at: t.updatedAt.toISOString(), assignee: t.assignee }));
     for (const v of videos) {
-      const i = videoItem({ vName: v.vName, job: v.job, status: v.status, at: v.updatedAt.toISOString() });
+      const i = videoItem({ vName: v.vName, job: v.job, status: v.status, at: v.updatedAt.toISOString() }, metaLive);
       if (i) done.push(i);
     }
     for (const h of handoffs) done.push(handoffItem({ title: h.title, assignee: h.assignee, at: iso(h.doneAt), note: h.resultNote }));

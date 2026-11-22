@@ -10,6 +10,7 @@ import { isLinked } from "@/core/readiness";
 import { audit } from "./audit";
 import { HttpError } from "./auth";
 import { db } from "./db";
+import { setSetting } from "./settings";
 import { MASTER_KEY_MISSING, masterKeyConfigured, openSecret, sealSecret } from "./secrets";
 
 export const RELOAD_MS = 30_000;
@@ -129,6 +130,9 @@ export async function saveField(name: string, raw: unknown, userId: string): Pro
   const data = secret ? { secret: true, valueEnc: sealSecret(name, checked.value), valuePlain: null, last4, updatedBy: userId } : { secret: false, valueEnc: null, valuePlain: checked.value, last4: null, updatedBy: userId };
   await db.connectionSetting.upsert({ where: { name }, create: { name, ...data }, update: data });
   await reloadOverlay();
+  // R-26: a new OMS address or token wipes the OMS's bad record (failures before this moment are not counted) and the worker pulls at its next turn
+  // (bookkeeping only: saving the value must never fail because of it)
+  if (name === "OMS_BASE_URL" || name === "OMS_TOKEN") await setSetting("oms.linkedAt", new Date().toISOString(), userId).catch(() => undefined);
   // the name and the kind, never the value
   await audit({ type: "user", id: userId }, "connection.save", { type: "connection", id: name }, { after: { kind: f.kind, sealed: secret } });
   return { last4 };

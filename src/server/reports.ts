@@ -47,7 +47,8 @@ export async function loadReports(opts: { limit?: number; jobKey?: string; domai
       orderBy: { startedAt: "desc" },
       take: limit,
     }),
-    opts.jobKey || opts.domain ? Promise.resolve([]) : db.report.findMany({ where: opts.day ? { forDate: new Date(`${opts.day}T00:00:00Z`) } : {}, orderBy: { forDate: "desc" }, take: limit }),
+    opts.jobKey || opts.domain ? Promise.resolve([]) : // U-07: only the reports for people (morning · weekly · monthly), and not an empty one — plan · attribution · analysis are the code's data, not something to read
+    db.report.findMany({ where: { kind: { in: ["morning", "weekly", "monthly"] }, empty: false, ...(opts.day ? { forDate: new Date(`${opts.day}T00:00:00Z`) } : {}) }, orderBy: { forDate: "desc" }, take: limit }),
   ]);
   const rows: ReportRow[] = [
     ...runs.map((r) => ({ id: `run:${r.id}`, kind: "run" as const, title: r.workflow.name, jobKey: r.workflow.key, jobNumber: r.workflow.number, domain: r.workflow.domain === "ops" ? ("ops" as const) : ("ads" as const), status: r.status, at: r.startedAt.toISOString(), summary: clip(r.summary), hasFull: !!r.report, href: reportHref(`run:${r.id}`) })),

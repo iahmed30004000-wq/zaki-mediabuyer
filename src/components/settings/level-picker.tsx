@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import { LEVEL_AR, LEVEL_HINT } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 import type { LevelRow } from "@/lib/settings-view";
+import { safeFetch } from "@/lib/call";
 
 /** One account's level (spec 10.1): the owner taps a level; a level it may not take says why instead. */
 export function LevelPicker({ row }: { row: LevelRow }) {
@@ -21,7 +22,7 @@ export function LevelPicker({ row }: { row: LevelRow }) {
     }
     setBusy(true);
     try {
-      const r = await fetch(`/api/accounts/${row.metaId}/level`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ level }) });
+      const r = await safeFetch(`/api/accounts/${row.metaId}/level`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ level }) });
       const j = (await r.json()) as { error?: string };
       if (!r.ok) toast(j.error ?? "ما زبط", "error");
       else {

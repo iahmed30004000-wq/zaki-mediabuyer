@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { isValidCron, nextRuns } from "@/core/cron";
 import { EXECUTORS, EXECUTOR_AR, PERMISSIONS, PERMISSION_AR, type Executor, type Permission } from "@/core/workflow";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 export interface Meta {
   name: string;
@@ -40,7 +41,7 @@ export function SettingsSheet({ open, onClose, workflowKey, meta, canEdit, demo,
     if (!cronOk) return toast("الجدولة لازم cron من 5 خانات", "error");
     if (demo) return toast("بالوضع التجريبي ما انحفظ شي", "info");
     setBusy(true);
-    const r = await fetch(`/api/workflow/${workflowKey}`, {
+    const r = await safeFetch(`/api/workflow/${workflowKey}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: m.name.trim(), description: m.description.trim() || null, schedule: m.schedule.trim() || null, executor: m.executor, permission: m.permission, enabled: m.enabled }),

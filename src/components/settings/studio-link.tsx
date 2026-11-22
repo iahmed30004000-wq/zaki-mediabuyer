@@ -6,6 +6,7 @@ import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { safeFetch } from "@/lib/call";
 
 interface TokenRow {
   id: string;
@@ -45,7 +46,7 @@ export function StudioLink() {
   }, [load]);
 
   async function call(url: string, init: RequestInit) {
-    const r = await fetch(url, { ...init, headers: { "content-type": "application/json" } });
+    const r = await safeFetch(url, { ...init, headers: { "content-type": "application/json" } });
     const d = (await r.json().catch(() => ({}))) as { error?: string; token?: string };
     if (!r.ok) toast(d.error ?? "صار خطأ", "error");
     return r.ok ? d : null;

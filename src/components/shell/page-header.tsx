@@ -10,7 +10,7 @@ import { EditBar } from "@/components/customize/edit-bar";
 import { PageHelp } from "./page-help";
 import { SEARCH_EVENT } from "./command-palette";
 import { CONSULTANT_EVENT } from "./consultant";
-import { useCan, useCurrentPlace, useMyPlaces } from "./shell-context";
+import { useCan, useCurrentPlace, useMyPlaces, useShell } from "./shell-context";
 
 /** The top of every page: the place's name (20/800) and its one question, then search, the assistant, «؟» and the full stop — always in reach (18.2). */
 export function PageHeader({ actions }: { actions?: ReactNode }) {
@@ -18,6 +18,7 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
   const mayAsk = useCan("assistant.use");
   const mayStop = useCan("ads.pause");
   const { settings } = useMyPlaces();
+  const { stopAccounts } = useShell();
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface-1">
       <div className="mx-auto flex max-w-[1180px] items-center gap-2 px-4 py-3 md:px-6">
@@ -42,7 +43,7 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
             <Settings className="size-5" aria-hidden />
           </Link>
         ) : null}
-        {mayStop ? <KillSwitch /> : null}
+        {mayStop ? <KillSwitch accounts={stopAccounts} /> : null}
       </div>
       <EditBar />
     </header>

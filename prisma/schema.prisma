@@ -412,6 +412,8 @@ model Report {
   forDate   DateTime  @db.Date
   text      String
   sentAt    DateTime?
+  /// nothing in it (no spend, no orders, only empty lists): saved, but never sent and never listed — src/core/report-empty.ts
+  empty     Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

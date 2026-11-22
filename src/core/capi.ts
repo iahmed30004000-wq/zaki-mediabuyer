@@ -6,6 +6,12 @@
  */
 import { createHash } from "node:crypto";
 
+/**
+ * THE SWITCH (v6 · P0-2, R-11 · Q14). The owner decided on 17/11 that the OMS is the only sender of purchase events to Meta: two senders on one pixel
+ * double-count. So this site does NOT enqueue or send conversion events unless `CAPI_SEND=1` is set on purpose. Off is the default and the safe state.
+ */
+export const capiSendOn = (env: Record<string, string | undefined> = process.env): boolean => env.CAPI_SEND === "1";
+
 export type OrderStatus = "new" | "confirmed" | "shipped" | "delivered" | "returned" | "canceled";
 export type Channel = "website" | "whatsapp" | "messenger";
 

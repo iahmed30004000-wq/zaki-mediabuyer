@@ -12,6 +12,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { useToast } from "@/components/ui/toast";
 import { DOMAIN_AR, EFFECT_AR, untilWords, type OrderDomain, type OrderEffect } from "@/core/orders";
 import type { OrderView } from "@/server/orders";
+import { safeFetch } from "@/lib/call";
 
 export interface OrderScope {
   domain: OrderDomain;
@@ -37,7 +38,7 @@ export function OrdersSection({ orders, scope, title = "أوامر سارية", 
   async function post(url: string, body: unknown, done: string) {
     setBusy(true);
     try {
-      const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await safeFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; order?: OrderView };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       if (d.demo) return toast("بالوضع التجريبي ما تغيّر شي", "info");

@@ -3,6 +3,7 @@ import { propose } from "./changes";
 import { audit } from "./audit";
 import { creativeCodeOf } from "@/core/telegram-command";
 import { isDemo } from "@/core/readiness";
+import { reachedMeta } from "@/core/reached-meta";
 
 const SITE = () => process.env.APP_URL ?? "https://mediabuyer.zakiai.io";
 
@@ -42,5 +43,9 @@ export async function stopByQuery(query: string, who: { id: string }, sourceRef:
     { type: "user", id: who.id },
   );
   await audit({ type: "user", id: who.id }, "telegram.pause", { type: "changeset", id: cs.id });
-  return cs.state === "executed" ? `✓ وقف: ${hits.map((h) => h.name).join("، ")}\nبترجعه من الموقع: ${SITE()}/decisions` : `انسجّل الطلب وبانتظار مراجعة بالموقع: ${SITE()}/decisions`;
+  const names = hits.map((h) => h.name).join("، ");
+  // R-22: «✓ وقف» only when the pause really reached Meta — a trial and a failure are said as what they are
+  if (cs.state === "executed") return reachedMeta({ writeMode: cs.writeMode, state: cs.state }) ? `✓ وقف: ${names}\nبترجعه من الموقع: ${SITE()}/decisions` : `تجربة: ما انبعت لميتا — ${names}`;
+  if (cs.state === "failed") return `ما تنفّذ الإيقاف: ${(cs.error ?? "ما انعرف السبب").replace(/^verify_mismatch:\s*/, "").slice(0, 200)}`;
+  return `انسجّل الطلب وبانتظار مراجعة بالموقع: ${SITE()}/decisions`;
 }

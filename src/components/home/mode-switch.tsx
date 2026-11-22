@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 export interface ModeLite {
   mode: "awake" | "asleep";
@@ -29,7 +30,7 @@ export function ModeSwitch({ initial, demo }: { initial: ModeLite; demo: boolean
     if (busy || (mode === m.mode && !m.schedule.enabled)) return;
     setBusy(true);
     try {
-      const r = await fetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode, ...(m.schedule.enabled ? { schedule: { enabled: false } } : {}) }) });
+      const r = await safeFetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode, ...(m.schedule.enabled ? { schedule: { enabled: false } } : {}) }) });
       const d = (await r.json().catch(() => ({}))) as Partial<ModeLite> & { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       if (d.demo) {

@@ -9,6 +9,7 @@ import { guideOf } from "@/lib/guide";
 import { ArtifactCard, FactsList } from "./assistant-cards";
 import { runTour } from "./page-help";
 import { useCurrentPlace } from "./shell-context";
+import { safeFetch } from "@/lib/call";
 
 /** Fired by the header button on phones. */
 export const CONSULTANT_EVENT = "mb:consultant";
@@ -171,7 +172,7 @@ export function Consultant() {
     const ctl = new AbortController();
     abort.current = ctl;
     try {
-      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ question, history, place: { key: place.key, label: place.label } }) });
+      const r = await safeFetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, signal: ctl.signal, body: JSON.stringify({ question, history, place: { key: place.key, label: place.label } }) });
       if ((r.headers.get("content-type") ?? "").includes("ndjson") && r.body) {
         let finished = false;
         await readStream(r, (e) => {
@@ -275,7 +276,7 @@ export function Consultant() {
                       <button
                         type="button"
                         onClick={async () => {
-                          const r = await fetch("/api/agents/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: m.text }) });
+                          const r = await safeFetch("/api/agents/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: m.text }) });
                           const j = (await r.json()) as { ok?: boolean; error?: string; items?: number; refused?: string[] };
                           setLog((l) => l.map((x, n) => (n === i ? { ...x, drafted: r.ok ? `انعملت مسودة (${j.items ?? 0} تغيير) — بانتظارك بـ «المهام»${j.refused?.length ? ` · انشال: ${j.refused.join("، ")}` : ""}` : j.error ?? "ما زبط" } : x)));
                         }}

@@ -31,6 +31,9 @@ export function lastOmsSync(runs: RunRow[]): Date | null {
   return hit ? (hit.finishedAt ?? hit.startedAt) : null;
 }
 
+/** The slot of the one pull that follows a (re)link: its own name, so the hour's slot (maybe already used by a «not linked» skip) does not hold it back. */
+export const linkSlot = (linkedAt: Date | null): string | null => (linkedAt ? `link-${linkedAt.getTime()}` : null);
+
 export function omsStale(last: Date | null, now: Date = new Date()): boolean {
   return !last || now.getTime() - last.getTime() > STALE_AFTER_H * HOUR;
 }
@@ -38,13 +41,16 @@ export function omsStale(last: Date | null, now: Date = new Date()): boolean {
 /**
  * Whether this hour's slot should leave the OMS alone. Counts the failures since the last real sync (skipped and
  * backed-off slots neither break nor extend the run), and waits 2^(n−1) hours after the latest, capped at 8.
+ * `linkedAt`: when the address or token was last saved from the site — failures up to then are ignored.
  */
-export function omsBackoff(runs: RunRow[], now: Date = new Date()): { wait: boolean; failures: number; until: Date | null } {
+export function omsBackoff(runs: RunRow[], now: Date = new Date(), linkedAt: Date | null = null): { wait: boolean; failures: number; until: Date | null } {
   const recent = [...runs].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
   let failures = 0;
   let lastFailure: Date | null = null;
   for (const r of recent) {
     if (isRealSync(r)) break;
+    // R-26: a failure from before the link was (re)saved was the OMS «not linked» (or the old token) — it says nothing about the new one
+    if (linkedAt && r.startedAt.getTime() <= linkedAt.getTime()) break;
     if (isPause(r)) continue;
     if (r.status === "failed") {
       failures++;

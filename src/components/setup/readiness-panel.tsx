@@ -12,6 +12,7 @@ type Tone = "ok" | "warn" | "danger" | "muted";
 function verdict(r: ReadinessRow): { tone: Tone; word: string } {
   if (r.later && !r.linked) return { tone: "muted", word: "بعدين" };
   if (!r.linked) return { tone: "warn", word: "ناقص" };
+  if (r.last.trial) return { tone: "warn", word: "تجربة بس" };
   if (r.last.at && r.last.ok === false) return { tone: "danger", word: "آخر نداء فشل" };
   if (r.last.at) return { tone: "ok", word: "اشتغل" };
   return { tone: "warn", word: "مربوط — لسا ما صار نداء حقيقي" };
@@ -66,8 +67,8 @@ export function ReadinessPanel({ data }: { data: Readiness }) {
               <p className="text-xs text-fg-muted">
                 {r.last.at ? (
                   <>
-                    آخر نداء حقيقي: <time dateTime={r.last.at} className="text-fg">{when(r.last.at)}</time> — {r.last.ok ? "نجح" : "فشل"}
-                    {r.last.what ? ` (${r.last.what})` : ""}
+                    {r.last.trial ? "آخر تشغيل كان تجربة: " : "آخر نداء حقيقي: "}<time dateTime={r.last.at} className="text-fg">{when(r.last.at)}</time> — {r.last.trial ? "ما انبعت شي لميتا" : r.last.ok ? "نجح" : "فشل"}
+                    {r.last.what && !r.last.trial ? ` (${r.last.what})` : ""}
                   </>
                 ) : (
                   "ما صار ولا نداء حقيقي"

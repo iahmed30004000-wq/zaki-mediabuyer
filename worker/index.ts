@@ -39,10 +39,11 @@ import { startOverlay } from "../src/server/connections";
 import { metaToken, syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
-import { omsBackoff } from "../src/jobs/oms-health";
+import { linkSlot, omsBackoff } from "../src/jobs/oms-health";
 import { runRules } from "../src/jobs/rules-run";
 import { intakeDrive } from "../src/jobs/creative-intake";
 import { capiDataset, enqueueCapi, sendCapi } from "../src/jobs/capi";
+import { capiSendOn } from "../src/core/capi";
 import { checkAccounts, storeAttributionHealth } from "../src/jobs/account-safety";
 import { runScale } from "../src/jobs/scale-run";
 import { storePeriodReport } from "../src/jobs/weekly-report";
@@ -55,7 +56,9 @@ import { weeklyCreativeRequests } from "../src/agents/strategist";
 import { readAlerts, sendAlerts } from "../src/jobs/alerts";
 import { MetaClient } from "../src/meta/client";
 import { writeMode } from "../src/meta/write";
-import { metaWriteGate, requireKeys } from "../src/core/readiness";
+import { metaWriteGate, missingText, requireKeys } from "../src/core/readiness";
+import { getSetting } from "../src/server/settings";
+import { isEmptyReport } from "../src/core/report-empty";
 import { uploadReadyCreatives } from "../src/jobs/creative-upload";
 import { driveFromEnv } from "../src/adapters/drive";
 import { intakeStudioDrive } from "../src/jobs/studio-intake";
@@ -96,17 +99,27 @@ export async function tick(now = new Date()) {
   }
   if (t.hour > 2 || (t.hour === 2 && t.minute >= 30)) await runOnce("db.backup", t.date, () => dailyBackup(db, now), { retries: JOB_RETRIES["db.backup"] });
   if (t.hour >= 3) await runOnce("meta.final", t.date, () => syncMeta({ since: iso(new Date(utcDay(t.date).getTime() - 8 * DAY)), until: yesterday }));
-  if (t.minute >= 5) {
-    await runOnce("oms.sync", `${t.date}T${t.hour}`, async () => {
-      requireKeys("oms");
-      const o = omsOptions();
-      if (!o) return { skipped: "OMS not linked (demo)" };
-      // After failures, leave the OMS alone for 1 h, 2 h, 4 h, then 8 h (src/jobs/oms-health.ts).
-      const runs = await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 });
-      const back = omsBackoff(runs, now);
-      if (back.wait) return { skipped: "backoff", backoff: true, failures: back.failures, until: back.until?.toISOString() };
-      return syncOms(o, new Date(now.getTime() - 3 * DAY));
-    });
+  {
+    // R-26: saving the OMS address or token pulls at the very next turn (its own slot), not at the next hour
+    const linkedIso = await getSetting("oms.linkedAt").catch(() => null);
+    const linkedAt = linkedIso ? new Date(linkedIso) : null;
+    const lslot = linkSlot(linkedAt && !Number.isNaN(linkedAt.getTime()) ? linkedAt : null);
+    const linkRan = lslot ? await db.jobRun.findUnique({ where: { job_slot: { job: "oms.sync", slot: lslot } } }) : true;
+    const pullNow = !!lslot && !linkRan && !!omsOptions();
+    if (pullNow || t.minute >= 5) {
+      await runOnce("oms.sync", pullNow ? lslot! : `${t.date}T${t.hour}`, async () => {
+        const o = omsOptions();
+        // R-26: «not linked» is a skip with the sentence, not a failure — a failure counts against the OMS
+        if (!o) return { skipped: missingText("oms") ?? "OMS not linked" };
+        // After failures, leave the OMS alone for 1 h, 2 h, 4 h, then 8 h (src/jobs/oms-health.ts) — except the pull that follows a new link.
+        if (!pullNow) {
+          const runs = await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 });
+          const back = omsBackoff(runs, now, linkedAt);
+          if (back.wait) return { skipped: "backoff", backoff: true, failures: back.failures, until: back.until?.toISOString() };
+        }
+        return syncOms(o, new Date(now.getTime() - 3 * DAY));
+      });
+    }
   }
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
   if (t.minute >= 15) await runOnce("rules", `${t.date}T${t.hour}`, () => runRules(now));
@@ -149,6 +162,8 @@ export async function tick(now = new Date()) {
   // the site's own clock for workflows with a schedule (off unless SITE_SCHEDULER=1): every minute
   await runOnce("workflow.schedule", `${t.date}T${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`, () => runScheduled(now));
   await runOnce("capi.send", quarter, async () => {
+    // R-11: the OMS is the only sender of conversion events (owner, 17/11): off unless CAPI_SEND=1
+    if (!capiSendOn()) return { skipped: "CAPI_SEND is off — the OMS sends the conversion events" };
     const queued = await enqueueCapi(now);
     const gate = metaWriteGate(process.env, !!(await metaToken()));
     if (gate.error) throw new Error(gate.error);
@@ -197,7 +212,10 @@ export async function tick(now = new Date()) {
   if (t.hour >= 9) {
     await runOnce("report.morning", t.date, async () => {
       const text = await buildMorningReport(utcDay(yesterday));
-      await db.report.upsert({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, create: { kind: "morning", forDate: utcDay(yesterday), text }, update: { text } });
+      // U-07: a report with nothing in it is kept (marked) but never sent — it only covered the real ones
+      const empty = isEmptyReport("morning", text);
+      await db.report.upsert({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, create: { kind: "morning", forDate: utcDay(yesterday), text, empty }, update: { text, empty } });
+      if (empty) return { empty: true, chars: text.length };
       const tg = telegramFromEnv();
       if (!tg) {
         requireKeys("telegram");

@@ -142,7 +142,8 @@ export function computeSet(raw: Raw, ctx: Ctx): NumbersSet {
   const knownOrders = known.reduce((s, o) => s + o.orders, 0);
   const upsold = known.filter((o) => (o.pieces ?? 0) >= 2).reduce((s, o) => s + o.orders, 0);
 
-  const confirmedAndRejected = raw.confirmed === null && raw.rejected === null ? null : (raw.confirmed ?? 0) + (raw.rejected ?? 0);
+  // R-20: with the rejected count unknown (the OMS pull leaves it empty) the rate is NOT 100% — it is not known
+  const confirmedAndRejected = raw.confirmed === null || raw.rejected === null ? null : raw.confirmed + raw.rejected;
 
   // the money of today's shipments: what will be collected, what the goods and the delivery cost, what the ads took
   const expectedRevenue = raw.revenueShipped !== null && rate !== null ? raw.revenueShipped * rate : raw.expectedRevenuePushed;

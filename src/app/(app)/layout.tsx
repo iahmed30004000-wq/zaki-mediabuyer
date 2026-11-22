@@ -17,13 +17,21 @@ import { countWaiting } from "@/lib/inbox-count";
 import { loadPages } from "@/lib/ui-view";
 import { currentCaller } from "@/server/auth";
 import { loadDirectory } from "@/server/directory";
+import { db } from "@/server/db";
+
+/** The ad accounts the full stop can be aimed at: the REAL ones (never the demo list). In the demo the list is empty — «كل الحسابات» only. */
+async function loadStopAccounts(): Promise<{ id: string; name: string }[]> {
+  if (isDemo(process.env)) return [];
+  const rows = await db.adAccount.findMany({ select: { metaId: true, name: true }, orderBy: { name: "asc" } }).catch(() => []);
+  return rows.map((a) => ({ id: a.metaId, name: a.name }));
+}
 
 /** Every screen: the side menu (desktop) or the bottom bar (phone), the page header, and ONE line when the site is on the demo data. */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await currentCaller();
   // a person who is not signed in goes to the door
   if (!me) redirect("/login");
-  const [pages, inbox, directory] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => [])]);
+  const [pages, inbox, directory, accounts] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => []), loadStopAccounts()]);
   // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
   const path = headers().get("x-pathname") ?? "/";
   if (me && path === "/" && !hasHome(me.role)) redirect(ROLE_START[me.role]);
@@ -33,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <MissionProvider>
       <PeopleProvider people={directory.map((d) => ({ key: d.key, label: d.name }))}>
-      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} caps={me ? capabilitiesOf(me.role) : undefined}>
+      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} caps={me ? capabilitiesOf(me.role) : undefined} stopAccounts={accounts}>
         <div className="flex min-h-dvh">
           <Sidebar />
           <div className="min-w-0 flex-1">

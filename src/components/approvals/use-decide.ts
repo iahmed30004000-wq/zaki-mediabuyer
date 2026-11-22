@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import type { ApprovalView } from "@/server/approvals";
+import { safeFetch } from "@/lib/call";
 
 export type DecideAction = "approve" | "reject" | "postpone" | "cancel";
 
@@ -23,7 +24,7 @@ export function useDecide(id: string, after?: (a: ApprovalView, action: DecideAc
     if (busy) return null;
     setBusy(true);
     try {
-      const r = await fetch(`/api/approvals/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+      const r = await safeFetch(`/api/approvals/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; approval?: ApprovalView; demo?: boolean };
       if (!r.ok) {
         toast(d.error ?? "صار خطأ", "error");

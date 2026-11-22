@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { addDays } from "@/core/dates";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 
 /** The day switcher — امبارح · اليوم · بكرا · any date — and «شارك» (the PDF of the day, and the summary on Telegram). */
 export function DayControls({ day, today }: { day: string; today: string }) {
@@ -26,7 +27,7 @@ export function DayControls({ day, today }: { day: string; today: string }) {
   async function telegram() {
     setBusy(true);
     try {
-      const r = await fetch(`/api/done/share?day=${day}`, { method: "POST" });
+      const r = await safeFetch(`/api/done/share?day=${day}`, { method: "POST" });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       toast(d.demo ? "بالوضع التجريبي ما انبعت شي" : "انبعت الملخص على تيليجرام ✓", d.demo ? "info" : "success");

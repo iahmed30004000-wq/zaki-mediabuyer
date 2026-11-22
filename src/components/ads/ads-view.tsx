@@ -19,6 +19,7 @@ import { AdsTable } from "./ads-table";
 import { LaunchWizard } from "./launch-wizard";
 import { StatusChip } from "./status-chip";
 import type { ExperimentView, LaunchOptions } from "@/lib/launch-view";
+import { safeFetch } from "@/lib/call";
 
 const EXP_STATUS: Record<ExperimentView["status"], { l: string; c: string }> = {
   planned: { l: "بانتظار موافقتك", c: "text-warn" },
@@ -198,7 +199,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
     : null;
 
   async function proposeRaise(r: TreeRow) {
-    const res = await fetch("/api/objects/scale", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: r.level, objectId: r.id }) });
+    const res = await safeFetch("/api/objects/scale", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: r.level, objectId: r.id }) });
     const d = (await res.json().catch(() => ({}))) as { error?: string; demo?: boolean; state?: string; before?: number; after?: number };
     onClose();
     if (!res.ok) toast(d.error ?? "صار خطأ", "error");
@@ -266,7 +267,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
                 <Button
                   variant="secondary"
                   onClick={async () => {
-                    const r = await fetch("/api/objects/pause", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: row.level, objectId: row.id }) });
+                    const r = await safeFetch("/api/objects/pause", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ objectType: row.level, objectId: row.id }) });
                     const d = (await r.json().catch(() => ({}))) as { error?: string; state?: string; demo?: boolean };
                     onClose();
                     if (!r.ok) toast(d.error ?? "صار خطأ", "error");

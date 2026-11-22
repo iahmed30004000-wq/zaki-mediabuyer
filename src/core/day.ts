@@ -5,6 +5,7 @@
  */
 import { addDays, ammanKey, keyMs } from "./dates";
 import { assigneeName } from "./tasks";
+import { reachedMeta, trialSentence } from "./reached-meta";
 
 export type ItemKind = "run" | "decision" | "approval" | "task" | "video" | "handoff" | "scheduled" | "due" | "expiry";
 export type Tone = "ok" | "warn" | "danger";
@@ -100,10 +101,11 @@ const signed = (n: number) => `${n > 0 ? "+" : ""}${Math.round(n * 100) / 100}$ 
  * An executed change, credited to whoever decided it: a person who approved it (or asked for it) → the owner; a rule or the
  * kill switch that acted by itself → the system; an agent's proposal nobody approved → «وكيل».
  */
-export function decisionItem(c: { source: string; sentence: string; at: string; spendDeltaDaily: number; approvedBy?: string | null }): DayItem {
+export function decisionItem(c: { source: string; sentence: string; at: string; spendDeltaDaily: number; approvedBy?: string | null; /** the change set's mode: "live" only when it really went to Meta */ writeMode: string }): DayItem {
   const byAPerson = !!c.approvedBy && !c.approvedBy.startsWith("level-");
   const actor = byAPerson || c.source === "user" || c.source === "telegram" ? "owner" : c.source === "agent" ? "agent" : "system";
-  return { at: c.at, actor, kind: "decision", text: c.sentence, numbers: c.spendDeltaDaily ? [signed(c.spendDeltaDaily)] : [], href: "/inbox/done" };
+  // R-22: a trial is said to be a trial ("تجربة: ..."), never as if it happened on Meta
+  return { at: c.at, actor, kind: "decision", text: trialSentence(reachedMeta({ writeMode: c.writeMode }), c.sentence), numbers: c.spendDeltaDaily ? [signed(c.spendDeltaDaily)] : [], href: "/inbox/done" };
 }
 
 const APPROVAL_AR: Record<string, string> = { approved: "وافق على", rejected: "رفض", postponed: "أجّل", cancelled: "ألغى" };
@@ -118,8 +120,9 @@ export function taskDoneItem(t: { title: string; at: string; assignee: string | 
 }
 
 const VIDEO_AR: Record<string, string> = { ready: "جاهز", uploaded: "انرفع لميتا", live: "شغّال", tired: "تعب" };
-export function videoItem(v: { vName: string; job: string; status: string; at: string }): DayItem | null {
-  const s = VIDEO_AR[v.status];
+/** `reached`: Meta is really written to (META_WRITE_MODE=live and verified). When it is not, «انرفع لميتا» is not said: nothing was sent. */
+export function videoItem(v: { vName: string; job: string; status: string; at: string }, reached: boolean): DayItem | null {
+  const s = v.status === "uploaded" && !reached ? "تجربة: ما انبعت لميتا" : VIDEO_AR[v.status];
   return s ? { at: v.at, actor: "claude", kind: "video", text: `فيديو ${v.vName} (${v.job}): ${s}`, href: "/ads/videos" } : null;
 }
 

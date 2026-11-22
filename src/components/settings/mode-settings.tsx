@@ -9,6 +9,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Input, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import type { NightPermission, OwnerMode } from "@/core/mode";
+import { safeFetch } from "@/lib/call";
 
 /**
  * «صاحي ونايم»: the schedule (awake from … asleep from …), the jobs that may run while he sleeps — each with the most it
@@ -28,7 +29,7 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
   async function save(patch: Record<string, unknown>) {
     setBusy(true);
     try {
-      const r = await fetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+      const r = await safeFetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       toast(d.demo ? "بالوضع التجريبي ما تغيّر شي" : "انحفظ ✓", d.demo ? "info" : "success");

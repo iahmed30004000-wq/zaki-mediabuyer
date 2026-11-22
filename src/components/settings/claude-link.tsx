@@ -6,6 +6,7 @@ import { Panel } from "@/components/mb/section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
+import { safeFetch } from "@/lib/call";
 
 interface TokenRow {
   id: string;
@@ -31,7 +32,7 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
   const [name, setName] = useState("Claude الرئيسي");
 
   const load = useCallback(async () => {
-    const r = await fetch("/api/mcp/tokens");
+    const r = await safeFetch("/api/mcp/tokens");
     if (!r.ok) return setTokens([]);
     const d = (await r.json()) as { tokens: TokenRow[]; url: string; handoffUrl?: string };
     setTokens(d.tokens);
@@ -43,7 +44,7 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
   }, [load]);
 
   async function call(u: string, init: RequestInit) {
-    const r = await fetch(u, { ...init, headers: { "content-type": "application/json" } });
+    const r = await safeFetch(u, { ...init, headers: { "content-type": "application/json" } });
     const d = (await r.json().catch(() => ({}))) as { error?: string; token?: string };
     if (!r.ok) toast(d.error ?? "صار خطأ", "error");
     return r.ok ? d : null;

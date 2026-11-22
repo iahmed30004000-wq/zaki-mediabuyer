@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { originOf, pairedSecrets } from "@/core/connections";
 
-const s = vi.hoisted(() => ({ rows: new Map<string, { name: string; secret: boolean; valuePlain: string | null; valueEnc: string | null }>(), audits: [] as string[] }));
+const s = vi.hoisted(() => ({ rows: new Map<string, { name: string; secret: boolean; valuePlain: string | null; valueEnc: string | null }>(), audits: [] as string[], settings: [] as [string, unknown][] }));
 
 vi.mock("@/server/db", () => ({
   db: {
@@ -19,6 +19,7 @@ vi.mock("@/server/db", () => ({
     },
   },
 }));
+vi.mock("@/server/settings", () => ({ setSetting: async (k: string, v: unknown) => void s.settings.push([k, v]) }));
 vi.mock("@/server/audit", () => ({ audit: async (_a: unknown, action: string) => void s.audits.push(action) }));
 vi.mock("@/server/auth", () => ({
   HttpError: class extends Error {
@@ -35,6 +36,7 @@ const ENV_KEYS = ["OMS_BASE_URL", "OMS_TOKEN", "OMS_EVENT_SECRET", "REPLIES_BASE
 beforeEach(async () => {
   s.rows.clear();
   s.audits.length = 0;
+  s.settings.length = 0;
   for (const k of ENV_KEYS) delete process.env[k];
   await reloadOverlay();
 });
@@ -93,5 +95,13 @@ describe("saving an address", () => {
   it("a first address (nothing to protect yet) is saved as before", async () => {
     await expect(saveField("OMS_BASE_URL", "https://crm.zakiai.io", "u1")).resolves.toBeDefined();
     expect(s.audits).not.toContain("connection.unpair");
+  });
+
+  it("saving the OMS address or token marks the link time (R-26); another field does not", async () => {
+    await saveField("OMS_BASE_URL", "https://crm.zakiai.io", "u1");
+    await saveField("OMS_TOKEN", "tok-123456789", "u1");
+    await saveField("OMS_EVENT_SECRET", "sec-123456789", "u1");
+    expect(s.settings.map(([k]) => k)).toEqual(["oms.linkedAt", "oms.linkedAt"]);
+    expect(Number.isNaN(Date.parse(String(s.settings[0]![1])))).toBe(false);
   });
 });

@@ -5,6 +5,7 @@
  */
 import { handoffNeedsOwner, fromAdvice, fromApproval, fromOrder, fromChange, fromHandoff, inboxFor, sortInbox, splitItemId, type InboxDomain, type InboxItem } from "@/core/inbox";
 import { isDemo } from "@/core/readiness";
+import { trialSentence } from "@/core/reached-meta";
 import { can } from "@/core/roles";
 import { loadChanges, type ChangeView } from "@/lib/changes-view";
 import type { Caller } from "./auth";
@@ -85,6 +86,7 @@ const OUTCOME: Record<string, { text: string; tone: DoneItem["tone"] }> = {
   expired: { text: "انتهى وقته", tone: "neutral" },
   executed: { text: "تنفّذ", tone: "ok" },
   rolled_back: { text: "انرجع", tone: "neutral" },
+  executing: { text: "عم يتنفّذ", tone: "neutral" },
   failed: { text: "فشل", tone: "danger" },
 };
 
@@ -98,8 +100,11 @@ export async function loadInboxDone(_caller: Caller, opts: { days?: number; auto
   const fromChanges: DoneItem[] = changes
     .filter((c) => c.state !== "pending_approval")
     .map((c) => {
-      const o = OUTCOME[c.state] ?? { text: c.state, tone: "neutral" as const };
-      return { id: `change:${c.id}`, title: c.sentence, outcome: o.text, tone: o.tone, by: c.auto ? c.by : "إنت", at: c.atIso ?? c.at, auto: c.auto, canRollback: c.state === "executed" && c.live, href: `/inbox/${encodeURIComponent(`change:${c.id}`)}` };
+      const base = OUTCOME[c.state] ?? { text: c.state, tone: "neutral" as const };
+      // R-22: a change that ran as a trial says so — «تنفّذ» is only for what really reached Meta
+      const trial = c.state === "executed" && !c.reached;
+      const o = trial ? { text: "تجربة: ما انبعت لميتا", tone: "neutral" as const } : base;
+      return { id: `change:${c.id}`, title: c.state === "executed" ? trialSentence(c.reached, c.sentence) : c.sentence, outcome: o.text, tone: o.tone, by: c.auto ? c.by : "إنت", at: c.atIso ?? c.at, auto: c.auto, canRollback: c.state === "executed" && c.live, href: `/inbox/${encodeURIComponent(`change:${c.id}`)}` };
     });
   const fromApprovals: DoneItem[] = approvals.map((a) => {
     const o = OUTCOME[a.status] ?? { text: a.status, tone: "neutral" as const };

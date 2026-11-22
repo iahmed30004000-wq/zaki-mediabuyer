@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import type { OpsRules } from "@/core/ops";
+import { safeFetch } from "@/lib/call";
 
 const show = (n: number | null) => (n === null ? "" : String(n));
 const read = (s: string): number | null => (s.trim() === "" || !Number.isFinite(Number(s)) ? null : Number(s));
@@ -24,7 +25,7 @@ export function OpsRulesForm({ initial }: { initial: OpsRules }) {
     setBusy(true);
     try {
       const m = read(margin);
-      const r = await fetch("/api/settings/ops.rules", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ value: { stuckMax: read(stuck), noAnswerMargin: m === null ? null : m / 100, newDays: read(days) } }) });
+      const r = await safeFetch("/api/settings/ops.rules", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ value: { stuckMax: read(stuck), noAnswerMargin: m === null ? null : m / 100, newDays: read(days) } }) });
       const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       toast(d.demo ? "بالوضع التجريبي ما تغيّر شي" : "انحفظت حدودك ✓", d.demo ? "info" : "success");
