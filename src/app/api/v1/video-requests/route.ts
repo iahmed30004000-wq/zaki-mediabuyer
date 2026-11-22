@@ -16,5 +16,5 @@ export async function GET(req: Request) {
     const status = (q.get("status") ?? "asked,with_hermes").split(",").map((s) => s.trim()).filter((s): s is RequestStatus => (REQUEST_STATUSES as readonly string[]).includes(s));
     const limit = Number(q.get("limit") ?? 50);
     return NextResponse.json({ requests: await listVideoRequests({ status, product: q.get("product") ?? undefined, limit: Number.isFinite(limit) ? limit : 50 }) });
-  });
+  }, "videos");
 }

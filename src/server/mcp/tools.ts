@@ -1,6 +1,6 @@
 /**
  * THE TOOLS CLAUDE HAS HERE (v4 · A). Names stay English, descriptions are Arabic (that is what the model reads).
- * Twelve tools, none of which can spend, delete, or approve anything:
+ * Twenty-three tools, none of which can spend, delete, or approve anything:
  *
  *   push_metrics · push_stock · push_videos   the numbers Claude read from Ads Manager, the OMS, the stock sheet, Drive
  *   log_run                                   a job run — it moves the matching workflow on الورك فلو
@@ -16,7 +16,7 @@ import { MetricRow, StockRow, VideoRow, refuseIfPrivate } from "@/core/push-rows
 import type { ToolDef, ToolResult } from "@/core/mcp-rpc";
 import type { Actor } from "../audit";
 import { db } from "../db";
-import { ApprovalInput, APPROVAL_STATUSES, Refused, listApprovals, requestApproval } from "../approvals";
+import { ApprovalInput, APPROVAL_STATUSES, Refused, ackApproval, listApprovals, requestApproval } from "../approvals";
 import { currentMode } from "../mode";
 import { createNotification, dispatchNotification } from "../notify";
 import { applyMetrics, applyStock, applyVideos } from "../push";
@@ -34,6 +34,8 @@ export interface McpCtx {
   tokenId: string;
   tokenName: string;
   actor: Actor;
+  /** which agent of the team directory the token is (Actor.key); null for an older token that is tied to nobody */
+  actorKey?: string | null;
 }
 
 const ok = (text: string, data?: Record<string, unknown>): ToolResult => ({ text: data ? `${text}\n${JSON.stringify(data)}` : text, data });
@@ -96,14 +98,17 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     name: "log_run",
     title: "سجّل تشغيل",
     description:
-      "سجّل تشغيل مهمة (مفتاح الورك فلو). بأول البدء ابعت status=running مع ref ثابت، وبعدين حدّث الخطوات (node/nodes) وبالآخر ok أو failed مع summary سطر وحد وأرقام. الورك فلو عند المالك بيتحرك لحظياً (الخطوط والخطوات). الجواب بيقلك إذا المالك طفّا هالمهمة (enabled=false) — وقتها وقّف.",
+      "سجّل تشغيل مهمة (مفتاح الورك فلو). ref ثابت لكل تشغيل لازم (بلاه بينرفض). بأول البدء ابعت status=running مع ref وscheduled_for (موعد التشغيل)، وبعدين حدّث الخطوات (node/nodes: بأول كل خطوة running وبآخرها done أو failed مع error) وبالآخر ok أو failed مع summary سطر وحد وأرقام. تشغيل طويل: heartbeat=true كل 20 دقيقة. تشغيل خلص ما بينفتح من جديد. الجواب بيقلك: enabled=false (المالك طفّا المهمة) · disabled_steps (خطوات طفّاها المالك: تخطّاها) · stop=true (المالك لغى التشغيل) — وقتها وقّف.",
     input: LogRunInput,
     readOnly: false,
     run: async (a, ctx) => {
       try {
-        const r = await logRun(a as z.infer<typeof LogRunInput>, ctx.actor, "mcp");
-        const note = r.workflow.enabled ? "" : " ⚠️ المالك طفّا هالورك فلو (enabled=false) — لا تكمّل.";
-        return ok(`${r.created ? "سُجّل" : "تحدّث"} تشغيل «${r.workflow.name}» — ${r.run.status}.${note}`, { run: r.run, workflow: r.workflow });
+        const r = await logRun(a as z.infer<typeof LogRunInput>, ctx.actor, "mcp", new Date(), { actorKey: ctx.actorKey });
+        const note =
+          (r.workflow.enabled ? "" : " ⚠️ المالك طفّا هالورك فلو (enabled=false) — لا تكمّل.") +
+          (r.stop ? " ⛔ المالك لغى هالتشغيل (stop=true) — وقّف." : "") +
+          (r.disabled_steps.length ? ` الخطوات المطفية: ${r.disabled_steps.join("، ")} — تخطّاها.` : "");
+        return ok(`${r.created ? "سُجّل" : "تحدّث"} تشغيل «${r.workflow.name}» — ${r.run.status}.${note}`, { run: r.run, workflow: r.workflow, disabled_steps: r.disabled_steps, stop: r.stop, orders_changed_at: r.orders_changed_at });
       } catch (e) {
         if (e instanceof UnknownJob) return fail(`المفتاح مش معروف. المفاتيح: ${e.known.join("، ")}. أو ابعت create_if_missing=true لورك فلو جديد.`);
         if (e instanceof RunRefused) return fail(e.message);
@@ -178,7 +183,7 @@ export const TOOLS: ToolDef<McpCtx>[] = [
   {
     name: "get_approvals",
     title: "اقرا قرارات المالك",
-    description: "اقرا الطلبات المفتوحة وقرارات آخر 48 ساعة: approved (موافق) · rejected (رفض) · postponed (مأجّل لـ postponed_until) · cancelled (ألغاه) · expired (انتهى بلا جواب) · pending (لسا). نفّذ جوّا القواعد بس على اللي انوافق عليه، ولا تعيد طلب انرفض.",
+    description: "اقرا الطلبات المفتوحة وقرارات آخر 48 ساعة اللي ما نفّذتها لسا: approved (موافق) · rejected (رفض) · postponed (مأجّل لـ postponed_until) · cancelled (ألغاه) · expired (انتهى بلا جواب) · pending (لسا). نفّذ جوّا القواعد بس على اللي انوافق عليه، ولا تعيد طلب انرفض. بعد ما تنفّذ قرار ابعت ack_approval عشان ما يرجع يتعرض عليك.",
     input: z
       .object({
         status: z.array(z.enum(APPROVAL_STATUSES)).max(6).optional(),
@@ -194,6 +199,22 @@ export const TOOLS: ToolDef<McpCtx>[] = [
       if (since && Number.isNaN(since.getTime())) return fail("since: وقت مش صحيح");
       const list = await listApprovals({ status: i.status, ids: i.ids, since, limit: i.limit });
       return ok(`${list.length} طلب`, { approvals: list });
+    },
+  },
+  {
+    name: "ack_approval",
+    title: "نفّذت هالقرار",
+    description: "بعد ما تنفّذ قرار المالك (موافق أو رفض أو أي قرار انحسم) ابعت id الطلب: بيتعلّم «انعمل عليه» وما بيرجع يطلع بـ get_approvals. ما بتقدر تعمل ack لطلب لسا ما انقرر.",
+    input: z.object({ id: z.string().trim().min(1).max(40) }).strict(),
+    readOnly: false,
+    run: async (a, ctx) => {
+      try {
+        const r = await ackApproval((a as { id: string }).id, ctx.actor);
+        return ok(`تعلّم «${r.title}» — انعمل عليه.`, { approval: r });
+      } catch (e) {
+        if (e instanceof Refused) return fail(e.message);
+        throw e;
+      }
     },
   },
   {
@@ -292,31 +313,32 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     name: "get_handoffs",
     title: "شو مسلَّم إلك؟",
     description:
-      "اقرا طابور التسليم: شغل المالك ضغط عليه «شغّل هلق»، أو خطوة وقفت وبدها حدا يكمّلها. كل بند فيه شو المطلوب والخطوات والمدخلات وآخر خطأ ومعرّف التشغيل (run_ref). الافتراضي: المفتوح والمأخود المسلَّم لـ Claude. اقراها بأول كل تشغيل وبين المهام.",
+      "اقرا طابور التسليم: شغل المالك ضغط عليه «شغّل هلق»، أو خطوة وقفت وبدها حدا يكمّلها. كل بند فيه شو المطلوب والخطوات والمدخلات وآخر خطأ ومعرّف التشغيل (run_ref). الافتراضي: المفتوح والمأخود المسلَّم لتوكنك (اللي مكلّف فيه وكيلك). اقراها بأول كل تشغيل وكل 10 دقايق.",
     input: z
       .object({
-        assignee: z.string().trim().min(1).max(40).optional().describe("الافتراضي claude (كل أنواع Claude). أو hermes · muse · مفتاح شخص"),
+        assignee: z.string().trim().min(1).max(40).optional().describe("الافتراضي: وكيل توكنك (Claude = كل أنواع Claude). أو hermes · muse · مفتاح شخص"),
         status: z.array(z.enum(HANDOFF_STATUSES)).max(4).optional().describe("الافتراضي open + claimed"),
         workflow: z.string().trim().min(1).max(60).optional(),
       })
       .strict(),
     readOnly: true,
-    run: async (a) => {
+    run: async (a, ctx) => {
       const q = a as { assignee?: string; status?: (typeof HANDOFF_STATUSES)[number][]; workflow?: string };
-      const list = await listHandoffs({ assignee: q.assignee ?? "claude", status: q.status, workflow: q.workflow });
+      const list = await listHandoffs({ assignee: q.assignee ?? ctx.actorKey ?? "claude", status: q.status, workflow: q.workflow });
       return ok(list.length ? `في ${list.length} مسلَّم: ${list.slice(0, 5).map((h) => `«${h.title}» (${h.workflowKey})`).join("، ")}` : "ما في شي مسلَّم هلأ.", { handoffs: list });
     },
   },
   {
     name: "claim_handoff",
     title: "خذ تسليم",
-    description: "خذ تسليم قبل ما تبلّش فيه — الورك فلو بيصير «عم يشتغل» والمالك بيشوف إنه عندك. اللي أخدها قبلك بيجيك خطأ.",
+    description: "خذ تسليم قبل ما تبلّش فيه — الورك فلو بيصير «عم يشتغل» والمالك بيشوف إنه عندك. بس المكلّف فيه بياخده، واللي أخدها قبلك بيجيك خطأ. الجواب فيه claim: رمز الاستلام، ابعته مع complete_handoff. إذا سكتّ (ما سجّلت log_run) أكتر من مدة التشغيل بيرجع للطابور.",
     input: z.object({ id: z.string().trim().min(1).max(40) }).strict(),
     readOnly: false,
     run: async (a, ctx) => {
       try {
-        const h = await claimHandoff((a as { id: string }).id, ctx.tokenName, ctx.actor);
-        return ok(`أخدت «${h.title}». نفّذ الخطوات وسجّلها بـ log_run (job=${h.workflowKey}, ref=${h.runRef}) وبعدين complete_handoff.`, { handoff: h });
+        const r = await claimHandoff((a as { id: string }).id, ctx.tokenName, ctx.actor, new Date(), { actorKey: ctx.actorKey });
+        const h = r.handoff;
+        return ok(`أخدت «${h.title}». نفّذ الخطوات وسجّلها بـ log_run (job=${h.workflowKey}, ref=${h.runRef}) وبعدين complete_handoff مع claim=${r.claim}`, { handoff: h, claim: r.claim });
       } catch (e) {
         if (e instanceof HandoffRefused) return fail(e.message);
         throw e;
@@ -327,13 +349,13 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     name: "complete_handoff",
     title: "جاوب تسليم",
     description:
-      "جاوب تسليم: سطر شو انعمل (note) وأرقام النتيجة (result). تشغيل طلبه المالك بيخلص (ok) بالجواب؛ خطوة واقفة بتتفكّ وتكمّل إنت (أو قول run_status=ok/failed). ما في صرف ولا موافقة هون — اللي بدو موافقة المالك بيروح request_approval.",
+      "جاوب تسليم: سطر شو انعمل (note) وأرقام النتيجة (result) ورمز الاستلام (claim). بلا run_status حالة التشغيل ما بتنقلب: تشغيل خلص بيضل متل ما خلص، وتشغيل طلبه المالك وما فشلت خطوة منه بيصير ok، وخطوة واقفة بتتفكّ وتكمّل إنت (أو قول run_status=ok/failed). ما في صرف ولا موافقة هون — اللي بدو موافقة المالك بيروح request_approval.",
     input: HandoffComplete.extend({ id: z.string().trim().min(1).max(40) }).strict(),
     readOnly: false,
     run: async (a, ctx) => {
       const { id, ...rest } = a as { id: string } & z.infer<typeof HandoffComplete>;
       try {
-        const r = await completeHandoff(id, rest, ctx.tokenName, ctx.actor);
+        const r = await completeHandoff(id, rest, ctx.tokenName, ctx.actor, new Date(), { actorKey: ctx.actorKey });
         return ok(`انجاوب «${r.handoff.title}» — التشغيل ${r.run?.status ?? "—"}.`, { handoff: r.handoff, run: r.run });
       } catch (e) {
         if (e instanceof HandoffRefused) return fail(e.message);
@@ -417,9 +439,9 @@ export const SERVER_INSTRUCTIONS = [
   "هاد سيرفر الميديا باير. ابعتله الأرقام اللي قريتها (push_metrics · push_stock · push_videos)، وسجّل كل تشغيل (log_run)، واسأل المالك (request_approval) واقرا جوابه (get_approvals).",
   "قبل أي شي بدو المالك: get_mode (صاحي/نايم). وبأول كل تشغيل: get_rules — اشتغل على آخر نسخة، وإذا رقم ناقص قول للمالك ولا تخمّن.",
   "لا بتبعت أبداً اسم زبون أو هاتفه أو عنوانه (بينرفض). الصرف والتصنيع ورفع السقف وأي شي برّا القواعد: قرار المالك — اطلبه بـ request_approval ولا تنفّذه قبل ما يوافق.",
-  "المالك بيضغط «شغّل هلق» على ورك فلو، وأي خطوة بتوقف: بتنزل بطابور التسليم. اقرا get_handoffs بأول كل تشغيل، خذ البند (claim_handoff)، نفّذه وسجّله بـ log_run، وجاوب بـ complete_handoff. خطوة وقفت عندك: create_handoff بدل ما تخليها.",
+  "المالك بيضغط «شغّل هلق» على ورك فلو، وأي خطوة بتوقف: بتنزل بطابور التسليم. اقرا get_handoffs بأول كل تشغيل، خذ البند (claim_handoff) فبيرجّعلك رمز claim، نفّذه وسجّله بـ log_run (ref ثابت لازم)، وجاوب بـ complete_handoff مع الرمز. خطوة وقفت عندك: create_handoff بدل ما تخليها. بعد ما تنفّذ قرار للمالك: ack_approval.",
   "طلبات الفيديوهات (هوكات · سيناريو · تيست · فيديو تعبان): get_video_requests ← claim_video_request ← complete_video_request (مع new_videos لما يطلع فيديو جاهز).",
   "خريطة مهامك: ابعتها بـ push_jobs (replace=true) بعد أي تغيير بجدولتك، والجواب بيقلك أي مهمة طفّاها المالك. اقرا enabled بجواب log_run كمان.",
-  "كل نداء مسجّل. استعمل ref/key ثابت حتى لو أعدت المحاولة ما يتكرر شي.",
+  "كل نداء مسجّل. استعمل ref/key ثابت حتى لو أعدت المحاولة ما يتكرر شي. جواب log_run فيه disabled_steps (خطوات طفّاها المالك) وstop (لغى التشغيل).",
 ].join("\n");
 

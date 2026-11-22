@@ -10,11 +10,11 @@ export const dynamic = "force-dynamic";
  * Claude Desktop polls this, takes one (POST …/:id/claim), does it, and answers (POST …/:id/complete).
  */
 export async function GET(req: Request) {
-  return withHandoffToken(req, async () => {
+  return withHandoffToken(req, async ({ actorKey }) => {
     const q = new URL(req.url).searchParams;
     const status = (q.get("status") ?? "open,claimed").split(",").map((s) => s.trim()).filter((s): s is HandoffStatus => (HANDOFF_STATUSES as readonly string[]).includes(s));
     const limit = Number(q.get("limit") ?? 50);
-    const handoffs = await listHandoffs({ status, assignee: q.get("assignee") ?? undefined, workflow: q.get("workflow") ?? undefined, limit: Number.isFinite(limit) ? limit : 50 });
+    const handoffs = await listHandoffs({ status, assignee: q.get("assignee") ?? actorKey ?? "claude", workflow: q.get("workflow") ?? undefined, limit: Number.isFinite(limit) ? limit : 50 });
     return NextResponse.json({ handoffs });
   });
 }

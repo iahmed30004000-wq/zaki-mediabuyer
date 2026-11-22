@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
-import { RunRefused, WorkflowPatch, runsOf, updateWorkflow } from "@/server/workflows";
+import { RunRefused, WorkflowConflict, WorkflowPatch, runsOf, updateWorkflow } from "@/server/workflows";
 import { isDemo } from "@/core/readiness";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,10 @@ export async function GET(req: Request, { params: paramsP }: { params: Promise<{
   }
 }
 
-/** PATCH /api/workflow/:key — the owner edits a workflow, or switches it off (the kill switch of that job). Nothing is deleted. */
+/**
+ * PATCH /api/workflow/:key — the owner edits a workflow, or switches it off (the kill switch of that job). Nothing is deleted.
+ * `baseVersion` (the version of the drawing the page loaded) and `baseUpdatedAt` make it safe: if somebody saved since, the answer is 409 and nothing is written.
+ */
 export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
   const params = await paramsP;
   try {
@@ -31,6 +34,7 @@ export async function PATCH(req: Request, { params: paramsP }: { params: Promise
       if (!card && !parsed.data.archived) throw new HttpError(404, "المهمة مش موجود");
       return NextResponse.json({ ok: true, workflow: card });
     } catch (e) {
+      if (e instanceof WorkflowConflict) throw new HttpError(409, e.message);
       if (e instanceof RunRefused) throw new HttpError(400, e.message);
       if (e instanceof ZodError) throw new HttpError(400, "الرسم مش صحيح");
       throw e;

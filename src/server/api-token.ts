@@ -33,7 +33,7 @@ export function contractResponse(e: unknown) {
 }
 
 /** The caller's token must exist, be live and carry `scope`. */
-export async function requireToken(req: Request, scope: Scope | "mcp" | "handoff") {
+export async function requireToken(req: Request, scope: Scope | "mcp" | "handoff" | "videos") {
   const m = /^Bearer\s+(\S+)$/.exec(req.headers.get("authorization") ?? "");
   if (!m) throw new ContractError(401, "unauthorized", "ما في توكن");
   const token = await db.apiToken.findUnique({ where: { tokenHash: hashToken(m[1]!) } });
@@ -42,7 +42,8 @@ export async function requireToken(req: Request, scope: Scope | "mcp" | "handoff
   if (token.expiresAt && token.expiresAt <= new Date()) throw new ContractError(401, "unauthorized", "التوكن انتهى");
   // Claude's MCP token is Claude: it may read and answer the handoff queue as well; a token made only for the queue carries «handoff» alone
   // the door of the MCP server takes the old `mcp` and every finer `mcp:*` scope (which tools each may call is decided per call: src/core/token-scopes.ts)
-  const accepted: string[] = scope === "handoff" ? ["handoff", "mcp", "mcp:handoff"] : [scope];
+  // one scope per door: the handoff queue takes «handoff», the full `mcp` and `mcp:handoff`; the video requests take «handoff» (the queue token Hermes has always used), the full `mcp` and `mcp:videos` — not each other's
+  const accepted: string[] = scope === "handoff" ? ["handoff", "mcp", "mcp:handoff"] : scope === "videos" ? ["handoff", "mcp", "mcp:videos"] : [scope];
   const ok = scope === "mcp" ? isMcpToken(token.scopes) : accepted.some((s) => token.scopes.includes(s));
   if (!ok) throw new ContractError(403, "forbidden", "التوكن ما إله صلاحية لهالعملية");
   // at most one write a minute per token, so a busy sync does not hammer the table

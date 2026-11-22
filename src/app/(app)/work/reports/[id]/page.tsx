@@ -6,6 +6,7 @@ import { FactsTable } from "@/components/ui/facts-table";
 import { JobNumber } from "@/components/ui/job-number";
 import { Pill } from "@/components/ui/pill";
 import { SectionTitle } from "@/components/ui/section-title";
+import { isHttpsUrl } from "@/core/safe-url";
 import { getReport } from "@/server/reports";
 import { requirePage } from "@/server/auth";
 
@@ -72,7 +73,7 @@ export default async function ReportPage({ params: paramsP }: { params: Promise<
           <ul className="space-y-1.5 text-sm">
             {r.artifacts.map((a, i) => (
               <li key={`${a.label}-${i}`}>
-                {a.url ? (
+                {a.url && isHttpsUrl(a.url) ? (
                   <a href={a.url} target="_blank" rel="noreferrer noopener" className="font-semibold text-info hover:underline">
                     {a.label}
                   </a>

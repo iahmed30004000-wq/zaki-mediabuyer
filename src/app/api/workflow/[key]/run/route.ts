@@ -17,7 +17,7 @@ export async function POST(_req: Request, { params: paramsP }: { params: Promise
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });
     try {
       const r = await requestRun(params.key, { type: "user", id: caller.id });
-      return NextResponse.json({ ok: true, created: r.created, handoff: r.handoff });
+      return NextResponse.json({ ok: true, created: r.created, ...(r.since ? { since: r.since } : {}), handoff: r.handoff });
     } catch (e) {
       if (e instanceof HandoffRefused) throw new HttpError(e.status, e.message);
       throw e;

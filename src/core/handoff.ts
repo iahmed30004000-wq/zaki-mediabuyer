@@ -7,8 +7,10 @@
  */
 import { stepOrder, type WfGraph, type WfNode } from "./workflow";
 
-export const HANDOFF_KINDS = ["manual_run", "node_failed", "missing_connection", "timeout", "needs_input"] as const;
+export const HANDOFF_KINDS = ["manual_run", "node_failed", "missing_connection", "timeout", "needs_input", "resume"] as const;
 export type HandoffKind = (typeof HANDOFF_KINDS)[number];
+/** What an agent may open itself: «resume» is the site's (after the owner's decision or his retry button). */
+export const AGENT_HANDOFF_KINDS = ["manual_run", "node_failed", "missing_connection", "timeout", "needs_input"] as const;
 
 export const KIND_AR: Record<HandoffKind, string> = {
   manual_run: "المالك طلب تشغيلها",
@@ -16,6 +18,7 @@ export const KIND_AR: Record<HandoffKind, string> = {
   missing_connection: "ربط ناقص",
   timeout: "انتهت مهلتها",
   needs_input: "بدها معلومة",
+  resume: "كمّل من هون",
 };
 
 export const HANDOFF_STATUSES = ["open", "claimed", "done", "cancelled"] as const;
@@ -76,4 +79,59 @@ export function waitingText(minutes: number): string {
   if (h < 24) return h === 1 ? "من ساعة" : h === 2 ? "من ساعتين" : `من ${h} ساعات`;
   const d = Math.round(h / 24);
   return d === 1 ? "من يوم" : d === 2 ? "من يومين" : `من ${d} أيام`;
+}
+
+// ───────────────────────────── v6: who, until when, and how it is answered (docs/rebuild-v6/01-model.md §7) ─────────────────────────────
+
+/**
+ * Who a request for this job goes to: the job's own agent (`Workflow.assigneeKey`). A job nobody is tied to, or one the site carries out itself
+ * (`site` — nobody in the queue takes that), goes to «claude», as every request always did.
+ */
+export const queueAssignee = (assigneeKey: string | null | undefined): string => (!assigneeKey || assigneeKey === "site" ? "claude" : assigneeKey);
+
+/** A request the owner asked for by hand waits this long for someone to take it. */
+export const MANUAL_EXPIRY_HOURS = 6;
+
+/** When a request nobody took ends: a scheduled one at its slot + graceMin, a manual one 6 hours after it was asked. */
+export function expiryFor(opts: { scheduledFor?: Date | null; graceMin: number; now: Date }): Date {
+  if (opts.scheduledFor) return new Date(opts.scheduledFor.getTime() + opts.graceMin * 60_000);
+  return new Date(opts.now.getTime() + MANUAL_EXPIRY_HOURS * 3_600_000);
+}
+
+/** Taken but silent after this, it reopens: the moment of the taking (or of the last word from the run) + maxRunMin. */
+export const leaseUntil = (from: Date, maxRunMin: number): Date => new Date(from.getTime() + maxRunMin * 60_000);
+
+/** An open request whose time is up is not offered to anyone any more. */
+export const isExpired = (h: { status: string; expiresAt: Date | null }, now: Date): boolean => h.status === "open" && !!h.expiresAt && h.expiresAt.getTime() <= now.getTime();
+
+/**
+ * Is this token the one the request was given to? The request's assignee is «claude» · «claude_desktop» · «claude_task» · «hermes» · «muse» or a
+ * person's key; the token's actor is a directory key («claude» covers every kind of Claude, as the queue always has). A token that is not tied
+ * to anybody (`actorKey` null, an old token) is treated as Claude — the only one the queue had before — and never as anyone else.
+ */
+export function actorOwnsAssignee(actorKey: string | null | undefined, assignee: string): boolean {
+  const me = actorKey ?? "claude";
+  return me === assignee || (isClaude(me) && isClaude(assignee));
+}
+
+export type Gate = { ok: true } | { ok: false; status: number; message: string };
+
+/** May this caller take the request? Only whoever it was given to (the owner, signed in, may take it for anyone). */
+export function claimGate(h: { assignee: string }, who: { actorKey: string | null; owner?: boolean }): Gate {
+  if (who.owner || actorOwnsAssignee(who.actorKey, h.assignee)) return { ok: true };
+  return { ok: false, status: 403, message: `هالتسليم مكلّف فيه ${assigneeLabel(h.assignee)} — مش لهالتوكن` };
+}
+
+/**
+ * May this caller answer it? With the claim code the request was taken with: yes. Without one: only whoever it was given to (a token's own
+ * actor) — and the owner, signed in. A wrong code is never accepted, even from the right actor.
+ */
+export function completeGate(h: { assignee: string; claimNonce: string | null }, who: { actorKey: string | null; claim?: string; owner?: boolean }): Gate {
+  if (who.owner) return { ok: true };
+  if (who.claim !== undefined) {
+    if (h.claimNonce && who.claim === h.claimNonce) return { ok: true };
+    return { ok: false, status: 403, message: "رمز الاستلام غلط — الرمز اللي إجاك بـ claim_handoff" };
+  }
+  if (actorOwnsAssignee(who.actorKey, h.assignee)) return { ok: true };
+  return { ok: false, status: 403, message: `هالتسليم مكلّف فيه ${assigneeLabel(h.assignee)} — ابعت رمز الاستلام (claim) أو استعمل توكنه` };
 }

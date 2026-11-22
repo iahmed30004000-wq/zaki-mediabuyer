@@ -6,13 +6,14 @@
  * rate-limited per token, every tool call is in the audit log, and no tool can spend, delete or approve (src/server/mcp).
  */
 import { NextResponse } from "next/server";
-import { handleRpc } from "@/core/mcp-rpc";
+import { MAX_BATCH, countToolCalls, handleRpc } from "@/core/mcp-rpc";
 import { wwwAuthenticate } from "@/core/oauth";
 import { makeLimiter, originAllowed } from "@/core/rate-limit";
 import { toolAllowed, TOOL_SCOPE } from "@/core/token-scopes";
 import { ContractError, requireToken } from "@/server/api-token";
 import { audit } from "@/server/audit";
 import { appOrigin } from "@/server/env";
+import { touchAgent } from "@/server/agent-seen";
 import { SERVER_INSTRUCTIONS, TOOLS, type McpCtx } from "@/server/mcp/tools";
 
 export const dynamic = "force-dynamic";
@@ -35,9 +36,6 @@ export async function POST(req: Request) {
     return rpcError(500, -32603, "صار خطأ عند الميديا باير");
   }
 
-  const rl = limit(token.id);
-  if (!rl.ok) return rpcError(429, -32002, `كتير نداءات — جرّب بعد ${rl.retryAfterS} ثانية`, { "Retry-After": String(rl.retryAfterS) });
-
   const raw = await req.text();
   if (raw.length > MAX_BODY) return rpcError(413, -32600, "الطلب كبير — قسّمه دفعات أصغر");
   let body: unknown;
@@ -46,6 +44,10 @@ export async function POST(req: Request) {
   } catch {
     return rpcError(400, -32700, "JSON مش صحيح");
   }
+  // a batch is at most MAX_BATCH messages, and every tool call in it is charged to the rate limit (a batch is not a way round it)
+  if (Array.isArray(body) && body.length > MAX_BATCH) return rpcError(400, -32600, `الدفعة كبيرة — ${MAX_BATCH} رسايل بالكتير بالطلب الواحد (بعتّ ${body.length})`);
+  const rl = limit(token.id, Date.now(), Math.max(1, countToolCalls(body)));
+  if (!rl.ok) return rpcError(429, -32002, `كتير نداءات — جرّب بعد ${rl.retryAfterS} ثانية`, { "Retry-After": String(rl.retryAfterS) });
 
   // a token with finer scopes sees only its tools; asking for another one is answered in words, so the agent knows which scope it lacks
   const one0 = Array.isArray(body) ? null : (body as { id?: unknown; method?: string; params?: { name?: string } });
@@ -54,15 +56,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ jsonrpc: "2.0", id: one0.id ?? null, result: { content: [{ type: "text", text: `هالتوكن ما إله صلاحية لهالأداة (بدها ${need}). المالك بيعطيه إياها من الإعدادات ← الفريق.` }], isError: true } }, { status: 200, headers: NO_STORE });
   }
   const visible = TOOLS.filter((t) => toolAllowed(token.scopes, t.name));
-  const ctx: McpCtx = { tokenId: token.id, tokenName: token.name, actor: { type: "agent", id: `mcp:${token.name}`.slice(0, 60) } };
-  const reply = await handleRpc(body, visible, ctx, { name: "zaki-mediabuyer", version: process.env.APP_VERSION ?? "dev", instructions: SERVER_INSTRUCTIONS });
-
-  // every tool call is in the audit log (name and token — never the arguments: the tools audit what they changed)
-  const one = Array.isArray(body) ? null : (body as { method?: string; params?: { name?: string } });
-  if (one?.method === "tools/call") {
-    const isError = (reply.body as { result?: { isError?: boolean } } | undefined)?.result?.isError ?? !!(reply.body as { error?: unknown } | undefined)?.error;
-    await audit(ctx.actor, "mcp.call", { type: "tool", id: String(one.params?.name ?? "?").slice(0, 60) }, { after: { token: token.id, error: isError } }).catch(() => undefined);
-  }
+  const ctx: McpCtx = { tokenId: token.id, tokenName: token.name, actor: { type: "agent", id: `mcp:${token.name}`.slice(0, 60) }, actorKey: token.actorKey };
+  // the agent was heard from just now (once a minute at most): the site knows who is awake
+  if (countToolCalls(body) > 0) await touchAgent(token.actorKey);
+  // every tool call — alone or inside a batch — is in the audit log (name and token id, never the arguments: the tools audit what they changed)
+  const reply = await handleRpc(body, visible, ctx, { name: "zaki-mediabuyer", version: process.env.APP_VERSION ?? "dev", instructions: SERVER_INSTRUCTIONS }, {
+    maxBatch: MAX_BATCH,
+    onToolCall: async ({ name, isError }) => {
+      await audit(ctx.actor, "mcp.call", { type: "tool", id: name.slice(0, 60) }, { after: { tokenId: token.id, error: isError } }).catch(() => undefined);
+    },
+  });
 
   if (reply.status === 202) return new Response(null, { status: 202, headers: NO_STORE });
   return NextResponse.json(reply.body, { status: 200, headers: NO_STORE });

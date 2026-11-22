@@ -1,19 +1,24 @@
 /**
- * THE HANDOFF QUEUE, the server side (v3 · F). A handoff is work the app hands to Claude (or a person): the owner's
- * «شغّل هلق», or a step that failed / timed out / waits on a connection. It carries what is needed to do it; taking it moves
- * the workflow's run to «running», answering it moves the run on (or ends it). Nothing here spends or approves anything —
- * the queue only hands work over and takes results back, and what the results say passes the same customer-data filter as
- * every number Claude sends.
+ * THE HANDOFF QUEUE, the server side (v3 · F, v6 · P1-1). A handoff is work the app hands to Claude (or a person): the owner's
+ * «شغّل هلق», or a step that failed / timed out / waits on a connection, or «كمّل من هون» after the owner's decision. It carries what is
+ * needed to do it; taking it moves the workflow's run to «running», answering it moves the run on (or leaves it as it ended). Nothing here
+ * spends or approves anything — the queue only hands work over and takes results back, and what the results say passes the same
+ * customer-data filter as every number Claude sends.
+ *
+ * v6 (docs/rebuild-v6/01-model.md §7): a request has an end (`expiresAt`), a taker has a lease (`leaseUntil`) and a code (`claimNonce`), the
+ * request goes to the job's own agent (`Workflow.assigneeKey`), only that agent takes or answers it, and an answer does not turn a failure
+ * into a success.
  */
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Handoff, Prisma } from "@prisma/client";
-import { HANDOFF_KINDS, KIND_AR, STATUS_AR, assigneeLabel, canMove, firstStep, newRunRef, runStatusAfter, waitingMinutes, type HandoffKind, type HandoffStatus } from "@/core/handoff";
+import { AGENT_HANDOFF_KINDS, KIND_AR, STATUS_AR, assigneeLabel, canMove, claimGate, completeGate, expiryFor, firstStep, isExpired, leaseUntil, newRunRef, queueAssignee, waitingMinutes, type HandoffKind, type HandoffStatus } from "@/core/handoff";
 import { refuseIfPrivate } from "@/core/push-rows";
-import { GraphSchema } from "@/core/workflow";
+import { nodeStatusOnComplete, statusOnComplete } from "@/core/run-state";
+import { GraphSchema, type NodeStates } from "@/core/workflow";
 import { audit, type Actor } from "./audit";
 import { db } from "./db";
-import { UnknownJob, ensureSeeded, logRun, type LogRunInputT, type RunView } from "./workflows";
+import { UnknownJob, ensureSeeded, logRun, type LogRunCall, type RunView } from "./workflows";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
@@ -23,13 +28,19 @@ export class HandoffRefused extends Error {
   }
 }
 
+/** Who is asking: the token's agent (null for an old token that is tied to nobody), or the owner signed in on the site. */
+export interface HandoffWho {
+  actorKey?: string | null;
+  owner?: boolean;
+}
+
 const text = (n: number) => z.string().trim().min(1).max(n);
 const Inputs = z.record(z.string(), z.union([z.string().max(200), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 مدخل");
 
 export const HandoffCreate = z
   .object({
     workflow: text(60).describe("مفتاح الورك فلو (daily-check، night-round…)"),
-    kind: z.enum(HANDOFF_KINDS).default("needs_input").describe("manual_run · node_failed · missing_connection · timeout · needs_input"),
+    kind: z.enum(AGENT_HANDOFF_KINDS).default("needs_input").describe("manual_run · node_failed · missing_connection · timeout · needs_input"),
     node: text(40).optional().describe("الخطوة اللي واقفة (id من خطوات الورك فلو)"),
     title: text(160).describe("سطر واحد: شو واقف"),
     need: text(500).optional().describe("شو لازم يصير بالضبط عشان تكمل"),
@@ -40,13 +51,14 @@ export const HandoffCreate = z
     run_ref: text(80).optional().describe("معرّف التشغيل إذا الخطوة من تشغيل شغّال (نفس ref لـ log_run)"),
   })
   .strict();
-export type HandoffCreateT = z.infer<typeof HandoffCreate>;
+export type HandoffCreateT = z.infer<typeof HandoffCreate> | (Omit<z.infer<typeof HandoffCreate>, "kind"> & { kind: HandoffKind });
 
 export const HandoffComplete = z
   .object({
     note: text(300).optional().describe("سطر: شو انعمل"),
     result: z.record(z.string(), z.union([z.string().max(80), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 رقم").optional().describe("النتيجة {الاسم: القيمة}"),
-    run_status: z.enum(["running", "ok", "failed"]).optional().describe("كيف انتهى التشغيل: ok · failed · running (الافتراضي: ok لطلب المالك، running لخطوة واقفة)"),
+    run_status: z.enum(["running", "ok", "failed"]).optional().describe("كيف انتهى التشغيل: ok · failed · running. بلا run_status التشغيل بيضل على حالته (تشغيل فشل ما بينقلب نجاح)؛ تشغيل طلبه المالك ما فشلت خطوة منه بيصير ok"),
+    claim: z.string().trim().min(1).max(80).optional().describe("رمز الاستلام اللي إجاك بـ claim_handoff — بلاه بيطلب إنك تكون المكلّف"),
   })
   .strict();
 export type HandoffCompleteT = z.infer<typeof HandoffComplete>;
@@ -73,6 +85,11 @@ export interface HandoffView {
   doneAt: string | null;
   createdAt: string;
   waitingMin: number;
+  /** nobody took it by then: it ends */
+  expiresAt: string | null;
+  /** taken but silent after this: it reopens */
+  leaseUntil: string | null;
+  scheduledFor: string | null;
 }
 
 function toView(h: Handoff, names: Map<string, string>, now = Date.now()): HandoffView {
@@ -98,6 +115,9 @@ function toView(h: Handoff, names: Map<string, string>, now = Date.now()): Hando
     doneAt: h.doneAt?.toISOString() ?? null,
     createdAt: h.createdAt.toISOString(),
     waitingMin: waitingMinutes(h.createdAt.toISOString(), now),
+    expiresAt: h.expiresAt?.toISOString() ?? null,
+    leaseUntil: h.leaseUntil?.toISOString() ?? null,
+    scheduledFor: h.scheduledFor?.toISOString() ?? null,
   };
 }
 
@@ -111,33 +131,57 @@ async function views(rows: Handoff[]): Promise<HandoffView[]> {
 const actorKey = (a: Actor) => (a.id ? `${a.type}:${a.id}` : a.type).slice(0, 60);
 
 /**
- * Hands a piece of work over. The workflow's run is created (or updated) as «waiting» with the step marked «handoff», so
- * الورك فلو shows it at once. A «manual_run» request is one at a time per workflow: asking again returns the open one.
+ * The requests whose time is up (nobody took them by `expiresAt`) end here, and the run each held up is `missed`: it never started. Cheap —
+ * one update when there is nothing to end — and safe to call from anywhere (the watchdog of P1-2 calls it too).
  */
-export async function createHandoff(input: HandoffCreateT, actor: Actor, now = new Date(), opts: { card?: string } = {}): Promise<{ handoff: HandoffView; created: boolean }> {
+export async function endExpired(now = new Date(), key?: string): Promise<number> {
+  const stale = await db.handoff.findMany({ where: { status: "open", expiresAt: { lte: now }, ...(key ? { workflowKey: key } : {}) }, select: { id: true, workflowKey: true, runRef: true } });
+  let n = 0;
+  for (const h of stale) {
+    const r = await db.handoff.updateMany({ where: { id: h.id, status: "open" }, data: { status: "cancelled", doneBy: "auto", doneAt: now, resultNote: "انتهت مهلتها — ما حدا أخدها" } });
+    if (!r.count) continue;
+    n += 1;
+    if (h.runRef) {
+      const wf = await db.workflow.findUnique({ where: { key: h.workflowKey }, select: { id: true } });
+      if (wf) await db.workflowRun.updateMany({ where: { workflowId: wf.id, ref: h.runRef, status: { in: ["queued", "waiting"] } }, data: { status: "missed", endReason: "missed", finishedAt: now } });
+    }
+  }
+  return n;
+}
+
+/**
+ * Hands a piece of work over, to the job's own agent. A «manual_run» (or «resume») is one run waiting in the queue (`queued`): it ends 6 hours
+ * after it was asked (a scheduled one: its slot + graceMin) if nobody takes it. Asking again while one is open returns the open one, with how
+ * long it has been waiting. A stuck step shows the run as «waiting» with the step marked «handoff».
+ */
+export async function createHandoff(input: HandoffCreateT, actor: Actor, now = new Date(), opts: { card?: string; scheduledFor?: Date | null } = {}): Promise<{ handoff: HandoffView; created: boolean; since?: string }> {
   const refusal = refuseIfPrivate(input.title, input.need, input.last_error, input.prompt, ...Object.values(input.inputs ?? {}).map(String));
   if (refusal) throw new HandoffRefused(refusal);
   await ensureSeeded();
   const wf = await db.workflow.findUnique({ where: { key: input.workflow } });
   if (!wf || wf.archivedAt) throw new UnknownJob((await db.workflow.findMany({ where: { archivedAt: null }, select: { key: true }, orderBy: { key: "asc" } })).map((w) => w.key));
   const graph = GraphSchema.parse(wf.graph);
+  const kind = input.kind as HandoffKind;
+  const queued = kind === "manual_run" || kind === "resume";
 
-  if (input.kind === "manual_run") {
+  if (queued) await endExpired(now, wf.key);
+  if (kind === "manual_run") {
     // a run a button on a card asked for is one at a time per CARD (its inputs say which); «شغّل هلق» is one at a time per workflow
     const open = await db.handoff.findFirst({ where: { workflowKey: wf.key, kind: "manual_run", status: { in: ["open", "claimed"] }, ...(opts.card ? { context: { path: ["inputs", "card_id"], equals: opts.card } } : {}) } });
-    if (open) return { handoff: (await views([open]))[0]!, created: false };
+    if (open) return { handoff: (await views([open]))[0]!, created: false, since: open.createdAt.toISOString() };
   }
-  const node = input.node ?? (input.kind === "manual_run" ? firstStep(graph)?.id : undefined);
+  const node = input.node ?? (kind === "manual_run" ? firstStep(graph)?.id : undefined);
   if (node && !graph.nodes.some((n) => n.id === node)) throw new HandoffRefused(`node: «${node}» مش بخطوات ${wf.key} — الخطوات: ${graph.nodes.map((n) => n.id).join("، ")}`);
 
-  const ref = input.run_ref ?? newRunRef(input.kind, now, randomBytes(3).toString("hex"));
+  const ref = input.run_ref ?? newRunRef(kind, now, randomBytes(3).toString("hex"));
   const steps = graph.nodes.filter((n) => n.type !== "trigger" && !n.disabled).map((n) => ({ id: n.id, label: n.label }));
+  const assignee = input.assignee ?? queueAssignee(wf.assigneeKey);
   const row = await db.handoff.create({
     data: {
       workflowKey: wf.key,
       runRef: ref,
       nodeId: node ?? null,
-      kind: input.kind,
+      kind,
       title: input.title,
       context: json({
         job: wf.key,
@@ -146,19 +190,32 @@ export async function createHandoff(input: HandoffCreateT, actor: Actor, now = n
         ...(input.prompt ? { prompt: input.prompt } : {}),
         ...(input.inputs ? { inputs: input.inputs } : {}),
         steps,
-        how: `نفّذ الخطوات وسجّلها بـ log_run (job=${wf.key}, ref=${ref})، وبعدها complete_handoff.`,
+        how: `خذها بـ claim_handoff (بيرجّعلك رمز claim)، نفّذ الخطوات وسجّلها بـ log_run (job=${wf.key}, ref=${ref})، وبعدها complete_handoff مع الرمز.`,
       }),
-      assignee: input.assignee ?? "claude",
+      assignee,
       createdBy: actorKey(actor),
+      createdAt: now,
+      ...(opts.scheduledFor ? { scheduledFor: opts.scheduledFor } : {}),
+      ...(queued ? { expiresAt: expiryFor({ scheduledFor: opts.scheduledFor, graceMin: wf.graceMin, now }) } : {}),
     },
   });
+  const waitingOn = `بانتظار ${assigneeLabel(assignee)}`;
   await logRun(
-    { job: wf.key, ref, status: "waiting", ...(input.kind === "manual_run" ? { trigger: "manual" as const } : {}), summary: input.kind === "manual_run" ? "بانتظار Claude" : `بانتظار تسليم: ${input.title}`.slice(0, 300), ...(node ? { node: { id: node, status: "handoff" as const, note: input.title.slice(0, 200) } } : {}) },
+    {
+      job: wf.key,
+      ref,
+      status: queued ? "queued" : "waiting",
+      ...(kind === "manual_run" ? { trigger: "manual" as const } : {}),
+      ...(opts.scheduledFor ? { scheduled_for: opts.scheduledFor.toISOString() } : {}),
+      summary: queued ? waitingOn : `بانتظار تسليم: ${input.title}`.slice(0, 300),
+      ...(node && !queued ? { node: { id: node, status: "handoff" as const, note: input.title.slice(0, 200) } } : {}),
+    },
     actor,
     "ui",
     now,
+    { site: true },
   );
-  await audit(actor, "handoff.create", { type: "handoff", id: row.id }, { after: { workflow: wf.key, kind: input.kind, assignee: row.assignee } });
+  await audit(actor, "handoff.create", { type: "handoff", id: row.id }, { after: { workflow: wf.key, kind, assignee: row.assignee } });
   return { handoff: (await views([row]))[0]!, created: true };
 }
 
@@ -170,11 +227,13 @@ export interface HandoffFilter {
   limit?: number;
 }
 
-export async function listHandoffs(f: HandoffFilter = {}): Promise<HandoffView[]> {
+/** What waits for someone (or has been answered): a request whose time is up is not offered. */
+export async function listHandoffs(f: HandoffFilter = {}, now = new Date()): Promise<HandoffView[]> {
   const status = f.status?.length ? f.status : (["open", "claimed"] as HandoffStatus[]);
   const rows = await db.handoff.findMany({
     where: {
       status: { in: status },
+      AND: [{ OR: [{ status: { not: "open" } }, { expiresAt: null }, { expiresAt: { gt: now } }] }],
       ...(f.workflow ? { workflowKey: f.workflow } : {}),
       ...(f.assignee ? (f.assignee === "claude" ? { assignee: { startsWith: "claude" } } : { assignee: f.assignee }) : {}),
     },
@@ -190,81 +249,123 @@ async function mustFind(id: string): Promise<Handoff> {
   return row;
 }
 
-/** Moves the run the handoff holds up; a workflow that is gone since must not stop the answer from being recorded. */
-async function moveRun(h: Handoff, change: Omit<LogRunInputT, "job" | "ref">, actor: Actor, now: Date): Promise<RunView | null> {
+/** Moves the run the handoff holds up (the site writes it: it may reopen a run); a workflow that is gone since must not stop the answer from being recorded. */
+async function moveRun(h: Handoff, change: Omit<LogRunCall, "job" | "ref">, actor: Actor, now: Date, opts: { endReason?: string } = {}): Promise<RunView | null> {
   if (!h.runRef) return null;
   try {
-    return (await logRun({ job: h.workflowKey, ref: h.runRef, ...change }, actor, "ui", now)).run;
+    return (await logRun({ job: h.workflowKey, ref: h.runRef, ...change }, actor, "ui", now, { site: true, ...opts })).run;
   } catch (e) {
     if (e instanceof UnknownJob) return null;
     throw e;
   }
 }
 
-/** Takes it: from now on the run is «running» and the step shows who has it. A second taker is told. */
-export async function claimHandoff(id: string, by: string, actor: Actor, now = new Date()): Promise<HandoffView> {
+const runOf = async (h: Handoff) => {
+  if (!h.runRef) return null;
+  const wf = await db.workflow.findUnique({ where: { key: h.workflowKey }, select: { id: true, maxRunMin: true } });
+  if (!wf) return null;
+  const run = await db.workflowRun.findUnique({ where: { workflowId_ref: { workflowId: wf.id, ref: h.runRef } } });
+  return { wf, run };
+};
+
+/**
+ * Takes it: from now on the run is «running» and the step shows who has it. Only whoever it was given to may take it; the second taker is
+ * told. The answer carries `claim` — the code the answer must show — and it is the only time it is said. The lease starts: silence for the job's
+ * `maxRunMin` reopens the request.
+ */
+export async function claimHandoff(id: string, by: string, actor: Actor, now = new Date(), who: HandoffWho = {}): Promise<{ handoff: HandoffView; claim: string }> {
   const row = await mustFind(id);
-  if (row.status === "claimed" && row.claimedBy === by) return (await views([row]))[0]!;
-  if (!canMove(row.status as HandoffStatus, "claimed")) throw new HandoffRefused(`هالتسليم ${STATUS_AR[row.status as HandoffStatus] ?? row.status} — ما بينفع تاخده`, 409);
-  const r = await db.handoff.updateMany({ where: { id, status: "open" }, data: { status: "claimed", claimedBy: by, claimedAt: now } });
+  const gate = claimGate(row, { actorKey: who.actorKey ?? null, owner: who.owner });
+  if (!gate.ok) throw new HandoffRefused(gate.message, gate.status);
+  if (isExpired(row, now)) {
+    await endExpired(now, row.workflowKey);
+    throw new HandoffRefused("انتهت مهلة هالتسليم — ما حدا أخدها بوقتها", 409);
+  }
+  if (!canMove(row.status as HandoffStatus, "claimed") || row.status === "claimed") throw new HandoffRefused(`هالتسليم ${STATUS_AR[row.status as HandoffStatus] ?? row.status} — ما بينفع تاخده`, 409);
+  const wf = await db.workflow.findUnique({ where: { key: row.workflowKey }, select: { maxRunMin: true } });
+  const nonce = randomBytes(12).toString("base64url");
+  const r = await db.handoff.updateMany({
+    where: { id, status: "open", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    data: { status: "claimed", claimedBy: by, claimedAt: now, claimNonce: nonce, leaseUntil: leaseUntil(now, wf?.maxRunMin ?? 90) },
+  });
   if (r.count === 0) throw new HandoffRefused("حدا تاني أخدها قبلك", 409);
   const taken = await mustFind(id);
   await moveRun(taken, { status: "running", ...(taken.nodeId ? { node: { id: taken.nodeId, status: "running" as const, note: `عند ${by}`.slice(0, 200) } } : {}) }, actor, now);
   await audit(actor, "handoff.claim", { type: "handoff", id }, { after: { by } });
-  return (await views([taken]))[0]!;
+  return { handoff: (await views([taken]))[0]!, claim: nonce };
 }
 
-/** Answers it. The run ends (or goes on) as `runStatusAfter` says; the step becomes done, or failed when the answer says so. */
-export async function completeHandoff(id: string, input: HandoffCompleteT, by: string, actor: Actor, now = new Date()): Promise<{ handoff: HandoffView; run: RunView | null }> {
+/**
+ * Answers it. With the claim code, or as the one it was given to (the owner, signed in, always). The run moves as `statusOnComplete` says: the
+ * answer's own `run_status`; else it stays as it ended (a failure is never turned into a success), a stuck step only unblocks the run, and a run
+ * that was asked for and has no failed step is `ok`. The summary and numbers are written only when sent. A request the run's end already
+ * closed («doneBy: auto») may still be answered once, to leave its note.
+ */
+export async function completeHandoff(id: string, input: HandoffCompleteT, by: string, actor: Actor, now = new Date(), who: HandoffWho = {}): Promise<{ handoff: HandoffView; run: RunView | null }> {
   const refusal = refuseIfPrivate(input.note, ...Object.values(input.result ?? {}).map(String));
   if (refusal) throw new HandoffRefused(refusal);
   const row = await mustFind(id);
-  if (!canMove(row.status as HandoffStatus, "done")) throw new HandoffRefused(`هالتسليم ${STATUS_AR[row.status as HandoffStatus] ?? row.status} — ما بينفع تجاوبه`, 409);
-  const r = await db.handoff.updateMany({ where: { id, status: { in: ["open", "claimed"] } }, data: { status: "done", doneBy: by, doneAt: now, resultNote: input.note ?? null, ...(input.result ? { result: json(input.result) } : {}) } });
+  const gate = completeGate(row, { actorKey: who.actorKey ?? null, claim: input.claim, owner: who.owner });
+  if (!gate.ok) throw new HandoffRefused(gate.message, gate.status);
+
+  const closedByRun = row.status === "done" && row.doneBy === "auto";
+  if (!closedByRun && !canMove(row.status as HandoffStatus, "done")) throw new HandoffRefused(`هالتسليم ${STATUS_AR[row.status as HandoffStatus] ?? row.status} — ما بينفع تجاوبه`, 409);
+  const note = { resultNote: input.note ?? null, ...(input.result ? { result: json(input.result) } : {}) };
+  const r = closedByRun
+    ? await db.handoff.updateMany({ where: { id, status: "done", doneBy: "auto" }, data: { doneBy: by, doneAt: now, ...note } })
+    : await db.handoff.updateMany({ where: { id, status: { in: ["open", "claimed"] } }, data: { status: "done", doneBy: by, doneAt: now, ...note } });
   if (r.count === 0) throw new HandoffRefused("انجاوبت قبل شوي", 409);
   const done = await mustFind(id);
-  const status = runStatusAfter(done.kind as HandoffKind, input.run_status);
+  if (closedByRun) {
+    await audit(actor, "handoff.complete", { type: "handoff", id }, { after: { by, runStatus: "unchanged" } });
+    return { handoff: (await views([done]))[0]!, run: null };
+  }
+
+  const found = await runOf(done);
+  const current = found?.run ? { status: found.run.status, nodeStates: (found.run.nodeStates as unknown as NodeStates) ?? {} } : null;
+  const status = statusOnComplete(done.kind, input.run_status, current);
+  const nodeStatus = done.nodeId ? nodeStatusOnComplete(status, current?.nodeStates[done.nodeId]) : undefined;
   const run = await moveRun(
     done,
     {
-      status,
+      ...(status ? { status } : {}),
       ...(input.note ? { summary: input.note } : {}),
       ...(input.result ? { metrics: input.result } : {}),
-      ...(done.nodeId ? { node: { id: done.nodeId, status: status === "failed" ? ("failed" as const) : ("done" as const), ...(input.note ? { note: input.note.slice(0, 200) } : {}) } } : {}),
+      ...(done.nodeId && nodeStatus ? { node: { id: done.nodeId, status: nodeStatus, ...(input.note ? { note: input.note.slice(0, 200) } : {}) } } : {}),
     },
     actor,
     now,
   );
-  await audit(actor, "handoff.complete", { type: "handoff", id }, { after: { by, runStatus: status } });
+  await audit(actor, "handoff.complete", { type: "handoff", id }, { after: { by, runStatus: status ?? "unchanged" } });
   return { handoff: (await views([done]))[0]!, run };
 }
 
-/** «شغّل هلق»: asks Claude to run a workflow now — one request at a time per workflow (asking again returns the open one). */
-export async function requestRun(key: string, actor: Actor, now = new Date()): Promise<{ handoff: HandoffView; created: boolean }> {
+/** «شغّل هلق»: asks the job's agent to run it now — one request at a time per job (asking again returns the open one, and how long it has waited). */
+export async function requestRun(key: string, actor: Actor, now = new Date()): Promise<{ handoff: HandoffView; created: boolean; since?: string }> {
   await ensureSeeded();
   const wf = await db.workflow.findUnique({ where: { key } });
   if (!wf || wf.archivedAt) throw new HandoffRefused("الورك فلو مش موجود", 404);
   if (!wf.enabled) throw new HandoffRefused("هالورك فلو مطفي — شغّله أول", 409);
-  return createHandoff({ workflow: key, kind: "manual_run", title: `شغّل «${wf.name}» هلق`.slice(0, 160), assignee: "claude" }, actor, now);
+  return createHandoff({ workflow: key, kind: "manual_run", title: `شغّل «${wf.name}» هلق`.slice(0, 160), assignee: queueAssignee(wf.assigneeKey) }, actor, now);
 }
 
-/** The owner gives it to someone else: back to «open», for that assignee. */
+/** The owner gives it to someone else: back to «open», for that assignee (the old taker's code and lease are void). */
 export async function reassignHandoff(id: string, assignee: string, actor: Actor): Promise<HandoffView> {
   const to = z.string().trim().min(1).max(40).safeParse(assignee);
   if (!to.success) throw new HandoffRefused("لمين؟ اكتب مفتاح الشخص أو الوكيل");
   const row = await mustFind(id);
   if (row.status !== "open" && !canMove(row.status as HandoffStatus, "open")) throw new HandoffRefused(`هالتسليم ${STATUS_AR[row.status as HandoffStatus] ?? row.status} — ما بينفع تغيّر مين عليه`, 409);
-  const updated = await db.handoff.update({ where: { id }, data: { assignee: to.data, status: "open", claimedBy: null, claimedAt: null } });
+  const updated = await db.handoff.update({ where: { id }, data: { assignee: to.data, status: "open", claimedBy: null, claimedAt: null, claimNonce: null, leaseUntil: null } });
   await audit(actor, "handoff.reassign", { type: "handoff", id }, { before: { assignee: row.assignee }, after: { assignee: updated.assignee } });
   return (await views([updated]))[0]!;
 }
 
-/** The owner drops it: the run it held up is marked skipped. Nothing is deleted. */
+/** The owner drops it: the run it held up is marked skipped (cancelled, so the agent is told to stop). Nothing is deleted. */
 export async function cancelHandoff(id: string, actor: Actor, now = new Date()): Promise<HandoffView> {
   const row = await mustFind(id);
   if (!canMove(row.status as HandoffStatus, "cancelled")) throw new HandoffRefused(`هالتسليم ${STATUS_AR[row.status as HandoffStatus] ?? row.status}`, 409);
   const updated = await db.handoff.update({ where: { id }, data: { status: "cancelled", doneBy: actorKey(actor), doneAt: now } });
-  await moveRun(updated, { status: "skipped", summary: "الغاها المالك" }, actor, now);
+  await moveRun(updated, { status: "skipped", summary: "الغاها المالك" }, actor, now, { endReason: "cancelled" });
   await audit(actor, "handoff.cancel", { type: "handoff", id });
   return (await views([updated]))[0]!;
 }

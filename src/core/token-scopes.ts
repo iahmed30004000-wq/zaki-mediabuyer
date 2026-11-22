@@ -32,6 +32,7 @@ export const TOOL_SCOPE: Readonly<Record<string, McpScope>> = {
   push_jobs: "mcp:push",
   log_run: "mcp:run",
   request_approval: "mcp:ask",
+  ack_approval: "mcp:ask",
   notify: "mcp:ask",
   record_order: "mcp:ask",
   end_order: "mcp:ask",

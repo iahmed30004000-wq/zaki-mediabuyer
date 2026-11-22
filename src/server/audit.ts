@@ -5,11 +5,13 @@ export type Actor = { type: "user"; id: string } | { type: "rule"; id: string } 
 
 /** Keys that never reach the audit log, at any depth (a token, a hash, a customer reference). */
 const SECRET_KEYS = /token|secret|password|hash|capiRef|phone|fbc|fbp|ctwa|psid/i;
+/** The id of a token is not the token: it is what says WHICH token made a call (a row of the team screen), and it opens nothing. */
+const PLAIN_KEYS = /^tokenId$/;
 
 export function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, SECRET_KEYS.test(k) ? "[redacted]" : redact(v)]));
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, SECRET_KEYS.test(k) && !PLAIN_KEYS.test(k) ? "[redacted]" : redact(v)]));
   }
   return value;
 }

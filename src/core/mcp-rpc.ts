@@ -48,6 +48,22 @@ export interface RpcReply {
   body?: unknown;
 }
 
+/** The most messages one POST may carry : a batch is not a way round the rate limit. */
+export const MAX_BATCH = 10;
+
+export interface RpcOptions {
+  /** the most messages in one batch (default MAX_BATCH) */
+  maxBatch?: number;
+  /** told after EVERY tool call, in a batch or alone, with the name it was asked for and whether it failed — the route audits each one */
+  onToolCall?: (call: { name: string; isError: boolean }) => Promise<void> | void;
+}
+
+/** How many tool calls this body carries (a batch counts each) — what the rate limit is charged. */
+export function countToolCalls(body: unknown): number {
+  const list = Array.isArray(body) ? body : [body];
+  return list.filter((m) => !!m && typeof m === "object" && (m as { method?: unknown }).method === "tools/call").length;
+}
+
 const error = (id: JsonRpcId, code: number, message: string, data?: unknown) => ({ jsonrpc: "2.0" as const, id, error: { code, message, ...(data === undefined ? {} : { data }) } });
 const ok = (id: JsonRpcId, result: unknown) => ({ jsonrpc: "2.0" as const, id, result });
 
@@ -86,7 +102,7 @@ async function callTool<Ctx>(tools: ToolDef<Ctx>[], params: unknown, ctx: Ctx) {
   }
 }
 
-async function one<Ctx>(msg: unknown, tools: ToolDef<Ctx>[], ctx: Ctx, info: ServerInfo): Promise<unknown | null> {
+async function one<Ctx>(msg: unknown, tools: ToolDef<Ctx>[], ctx: Ctx, info: ServerInfo, opts: RpcOptions = {}): Promise<unknown | null> {
   if (!msg || typeof msg !== "object" || (msg as { jsonrpc?: unknown }).jsonrpc !== "2.0" || typeof (msg as { method?: unknown }).method !== "string") {
     const id = (msg as { id?: JsonRpcId } | null)?.id;
     // a response from the client (an id with a result or an error, and no method) is accepted and ignored
@@ -111,7 +127,9 @@ async function one<Ctx>(msg: unknown, tools: ToolDef<Ctx>[], ctx: Ctx, info: Ser
       return ok(id, { tools: toolList(tools) });
     case "tools/call": {
       const r = await callTool(tools, params, ctx);
-      return "unknown" in r ? error(id, -32602, `الأداة مش موجودة: ${String((params as { name?: unknown } | undefined)?.name)}`) : ok(id, r.result);
+      const name = String((params as { name?: unknown } | undefined)?.name ?? "?");
+      await opts.onToolCall?.({ name, isError: "unknown" in r ? true : !!(r.result as { isError?: boolean }).isError });
+      return "unknown" in r ? error(id, -32602, `الأداة مش موجودة: ${name}`) : ok(id, r.result);
     }
     case "resources/list":
       return ok(id, { resources: [] });
@@ -124,13 +142,22 @@ async function one<Ctx>(msg: unknown, tools: ToolDef<Ctx>[], ctx: Ctx, info: Ser
   }
 }
 
-/** One HTTP POST body → what to answer. A batch answers with an array of the replies to its requests. */
-export async function handleRpc<Ctx>(body: unknown, tools: ToolDef<Ctx>[], ctx: Ctx, info: ServerInfo): Promise<RpcReply> {
+/**
+ * One HTTP POST body → what to answer. A batch answers with an array of the replies to its requests; it is at most `maxBatch` messages (a larger
+ * one is refused whole) and its messages run one after the other, each audited — never all at once.
+ */
+export async function handleRpc<Ctx>(body: unknown, tools: ToolDef<Ctx>[], ctx: Ctx, info: ServerInfo, opts: RpcOptions = {}): Promise<RpcReply> {
   if (Array.isArray(body)) {
     if (!body.length) return { status: 200, body: error(null, -32600, "دفعة فاضية") };
-    const replies = (await Promise.all(body.map((m) => one(m, tools, ctx, info)))).filter((r) => r !== null);
+    const max = opts.maxBatch ?? MAX_BATCH;
+    if (body.length > max) return { status: 200, body: error(null, -32600, `الدفعة كبيرة — ${max} رسايل بالكتير بالطلب الواحد (بعتّ ${body.length})`) };
+    const replies: unknown[] = [];
+    for (const m of body) {
+      const r = await one(m, tools, ctx, info, opts);
+      if (r !== null) replies.push(r);
+    }
     return replies.length ? { status: 200, body: replies } : { status: 202 };
   }
-  const reply = await one(body, tools, ctx, info);
+  const reply = await one(body, tools, ctx, info, opts);
   return reply === null ? { status: 202 } : { status: 200, body: reply };
 }
