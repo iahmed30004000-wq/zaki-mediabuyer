@@ -7,6 +7,7 @@ import { loadDay } from "@/lib/day-view";
 import { loadDayLine } from "@/lib/day-line-view";
 import { loadJobs } from "@/lib/jobs-view";
 import { workdayBounds } from "@/core/timeline";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "اليوم" };
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
  * and what is planned. The day is in the address (`?day=`): yesterday, today, tomorrow, or any date.
  */
 export default async function WorkTodayPage({ searchParams }: { searchParams: { day?: string } }) {
+  await requirePage("work.view");
   const now = new Date();
   const today = workdayBounds(now).key;
   const day = isKey(searchParams.day) ? searchParams.day : today;

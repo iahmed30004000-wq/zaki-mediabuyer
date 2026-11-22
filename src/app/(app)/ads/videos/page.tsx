@@ -7,7 +7,7 @@ import { STAGE_FLOW } from "@/lib/mock/data";
 import { loadDataset } from "@/lib/source";
 import { loadEntityCustom } from "@/lib/ui-view";
 import { loadBoard } from "@/lib/videos-board";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 
 export const metadata = { title: "الفيديوهات" };
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
  * and the road each video walks from Drive to live to tired. `?view=flow` is the road; the board is the first.
  */
 export default async function VideosPage({ searchParams }: { searchParams: { view?: string } }) {
+  await requirePage("ads.view");
   const flow = searchParams.view === "flow";
   const switcher = (
     <div className="flex gap-2" data-tour="tabs">

@@ -6,6 +6,8 @@
 import { db } from "../src/server/db";
 import { readAlerts, sendAlerts } from "../src/jobs/alerts";
 import { propose } from "../src/server/changes";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "✓" : "✗"} ${label}`);

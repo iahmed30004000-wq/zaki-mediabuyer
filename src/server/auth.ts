@@ -2,10 +2,12 @@
  * Who is calling, and may they? Every API route that changes something calls `requireCapability`, and every change
  * it makes goes through `audit()` (spec 13.7).
  */
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { can, type Capability, type RoleKey } from "@/core/roles";
+import { ROLE_START, can, canOpenPath, hasHome, type Capability, type RoleKey } from "@/core/roles";
+import { DUMMY_PASSWORD_HASH } from "@/core/auth-guards";
 import { SESSION_COOKIE, SESSION_DAYS, authRequired, readSession, signSession } from "@/lib/session-token";
 import { db } from "./db";
 
@@ -38,6 +40,22 @@ export async function requireCapability(capability: Capability): Promise<Caller>
   return caller;
 }
 
+/**
+ * The first line of every page (v6 P0-1): a layout does not run again on a client-side navigation, so each page asks for itself.
+ * Nobody signed in → the door. A role that may not open this page — by the capability named here (one of them is enough),
+ * or by the table of places (`canOpenPath`, which the middleware's x-pathname header feeds) — → the page it starts on. `requirePage()` with no capability only needs a person signed in.
+ */
+export async function requirePage(capability?: Capability | readonly Capability[]): Promise<Caller> {
+  const me = await currentCaller();
+  if (!me) redirect("/login");
+  const any = capability === undefined ? [] : Array.isArray(capability) ? capability : [capability as Capability];
+  const path = headers().get("x-pathname");
+  const start = ROLE_START[me.role];
+  const denied = (any.length > 0 && !any.some((c) => can(me.role, c))) || (path !== null && !canOpenPath(me.role, path)) || (path === "/" && !hasHome(me.role));
+  if (denied) redirect(start === path ? "/login" : start);
+  return me;
+}
+
 /** Any signed-in person (the demo owner counts): for an answer that carries nothing a role may not see, or that filters itself by the caller's role. */
 export async function requireSignedIn(): Promise<Caller> {
   const caller = await currentCaller();
@@ -56,7 +74,7 @@ export async function verifyPassword(email: string, password: string) {
   const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   // compare even when the person does not exist, so timing does not reveal who has an account
   // an invited member has no password yet (""): they sign in with their one-time code first
-  const ok = await bcrypt.compare(password, user?.passwordHash || "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv").catch(() => false);
+  const ok = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH).catch(() => false);
   return ok && user?.active && user.passwordHash ? user : null;
 }
 

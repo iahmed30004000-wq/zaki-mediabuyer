@@ -5,7 +5,7 @@
  * separate process, picks it up within `RELOAD_MS`. Tokens of our own systems (OMS · replies · Workspace) are minted by the system that owns the data, on its
  * «توكنات الأنظمة» page (scopes + expiry), and pasted here like any other key. No value is ever returned to a browser or written to a log: the view carries «محفوظ ✓ · آخر 4».
  */
-import { applyOverlay, checkValue, fieldOf, isSecretField, last4Of, newOverlay, ROWS, rowOf, sourceOf, type ConnField, type OverlayState } from "@/core/connections";
+import { applyOverlay, checkValue, fieldOf, isSecretField, last4Of, newOverlay, originOf, pairedSecrets, ROWS, rowOf, sourceOf, type ConnField, type OverlayState } from "@/core/connections";
 import { isLinked } from "@/core/readiness";
 import { audit } from "./audit";
 import { HttpError } from "./auth";
@@ -124,6 +124,7 @@ export async function saveField(name: string, raw: unknown, userId: string): Pro
   if (!checked.ok) throw new HttpError(400, checked.error);
   const secret = isSecretField(f);
   if (secret && !masterKeyConfigured()) throw new HttpError(409, MASTER_KEY_MISSING);
+  if (f.kind === "url") await unpairKeysIfHostChanges(name, checked.value, userId);
   const last4 = last4Of(f, checked.value);
   const data = secret ? { secret: true, valueEnc: sealSecret(name, checked.value), valuePlain: null, last4, updatedBy: userId } : { secret: false, valueEnc: null, valuePlain: checked.value, last4: null, updatedBy: userId };
   await db.connectionSetting.upsert({ where: { name }, create: { name, ...data }, update: data });
@@ -131,6 +132,28 @@ export async function saveField(name: string, raw: unknown, userId: string): Pro
   // the name and the kind, never the value
   await audit({ type: "user", id: userId }, "connection.save", { type: "connection", id: name }, { after: { kind: f.kind, sealed: secret } });
   return { last4 };
+}
+
+/** What the environment itself holds for a name, under whatever the site put over it. */
+const envOriginal = (name: string): string | undefined => (state().originals.has(name) ? state().originals.get(name) : process.env[name]);
+
+/**
+ * A key is only meant for the host it was made for. Pointing an address at a different host ends the pairing: the keys saved from the site for that row are deleted (the owner writes
+ * them again for the new host), and a key that comes from Coolify cannot be dropped from here, so the change is refused until Coolify's address and key are changed together. (S-15)
+ */
+async function unpairKeysIfHostChanges(name: string, next: string, userId: string): Promise<void> {
+  const before = originOf(process.env[name]);
+  if (!before || before === originOf(next)) return;
+  const paired = pairedSecrets(name);
+  const fromEnv = paired.filter((p) => envOriginal(p)?.trim());
+  const stored = new Set((await db.connectionSetting.findMany({ where: { name: { in: paired } }, select: { name: true } })).map((r) => r.name));
+  const envOnly = fromEnv.filter((p) => !stored.has(p));
+  if (envOnly.length) throw new HttpError(409, `المفتاح (${envOnly.join(" · ")}) جاي من Coolify ومربوط بالعنوان القديم. غيّر العنوان والمفتاح سوا بـ Coolify، أو شيل المفتاح من Coolify وبعدها اكتبه هون.`);
+  if (fromEnv.length) throw new HttpError(409, `بـ Coolify في نسخة تانية من المفتاح (${fromEnv.join(" · ")}) مربوطة بالعنوان القديم — شيلها من Coolify قبل ما تغيّر العنوان.`);
+  if (stored.size) {
+    await db.connectionSetting.deleteMany({ where: { name: { in: [...stored] } } });
+    await audit({ type: "user", id: userId }, "connection.unpair", { type: "connection", id: name }, { after: { cleared: [...stored] } });
+  }
 }
 
 /** «امسح»: the site's value goes, the environment's (if any) comes back. */

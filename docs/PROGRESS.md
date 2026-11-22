@@ -7,7 +7,7 @@
 > - `blocked` — ما بيمشي لحد ما ينحط المفتاح أو النظام المسمّى جنبه.
 > - `not-started` — ما انبدأ.
 >
-> **العدّ:** done-live 37 · done-local-only 39 · blocked 20 · not-started 9 (المجموع 105).
+> **العدّ:** done-live 37 · done-local-only 40 · blocked 20 · not-started 9 (المجموع 106).
 
 | # | المهمة | الحالة | ملاحظة |
 |---|---|---|---|
@@ -107,6 +107,7 @@
 | V5-OAUTH | موصّل claude.ai: OAuth 2.1 على `/mcp` (تسجيل ديناميكي + PKCE) | `done-local-only` | اكتشاف RFC 9728/8414 · `/oauth/register` `/oauth/authorize` `/oauth/token` · توكن = `ApiToken` بنطاقات `mcp:*` مربوط بالوكيل `claude` · قائمة وقطع فوري بـ «توكنات الوكلاء» · التوكنات اليدوية بلا تغيير · `tests/oauth.test.ts` + 36 فحص `demo:mcp` + تدفّق HTTP كامل. **ما اتجرّب:** claude.ai نفسه (`LIVE_CHECKS` L12) |
 | V5-SECRETS | إدخال المفاتيح من الموقع: «الإعدادات ← الربط» (D62) | `done-local-only` | حقول كتابة-بس (ميتا، ملف جوجل، توكنات الأنظمة: OMS · الردود · Workspace) + عناوين ومعرّفات عادية · تشفير AES-256-GCM بـ`SECRETS_MASTER_KEY` · «محفوظ ✓ · آخر تغيير · بواسطة · آخر 4» · قيمة الموقع ← Coolify ورجوعها بـ«امسح» · «اختبر الربط» (نداء قراءة وحيد) · للمالك بس + تدقيق بلا قيم · `tests/secrets` + `tests/connections-routes` + `demo:secrets`. **ما اتجرّب:** نظام حقيقي (صلاحيات ads.spend.read وnotify.send عند الـOMS لسا)؛ **PR مسودة، ما بيندمج لحد ما يقول المالك** |
 | V5-OMS-STOP | مستقبِل حدث «اوقف» الموقّع من الـOMS (D63) | `done-local-only` | `POST /api/inbound/oms` · HMAC بـ`OMS_EVENT_SECRET` + نافذة 5 دقائق · إيقاف بس (نفس ChangeSet تيليجرام، دالة مشتركة `stop-by-query`) · الصرف يرجع برابط الموقع · حد 30/دقيقة و4KB · `tests/oms-stop-event` + `stop-by-query` + `telegram-webhook`. **الترتيب:** بعد #53 (السر بينلصق من «الربط» بس) · **ما اتجرّب:** الـOMS نفسه (O5 عنده لسا)؛ **PR مسودة، ما بيندمج لحد ما يقول المالك** |
+| V6-P0-1 | إعادة الهيكلة v6 · المرحلة P0-1: البيانات والأمان الداخلي — النسخة الاحتياطية بتشتغل ثانية (مفتاح مركّب + لقطة وحدة + مجلد مؤقت) · المهام الداخلية ما بتنحرق (إعادة محاولة + `interrupted` + SIGTERM) · نبضة الـ worker بـ `/api/health` + تنبيه نسخة أقدم من 26 ساعة · `MOCK_MODE` افتراضه 0 بالإنتاج + فحص متغيّرات بالجاهزية والتنبيه · سكربتات التجربة بحارس قاعدة محلية · كل صفحة بـ `requirePage` · فحص `Origin` · «رجّع» بقاعدة `approve` · تغيير الحالة compare-and-set · ترويسات أمان | `done-local-only` | هجرة `20261121120000_jobrun_attempt` (عمود بافتراضي) · اختبارات: `backup-models` · `runner-retry` · `health` · `page-guards` · `csrf-origin` · `rollback-owner-only` · `changes-cas` (+ `script-guard` · `login-safety` · `safe-fetch` · `connection-pairing` · `oauth-client-expiry` · `privacy-phones` · `security-headers` · `alerts-backup-env`) · `check:backup` نجح على قاعدة فيها صفوف `CustomValue` · القرار D65 · الملاحظات `docs/rebuild-v6/NOTES.md` |
 | A6-b | الصور: تنزيل صور مرخّصة بدل برومبتات GPT (طلب المالك) | `not-started` | التنزيل بدّه موافقة صريحة بالمحادثة (اسم الملف والمصدر والحجم) |
 | T2.3-b | «اوقف» من تيليجرام (أي صرف بيرفضه) | `blocked` — TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_CHAT_ID + webhook `/api/telegram/webhook` | الكود شغّال ومفحوص بسيرفر وهمي · الفحص الحي = docs/LIVE_CHECKS.md |
 | T2.4-b | قدرة الرد: قراءة نظام الردود وتجميد تكبير الرسائل | `blocked` — REPLIES_BASE_URL + REPLIES_TOKEN (نظام الردود نفسه) | `tests/replies.test.ts` |

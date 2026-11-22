@@ -3,6 +3,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { effectivePages } from "@/core/customize";
 import { BUILTIN_PAGES } from "@/lib/nav";
 import { getUiConfig } from "@/server/ui-config";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "التخصيص" };
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
  * انشال؛ الروابط اللي عملها المالك لحاله بتنعرض تحت بـ «روابطي».
  */
 export default async function CustomizePage() {
+  await requirePage("settings.view");
   const mine = effectivePages(await getUiConfig(), BUILTIN_PAGES).filter((p) => !p.builtin && p.kind === "link" && !p.archived);
   return (
     <div className="space-y-6">

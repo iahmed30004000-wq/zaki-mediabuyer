@@ -18,6 +18,8 @@ import { POST as testRoute } from "../src/app/api/connections/row/[key]/test/rou
 import { clearField, connectionsView, reloadOverlay, saveField, storedValues } from "../src/server/connections";
 import { testRow } from "../src/server/connection-tests";
 import { sealSecret } from "../src/server/secrets";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const out = console.log.bind(console);
 const logged: string[] = [];

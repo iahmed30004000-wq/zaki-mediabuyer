@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { safeNext } from "@/core/auth-guards";
 
 /** The sign-in card. On a brand-new system it says so, and the first sign-in creates the owner. */
 export function LoginForm({ next }: { next: string }) {
@@ -26,7 +27,7 @@ export function LoginForm({ next }: { next: string }) {
         const r = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password, ...(invite ? { invite } : {}) }) });
         const d = (await r.json().catch(() => ({}))) as { error?: string };
         setBusy(false);
-        if (r.ok) location.href = next;
+        if (r.ok) location.href = safeNext(next);
         else setError(d.error ?? "صار خطأ");
       }}
     >

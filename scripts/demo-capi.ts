@@ -9,6 +9,8 @@ import { db } from "../src/server/db";
 import { enqueueCapi, sendCapi } from "../src/jobs/capi";
 import { fakeFetch, FAKE_OMS_URL } from "../src/adapters/fixtures";
 import { MetaClient } from "../src/meta/client";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "✓" : "✗"} ${label}`);

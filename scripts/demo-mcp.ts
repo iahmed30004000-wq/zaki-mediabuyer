@@ -83,6 +83,8 @@ import { POST as oauthRegister } from "../src/app/oauth/register/route";
 import { GET as prmGet } from "../src/app/.well-known/oauth-protected-resource/[[...rest]]/route";
 import { GET as asmGet } from "../src/app/.well-known/oauth-authorization-server/[[...rest]]/route";
 import { checkAuthRequest, createCode, listConnected, revokeClient } from "../src/server/oauth";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const check = (ok: boolean, label: string, extra?: unknown) => {
   console.log(`${ok ? "✓" : "✗"} ${label}${ok || extra === undefined ? "" : `  → ${JSON.stringify(extra)}`}`);

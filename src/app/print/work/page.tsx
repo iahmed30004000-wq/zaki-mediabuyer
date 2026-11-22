@@ -1,12 +1,14 @@
 import { PrintButton } from "@/components/numbers/print-button";
 import { DOMAIN_AR } from "@/core/jobs";
 import { loadJobs } from "@/lib/jobs-view";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "خريطة المهام — للطباعة" };
 export const dynamic = "force-dynamic";
 
 /** The map of the scheduled jobs on paper (A4, white, plain): the counters, then each domain as a table — number, job, when, state, branches. A session is required. */
 export default async function PrintWorkPage() {
+  await requirePage("work.view");
   const { jobs, counters, demo } = await loadJobs();
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "medium", timeStyle: "short" }).format(new Date());
   return (

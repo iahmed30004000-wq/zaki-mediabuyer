@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AdsOrders, AdsTiles, BankCard, HealthCard, NightRoundCard, ProductsVerdictTable, ScaleCandidates } from "@/components/ads/ads-dashboard";
 import { SectionSkeleton } from "@/components/home/home-sections";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "الإعلانات" };
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export const dynamic = "force-dynamic";
  * orders that touch ads, the video bank, the ad sets that may be raised, and the data health. Every section loads on its own. The numbers are
  * the same loaders as everywhere; the verdict only SHOWS what the night round decides on.
  */
-export default function AdsDashboardPage() {
+export default async function AdsDashboardPage() {
+  await requirePage("ads.view");
   return (
     <div className="space-y-6">
       <Suspense fallback={<SectionSkeleton rows={1} />}>

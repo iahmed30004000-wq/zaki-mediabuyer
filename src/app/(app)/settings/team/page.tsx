@@ -7,7 +7,7 @@ import { isDemo } from "@/core/readiness";
 import { can } from "@/core/roles";
 import { fmt } from "@/lib/format";
 import { loadEditView, loadSettingsView } from "@/lib/settings-view";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { db } from "@/server/db";
 import { appOrigin } from "@/server/env";
 import { loadDirectory } from "@/server/directory";
@@ -28,6 +28,7 @@ const ago = (d: Date | null) => {
  * a manager only reads.
  */
 export default async function TeamSettingsPage() {
+  await requirePage("settings.view");
   const me = await currentCaller();
   const owner = !!me && !me.demo && can(me.role, "owner_only");
   const demo = isDemo(process.env);

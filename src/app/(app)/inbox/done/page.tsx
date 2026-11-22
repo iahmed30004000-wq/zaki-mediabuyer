@@ -4,7 +4,7 @@ import { Chip } from "@/components/ui/chip";
 import { Pill } from "@/components/ui/pill";
 import { RollbackButton } from "@/components/inbox/rollback-button";
 import { loadInboxDone } from "@/server/inbox";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "قررتها" };
@@ -18,6 +18,7 @@ const when = (iso: string) => {
 
 /** بانتظارك ← قررتها: the last 30 days — what you answered and what the rules did by themselves («لحاله»), with «رجّع» for a change that ran. */
 export default async function InboxDonePage({ searchParams }: { searchParams: { auto?: string; page?: string } }) {
+  await requirePage("inbox.view");
   const caller = await currentCaller();
   const autoOnly = searchParams.auto === "1";
   const all = caller ? await loadInboxDone(caller, { autoOnly }) : [];

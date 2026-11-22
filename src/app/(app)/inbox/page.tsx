@@ -4,7 +4,7 @@ import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/card";
 import { DOMAIN_AR, type InboxDomain } from "@/core/inbox";
 import { loadInbox } from "@/server/inbox";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "بانتظارك" };
@@ -17,6 +17,7 @@ const DOMAINS: readonly (InboxDomain | "all")[] = ["all", "ads", "ops", "work"];
  * Red first, then the one that runs out soonest, then the newest. Approved on the site only, never from Telegram.
  */
 export default async function InboxPage({ searchParams }: { searchParams: { domain?: string } }) {
+  await requirePage("inbox.view");
   const caller = await currentCaller();
   const domain = (DOMAINS as readonly string[]).includes(searchParams.domain ?? "") && searchParams.domain !== "all" ? (searchParams.domain as InboxDomain) : undefined;
   const items = caller ? await loadInbox(caller, domain ? { domain } : {}) : [];

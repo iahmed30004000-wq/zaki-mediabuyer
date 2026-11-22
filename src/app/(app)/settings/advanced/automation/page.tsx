@@ -3,6 +3,7 @@ import { Panel } from "@/components/mb/section";
 import { SOURCES } from "@/lib/mock/data";
 import { loadEditView } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "الأتمتة والجدولة" };
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ const KEYS = ["stepRunner", "scheduler", "n8n"];
  * Read only: the keys and the allowed lists are written in Coolify; the scheduler stays off until the owner turns it on there.
  */
 export default async function AutomationPage() {
+  await requirePage("settings.view");
   const edit = await loadEditView();
   const rows = (edit?.links ?? SOURCES).filter((l) => KEYS.includes(l.key));
   return (

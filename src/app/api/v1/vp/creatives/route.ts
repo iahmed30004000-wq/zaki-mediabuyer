@@ -11,6 +11,7 @@ import { db } from "@/server/db";
 import { contractResponse, requireToken, ContractError } from "@/server/api-token";
 import { isVpId } from "@/core/studio-contract";
 import { processVideo } from "@/jobs/creative-intake";
+import { OutboundRefused, allowListFrom, byteLimit, safeGet } from "@/server/safe-fetch";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,14 @@ export async function POST(req: Request) {
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, `${randomUUID()}.mp4`);
     try {
-      const res = await fetch(b.url, { redirect: "follow", signal: AbortSignal.timeout(600_000) });
+      // the address is the studio's choice: public https only, redirects re-checked, the size counted while it streams (src/server/safe-fetch.ts)
+      const res = await safeGet(b.url, { allow: allowListFrom(process.env.STUDIO_URL_ALLOW), timeoutMs: 600_000 }).catch((e) => {
+        if (e instanceof OutboundRefused) throw new ContractError(e.status, e.code, e.message);
+        throw e;
+      });
       if (!res.ok || !res.body) throw new ContractError(422, "download_failed", `ما قدرت أنزّل الفيديو (${res.status})`);
       if (Number(res.headers.get("content-length") ?? 0) > MAX_BYTES) throw new ContractError(413, "too_large", "الفيديو أكبر من 500MB");
-      await pipeline(Readable.fromWeb(res.body as never), createWriteStream(file));
+      await pipeline(Readable.fromWeb(res.body as never), byteLimit(MAX_BYTES, () => new ContractError(413, "too_large", "الفيديو أكبر من 500MB")), createWriteStream(file));
       const out = await processVideo(file, {
         productCode: b.product_code,
         source: "studio",

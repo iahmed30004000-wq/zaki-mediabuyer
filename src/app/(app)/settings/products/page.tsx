@@ -5,6 +5,7 @@ import { FoldCard } from "@/components/settings/fold-card";
 import { loadEditView } from "@/lib/settings-view";
 import { fmt } from "@/lib/format";
 import { PRODUCTS, targetsOf } from "@/lib/mock/data";
+import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "المنتجات" };
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export const dynamic = "force-dynamic";
  * with its own one-line summary; the editors are the ones that were on the long page, moved whole.
  */
 export default async function ProductsSettingsPage() {
+  await requirePage("settings.view");
   const edit = await loadEditView();
   if (!edit) {
     return (

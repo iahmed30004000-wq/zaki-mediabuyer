@@ -21,6 +21,8 @@ import { loadDirectory } from "@/server/directory";
 /** Every screen: the side menu (desktop) or the bottom bar (phone), the page header, and ONE line when the site is on the demo data. */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await currentCaller();
+  // a person who is not signed in goes to the door
+  if (!me) redirect("/login");
   const [pages, inbox, directory] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => [])]);
   // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
   const path = headers().get("x-pathname") ?? "/";

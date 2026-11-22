@@ -4,7 +4,7 @@ import { can } from "@/core/roles";
 import { addDays, ammanKey, parseRange } from "@/core/dates";
 import { isDemo } from "@/core/readiness";
 import { loadNumbers } from "@/lib/numbers-view";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 
 export const metadata = { title: "المنتجات" };
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
  * P4 rebuilds it from the kit and adds a page per product.
  */
 export default async function ProductsPage({ searchParams }: { searchParams: { d?: string; from?: string; to?: string } }) {
+  await requirePage("ads.view");
   const range = parseRange(searchParams, new Date());
   const [data, me] = await Promise.all([loadNumbers(searchParams), currentCaller()]);
   // «ألصق أرقام» is the owner's, on real data: it starts from yesterday (the closed day)

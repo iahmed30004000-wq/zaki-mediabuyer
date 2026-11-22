@@ -5,6 +5,8 @@
  */
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 interface Item {
   section: string;

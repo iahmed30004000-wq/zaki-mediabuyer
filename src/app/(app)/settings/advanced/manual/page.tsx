@@ -4,13 +4,14 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { addDays, ammanKey } from "@/core/dates";
 import { isDemo } from "@/core/readiness";
 import { can } from "@/core/roles";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 
 export const metadata = { title: "الإدخال اليدوي" };
 export const dynamic = "force-dynamic";
 
 /** الإعدادات ← متقدّم ← الإدخال اليدوي: لصق أرقام يوم · استيراد ملف · تصدير. نفس الملف مرتين = مرة. */
 export default async function ManualPage() {
+  await requirePage("settings.view");
   const me = await currentCaller();
   const owner = !!me && !me.demo && !isDemo(process.env) && can(me.role, "owner_only");
   return (

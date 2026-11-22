@@ -90,6 +90,18 @@ export const fieldOf = (name: string): ConnField | undefined => ROWS.flatMap((r)
 export const rowOf = (key: string): ConnRow | undefined => ROWS.find((r) => r.key === key);
 export const rowOfField = (name: string): ConnRow | undefined => ROWS.find((r) => r.fields.some((f) => f.name === name));
 
+/** The keys that belong to an address: the secrets of the same row. A key is only meant for the host it was made for, so changing the address ends their pairing. */
+export const pairedSecrets = (urlField: string): string[] => (fieldOf(urlField)?.kind === "url" ? (rowOfField(urlField)?.fields ?? []) : []).filter((x) => x.kind === "secret").map((x) => x.name);
+
+/** The host part of an address (scheme + host + port), or null when it is not one. */
+export function originOf(value: string | undefined | null): string | null {
+  try {
+    return new URL((value ?? "").trim()).origin.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 
 const SECRET_KINDS: readonly FieldKind[] = ["secret", "file"];
 export const isSecretField = (f: ConnField): boolean => SECRET_KINDS.includes(f.kind);

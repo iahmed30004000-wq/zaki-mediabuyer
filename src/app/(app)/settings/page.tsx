@@ -3,7 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { HashRedirect } from "@/components/settings/hash-redirect";
 import { SETTINGS_PAGES } from "@/lib/settings-nav";
 import { canOpenPath } from "@/core/roles";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { loadReadiness } from "@/lib/readiness-view";
 
 export const metadata = { title: "الإعدادات" };
@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
  * `#anchors` (an alert, a message, a bookmark) are sent to the new address by `HashRedirect`.
  */
 export default async function SettingsPage() {
+  await requirePage("settings.view");
   const me = await currentCaller();
   const readiness = await loadReadiness().catch(() => null);
   const linked = readiness ? readiness.rows.filter((r) => r.linked).length : null;

@@ -12,6 +12,9 @@ import { db } from "./db";
 import { hashToken } from "./api-token";
 import { appOrigin } from "./env";
 
+/** A registered client the owner never approved is forgotten after this long. */
+export const UNAPPROVED_TTL_MS = 24 * 3_600_000;
+
 const secret = (prefix: string) => prefix + randomBytes(32).toString("base64url");
 const extraHosts = () => hostsOf(process.env.OAUTH_REDIRECT_HOSTS);
 const pkceOf = (verifier: string) => createHash("sha256").update(verifier, "utf8").digest("base64url");
@@ -33,10 +36,13 @@ export async function registerClient(body: unknown): Promise<{ ok: true; data: R
   if (method !== undefined && method !== "none") return fail(400, "invalid_client_metadata", "بس عملاء بلا سرّ (token_endpoint_auth_method = none) مع PKCE");
   const name = clientName(b.client_name);
   const redirectUris = [...new Set(uris as string[])].sort();
+  // a client nobody approved within a day is dropped, and only approved clients count toward the cap
+  const approved = (await db.oAuthGrant.findMany({ select: { clientId: true }, distinct: ["clientId"] })).map((g) => g.clientId);
+  await db.oAuthClient.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - UNAPPROVED_TTL_MS) }, id: { notIn: approved } } });
   // the same app registering again (every «connect» attempt does) gets its own client back, not a new row
   const known = await db.oAuthClient.findMany({ where: { revokedAt: null, name } });
   const again = known.find((c) => JSON.stringify([...c.redirectUris].sort()) === JSON.stringify(redirectUris));
-  if (!again && (await db.oAuthClient.count({ where: { revokedAt: null } })) >= 50) return fail(429, "server_error", "عندك 50 تطبيق متصل — شيل واحد قبل ما تضيف");
+  if (!again && (await db.oAuthClient.count({ where: { revokedAt: null, id: { in: approved } } })) >= 50) return fail(429, "server_error", "عندك 50 تطبيق متصل — شيل واحد قبل ما تضيف");
   const row = again ?? (await db.oAuthClient.create({ data: { clientId: secret("mbc_"), name, redirectUris } }));
   if (!again) await audit({ type: "system", id: "oauth" }, "oauth.client_register", { type: "oauth_client", id: row.id }, { after: { name, hosts: redirectUris.map((u) => new URL(u).host) } });
   return {

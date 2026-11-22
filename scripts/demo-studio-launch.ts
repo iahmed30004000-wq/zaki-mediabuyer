@@ -20,6 +20,8 @@ import { GET as readRequest } from "../src/app/api/v1/vp/launch-requests/[id]/ro
 import { POST as cancel } from "../src/app/api/v1/vp/launch-requests/[id]/cancel/route";
 import { GET as productMarket } from "../src/app/api/vidpattern/product-market/route";
 import { GET as productFacts } from "../src/app/api/v1/vp/products/[id]/facts/route";
+import { assertLocalDatabase } from "./_guard";
+assertLocalDatabase();
 
 const check = (ok: boolean, label: string) => {
   console.log(`${ok ? "✓" : "✗"} ${label}`);

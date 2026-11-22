@@ -9,7 +9,7 @@ import { Pill } from "@/components/ui/pill";
 import { SectionTitle } from "@/components/ui/section-title";
 import { can } from "@/core/roles";
 import { loadJobs } from "@/lib/jobs-view";
-import { currentCaller } from "@/server/auth";
+import { currentCaller, requirePage } from "@/server/auth";
 import { listOrders } from "@/server/orders";
 import { OrdersSection } from "@/components/work/orders-section";
 import { runsOf } from "@/server/workflows";
@@ -26,6 +26,7 @@ const STATUS: Record<string, { label: string; tone: "ok" | "danger" | "info" | "
  * ten runs → the agent's note and advice → «شغّلها هلأ» and «متقدّم». The standing orders that touch it are under its description.
  */
 export default async function JobPage({ params }: { params: { key: string } }) {
+  await requirePage("work.view");
   const key = decodeURIComponent(params.key);
   const [{ jobs }, me, runs] = await Promise.all([loadJobs(), currentCaller(), runsOf(key, { limit: 10 })]);
   const job = jobs.find((j) => j.key === key);
