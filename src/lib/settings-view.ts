@@ -10,7 +10,7 @@ import { levelChange, type AutonomyLevel } from "@/core/autonomy";
 import { N8N_CREATOR } from "@/core/n8n-starters";
 import { siteConfigFrom } from "@/core/step-exec";
 import { workspaceConfigFrom } from "@/core/workspace-door";
-import { schedulerOn } from "@/core/scheduler";
+import { WATCHDOG_TICK_KEY, tickTime } from "@/core/health";
 import { accountRestricted } from "@/jobs/account-safety";
 import { AGENT_NAMES, AGENTS } from "@/gateway";
 import type { SourceHealth } from "@/lib/mock/data";
@@ -113,14 +113,14 @@ async function assistantLink(): Promise<SourceHealth> {
   return { key: "assistant", label: "المساعد الذكي (Claude)", state: "ok", detail: `موصول — ${assistantModel()}` };
 }
 
-/** The site's own clock for scheduled workflows (D44): on or off, and when it last ran. Off while n8n is the clock. */
+/** The site's one clock (the watchdog, v6): it always runs, so this says only when it last looked. Late = more than 5 minutes. */
 async function schedulerLink(): Promise<SourceHealth> {
-  const label = "الجدولة من الموقع (بدل n8n)";
-  if (!schedulerOn(process.env)) return { key: "scheduler", label, state: "off", detail: "مقفولة — الورك فلو بمواعيدها بيصحّيها n8n. لتشغيلها: SITE_SCHEDULER=1 بـ Coolify (وطفّي مواعيد n8n)" };
-  const at = await lastSuccess("workflow.schedule");
-  if (!at) return { key: "scheduler", label, state: "late", detail: "شغّالة — لسا ما صارت أول دقيقة" };
+  const label = "ساعة الموقع (الحارس)";
+  const row = await db.setting.findUnique({ where: { key: WATCHDOG_TICK_KEY } });
+  const at = tickTime(row?.value);
+  if (!at) return { key: "scheduler", label, state: "late", detail: "لسا ما صارت أول دقيقة — بتشتغل مع الـ worker" };
   const late = Date.now() - at.getTime() > 5 * 60_000;
-  return { key: "scheduler", label, state: late ? "late" : "ok", detail: `آخر دقيقة فحصت ${ago(at)}` };
+  return { key: "scheduler", label, state: late ? "late" : "ok", detail: `آخر دقيقة فحصت ${ago(at)} — بتكتب «فاتت» و«انقطعت» وبتنبّهك` };
 }
 
 /** Zaki Workspace's one-way door (D41): linked, when it was last asked, and what it refused (never a token or a title). */

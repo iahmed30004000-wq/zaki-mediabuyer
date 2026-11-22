@@ -24,11 +24,11 @@ const check = (file: string, actual: string) => {
 const INFO = { name: "zaki-mediabuyer", version: "snapshot", instructions: "x" };
 
 describe("MCP tool contract does not move (v6 P0-4)", () => {
-  it("there are 23 tools (22 + ack_approval, v6 P1-1)", () => {
-    expect(TOOLS).toHaveLength(23);
+  it("there are 24 tools (23 + get_jobs, v6 P1-2; 22 + ack_approval in P1-1)", () => {
+    expect(TOOLS).toHaveLength(24);
   });
 
-  it("the input schema of each of the 23 tools (what the validators produce) is byte-identical", () => {
+  it("the input schema of each of the 24 tools (what the validators produce) is byte-identical", () => {
     const schemas = Object.fromEntries(TOOLS.map((t) => [t.name, toJsonSchema(t.listSchema ?? t.input)]));
     check("mcp-input-schemas.json", text(schemas));
   });

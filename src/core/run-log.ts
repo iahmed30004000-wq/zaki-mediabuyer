@@ -4,6 +4,7 @@
  * which status moves are refused, how the times are written, what a step the workflow no longer has does, and what the agent is told back.
  */
 import { agentMove, disabledStepIds, isTerminalRun } from "./run-state";
+import { slotFor, type SlotJob } from "./slot-for";
 import { mergeNodeStates, settleStates, type NodeStates, type NodeStatus, type RunStatus, type WfGraph } from "./workflow";
 
 export interface NodeUpdateIn {
@@ -52,6 +53,11 @@ export interface PlanArgs {
   site?: boolean;
   /** with `site`: why the run ended (cancelled · owner_skipped · missed · lost · error) */
   endReason?: string;
+  /**
+   * The job's own schedule: a NEW run that says no `scheduled_for` (and is not a manual one) is tied to the slot it answers — the nearest one from
+   * `graceMin` minutes before it started to 5 minutes after (W-16) — or to none, and is then «يدوي بلا موعد».
+   */
+  job?: SlotJob;
 }
 
 export interface RunPlan {
@@ -123,6 +129,8 @@ export function planRun(a: PlanArgs): RunPlan | RunRefusal {
   const nodeStates = settleStates(settleGraph, merged, status, at);
 
   const startedAt = existing && existing.status !== "queued" ? existing.startedAt : (started.at ?? now);
+  const trigger = input.trigger ?? existing?.trigger ?? "schedule";
+  const scheduledFor = scheduled.at ?? existing?.scheduledFor ?? (!existing && a.job && trigger !== "manual" ? slotFor(a.job, startedAt) : null);
   const finishedAt = endedNow ? (finished.at ?? existing?.finishedAt ?? now) : null;
   const lateWord = wasEnded && status === existing!.status;
   const statusChanged = !!existing && status !== existing.status;
@@ -132,10 +140,10 @@ export function planRun(a: PlanArgs): RunPlan | RunRefusal {
     created: !existing,
     data: {
       status,
-      trigger: input.trigger ?? existing?.trigger ?? "schedule",
+      trigger,
       startedAt,
       finishedAt,
-      scheduledFor: scheduled.at ?? existing?.scheduledFor ?? null,
+      scheduledFor,
       heartbeatAt: lateWord ? (existing?.heartbeatAt ?? now) : now,
       doneBy: a.actorKey ?? existing?.doneBy ?? null,
       endReason: a.site && a.endReason !== undefined ? a.endReason : statusChanged && !cancelled ? null : (existing?.endReason ?? null),

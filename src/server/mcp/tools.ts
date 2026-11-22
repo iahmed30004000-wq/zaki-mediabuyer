@@ -1,9 +1,10 @@
 /**
  * THE TOOLS CLAUDE HAS HERE (v4 · A). Names stay English, descriptions are Arabic (that is what the model reads).
- * Twenty-three tools, none of which can spend, delete, or approve anything:
+ * Twenty-four tools, none of which can spend, delete, or approve anything:
  *
  *   push_metrics · push_stock · push_videos   the numbers Claude read from Ads Manager, the OMS, the stock sheet, Drive
  *   log_run                                   a job run — it moves the matching workflow on الورك فلو
+ *   get_jobs · push_jobs                      the schedule the site keeps for the agent (the site is the clock) · the agent's map of its jobs
  *   request_approval · get_approvals          ask the owner, read his answer
  *   notify                                    a non-blocking alert (🔴 🟠 🟡)
  *   get_mode · get_rules                      is he awake · the rules to work by
@@ -22,10 +23,10 @@ import { createNotification, dispatchNotification } from "../notify";
 import { applyMetrics, applyStock, applyVideos } from "../push";
 import { getRules } from "../rules";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask } from "../tasks";
-import { LogRunInput, RunRefused, UnknownJob, logRun } from "../workflows";
+import { LogRunInput, RunRefused, UnknownJob, listWorkflows, logRun } from "../workflows";
 import { PushJobsInput, upsertJobs, type PushJobsInputT } from "../jobs";
 import { OrderInput, OrderRefused, createOrder, endOrder, standingOrdersForClaude, type OrderInputT } from "../orders";
-import { HANDOFF_STATUSES } from "@/core/handoff";
+import { HANDOFF_STATUSES, actorOwnsAssignee } from "@/core/handoff";
 import { REQUEST_STATUSES } from "@/core/video-board";
 import { VideoRequestComplete, claimVideoRequest, completeVideoRequest, listVideoRequests } from "../video-requests";
 import { HandoffComplete, HandoffCreate, HandoffRefused, claimHandoff, completeHandoff, createHandoff, listHandoffs } from "../handoffs";
@@ -120,13 +121,52 @@ export const TOOLS: ToolDef<McpCtx>[] = [
     name: "push_jobs",
     title: "ابعت خريطة مهامك",
     description:
-      "ابعت جدولتك كلها (من 1 لـ 40 مهمة): لكل مهمة مفتاحها (نفس مفتاح log_run)، رقمها، اسمها، المجال (ads/ops)، نوعها، موعدها (cron أو كلام)، وفروعها. مفتاح المالك بيغلب: مهمة أو فرع طفّاه ما بيرجع يشتغل، وقراره عليها ما بينمسح. الجواب بيقلك لكل مهمة: enabled (إذا false وقّف) وحالة فروعها وقرار المالك. replace=true بيعلّم اللي غاب عن القائمة «خلصت» (ولا شي بينحذف).",
+      "ابعت جدولتك كلها (من 1 لـ 40 مهمة): لكل مهمة مفتاحها (نفس مفتاح log_run)، رقمها، اسمها، المجال (ads/ops)، نوعها، موعدها (cron أو كلام)، وفروعها. مفتاح المالك بيغلب: مهمة أو فرع طفّاه ما بيرجع يشتغل، وقراره عليها ما بينمسح. الجواب بيقلك لكل مهمة: enabled (إذا false وقّف) وحالة فروعها وقرار المالك. replace=true بيعلّم اللي غاب عن القائمة «خلصت» (ولا شي بينحذف) وfinished=false بيرجّع يفتحها. الرقم من الموقع: رقمك بيتاخد بس لو فاضي، وإلا بيتبدّل (الجواب فيه الرقم الصحيح). اسم بيطابق مهمة موجودة بينرفض ومعه مفتاحها. اللي عدّله المالك بإيده (الاسم، الموعد…) ما بينكتب فوقه — الجواب بيقلك kept_yours. الفرع اللي غاب عن قائمتك بيتطفّى وبيتعلّم (gone_steps) وما بيضل بصمت.",
     input: PushJobsInput,
     readOnly: false,
     run: async (a, ctx) => {
-      const r = await upsertJobs(a as PushJobsInputT, ctx.actor);
+      const r = await upsertJobs(a as PushJobsInputT, ctx.actor, new Date(), { actorKey: ctx.actorKey });
       const bad = r.jobs.filter((j) => !j.ok);
       return ok(`خريطة المهام: ${r.jobs.filter((j) => j.ok).length} انسجّلت${bad.length ? `، ${bad.length} انرفضت (${bad.map((b) => `${b.key}: ${b.error}`).join(" · ")})` : ""}${r.finished.length ? `، وانعلّم «خلصت»: ${r.finished.join("، ")}` : ""}.`, { jobs: r.jobs, finished: r.finished });
+    },
+  },
+  {
+    name: "get_jobs",
+    title: "شو جدولتي؟",
+    description:
+      "اقرا مهامك من الموقع: الموقع هو الساعة والسجل، وجدولتك بتنقرا من هون مش بالعكس. لكل مهمة: المفتاح (نفس مفتاح log_run) · الرقم · الاسم · النوع · الموعد (cron أو كلام أو runs_at) · wake (self: بتصحى لحالك · site: الموقع بيطلبها منك بالطابور فاقرا get_handoffs) · الخطوات (id · title · enabled: اللي enabled=false تخطّاها) · الموعد الجاي · آخر تشغيل. الافتراضي: المهام المكلّف فيها وكيل توكنك؛ all=true بيجيبها كلها. اقراها بأول كل جولة، وبعد أي تغيير ابعث push_jobs.",
+    input: z
+      .object({
+        all: z.boolean().optional().describe("true: كل مهام الموقع مش بس مهامك"),
+        key: z.string().trim().min(1).max(60).optional().describe("مهمة وحدة بمفتاحها"),
+      })
+      .strict(),
+    readOnly: true,
+    run: async (a, ctx) => {
+      const q = a as { all?: boolean; key?: string };
+      const now = new Date();
+      const cards = await listWorkflows(now);
+      const mine = cards.filter((c) => (q.key ? c.key === q.key : q.all || actorOwnsAssignee(ctx.actorKey, c.assigneeKey ?? "claude")));
+      const jobs = mine.map((c) => ({
+        key: c.key,
+        number: c.number,
+        name: c.name,
+        kind: c.kind,
+        enabled: c.enabled && !c.finishedAt,
+        finished: !!c.finishedAt,
+        wake: c.wake,
+        assignee: c.assigneeKey ?? "claude",
+        schedule: c.schedule,
+        schedule_text: c.scheduleText,
+        runs_at: c.runsAt,
+        ends_at: c.endsAt,
+        grace_min: c.graceMin,
+        max_run_min: c.maxRunMin,
+        steps: c.graph.nodes.filter((n) => n.type !== "trigger").map((n) => ({ id: n.id, title: n.label, enabled: !n.disabled })),
+        next_run: c.nextRun,
+        last_run: c.lastRun ? { ref: c.lastRun.ref, status: c.lastRun.status, started_at: c.lastRun.startedAt, scheduled_for: c.lastRun.scheduledFor ?? null } : null,
+      }));
+      return ok(jobs.length ? `${jobs.length} مهمة: ${jobs.slice(0, 8).map((j) => `${j.number ?? "—"} ${j.name}${j.enabled ? "" : " (مطفية)"}`).join("، ")}${jobs.length > 8 ? "…" : ""}` : "ما في مهام مكلّف فيها وكيلك — جرّب all=true.", { jobs });
     },
   },
   {
@@ -441,7 +481,7 @@ export const SERVER_INSTRUCTIONS = [
   "لا بتبعت أبداً اسم زبون أو هاتفه أو عنوانه (بينرفض). الصرف والتصنيع ورفع السقف وأي شي برّا القواعد: قرار المالك — اطلبه بـ request_approval ولا تنفّذه قبل ما يوافق.",
   "المالك بيضغط «شغّل هلق» على ورك فلو، وأي خطوة بتوقف: بتنزل بطابور التسليم. اقرا get_handoffs بأول كل تشغيل، خذ البند (claim_handoff) فبيرجّعلك رمز claim، نفّذه وسجّله بـ log_run (ref ثابت لازم)، وجاوب بـ complete_handoff مع الرمز. خطوة وقفت عندك: create_handoff بدل ما تخليها. بعد ما تنفّذ قرار للمالك: ack_approval.",
   "طلبات الفيديوهات (هوكات · سيناريو · تيست · فيديو تعبان): get_video_requests ← claim_video_request ← complete_video_request (مع new_videos لما يطلع فيديو جاهز).",
-  "خريطة مهامك: ابعتها بـ push_jobs (replace=true) بعد أي تغيير بجدولتك، والجواب بيقلك أي مهمة طفّاها المالك. اقرا enabled بجواب log_run كمان.",
+  "خريطة مهامك: الموقع هو الساعة والسجل — اقرا جدولتك بـ get_jobs (فيها wake: self بتصحى لحالك، site الموقع بيطلبها منك بالطابور فاقرا get_handoffs كل 10 دقايق)، وابعت push_jobs (replace=true) بعد أي تغيير بجدولتك؛ الجواب بيقلك أي مهمة طفّاها المالك. اقرا enabled بجواب log_run كمان. بأول كل تشغيل ابعت scheduled_for (موعده) ليتربط بموعده — وإلا الموقع بيكتب «فاتت» لو ما وصل تسجيل خلال المهلة.",
   "كل نداء مسجّل. استعمل ref/key ثابت حتى لو أعدت المحاولة ما يتكرر شي. جواب log_run فيه disabled_steps (خطوات طفّاها المالك) وstop (لغى التشغيل).",
 ].join("\n");
 

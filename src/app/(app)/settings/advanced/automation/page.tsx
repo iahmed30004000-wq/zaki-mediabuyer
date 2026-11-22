@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 const KEYS = ["stepRunner", "scheduler", "n8n"];
 
 /**
- * الإعدادات ← متقدّم ← الأتمتة والجدولة: حالة n8n (هل بيصحّي Claude بمواعيده) · تنفيذ الخطوات من الموقع (webhook ومواقع مسموحة) · الجدولة من الموقع.
- * Read only: the keys and the allowed lists are written in Coolify; the scheduler stays off until the owner turns it on there.
+ * الإعدادات ← متقدّم ← الأتمتة والجدولة: حالة n8n · تنفيذ الخطوات من الموقع (webhook ومواقع مسموحة) · ساعة الموقع (الحارس).
+ * Read only: the keys and the allowed lists are written in Coolify; the site's clock always runs (there is no switch for it).
  */
 export default async function AutomationPage() {
   await requirePage("settings.view");
@@ -20,7 +20,7 @@ export default async function AutomationPage() {
   const rows = (edit?.links ?? SOURCES).filter((l) => KEYS.includes(l.key));
   return (
     <div className="space-y-4">
-      <p className="text-sm text-fg-muted">هون بتشوف حالة الأتمتة بس. المفاتيح والمواقع المسموحة بتنكتب بـ Coolify، وتشغيل الجدولة من الموقع بيضل مطفي لحد ما تشغّله إنت هناك.</p>
+      <p className="text-sm text-fg-muted">هون بتشوف حالة الأتمتة بس. المفاتيح والمواقع المسموحة بتنكتب بـ Coolify. ساعة الموقع دايماً شغّالة: بتراقب كل مهمة بموعدها، ومهام Claude بتضل بتصحى لحالها.</p>
       {rows.length ? (
         <div className="grid gap-3 md:grid-cols-2">
           {rows.map((s) => (

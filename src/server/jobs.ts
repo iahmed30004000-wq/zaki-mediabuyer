@@ -9,12 +9,15 @@ import { z } from "zod";
 import { JOB_ADVICE, JOB_DOMAINS, JOB_KINDS, JOB_DECISIONS } from "@/core/jobs";
 import { refuseIfPrivate } from "@/core/push-rows";
 import { isValidCron } from "@/core/cron";
+import { findNameClash } from "@/core/job-map";
+import { mergeBranches, withoutOwnerEdited } from "@/core/push-jobs";
 import { GraphSchema, type WfGraph, type WfNode } from "@/core/workflow";
 import { ensureLayout } from "@/core/workflow-edit";
 import { audit, type Actor } from "./audit";
 import { db } from "./db";
 import { createHandoff } from "./handoffs";
-import { RunRefused, ensureSeeded, updateWorkflow } from "./workflows";
+import { loadJob, nextJobNumber, numberTaken, withNumberLock } from "./job-map";
+import { RunRefused, updateWorkflow } from "./workflows";
 import type { Prisma } from "@prisma/client";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
@@ -73,6 +76,12 @@ export interface PushJobResult {
   /** the owner's decision on it (keep / cancel / merge), if he made one */
   decision?: string | null;
   branches?: { id: string; enabled: boolean }[];
+  /** the key asked for was merged into another job: this is the one it landed on */
+  redirected_to?: string;
+  /** steps the agent's list no longer has: switched off and marked */
+  gone_steps?: string[];
+  /** fields the owner edited by hand: kept as he left them, the push did not write them */
+  kept_yours?: string[];
   error?: string;
 }
 export interface PushJobsResult {
@@ -91,33 +100,22 @@ function drawing(j: JobInT): WfGraph {
   return ensureLayout({ nodes, edges: nodes.slice(1).map((n, i) => ({ from: nodes[i]!.id, to: n.id })) });
 }
 
-/** The existing drawing with Claude's branches merged in by id: new ones appended, titles updated, the owner's «off» kept. Returns null when nothing changed. */
-function mergeBranches(graph: WfGraph, branches: NonNullable<JobInT["branches"]>): WfGraph | null {
-  let changed = false;
-  const nodes = graph.nodes.map((n) => ({ ...n }));
-  const edges = [...graph.edges];
-  for (const b of branches) {
-    const at = nodes.findIndex((n) => n.id === b.id);
-    if (at >= 0) {
-      const n = nodes[at]!;
-      if (n.label !== b.label) (n.label = b.label), (changed = true);
-      if (b.desc !== undefined && n.desc !== b.desc) (n.desc = b.desc), (changed = true);
-      // Claude may switch a branch off; it can never switch one the owner turned off back on
-      if (b.enabled === false && !n.disabled) (n.disabled = true), (changed = true);
-    } else {
-      const last = nodes[nodes.length - 1];
-      nodes.push({ id: b.id, type: "step", label: b.label, ...(b.desc ? { desc: b.desc } : {}), executor: "claude_mcp", dataSource: "mcp", permission: "green", ...(b.enabled === false ? { disabled: true } : {}) });
-      if (last) edges.push({ from: last.id, to: b.id });
-      changed = true;
-    }
-  }
-  return changed ? ensureLayout({ nodes, edges }) : null;
-}
-
-/** Creates or updates every job of the list, one by one: a job that fails (a phone number in a note, a bad cron) says so and the others still land. */
-export async function upsertJobs(input: PushJobsInputT, actor: Actor, now = new Date()): Promise<PushJobsResult> {
-  await ensureSeeded();
+/**
+ * Creates or updates every job of the list, one by one: a job that fails (a phone number in a note, a bad cron, a name that is another job's) says so
+ * and the others still land. The site owns the map (docs/rebuild-v6/01-model.md §11 · §12):
+ *   · the number is the site's — the one asked for is used only when it is free, else the next free one; an existing job keeps its own;
+ *   · a name that is another job's is refused, with that job's key;
+ *   · a key that was merged into another job lands on that one;
+ *   · what the owner edited by hand is never written over; `finished: false` opens a job again;
+ *   · steps the list no longer has are switched off and marked, never left as if nothing happened.
+ */
+export async function upsertJobs(input: PushJobsInputT, actor: Actor, now = new Date(), opts: { actorKey?: string | null } = {}): Promise<PushJobsResult> {
+  // a job the agent makes is carried out by that agent (an old token tied to nobody is Claude, as the queue always took it)
+  const carrier = opts.actorKey ?? "claude";
+  const executor = carrier === "hermes" || carrier === "muse" ? carrier : "claude_mcp";
   const results: PushJobResult[] = [];
+  const names = await db.workflow.findMany({ where: { archivedAt: null }, select: { key: true, name: true } });
+  const landed = new Set<string>();
   for (const j of input.jobs) {
     try {
       const refusal = refuseIfPrivate(...texts(j));
@@ -125,9 +123,18 @@ export async function upsertJobs(input: PushJobsInputT, actor: Actor, now = new 
       if (j.schedule && !isValidCron(j.schedule)) throw new RunRefused("schedule: لازم cron من 5 خانات");
       if (j.branches?.some((b) => b.id === "start")) throw new RunRefused("معرّف الفرع «start» محجوز للبداية");
       if (new Set((j.branches ?? []).map((b) => b.id)).size !== (j.branches ?? []).length) throw new RunRefused("معرّف فرع مكرر");
-      const existing = await db.workflow.findUnique({ where: { key: j.key } });
-      const fields = {
-        ...(j.number !== undefined ? { number: j.number } : {}),
+      const existing = await loadJob(j.key);
+      const key = existing?.key ?? j.key;
+      landed.add(key);
+      const redirected = existing && existing.key !== j.key ? { redirected_to: existing.key } : {};
+      const mine = existing?.ownerEdited ?? [];
+      // a name is one job: another job already has it
+      if (!existing || (j.name !== existing.name && !mine.includes("name"))) {
+        const clash = findNameClash(names, j.name, existing?.key);
+        if (clash) throw new RunRefused(`في مهمة بنفس الاسم «${clash.name}» — مفتاحها ${clash.key}. استعمل نفس المفتاح بدل ما تعمل مهمة جديدة`);
+      }
+      const wanted = {
+        name: j.name,
         domain: j.domain,
         kind: j.kind,
         ...(j.schedule !== undefined ? { schedule: j.schedule } : {}),
@@ -142,28 +149,56 @@ export async function upsertJobs(input: PushJobsInputT, actor: Actor, now = new 
         ...(j.note !== undefined ? { note: j.note } : {}),
         ...(j.advice ? { advice: j.advice } : {}),
         ...(j.advice_text !== undefined ? { adviceText: j.advice_text } : {}),
-        ...(j.finished === true ? { finishedAt: existing?.finishedAt ?? now } : {}),
       };
+      const { data: fields, kept } = withoutOwnerEdited(wanted, mine);
+      // finished: true closes it (once); finished: false opens it again; saying nothing leaves it as it is
+      const finishing = j.finished === true ? { finishedAt: existing?.finishedAt ?? now } : j.finished === false ? { finishedAt: null } : {};
+
       if (!existing) {
         const graph = drawing(j);
-        const row = await db.workflow.create({ data: { key: j.key, name: j.name, executor: "claude_mcp", dataSource: "mcp", permission: "green", enabled: true, source: "mcp", graph: json(graph), ...fields } });
-        await db.workflowVersion.create({ data: { workflowId: row.id, version: 1, graph: json(graph), note: "من خريطة Claude", createdBy: actor.id ?? actor.type } });
+        const row = await withNumberLock(async (tx) => {
+          const number = j.number !== undefined && !(await numberTaken(j.number, null, tx)) ? j.number : await nextJobNumber(tx);
+          const made = await tx.workflow.create({ data: { key: j.key, name: j.name, executor, dataSource: "mcp", permission: "green", enabled: true, source: "mcp", graph: json(graph), assigneeKey: carrier, ...(fields as object), ...finishing, number } });
+          await tx.workflowVersion.create({ data: { workflowId: made.id, version: 1, graph: json(graph), note: "من خريطة Claude", createdBy: actor.id ?? actor.type } });
+          return made;
+        });
+        names.push({ key: row.key, name: row.name });
         await audit(actor, "workflow.push_jobs", { type: "workflow", id: row.id }, { after: { key: row.key, created: true, number: row.number } });
         results.push({ key: row.key, ok: true, created: true, enabled: row.enabled, number: row.number, decision: row.decision, branches: (j.branches ?? []).map((b) => ({ id: b.id, enabled: b.enabled !== false })) });
         continue;
       }
-      const row = await db.workflow.update({ where: { key: j.key }, data: { name: j.name, ...fields } });
+
+      // when the time of a job changes, what was expected of it before is not counted against it (the watchdog counts from this moment)
+      const timeMoved = ("schedule" in fields && fields.schedule !== existing.schedule) || ("runsAt" in fields && (fields.runsAt as Date).getTime() !== existing.runsAt?.getTime()) || ("kind" in fields && fields.kind !== existing.kind);
+      const row = await withNumberLock(async (tx) => {
+        const number = existing.number !== null ? existing.number : j.number !== undefined && !(await numberTaken(j.number, existing.key, tx)) ? j.number : await nextJobNumber(tx);
+        return tx.workflow.update({ where: { key: existing.key }, data: { ...(fields as object), ...finishing, number, ...(timeMoved ? { scheduleChangedAt: now } : {}) } });
+      });
       let graph = GraphSchema.safeParse(existing.graph).success ? (GraphSchema.parse(existing.graph) as WfGraph) : null;
+      let gone: string[] = [];
       if (graph && j.branches?.length) {
         const merged = mergeBranches(graph, j.branches);
-        if (merged) {
-          await updateWorkflow(j.key, { graph: merged, note: "من خريطة Claude" }, actor);
-          graph = merged;
+        gone = merged.gone;
+        if (merged.graph) {
+          const laid = ensureLayout(merged.graph);
+          await updateWorkflow(existing.key, { graph: laid, note: gone.length ? `من خريطة Claude — غابت: ${gone.join("، ")}` : "من خريطة Claude" }, actor);
+          graph = laid;
         }
       }
-      await audit(actor, "workflow.push_jobs", { type: "workflow", id: row.id }, { after: { key: row.key, created: false, number: row.number } });
+      await audit(actor, "workflow.push_jobs", { type: "workflow", id: row.id }, { after: { key: row.key, created: false, number: row.number, ...(kept.length ? { kept } : {}) } });
       const states = (graph?.nodes ?? []).filter((n) => n.type !== "trigger").map((n) => ({ id: n.id, enabled: !n.disabled }));
-      results.push({ key: row.key, ok: true, created: false, enabled: row.enabled, number: row.number, decision: row.decision, branches: j.branches ? states.filter((s) => j.branches!.some((b) => b.id === s.id)) : states });
+      results.push({
+        key: row.key,
+        ok: true,
+        created: false,
+        enabled: row.enabled,
+        number: row.number,
+        decision: row.decision,
+        branches: j.branches ? states.filter((s) => j.branches!.some((b) => b.id === s.id)) : states,
+        ...redirected,
+        ...(gone.length ? { gone_steps: gone } : {}),
+        ...(kept.length ? { kept_yours: kept } : {}),
+      });
     } catch (e) {
       if (e instanceof RunRefused) results.push({ key: j.key, ok: false, error: e.message });
       else throw e;
@@ -171,8 +206,7 @@ export async function upsertJobs(input: PushJobsInputT, actor: Actor, now = new 
   }
   const finished: string[] = [];
   if (input.replace) {
-    const keep = new Set(input.jobs.map((j) => j.key));
-    const gone = await db.workflow.findMany({ where: { source: "mcp", archivedAt: null, finishedAt: null, key: { notIn: [...keep] } }, select: { id: true, key: true } });
+    const gone = await db.workflow.findMany({ where: { source: "mcp", archivedAt: null, finishedAt: null, mergedInto: null, key: { notIn: [...landed] } }, select: { id: true, key: true } });
     for (const g of gone) {
       await db.workflow.update({ where: { id: g.id }, data: { finishedAt: now } });
       finished.push(g.key);
@@ -271,7 +305,6 @@ export async function applyDecisions(input: DecisionsInputT, actor: Actor, now =
   });
   const parts = [res.cancelled.length ? `ألغي ${res.cancelled.join(" · ")}` : "", branchNum.length ? `الفرع ${branchNum.join(" · ")}` : "", res.merged.length ? `ادمج ${res.merged.join(" · ").replace(/>/g, " بـ ")}` : ""].filter(Boolean);
   if (parts.length) {
-    await ensureSeeded();
     const first = byKey.get(input.items.find((i) => i.decision !== "keep")?.key ?? input.items[0]!.key)!;
     const h = await createHandoff({ workflow: first.key, kind: "needs_input", title: `ورقة القرار: ${parts.join(" — ")}`.slice(0, 160), need: "شيلها من جدولتك قبل موعدها — الموقع طفّاها", assignee: "claude" }, actor);
     res.handoffId = h.handoff.id;

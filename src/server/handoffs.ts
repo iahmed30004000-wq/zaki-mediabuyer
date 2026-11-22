@@ -18,7 +18,8 @@ import { isTerminalRun, nodeStatusOnComplete, statusOnComplete } from "@/core/ru
 import { GraphSchema, type NodeStates } from "@/core/workflow";
 import { audit, type Actor } from "./audit";
 import { db } from "./db";
-import { UnknownJob, ensureSeeded, logRun, type LogRunCall, type RunView } from "./workflows";
+import { loadJob } from "./job-map";
+import { UnknownJob, logRun, type LogRunCall, type RunView } from "./workflows";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
@@ -131,21 +132,34 @@ async function views(rows: Handoff[]): Promise<HandoffView[]> {
 const actorKey = (a: Actor) => (a.id ? `${a.type}:${a.id}` : a.type).slice(0, 60);
 
 /**
- * The requests whose time is up (nobody took them by `expiresAt`) end here, and the run each held up is `missed`: it never started. Cheap —
- * one update when there is nothing to end — and safe to call from anywhere (the watchdog of P1-2 calls it too).
+ * One request whose time is up ends here (nobody took it by `expiresAt`), and the run it held up is `missed`: it never started. Conditional on the
+ * request still being open, so two callers (the watchdog and a reader) end it once. Returns the run it missed, when there was one.
  */
-export async function endExpired(now = new Date(), key?: string): Promise<number> {
-  const stale = await db.handoff.findMany({ where: { status: "open", expiresAt: { lte: now }, ...(key ? { workflowKey: key } : {}) }, select: { id: true, workflowKey: true, runRef: true } });
-  let n = 0;
-  for (const h of stale) {
-    const r = await db.handoff.updateMany({ where: { id: h.id, status: "open" }, data: { status: "cancelled", doneBy: "auto", doneAt: now, resultNote: "انتهت مهلتها — ما حدا أخدها" } });
-    if (!r.count) continue;
-    n += 1;
-    if (h.runRef) {
-      const wf = await db.workflow.findUnique({ where: { key: h.workflowKey }, select: { id: true } });
-      if (wf) await db.workflowRun.updateMany({ where: { workflowId: wf.id, ref: h.runRef, status: { in: ["queued", "waiting"] } }, data: { status: "missed", endReason: "missed", finishedAt: now } });
+export async function expireHandoff(id: string, now = new Date()): Promise<{ ended: boolean; runId: string | null; jobKey: string | null }> {
+  const h = await db.handoff.findUnique({ where: { id }, select: { id: true, workflowKey: true, runRef: true } });
+  if (!h) return { ended: false, runId: null, jobKey: null };
+  const r = await db.handoff.updateMany({ where: { id, status: "open", expiresAt: { lte: now } }, data: { status: "cancelled", doneBy: "auto", doneAt: now, resultNote: "انتهت مهلتها — ما حدا أخدها" } });
+  if (!r.count) return { ended: false, runId: null, jobKey: h.workflowKey };
+  let runId: string | null = null;
+  if (h.runRef) {
+    const wf = await db.workflow.findUnique({ where: { key: h.workflowKey }, select: { id: true } });
+    if (wf) {
+      const run = await db.workflowRun.findUnique({ where: { workflowId_ref: { workflowId: wf.id, ref: h.runRef } }, select: { id: true, status: true } });
+      const m = await db.workflowRun.updateMany({ where: { workflowId: wf.id, ref: h.runRef, status: { in: ["queued", "waiting"] } }, data: { status: "missed", endReason: "missed", finishedAt: now } });
+      if (m.count && run) runId = run.id;
     }
   }
+  return { ended: true, runId, jobKey: h.workflowKey };
+}
+
+/**
+ * The requests whose time is up (nobody took them by `expiresAt`) end here, and the run each held up is `missed`: it never started. Cheap —
+ * one read when there is nothing to end — and safe to call from anywhere (the watchdog ends them too, once a minute, and says so).
+ */
+export async function endExpired(now = new Date(), key?: string): Promise<number> {
+  const stale = await db.handoff.findMany({ where: { status: "open", expiresAt: { lte: now }, ...(key ? { workflowKey: key } : {}) }, select: { id: true } });
+  let n = 0;
+  for (const h of stale) if ((await expireHandoff(h.id, now)).ended) n += 1;
   return n;
 }
 
@@ -154,18 +168,21 @@ export async function endExpired(now = new Date(), key?: string): Promise<number
  * after it was asked (a scheduled one: its slot + graceMin) if nobody takes it. Asking again while one is open returns the open one, with how
  * long it has been waiting. A stuck step shows the run as «waiting» with the step marked «handoff».
  */
-export async function createHandoff(input: HandoffCreateT, actor: Actor, now = new Date(), opts: { card?: string; scheduledFor?: Date | null } = {}): Promise<{ handoff: HandoffView; created: boolean; since?: string }> {
+export async function createHandoff(input: HandoffCreateT, actor: Actor, now = new Date(), opts: { card?: string; scheduledFor?: Date | null; trigger?: "schedule" | "manual" | "event" } = {}): Promise<{ handoff: HandoffView; created: boolean; since?: string }> {
   const refusal = refuseIfPrivate(input.title, input.need, input.last_error, input.prompt, ...Object.values(input.inputs ?? {}).map(String));
   if (refusal) throw new HandoffRefused(refusal);
-  await ensureSeeded();
-  const wf = await db.workflow.findUnique({ where: { key: input.workflow } });
+  const wf = await loadJob(input.workflow);
   if (!wf || wf.archivedAt) throw new UnknownJob((await db.workflow.findMany({ where: { archivedAt: null }, select: { key: true }, orderBy: { key: "asc" } })).map((w) => w.key));
   const graph = GraphSchema.parse(wf.graph);
   const kind = input.kind as HandoffKind;
   const queued = kind === "manual_run" || kind === "resume";
 
   if (queued) await endExpired(now, wf.key);
-  if (kind === "manual_run") {
+  if (kind === "manual_run" && opts.scheduledFor && input.run_ref) {
+    // a slot's own request (the watchdog asks for it): one per slot, whatever else is open — the run it makes carries the slot's ref
+    const had = await db.workflowRun.findUnique({ where: { workflowId_ref: { workflowId: wf.id, ref: input.run_ref } }, select: { id: true } });
+    if (had) throw new HandoffRefused("هالموعد إله تشغيل من قبل", 409);
+  } else if (kind === "manual_run") {
     // a run a button on a card asked for is one at a time per CARD (its inputs say which); «شغّل هلق» is one at a time per workflow
     const open = await db.handoff.findFirst({ where: { workflowKey: wf.key, kind: "manual_run", status: { in: ["open", "claimed"] }, ...(opts.card ? { context: { path: ["inputs", "card_id"], equals: opts.card } } : {}) } });
     if (open) return { handoff: (await views([open]))[0]!, created: false, since: open.createdAt.toISOString() };
@@ -210,7 +227,7 @@ export async function createHandoff(input: HandoffCreateT, actor: Actor, now = n
       job: wf.key,
       ref,
       status: queued ? "queued" : "waiting",
-      ...(kind === "manual_run" ? { trigger: "manual" as const } : {}),
+      ...(opts.trigger ? { trigger: opts.trigger } : kind === "manual_run" ? { trigger: "manual" as const } : {}),
       ...(opts.scheduledFor ? { scheduled_for: opts.scheduledFor.toISOString() } : {}),
       summary: queued ? waitingOn : `بانتظار تسليم: ${input.title}`.slice(0, 300),
       ...(node && !queued ? { node: { id: node, status: "handoff" as const, note: input.title.slice(0, 200) } } : {}),
@@ -347,11 +364,10 @@ export async function completeHandoff(id: string, input: HandoffCompleteT, by: s
 
 /** «شغّل هلق»: asks the job's agent to run it now — one request at a time per job (asking again returns the open one, and how long it has waited). */
 export async function requestRun(key: string, actor: Actor, now = new Date()): Promise<{ handoff: HandoffView; created: boolean; since?: string }> {
-  await ensureSeeded();
-  const wf = await db.workflow.findUnique({ where: { key } });
+  const wf = await loadJob(key);
   if (!wf || wf.archivedAt) throw new HandoffRefused("الورك فلو مش موجود", 404);
   if (!wf.enabled) throw new HandoffRefused("هالورك فلو مطفي — شغّله أول", 409);
-  return createHandoff({ workflow: key, kind: "manual_run", title: `شغّل «${wf.name}» هلق`.slice(0, 160), assignee: queueAssignee(wf.assigneeKey) }, actor, now);
+  return createHandoff({ workflow: wf.key, kind: "manual_run", title: `شغّل «${wf.name}» هلق`.slice(0, 160), assignee: queueAssignee(wf.assigneeKey) }, actor, now);
 }
 
 /** The owner gives it to someone else: back to «open», for that assignee (the old taker's code and lease are void). */

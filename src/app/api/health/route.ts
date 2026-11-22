@@ -6,7 +6,6 @@ import { encryptionKeyConfigured } from "@/server/crypto";
 import { envProblems, omsLinked } from "@/server/env";
 import { assistantConfigured, externalModelsOff } from "@/server/assistant/config";
 import { workspaceConfigFrom } from "@/core/workspace-door";
-import { schedulerOn } from "@/core/scheduler";
 import { isDemo } from "@/core/readiness";
 import { WORKER_TICK_KEY, publicHealth, tickTime, workerState } from "@/core/health";
 
@@ -52,7 +51,6 @@ export async function GET() {
       internalModel: has("INTERNAL_MODEL_BASE_URL"),
       assistant: (await assistantConfigured()) && !externalModelsOff(),
       workspace: workspaceConfigFrom(process.env) !== null,
-      scheduler: schedulerOn(process.env),
       stepRunner: has("N8N_BASE_URL") && has("N8N_WEBHOOK_SECRET") && (has("N8N_ALLOWED_PATHS") || has("STEP_HTTP_ALLOW")),
     },
     at: new Date().toISOString(),

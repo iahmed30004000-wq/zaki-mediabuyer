@@ -7,6 +7,10 @@ export const WORKER_STALE_SEC = 180;
 
 export const WORKER_TICK_KEY = "worker.tick";
 
+/** The watchdog (v6 P1-2): `watchdog.since` is the first time it ever ran (nothing earlier is counted); `watchdog.tick` is the last pass, `{ at }` like the worker heartbeat. */
+export const WATCHDOG_SINCE_KEY = "watchdog.since";
+export const WATCHDOG_TICK_KEY = "watchdog.tick";
+
 /** The heartbeat the worker stores: `{ at: ISO }`. Anything else counts as «never ticked». */
 export function tickTime(value: unknown): Date | null {
   const at = (value as { at?: unknown } | null)?.at;

@@ -28,7 +28,7 @@ import { mutateSetting } from "./settings";
 import { directoryKeys } from "./directory";
 import { listTasks } from "./tasks";
 import { getUiConfig } from "./ui-config";
-import { UnknownJob, ensureSeeded } from "./workflows";
+import { UnknownJob } from "./workflows";
 
 const newId = (prefix: string) => `${prefix}-${randomBytes(3).toString("hex")}`;
 
@@ -156,7 +156,6 @@ export interface OpResult extends Effects {
 
 /** Applies one op for the owner. A refusal is a 400 with the reason in words, and nothing changes (the transaction rolls back). */
 export async function applyOp(op: UiOp, caller: Caller): Promise<OpResult> {
-  if (op.op.startsWith("button.")) await ensureSeeded();
   const now = new Date().toISOString();
   const fx: Effects = {};
   const out = await mutateSetting(
@@ -186,7 +185,6 @@ export interface PanelData {
 
 /** The owner's whole layout with what each part is used for (tasks on a board, values in a field) and the merges worth doing. */
 export async function panelData(): Promise<PanelData> {
-  await ensureSeeded();
   const cfg = await getUiConfig();
   const [byBoard, byField, workflows, tasks] = await Promise.all([
     db.task.groupBy({ by: ["board"], where: { archivedAt: null }, _count: { _all: true } }),
@@ -296,7 +294,6 @@ export async function runButton(buttonId: string, entity: Entity, entityId: stri
   if (!button) throw new HttpError(404, "الزر مش موجود");
   const card = await cardOf(entity, entityId, cfg);
   if (!buttonsFor(cfg, entity, card.board).some((b) => b.id === button.id)) throw new HttpError(409, "الزر مش على هاللوحة");
-  await ensureSeeded();
   const wf = await db.workflow.findUnique({ where: { key: button.workflow } });
   if (!wf || wf.archivedAt) throw new HttpError(404, "الورك فلو اللي ربطت فيه الزر مش موجود — عدّل الزر");
   if (!wf.enabled) throw new HttpError(409, "هالورك فلو مطفي — شغّله أول");

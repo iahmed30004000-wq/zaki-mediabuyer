@@ -24,6 +24,7 @@ export const TOOL_SCOPE: Readonly<Record<string, McpScope>> = {
   get_mode: "mcp:read",
   get_approvals: "mcp:read",
   get_handoffs: "mcp:read",
+  get_jobs: "mcp:read",
   get_video_requests: "mcp:read",
   list_tasks: "mcp:read",
   push_metrics: "mcp:push",
