@@ -106,7 +106,12 @@ describe("the four recipes and their fields", () => {
 
   it("metric_watch: the six numbers, the product, over or under, the limit (a number, with the unit of the chosen one) and the period", () => {
     const out = draw("metric_watch", { metric: "realCost", product: "all", op: "above", limit: 4.5, period: "yesterday" });
-    for (const l of ["تكلفة الطلب الحقيقي", "الطلبات الحقيقية", "نسبة التأكيد", "الصرف", "تكلفة المؤكد", "نسبة التسليم (30 يوم)"]) expect(out).toContain(l);
+    // «كل المنتجات»: the five numbers the totals have; the 30-day delivery rate is per product, so it is not offered here
+    for (const l of ["تكلفة الطلب الحقيقي", "الطلبات الحقيقية", "نسبة التأكيد", "الصرف", "تكلفة المؤكد"]) expect(out).toContain(l);
+    expect(out).not.toContain("نسبة التسليم (30 يوم)");
+    // with one product picked, all six are there
+    const one = draw("metric_watch", { metric: "deliveredRate", product: "TIN01", op: "below", limit: 60, period: "yesterday" });
+    expect(one).toContain("نسبة التسليم (30 يوم)");
     expect(out).toContain("فوق الحد");
     expect(out).toContain("تحت الحد");
     expect(out).toContain('type="number"');
