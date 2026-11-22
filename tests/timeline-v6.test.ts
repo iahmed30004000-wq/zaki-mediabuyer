@@ -25,6 +25,12 @@ describe("which slot a run answers (W-16)", () => {
     expect(dotAt(l, "2026-11-22T08:00:00.000Z")?.state).toBe("missed");
   });
 
+  it("a scheduledFor with seconds (an agent writes the moment it woke) still answers its slot", () => {
+    const l = dayLine([hourly], [run("r", "2026-11-22T08:40:00Z", "ok", { scheduledFor: "2026-11-22T07:00:27.412Z" })], bounds, at("2026-11-22T09:00:00Z"));
+    expect(dotAt(l, "2026-11-22T07:00:00.000Z")).toMatchObject({ state: "done", runId: "r" });
+    expect(l.dots.find((d) => d.runId === "r")?.state).toBe("done");
+  });
+
   it("a run later than the job's graceMin answers nothing: it is a manual dot (W-16: not stretched to the nearest slot)", () => {
     const l = dayLine([{ ...hourly, graceMin: 10 }], [run("r", "2026-11-22T08:12:00Z")], bounds, at("2026-11-22T09:00:00Z"));
     expect(l.dots.find((d) => d.runId === "r")).toMatchObject({ state: "manual" });

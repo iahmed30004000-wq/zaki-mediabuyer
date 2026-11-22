@@ -14,9 +14,10 @@
  *   expire_approval  a request for the owner that ran out
  *
  * No storm out of the past: the slots counted for a job start at the newest of «the first time the watchdog ever ran» (`since`), the day the job
- * was made, the day its schedule last changed — and never more than the last 6 hours.
+ * was made, the day its schedule last changed — and never more than the last 6 hours. The same goes for the runs: a run whose last word is older than
+ * that (a zombie from before the watchdog, or from a long outage) is not «lost» or «stuck» now — nothing is told about the past.
  */
-import { jobSlots, slotFor, type SlotJob } from "./slot-for";
+import { jobSlots, slotOfRun, type SlotJob } from "./slot-for";
 
 export const WATCH_LOOKBACK_H = 6;
 /** A run waiting on somebody for longer than this is «stuck» (a notification, once). */
@@ -91,11 +92,15 @@ const isEnded = (status: string) => ENDED.includes(status);
 /** Is anything expected of this job? On, not put away, not merged into another, not finished, not black. */
 export const isWatched = (j: WatchJob): boolean => j.enabled && !j.archivedAt && !j.finishedAt && !j.mergedInto && j.permission !== "black";
 
-/** Does this run answer this slot of the job? A manual run answers none; a run that carries its own `scheduledFor` answers that one only. */
+/** The moment a run last gave a sign of life (the newest of its heartbeat, its writes and its start). */
+export const lastActivity = (r: Pick<WatchRun, "startedAt" | "heartbeatAt" | "updatedAt">): number => Math.max(r.startedAt.getTime(), r.heartbeatAt?.getTime() ?? 0, r.updatedAt.getTime());
+
+/** The oldest moment the watchdog still looks at: the first time it ever ran, and never more than the lookback — for slots and for runs alike. */
+export const watchFloor = (since: Date, now: Date): number => Math.max(since.getTime(), now.getTime() - WATCH_LOOKBACK_H * 3_600_000);
+
+/** Does this run answer this slot of the job? A manual run answers none; a run that carries its own `scheduledFor` answers the slot nearest to it (to the minute, not the millisecond). */
 function answers(job: WatchJob, run: WatchRun, slot: Date): boolean {
-  if (run.trigger === "manual") return false;
-  if (run.scheduledFor) return run.scheduledFor.getTime() === slot.getTime();
-  return slotFor(job, run.startedAt)?.getTime() === slot.getTime();
+  return slotOfRun(job, run)?.getTime() === slot.getTime();
 }
 
 export function watchPlan(s: WatchSnapshot, now: Date): WatchAction[] {
@@ -111,11 +116,17 @@ export function watchPlan(s: WatchSnapshot, now: Date): WatchAction[] {
   for (const job of jobs) {
     if (!isWatched(job)) continue;
     const mine = runsOf.get(job.key) ?? [];
-    const floor = Math.max(s.since.getTime(), job.createdAt.getTime(), job.scheduleChangedAt?.getTime() ?? 0, t - WATCH_LOOKBACK_H * 3_600_000);
+    const floor = Math.max(watchFloor(s.since, now), job.createdAt.getTime(), job.scheduleChangedAt?.getTime() ?? 0);
     const slots = jobSlots(job, new Date(floor), now);
     const grace = job.graceMin * MIN;
+    // which slot each run answers, worked out once per run (not once per slot)
+    const answered = new Set<number>();
+    for (const r of mine) {
+      const at = slotOfRun(job, r)?.getTime();
+      if (at !== undefined) answered.add(at);
+    }
     for (const slot of slots) {
-      if (mine.some((r) => answers(job, r, slot))) continue;
+      if (answered.has(slot.getTime())) continue;
       const late = t - slot.getTime();
       if (job.wake !== "self" && late <= grace) out.push({ type: "fire", jobKey: job.key, slot: slot.toISOString() });
       else if (late > grace) out.push({ type: "miss", jobKey: job.key, slot: slot.toISOString() });
@@ -129,9 +140,12 @@ export function watchPlan(s: WatchSnapshot, now: Date): WatchAction[] {
 
   // ── the runs ──
   const expiring = new Set(s.handoffs.filter((h) => h.status === "open" && h.expiresAt && h.expiresAt.getTime() <= t && h.runRef).map((h) => `${h.workflowKey}\u0000${h.runRef}`));
+  const runFloor = watchFloor(s.since, now);
   for (const run of [...s.runs].sort((a, b) => a.id.localeCompare(b.id))) {
     const job = byKey.get(run.jobKey);
     if (!job) continue;
+    // no storm out of the past: a run last heard from before the floor is left alone (it is not «lost» or «stuck» today)
+    if (lastActivity(run) < runFloor) continue;
     if (run.status === "running") {
       const last = (run.heartbeatAt ?? run.startedAt).getTime();
       if (t - last > job.maxRunMin * MIN) out.push({ type: "lose", runId: run.id });

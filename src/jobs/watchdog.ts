@@ -8,7 +8,7 @@
  * runs under an advisory lock so only one worker plans at a time, and there is no row per minute (N-14): the only thing written when nothing is due is
  * the heartbeat (`Setting watchdog.tick`, one row, updated in place).
  */
-import { WATCH_LOOKBACK_H, countActions, watchPlan, type WatchAction, type WatchSnapshot } from "@/core/watch-plan";
+import { WATCH_LOOKBACK_H, countActions, watchFloor, watchPlan, type WatchAction, type WatchSnapshot } from "@/core/watch-plan";
 import { slotRef } from "@/core/slot-for";
 import { queueAssignee } from "@/core/handoff";
 import { WATCHDOG_SINCE_KEY, WATCHDOG_TICK_KEY } from "@/core/health";
@@ -49,7 +49,7 @@ export async function loadSnapshot(now: Date): Promise<WatchSnapshot> {
   const recent = new Date(now.getTime() - (WATCH_LOOKBACK_H + 2) * 3_600_000);
   const onceIds = wfs.filter((w) => w.kind === "once" && !w.finishedAt && w.enabled).map((w) => w.id);
   const [live, ranOnce, handoffs, approvals] = await Promise.all([
-    db.workflowRun.findMany({ where: { workflowId: { in: [...ids.keys()] }, OR: [{ status: { in: ["queued", "running", "waiting"] } }, { startedAt: { gte: recent } }, { scheduledFor: { gte: recent } }] }, orderBy: { startedAt: "desc" }, take: 2000 }),
+    db.workflowRun.findMany({ where: { workflowId: { in: [...ids.keys()] }, OR: [{ status: { in: ["queued", "running", "waiting"] }, updatedAt: { gte: new Date(watchFloor(since, now)) } }, { startedAt: { gte: recent } }, { scheduledFor: { gte: recent } }] }, orderBy: { startedAt: "desc" }, take: 2000 }),
     onceIds.length ? db.workflowRun.findMany({ where: { workflowId: { in: onceIds }, status: "ok" }, take: 200 }) : Promise.resolve([]),
     db.handoff.findMany({ where: { status: { in: ["open", "claimed"] } }, take: 500 }),
     db.approval.findMany({ where: { status: { in: ["pending", "postponed"] }, expiresAt: { lt: now } }, take: 200 }),

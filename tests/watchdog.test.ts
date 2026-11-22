@@ -52,6 +52,18 @@ describe("a slot nothing answered (فاتت)", () => {
     expect(watchPlan(snap({ jobs: [job("daily")], runs: [r] }), Z(9, 0))).toEqual([]);
   });
 
+  it("a scheduledFor that is not the exact minute (seconds, the real wake time, jitter) still answers the slot it is nearest to — and an old row with seconds too", () => {
+    for (const sf of [new Date(Z(7, 0).getTime() + 27_412), new Date(Z(7, 0).getTime() - 40_000), Z(7, 3)]) {
+      const r = run("daily", { startedAt: Z(8, 40), scheduledFor: sf });
+      expect(watchPlan(snap({ jobs: [job("daily")], runs: [r] }), Z(9, 0)), sf.toISOString()).toEqual([]);
+    }
+    // two slots in a row: each run answers only the one it is nearest to
+    const five = job("five", { schedule: "*/5 * * * *", graceMin: 15 });
+    const r = run("five", { startedAt: Z(7, 12), scheduledFor: new Date(Z(7, 10).getTime() + 20_000) });
+    const plan = watchPlan(snap({ jobs: [five], runs: [r], since: Z(7, 9) }), Z(7, 30)).filter((a) => a.type === "miss");
+    expect(plan.map((a) => (a as { slot: string }).slot)).not.toContain(iso(Z(7, 10)));
+  });
+
   it("a manual run answers no slot: the slot is still missed", () => {
     const r = run("daily", { startedAt: Z(7, 2), trigger: "manual" });
     expect(watchPlan(snap({ jobs: [job("daily")], runs: [r] }), Z(7, 40))).toEqual([{ type: "miss", jobKey: "daily", slot: iso(Z(7, 0)) }]);
@@ -98,6 +110,25 @@ describe("no storm out of the past", () => {
     const plan = watchPlan(snap({ jobs: [hourly] }), Z(20, 30));
     expect(plan).toHaveLength(6); // 15:00 … 20:00: the slots of 14:00 and before are older than 6 hours and never counted
     expect(plan.every((a) => a.type === "miss" && Date.parse(a.slot) > Z(20, 30).getTime() - 6 * 3_600_000)).toBe(true);
+  });
+});
+
+describe("no storm out of the past — the runs", () => {
+  const j = job("long", { maxRunMin: 90, schedule: null });
+
+  it("a run left `running` or `waiting` from before the watchdog's first pass is not lost or stuck now", () => {
+    const zombie = run("long", { status: "running", startedAt: Z(1, 0), updatedAt: Z(1, 0) });
+    const waiting = run("long", { status: "waiting", startedAt: Z(1, 0), updatedAt: Z(1, 0) });
+    const queued = run("long", { status: "queued", scheduledFor: Z(1, 0), startedAt: Z(1, 0), updatedAt: Z(1, 0) });
+    expect(watchPlan(snap({ jobs: [j], runs: [zombie, waiting, queued], since: Z(9, 0) }), Z(9, 0))).toEqual([]);
+    expect(watchPlan(snap({ jobs: [j], runs: [zombie, waiting, queued], since: Z(9, 0) }), Z(10, 0))).toEqual([]);
+  });
+
+  it("nor one older than the 6 hours, whatever the first pass was; one inside them is still told", () => {
+    const old = run("long", { status: "running", startedAt: Z(1, 0), updatedAt: Z(1, 0) });
+    expect(watchPlan(snap({ jobs: [j], runs: [old] }), Z(12, 0))).toEqual([]);
+    const fresh = run("long", { status: "running", startedAt: Z(8, 0), updatedAt: Z(8, 0) });
+    expect(watchPlan(snap({ jobs: [j], runs: [fresh], since: Z(7, 0) }), Z(12, 0))).toEqual([{ type: "lose", runId: fresh.id }]);
   });
 });
 

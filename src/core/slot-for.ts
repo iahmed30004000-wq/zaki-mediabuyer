@@ -57,5 +57,31 @@ export function slotFor(job: SlotJob, startedAt: Date): Date | null {
   return best;
 }
 
+/**
+ * The slot nearest to `at` inside ±`tolMin` minutes (a tie goes to the earlier one). Null when none. For a time an agent wrote by hand (`scheduled_for`):
+ * it may carry seconds, or be the moment the agent really woke — it still names that slot.
+ */
+export function nearestSlot(job: SlotJob, at: Date, tolMin: number): Date | null {
+  const t = at.getTime();
+  const tol = Math.max(tolMin, 1) * 60_000;
+  let best: Date | null = null;
+  for (const s of jobSlots(job, new Date(t - tol - 1), new Date(t + tol))) {
+    if (!best || Math.abs(s.getTime() - t) < Math.abs(best.getTime() - t)) best = s;
+  }
+  return best;
+}
+
+/**
+ * The slot a run answers: the one its own `scheduledFor` names (the nearest within the job's grace — exact to the millisecond is not asked of an agent),
+ * or, when it names none, the one `slotFor` gives for its start. A manual run answers none. Null when there is none.
+ */
+export function slotOfRun(job: SlotJob, run: { trigger: string; scheduledFor?: Date | string | null | undefined; startedAt: Date | string }): Date | null {
+  if (run.trigger === "manual") return null;
+  const sf = ms(run.scheduledFor);
+  if (sf !== null) return nearestSlot(job, new Date(sf), job.graceMin);
+  const st = ms(run.startedAt);
+  return st === null ? null : slotFor(job, new Date(st));
+}
+
 /** The reference a slot's own row (a «missed» row, or the run the site queued for it) is written under: `slot-<ISO>`. */
 export const slotRef = (slot: Date | string): string => `slot-${typeof slot === "string" ? slot : slot.toISOString()}`;

@@ -7,7 +7,7 @@
  * before). The same line is the mini one on the home page and the full one on «الشغل ← اليوم».
  */
 import { ammanKey, keyMs } from "./dates";
-import { jobSlots, slotFor, type SlotJob } from "./slot-for";
+import { jobSlots, slotOfRun, type SlotJob } from "./slot-for";
 
 export const WORKDAY_START_HOUR = 6;
 const HOUR = 3_600_000;
@@ -97,7 +97,7 @@ export function dayLine(jobs: readonly LineJob[], runs: readonly LineRun[], boun
     // [from, to) as the slots read it: (from − 1 ms, to − 1 ms]
     const slots = jobSlots(slotJob, new Date(bounds.from.getTime() - 1), new Date(bounds.to.getTime() - 1));
     const mine = inDay.filter((r) => r.jobKey === job.key && r.trigger !== "manual");
-    const slotOf = (r: LineRun) => (r.scheduledFor ? Date.parse(r.scheduledFor) : (slotFor(slotJob, new Date(r.startedAt))?.getTime() ?? null));
+    const slotOf = (r: LineRun) => slotOfRun(slotJob, r)?.getTime() ?? null;
     for (const slot of slots) {
       const t = slot.getTime();
       const answering = mine.filter((r) => !used.has(r.id) && slotOf(r) === t).sort((a, b) => (RANK[a.status] ?? 3) - (RANK[b.status] ?? 3) || a.startedAt.localeCompare(b.startedAt));

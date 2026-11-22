@@ -132,6 +132,18 @@ describe("push_jobs", () => {
     expect(wf("seeded").finishedAt).toBeNull();
   });
 
+  it("replace never finishes a job the list mentions, even when that entry is refused (a phone number, a bad cron, a reserved branch id)", async () => {
+    await upsertJobs({ jobs: [J("a"), J("b"), J("c"), J("d"), J("gone")] }, agent, NOW);
+    const r = await upsertJobs(
+      { jobs: [J("a", { note: "اتصل 0791234567" }), J("b", { schedule: "not a cron" }), J("c", { branches: [{ id: "start", label: "x" }] }), J("d", { branches: [{ id: "x", label: "1" }, { id: "x", label: "2" }] })], replace: true },
+      agent,
+      NOW,
+    );
+    expect(r.jobs.map((j) => j.ok)).toEqual([false, false, false, false]);
+    expect(r.finished).toEqual(["gone"]);
+    for (const k of ["a", "b", "c", "d"]) expect(wf(k).finishedAt, k).toBeNull();
+  });
+
   it("a name that is another job's is refused, with that job's key — and a key of its own is allowed to keep its name", async () => {
     await upsertJobs({ jobs: [J("a", { name: "الفحص اليومي" })] }, agent, NOW);
     const r = await upsertJobs({ jobs: [J("b", { name: "الفحص  اليومي" }), J("a", { name: "الفحص اليومي", note: "ملاحظة" })] }, agent, NOW);

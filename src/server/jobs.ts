@@ -115,7 +115,14 @@ export async function upsertJobs(input: PushJobsInputT, actor: Actor, now = new 
   const executor = carrier === "hermes" || carrier === "muse" ? carrier : "claude_mcp";
   const results: PushJobResult[] = [];
   const names = await db.workflow.findMany({ where: { archivedAt: null }, select: { key: true, name: true } });
-  const landed = new Set<string>();
+  // every key the agent listed is «still there» — also one that is refused below, and the job a merged key lands on: `replace` finishes only what the list does not mention
+  const landed = new Set<string>(input.jobs.map((j) => j.key));
+  if (input.replace) {
+    for (const j of input.jobs) {
+      const there = await loadJob(j.key);
+      if (there) landed.add(there.key);
+    }
+  }
   for (const j of input.jobs) {
     try {
       const refusal = refuseIfPrivate(...texts(j));
