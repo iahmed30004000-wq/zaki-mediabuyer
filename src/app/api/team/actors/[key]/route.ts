@@ -20,7 +20,8 @@ const Body = z
   .strict();
 
 /** PATCH /api/team/actors/:key — rename, move to a team, set the Telegram chat, link an account, or archive (nothing is ever deleted). The owner's. */
-export async function PATCH(req: Request, { params }: { params: { key: string } }) {
+export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     if (caller.demo) throw new HttpError(403, "بلا تسجيل دخول ما بيتغيّر شي");

@@ -70,7 +70,7 @@ export const LogRunInput = z
     finished_at: iso.optional(),
     summary: z.string().trim().max(300).optional().describe("سطر واحد: شو صار"),
     report: z.string().trim().max(6000).optional().describe("نص التقرير الكامل للتشغيل (لحد 6000 حرف) — بيظهر بصفحة التقرير"),
-    metrics: z.record(z.union([z.number().finite(), z.string().max(80)])).optional().describe("أرقام التشغيل {الاسم: القيمة} (حتى 30)"),
+    metrics: z.record(z.string(), z.union([z.number().finite(), z.string().max(80)])).optional().describe("أرقام التشغيل {الاسم: القيمة} (حتى 30)"),
     artifacts: z.array(z.object({ label: z.string().trim().min(1).max(80), url: z.string().trim().max(300).optional(), text: z.string().trim().max(500).optional() }).strict()).max(10).optional(),
     node: NodeUpdate.optional().describe("حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval, note}"),
     nodes: z.array(NodeUpdate).max(40).optional().describe("حالة عدّة خطوات مرة وحدة"),

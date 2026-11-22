@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 const Patch = TaskUpdateInput.omit({ id: true });
 
 /** PATCH /api/tasks/:id — move a card (status), give it to someone, set its date or priority, write a note, or archive it. */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("tasks.own");
     if (caller.demo) return NextResponse.json({ ok: true, demo: true });

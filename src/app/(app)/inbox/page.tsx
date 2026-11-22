@@ -16,8 +16,9 @@ const DOMAINS: readonly (InboxDomain | "all")[] = ["all", "ads", "ops", "work"];
  * بانتظارك ← بدها قرارك: every decision that waits, as the same card — what Claude asked, every change to Meta, a job nobody can finish.
  * Red first, then the one that runs out soonest, then the newest. Approved on the site only, never from Telegram.
  */
-export default async function InboxPage({ searchParams }: { searchParams: { domain?: string } }) {
+export default async function InboxPage({ searchParams: searchParamsP }: { searchParams: Promise<{ domain?: string }> }) {
   await requirePage("inbox.view");
+  const searchParams = await searchParamsP;
   const caller = await currentCaller();
   const domain = (DOMAINS as readonly string[]).includes(searchParams.domain ?? "") && searchParams.domain !== "all" ? (searchParams.domain as InboxDomain) : undefined;
   const items = caller ? await loadInbox(caller, domain ? { domain } : {}) : [];

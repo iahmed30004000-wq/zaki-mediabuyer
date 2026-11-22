@@ -32,20 +32,20 @@ export const metadata: Metadata = {
   icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }], apple: [{ url: "/icons/apple-touch.png", sizes: "180x180" }] },
 };
 
-function chosen() {
-  const store = cookies();
+async function chosen() {
+  const store = await cookies();
   return {
     theme: themeOf(store.get(THEME_COOKIE)?.value),
   };
 }
 
-export function generateViewport(): Viewport {
-  return { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: themeColorOf(chosen().theme) };
+export async function generateViewport(): Promise<Viewport> {
+  return { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: themeColorOf((await chosen()).theme) };
 }
 
 /** The theme is painted on the server from the cookie, so the first frame is already right. */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { theme } = chosen();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { theme } = await chosen();
   const attrs = rootThemeAttributes(theme);
   const className = [cairo.variable, plex.variable, attrs.dark ? "dark" : ""].filter(Boolean).join(" ");
   return (

@@ -5,14 +5,15 @@ import { ContractError, contractResponse, requireToken } from "@/server/api-toke
 
 /** {result:{…}} is the contract; the studio's queue_worker posts {status:"draft", draft:{…}} — both are taken. */
 const Body = z
-  .object({ result: z.record(z.unknown()).optional(), draft: z.record(z.unknown()).optional(), status: z.string().optional() })
+  .object({ result: z.record(z.string(), z.unknown()).optional(), draft: z.record(z.string(), z.unknown()).optional(), status: z.string().optional() })
   .refine((b) => b.result ?? b.draft, "result");
 
 /**
  * POST /api/vidpattern/queue/:id/result — the studio hands back what it made for a request it claimed (token
  * vp:launch). It is a draft: the videos themselves arrive through the intake (creative.ready / Drive) as usual.
  */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     await requireToken(req, "vp:launch");
     const parsed = Body.safeParse(await req.json().catch(() => null));

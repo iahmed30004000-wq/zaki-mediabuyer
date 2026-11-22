@@ -17,8 +17,9 @@ const when = (iso: string) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZ
 const STATE: Record<string, { label: string; tone: "ok" | "danger" | "info" | "neutral" }> = { ok: { label: "خلصت", tone: "ok" }, failed: { label: "فشلت", tone: "danger" }, running: { label: "شغّالة", tone: "info" }, waiting: { label: "منتظرة", tone: "info" }, skipped: { label: "انتخطت", tone: "neutral" } };
 
 /** الشغل ← التقارير: every run's report and the periodic ones, newest first; filter by domain and by day. The old `?r=<id>` opens that report. */
-export default async function WorkReportsPage({ searchParams }: { searchParams: { r?: string; domain?: string; day?: string } }) {
+export default async function WorkReportsPage({ searchParams: searchParamsP }: { searchParams: Promise<{ r?: string; domain?: string; day?: string }> }) {
   await requirePage("work.view");
+  const searchParams = await searchParamsP;
   if (searchParams.r) redirect(`/work/reports/${encodeURIComponent(`report:${searchParams.r}`)}`);
   const domain = searchParams.domain === "ads" || searchParams.domain === "ops" ? searchParams.domain : undefined;
   const day = isKey(searchParams.day) ? searchParams.day : undefined;

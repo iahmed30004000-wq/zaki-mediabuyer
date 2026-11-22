@@ -26,7 +26,7 @@ export class HttpError extends Error {
 
 export async function currentCaller(): Promise<Caller | null> {
   if (!authRequired()) return { id: "demo-owner", role: "OWNER", demo: true };
-  const s = await readSession(cookies().get(SESSION_COOKIE)?.value);
+  const s = await readSession((await cookies()).get(SESSION_COOKIE)?.value);
   if (!s) return null;
   const user = await db.user.findUnique({ where: { id: s.sub } });
   if (!user || !user.active || user.sessionVer !== s.ver) return null;
@@ -49,7 +49,7 @@ export async function requirePage(capability?: Capability | readonly Capability[
   const me = await currentCaller();
   if (!me) redirect("/login");
   const any = capability === undefined ? [] : Array.isArray(capability) ? capability : [capability as Capability];
-  const path = headers().get("x-pathname");
+  const path = (await headers()).get("x-pathname");
   const start = ROLE_START[me.role];
   const denied = (any.length > 0 && !any.some((c) => can(me.role, c))) || (path !== null && !canOpenPath(me.role, path)) || (path === "/" && !hasHome(me.role));
   if (denied) redirect(start === path ? "/login" : start);
@@ -80,9 +80,9 @@ export async function verifyPassword(email: string, password: string) {
 
 export async function startSession(user: { id: string; role: RoleKey; sessionVer: number }) {
   const token = await signSession({ sub: user.id, role: user.role, ver: user.sessionVer });
-  cookies().set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_DAYS * 86400 });
+  (await cookies()).set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_DAYS * 86400 });
 }
 
-export function endSession() {
-  cookies().delete(SESSION_COOKIE);
+export async function endSession() {
+  (await cookies()).delete(SESSION_COOKIE);
 }

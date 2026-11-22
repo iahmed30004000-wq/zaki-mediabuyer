@@ -7,8 +7,9 @@ export const metadata = { title: "تقرير — للطباعة" };
 export const dynamic = "force-dynamic";
 
 /** One report on paper (A4, white, plain): the title and time, the line, the full text, the run's numbers. A session is required. */
-export default async function PrintReportPage({ params }: { params: { id: string } }) {
+export default async function PrintReportPage({ params: paramsP }: { params: Promise<{ id: string }> }) {
   await requirePage("work.view");
+  const params = await paramsP;
   const r = await getReport(decodeURIComponent(params.id));
   if (!r) notFound();
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "full", timeStyle: "short" }).format(new Date(r.at));

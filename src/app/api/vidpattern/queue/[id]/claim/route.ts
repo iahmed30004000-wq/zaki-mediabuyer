@@ -5,7 +5,8 @@ import { ContractError, contractResponse, requireToken } from "@/server/api-toke
 const LEASE_HOURS = 2;
 
 /** POST /api/vidpattern/queue/:id/claim — the studio takes one request for 2 hours (token vp:launch). */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     await requireToken(req, "vp:launch");
     const now = new Date();

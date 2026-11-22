@@ -8,8 +8,9 @@ export const metadata = { title: "موافقة بانتظارك" };
 export const dynamic = "force-dynamic";
 
 /** The page a push opens: one request, full screen, four answers. A session is required (the middleware sends a signed-out person to the door first). */
-export default async function RingPage({ params }: { params: { id: string } }) {
+export default async function RingPage({ params: paramsP }: { params: Promise<{ id: string }> }) {
   await requirePage("inbox.view");
+  const params = await paramsP;
   if (isDemo(process.env)) notFound();
   const [approval] = await listApprovals({ ids: [params.id] });
   if (!approval) notFound();

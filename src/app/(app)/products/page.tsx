@@ -13,8 +13,9 @@ export const dynamic = "force-dynamic";
  * المنتجات: every number of the day, per product and in total, for the date range the switcher says (it was «اليوم ← الأرقام»).
  * P4 rebuilds it from the kit and adds a page per product.
  */
-export default async function ProductsPage({ searchParams }: { searchParams: { d?: string; from?: string; to?: string } }) {
+export default async function ProductsPage({ searchParams: searchParamsP }: { searchParams: Promise<{ d?: string; from?: string; to?: string }> }) {
   await requirePage("ads.view");
+  const searchParams = await searchParamsP;
   const range = parseRange(searchParams, new Date());
   const [data, me] = await Promise.all([loadNumbers(searchParams), currentCaller()]);
   // «ألصق أرقام» is the owner's, on real data: it starts from yesterday (the closed day)

@@ -26,6 +26,7 @@ export function I18nProvider({ initial, children }: { initial: Locale; children:
       const dict = DICTS.ar as Dict;
       return interpolate(dict[key] ?? key, vars);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `locale` is kept on purpose: a new `t` makes the consumers render again
     [locale],
   );
 

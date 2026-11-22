@@ -193,7 +193,7 @@ export const DecisionsInput = z
             key: z.string().trim().min(1).max(60),
             decision: z.enum(JOB_DECISIONS),
             /** branches by id: false switches that branch off, true leaves it on */
-            branches: z.record(z.boolean()).optional(),
+            branches: z.record(z.string(), z.boolean()).optional(),
             /** for «ادمجها»: the number of the job it joins */
             mergeInto: z.number().int().min(1).max(999).optional(),
           })

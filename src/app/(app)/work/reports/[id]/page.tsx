@@ -16,8 +16,9 @@ const when = (iso: string) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZ
 const STATE: Record<string, { label: string; tone: "ok" | "danger" | "info" | "neutral" }> = { ok: { label: "خلصت", tone: "ok" }, failed: { label: "فشلت", tone: "danger" }, running: { label: "شغّالة", tone: "info" }, waiting: { label: "منتظرة", tone: "info" }, skipped: { label: "انتخطت", tone: "neutral" } };
 
 /** One report: the full text, the run's numbers as a table, the links it left, and a copy for paper. */
-export default async function ReportPage({ params }: { params: { id: string } }) {
+export default async function ReportPage({ params: paramsP }: { params: Promise<{ id: string }> }) {
   await requirePage("work.view");
+  const params = await paramsP;
   const id = decodeURIComponent(params.id);
   const r = await getReport(id);
   if (!r) notFound();

@@ -33,5 +33,5 @@ export async function withHandoffToken(req: Request, run: (who: HandoffCaller) =
 }
 
 /** A body that does not fit the schema, said in words. */
-export const invalid = (issues: { path: (string | number)[]; message: string }[]) =>
-  NextResponse.json({ code: "invalid", message: "المدخلات مش صحيحة: " + issues.slice(0, 3).map((i) => `${i.path.join(".") || "الطلب"}: ${i.message}`).join(" · ") }, { status: 422 });
+export const invalid = (issues: { path: readonly PropertyKey[]; message: string }[]) =>
+  NextResponse.json({ code: "invalid", message: "المدخلات مش صحيحة: " + issues.slice(0, 3).map((i) => `${i.path.map(String).join(".") || "الطلب"}: ${i.message}`).join(" · ") }, { status: 422 });

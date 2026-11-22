@@ -8,6 +8,6 @@ import { db } from "@/server/db";
 export async function POST() {
   const me = await currentCaller().catch(() => null);
   if (me && !me.demo) await db.user.update({ where: { id: me.id }, data: { sessionVer: { increment: 1 } } }).catch(() => undefined);
-  endSession();
+  await endSession();
   return NextResponse.json({ ok: true }, { headers: { "Clear-Site-Data": '"cache", "storage"' } });
 }

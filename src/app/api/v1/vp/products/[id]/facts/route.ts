@@ -5,7 +5,8 @@ import { productMarketFacts } from "@/server/studio-launch";
 export const dynamic = "force-dynamic";
 
 /** GET /api/v1/vp/products/{id}/facts?country= — the same body as product-market; `{id}` is our product code. */
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     await requireToken(req, "vp:read");
     return NextResponse.json(await productMarketFacts(params.id, new URL(req.url).searchParams.get("country")));

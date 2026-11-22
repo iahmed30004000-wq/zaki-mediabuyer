@@ -5,7 +5,8 @@ import { pullOmsNow } from "@/server/oms-pull";
 export const dynamic = "force-dynamic";
 
 /** POST /api/connections/row/oms/sync — «اسحب هلق»: one pull of the OMS now (orders, then the truth). Owner only, audited. Only the OMS row has it. */
-export async function POST(_req: Request, { params }: { params: { key: string } }) {
+export async function POST(_req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     if (params.key !== "oms") throw new HttpError(404, "السحب الفوري بس للـ OMS");

@@ -76,6 +76,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
     if (lp0) setLp(lp0.lpCode);
     setMessage(remember(`${product}.message`));
     setTitle(remember(`${product}.title`) || "اطلب هلأ — الدفع عند الاستلام");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the product changes only; the options are read once for it
   }, [product]);
   useEffect(() => {
     setPage((v) => v || options.pages[0]?.metaId || "");

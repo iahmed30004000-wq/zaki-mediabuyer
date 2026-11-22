@@ -9,7 +9,6 @@
 /** An address inside the site only: starts with one `/`, no backslash, no control character, and resolves to the same origin. */
 export function safeNext(next: string | null | undefined): string {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
-  // eslint-disable-next-line no-control-regex
   if (/[\\\u0000-\u001f\u007f]/.test(next)) return "/";
   try {
     const base = "http://site.invalid";

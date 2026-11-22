@@ -6,7 +6,8 @@ import { statusOf } from "@/server/studio-launch";
 export const dynamic = "force-dynamic";
 
 /** GET /api/v1/vp/launch-requests/{id} — the derived status (contract §4.2 #3). */
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     await requireToken(req, "vp:read");
     const r = await db.launchRequest.findUnique({ where: { id: params.id } });

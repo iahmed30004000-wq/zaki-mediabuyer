@@ -13,7 +13,8 @@ export const maxDuration = 300;
  * address or Telegram — only to targets the owner listed in the server's environment — logs each step on the run, and hands the first
  * step it may not run (or one that failed) to the handoff queue. Owner only: it calls out of the site. Spends nothing, touches no Meta.
  */
-export async function POST(_req: Request, { params }: { params: { key: string } }) {
+export async function POST(_req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });

@@ -13,7 +13,7 @@ import type { ActionKind } from "@/core/autonomy";
 import type { ChangeItemDraft } from "@/core/changeset";
 
 const Out = z.object({
-  items: z.array(z.object({ op: z.string(), object_type: z.string(), object_id: z.string(), before: z.record(z.unknown()).optional(), after: z.record(z.unknown()).optional() })).max(10),
+  items: z.array(z.object({ op: z.string(), object_type: z.string(), object_id: z.string(), before: z.record(z.string(), z.unknown()).optional(), after: z.record(z.string(), z.unknown()).optional() })).max(10),
   spend_delta_daily_usd: z.number().optional(),
   warnings: z.array(z.string()).max(5).optional(),
 });

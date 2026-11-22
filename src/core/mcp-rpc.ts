@@ -66,8 +66,8 @@ export function negotiate(requested: unknown): string {
   return (SUPPORTED_VERSIONS as readonly string[]).includes(String(requested)) ? String(requested) : SUPPORTED_VERSIONS[0];
 }
 
-function validationText(e: { issues: { path: (string | number)[]; message: string }[] }): string {
-  return "المدخلات مش صحيحة: " + e.issues.slice(0, 8).map((i) => `${i.path.join(".") || "(الأساس)"} — ${i.message}`).join(" · ");
+function validationText(e: { issues: { path: readonly PropertyKey[]; message: string }[] }): string {
+  return "المدخلات مش صحيحة: " + e.issues.slice(0, 8).map((i) => `${i.path.map(String).join(".") || "(الأساس)"} — ${i.message}`).join(" · ");
 }
 
 async function callTool<Ctx>(tools: ToolDef<Ctx>[], params: unknown, ctx: Ctx) {

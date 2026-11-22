@@ -10,7 +10,7 @@ const Body = z
   .object({
     entity: z.enum(ENTITIES),
     entityId: z.string().trim().min(1).max(120),
-    values: z.record(z.unknown()).refine((o) => Object.keys(o).length >= 1 && Object.keys(o).length <= 30, "من 1 لـ 30 حقل"),
+    values: z.record(z.string(), z.unknown()).refine((o) => Object.keys(o).length >= 1 && Object.keys(o).length <= 30, "من 1 لـ 30 حقل"),
   })
   .strict();
 

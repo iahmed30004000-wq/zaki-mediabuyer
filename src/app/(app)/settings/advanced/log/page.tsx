@@ -16,8 +16,9 @@ const FILTERS = [
 ];
 
 /** الإعدادات ← متقدّم ← السجل: مين عمل شو ومتى — إنسان أو قاعدة أو وكيل أو النظام. ما بينحذف منه شي، وما فيه سرّ ولا بيانات زبون. */
-export default async function LogPage({ searchParams }: { searchParams: { audit?: string } }) {
+export default async function LogPage({ searchParams: searchParamsP }: { searchParams: Promise<{ audit?: string }> }) {
   await requirePage("settings.view");
+  const searchParams = await searchParamsP;
   const actor = ["user", "rule", "agent", "system"].includes(searchParams.audit ?? "") ? searchParams.audit : undefined;
   const audit = await loadAudit({ actor, take: 25 });
   if (!audit) return <Panel className="text-sm text-fg-muted">السجل بيبيّن لما يشتغل الموقع على البيانات الحقيقية (مش التجريبية).</Panel>;

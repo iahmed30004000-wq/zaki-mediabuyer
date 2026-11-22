@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
  * handoff queue (one request at a time per workflow); Claude takes it, runs it and logs its steps, and the card moves.
  * It spends nothing and changes nothing on Meta — anything that needs the owner's yes still asks for it.
  */
-export async function POST(_req: Request, { params }: { params: { key: string } }) {
+export async function POST(_req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("work.control");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });

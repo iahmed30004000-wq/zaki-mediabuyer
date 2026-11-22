@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 const Body = z.object({ to: z.enum(REQUEST_STATUSES) }).strict();
 
 /** PATCH /api/video-requests/:id — `{ to }`: move the request along (عند هيرمز · جاهز · مرفوع), give it back (طلب) or cancel it. */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("ads.propose");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });

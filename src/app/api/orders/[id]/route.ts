@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 const Body = z.object({ action: z.enum(["approve", "reject", "end"]) }).strict();
 
 /** POST /api/orders/:id — `approve` / `reject` (a pending order, or Claude's request to end one) and `end` («ارجع»). The owner's, on the site. */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });

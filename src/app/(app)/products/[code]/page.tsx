@@ -23,8 +23,10 @@ export const metadata = { title: "منتج" };
  * the stock and the video bank. Every number comes from the same loaders as «المنتجات» — nothing is computed here. «اللي بيأثّر عليه»
  * (the jobs that touch it) arrives later; the standing orders on it are above.
  */
-export default async function ProductPage({ params, searchParams }: { params: { code: string }; searchParams: { d?: string; from?: string; to?: string } }) {
+export default async function ProductPage({ params: paramsP, searchParams: searchParamsP }: { params: Promise<{ code: string }>; searchParams: Promise<{ d?: string; from?: string; to?: string }> }) {
   await requirePage("ads.view");
+  const params = await paramsP;
+  const searchParams = await searchParamsP;
   const code = decodeURIComponent(params.code);
   const range = parseRange(searchParams, new Date());
   const [data, board, me] = await Promise.all([loadNumbers(searchParams), loadBoard(), currentCaller()]);
