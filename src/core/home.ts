@@ -12,13 +12,13 @@ export interface HomePlan {
   tasks: boolean;
   /** the numbers of «وين كنا وكيف صرنا» (every role that has a home reads the ads' own numbers; the money ones are stripped on the server) */
   numbers: boolean;
-  /** where «كل الأرقام» leads this role (until `/numbers` is built it is the operations screens, or the ads when the role has no operations place); null: nowhere it may open */
+  /** where «كل الأرقام» leads this role: the numbers summary (`/numbers`), or the ads when the role has no numbers place; null: nowhere it may open */
   numbersHref: string | null;
 }
 
 /** The sections of the home a role is given. */
 export function homePlan(role: RoleKey): HomePlan {
-  const href = ["/ops", "/ads"].find((h) => canOpenPath(role, h)) ?? null;
+  const href = ["/numbers", "/ads"].find((h) => canOpenPath(role, h)) ?? null;
   return { decisions: can(role, "inbox.view"), tasks: canOpenPath(role, "/tasks"), numbers: true, numbersHref: href };
 }
 

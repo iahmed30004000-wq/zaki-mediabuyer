@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
 import { ACCOUNTS, CREATIVES, PRODUCTS, targetsOf } from "@/lib/mock/data";
 import { productTargets } from "@/server/launch";
+import { nameOf, productLabels } from "@/core/product-name";
 import { judgeExperiment, KIND_AR, type ExperimentKind, type StopRules } from "@/core/experiments";
 import { capiHealth } from "@/core/capi";
 import { ACCOUNT_STATUS_AR, type AttributionHealth } from "@/core/account-safety";
@@ -34,14 +35,17 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
       landing: [{ productCode: "TRF01", lpCode: "LP1", url: "https://crm.zakiai.io/lp/kamaa" }],
     };
   }
-  const [econ, assets, accounts, pages, datasets] = await Promise.all([
+  const [econ, assets, accounts, pages, datasets, aliasRows] = await Promise.all([
     db.productEconomics.findMany({ orderBy: { productCode: "asc" } }),
     db.creativeAsset.findMany({ where: { metaVideoId: { not: null }, status: { in: ["uploaded", "ready"] }, policyFlag: { not: "red" } }, orderBy: { crCode: "desc" }, take: 200 }),
     db.adAccount.findMany({ orderBy: { name: "asc" } }),
     db.page.findMany({ where: { code: { not: null } }, orderBy: { code: "asc" } }),
     db.dataset.findMany({ orderBy: { createdAt: "asc" } }),
+    db.productAlias.findMany({ select: { productCode: true, alias: true } }),
   ]);
-  const products = await Promise.all(econ.map(async (e) => ({ code: e.productCode, name: e.name, market: e.market, tOrder: (await productTargets(e.productCode))?.tOrder ?? 0, estimated: e.source !== "actual", stockDays: e.stockDays })));
+  // U-08: the launch wizard lists a product by its Arabic name
+  const labels = productLabels(econ, aliasRows);
+  const products = await Promise.all(econ.map(async (e) => ({ code: e.productCode, name: nameOf(labels, e.productCode), market: e.market, tOrder: (await productTargets(e.productCode))?.tOrder ?? 0, estimated: e.source !== "actual", stockDays: e.stockDays })));
   return {
     live: true,
     products,

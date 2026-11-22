@@ -7,6 +7,7 @@
  * What a caller finds is filtered by his role (v6 · P5, S-18): a kind he cannot open is not even read, the jobs are kept to his areas and the people's tasks to `taskKeysFor`
  * (the people of his scope; null = everybody's) — so a name never leaves the server for somebody who could not open the screen it leads to.
  */
+import { nameOf, productLabels } from "@/core/product-name";
 import { rank, searchScopeOf, type SearchHit, type SearchItem } from "@/core/search";
 import type { RoleKey } from "@/core/roles";
 import { db } from "./db";
@@ -17,7 +18,7 @@ const PER_KIND = 300;
 export async function searchData(query: string, opts: { role: RoleKey | null; taskKeys: string[] | null; limit?: number }): Promise<SearchHit[]> {
   if (process.env.MOCK_MODE === "1") return [];
   const scope = searchScopeOf(opts.role);
-  const [products, workflows, tasks, videos, ads, campaigns] = await Promise.all([
+  const [products, workflows, tasks, videos, ads, campaigns, aliases] = await Promise.all([
     scope.products ? db.productEconomics.findMany({ select: { productCode: true, name: true }, take: 200 }) : [],
     scope.workflows.ads || scope.workflows.ops ? db.workflow.findMany({ where: { archivedAt: null }, select: { key: true, name: true, description: true, domain: true }, take: 100 }) : [],
     scope.tasks && (opts.taskKeys === null || opts.taskKeys.length > 0)
@@ -26,9 +27,12 @@ export async function searchData(query: string, opts: { role: RoleKey | null; ta
     scope.videos ? db.videoBankItem.findMany({ select: { id: true, job: true, vName: true, productCode: true, status: true }, orderBy: { updatedAt: "desc" }, take: PER_KIND }) : [],
     scope.ads ? db.ad.findMany({ select: { metaId: true, name: true, status: true }, orderBy: { updatedAt: "desc" }, take: PER_KIND }) : [],
     scope.campaigns ? db.campaign.findMany({ select: { metaId: true, name: true, status: true, productCode: true }, orderBy: { updatedAt: "desc" }, take: PER_KIND }) : [],
+    scope.products ? db.productAlias.findMany({ select: { productCode: true, alias: true }, take: 600 }) : [],
   ]);
+  // U-08: a product is found and shown by its Arabic name (the OMS name, else an Arabic alias); its other names still match
+  const labels = productLabels(products, aliases);
   const items: SearchItem[] = [
-    ...products.map((p) => ({ kind: "product" as const, id: p.productCode, title: p.name, sub: `منتج · ${p.productCode}`, words: p.productCode, href: `/products/${encodeURIComponent(p.productCode)}` })),
+    ...products.map((p) => ({ kind: "product" as const, id: p.productCode, title: nameOf(labels, p.productCode), sub: `منتج · ${p.productCode}`, words: [p.productCode, p.name, ...aliases.filter((a) => a.productCode === p.productCode).map((a) => a.alias)].join(" "), href: `/numbers/products/${encodeURIComponent(p.productCode)}` })),
     ...workflows
       .filter((w) => (w.domain === "ops" ? scope.workflows.ops : scope.workflows.ads))
       .map((w) => ({ kind: "workflow" as const, id: w.key, title: w.name, sub: "مهمة مجدولة", words: `${w.key} ${w.description ?? ""}`, href: `/tasks/${encodeURIComponent(w.key)}` })),

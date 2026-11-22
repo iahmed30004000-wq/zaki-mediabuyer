@@ -70,7 +70,9 @@ describe("the map (v5 · P2)", () => {
     expect(tabOf("/work")?.href).toBe("/work");
     expect(tabOf("/work/tasks")?.href).toBe("/work/tasks");
     expect(tabOf("/work/job/x/draw")?.href).toBe("/work");
-    expect(tabOf("/ads/campaigns")?.href).toBe("/ads/campaigns");
+    // the campaigns table IS `/ads` since P6: the old address of it lights the same tab
+    expect(tabOf("/ads/campaigns")?.href).toBe("/ads");
+    expect(tabOf("/ads/videos")?.href).toBe("/ads/videos");
     expect(tabOf("/")).toBeNull();
     expect(tabOf("/settings")).toBeNull();
   });
@@ -102,11 +104,12 @@ describe("the new map (v6 · P3, docs/rebuild-v6/02-screens.md §1) — a trial 
     for (const t of tasks.tabs) expect(pageExists(t.href), t.href).toBe(true);
   });
 
-  it("a place whose screens are not built leads to its old counterpart: «الأرقام» opens the operations screens until P6", () => {
+  it("«الأرقام» is built (v6 · P6): it leads to its own summary, and the old operations and products addresses still open", () => {
     const numbers = PLACES_V6.find((p) => p.key === "numbers")!;
-    expect(numbers.ready).toBe(false);
-    expect(hrefOfPlace(numbers)).toBe("/ops");
-    expect(pageExists(hrefOfPlace(numbers))).toBe(true);
+    expect(numbers.ready).toBe(true);
+    expect(hrefOfPlace(numbers)).toBe("/numbers");
+    expect(pageExists("/numbers")).toBe(true);
+    for (const a of ["/ops", "/ops/stock", "/products", "/products/:code"]) expect(pageExists(a), a).toBe(true);
     expect(hrefOfPlace(PLACES_V6[1]!)).toBe("/tasks");
   });
 
@@ -122,9 +125,11 @@ describe("the new map (v6 · P3, docs/rebuild-v6/02-screens.md §1) — a trial 
     expect(NAV_COOKIE).toBe("mb_nav");
   });
 
-  it("the places of a role's bar, in the new map: «المهام» is the work place, «الأرقام» the operations place", () => {
+  it("the places of a role's bar, in the new map: «المهام» is the work place, «الأرقام» is the ads' numbers and the operations' together (a role that has either is given it)", () => {
     expect(placesFor("v6", ROLE_PLACES.OWNER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
-    expect(placesFor("v6", ROLE_PLACES.ADS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "ads"]);
+    expect(placesFor("v6", ROLE_PLACES.ADS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
+    expect(placesFor("v6", ROLE_PLACES.OPS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers"]);
+    expect(placesFor("v6", ROLE_PLACES.TEAM_LEAD).map((p) => p.key)).toEqual(["tasks", "numbers"]);
     expect(placesFor("v6", ROLE_PLACES.MEMBER).map((p) => p.key)).toEqual(["tasks"]);
     expect(placesFor("old", ROLE_PLACES.OWNER).map((p) => p.key)).toEqual(["home", "inbox", "work", "ads", "ops"]);
   });
@@ -146,9 +151,25 @@ describe("the new map (v6 · P3, docs/rebuild-v6/02-screens.md §1) — a trial 
     expect(tabOf("/tasks/night", "v6")?.href).toBe("/tasks");
   });
 
-  it("«الأرقام» is not a place of its own yet: no tab, and nothing in the old map changed", () => {
-    expect(PLACES_V6.find((p) => p.key === "numbers")!.tabs).toEqual([]);
+  it("«الأرقام» has four tabs and the first is the place; every tab is a page that exists; the old addresses light the tab they became", () => {
+    const numbers = PLACES_V6.find((p) => p.key === "numbers")!;
+    expect(numbers.tabs.map((t) => t.label)).toEqual(["الخلاصة", "المنتجات", "التأكيد والشحن", "المخزون"]);
+    expect(numbers.tabs[0]!.href).toBe(numbers.href);
+    for (const t of numbers.tabs) expect(pageExists(t.href), t.href).toBe(true);
+    expect(tabOf("/numbers", "v6")?.href).toBe("/numbers");
+    expect(tabOf("/numbers/products/TRF01", "v6")?.href).toBe("/numbers/products");
+    expect(tabOf("/products/TRF01", "v6")?.href).toBe("/numbers/products");
+    expect(tabOf("/ops", "v6")?.href).toBe("/numbers/ops");
+    expect(tabOf("/ops/confirm", "v6")?.href).toBe("/numbers/ops");
+    expect(tabOf("/ops/stock", "v6")?.href).toBe("/numbers/stock");
+    expect(placeOf("/numbers/stock", "v6").key).toBe("numbers");
     expect(PLACES.map((p) => p.key)).toEqual(["home", "inbox", "work", "ads", "ops"]);
+  });
+
+  it("the campaigns table is `/ads` (the dashboard was distributed): the old map's ads place has three tabs and the first is the place", () => {
+    const ads = PLACES.find((p) => p.key === "ads")!;
+    expect(ads.tabs.map((t) => t.label)).toEqual(["الحملات", "الفيديوهات", "الاختبارات"]);
+    expect(ads.tabs[0]!.href).toBe("/ads");
   });
 });
 
@@ -165,6 +186,13 @@ describe("the old addresses (v5 · P2)", () => {
     const list = await redirects();
     expect(list.some((r) => r.source === "/tasks" || r.source.startsWith("/tasks/"))).toBe(false);
     for (const a of ["/tasks", "/tasks/day", "/tasks/all", "/tasks/results", "/tasks/results/:id", "/tasks/team", "/tasks/:key", "/tasks/:key/runs/:id", "/tasks/:key/edit"]) expect(pageExists(a), a).toBe(true);
+  });
+
+  it("«/ads» is the campaigns table (v6 · P6): no rule sends `/ads?product=…` to a product page — `product` is the table's own filter", async () => {
+    const list = await redirects();
+    expect(list.some((r) => r.source === "/ads" && r.has?.some((h) => h.key === "product"))).toBe(false);
+    // the old tabs of the dashboard still lead somewhere that exists
+    expect(list.filter((r) => r.source === "/ads").map((r) => r.destination).sort()).toEqual(["/ads/campaigns", "/ads/health", "/ads/scale", "/ads/tests"]);
   });
 
   it("every destination is a page that exists", async () => {

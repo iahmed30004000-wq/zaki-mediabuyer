@@ -9,6 +9,8 @@
  */
 import { addDays, baselineWindow, eachDay, keyMs, ammanKey, parseRange, previousRange, rangeLabel, type Range } from "@/core/dates";
 import { computeSet, coverUrgency, emptyRaw, scaleFlows, sumRaw, topReasons, totalSet, type Ctx, type NumbersSet, type Offer, type ProductNumbers, type Raw, type Reason } from "@/core/numbers";
+import { matureThrough, METRIC_KEYS, seriesOf, valueOf, type MetricKey } from "@/core/compare";
+import { nameOf, productLabels } from "@/core/product-name";
 import { breakevenOf, readRules, type CampaignRules } from "@/core/rules-v2";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
@@ -62,29 +64,30 @@ interface PD {
   stockUnits: number | null;
 }
 
-async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?: string | null }, now = new Date()): Promise<NumbersData> {
-  const range = parseRange(q, now);
-  if (process.env.MOCK_MODE === "1") return demoNumbers(range);
-
+/**
+ * EVERYTHING THE NUMBERS OF A STRETCH OF DAYS STAND ON, read ONCE: the product-days Claude pushed, Meta's archive, the OMS's orders and the stock — in one round of queries, whatever the number of
+ * windows or days asked of it. `rawOf` sums a product over a window; `ctxOf` is the product's context as it stood on a day (its delivery rate over the 30 days before it, its pieces a day).
+ * The arithmetic is src/core/numbers.ts: nothing here computes a number, it only gathers and sums.
+ */
+async function gather(spanFrom: string, to: string) {
   const rules = readRules(await getSetting("campaign.rules"));
   const fx = Number(await getSetting("economics.fx_fee"));
-  const prevW = previousRange(range);
-  const baseW = baselineWindow(range);
-  const rateFrom = addDays(range.to, -29);
-  const spanFrom = [prevW.from, baseW.from, rateFrom].sort()[0]!;
   const gte = new Date(keyMs(spanFrom));
-  const lte = new Date(keyMs(range.to));
+  const lte = new Date(keyMs(to));
 
-  const [pdRows, spendRows, orderRows, econRows, campaigns, adsets, ads, snaps] = await Promise.all([
+  const [pdRows, spendRows, orderRows, econRows, campaigns, adsets, ads, snaps, aliasRows] = await Promise.all([
     db.productDay.findMany({ where: { date: { gte, lte } } }),
     db.insightDaily.groupBy({ by: ["level", "date", "objectId"], where: { date: { gte, lte } }, _sum: { spend: true, impressions: true, linkClicks: true, purchases: true } }),
-    db.attributedOrder.findMany({ where: { createdAtOms: { gte: new Date(keyMs(spanFrom) - 3 * 3_600_000), lt: new Date(keyMs(range.to) + 21 * 3_600_000) }, isFake: false }, select: { createdAtOms: true, productCode: true, status: true } }),
+    db.attributedOrder.findMany({ where: { createdAtOms: { gte: new Date(keyMs(spanFrom) - 3 * 3_600_000), lt: new Date(keyMs(to) + 21 * 3_600_000) }, isFake: false }, select: { createdAtOms: true, productCode: true, status: true } }),
     db.productEconomics.findMany(),
     db.campaign.findMany({ select: { metaId: true, productCode: true } }),
     db.adSet.findMany({ select: { metaId: true, campaign: { select: { metaId: true } } } }),
     db.ad.findMany({ select: { metaId: true, adSet: { select: { campaign: { select: { metaId: true } } } } } }),
     db.stockSnapshot.findMany({ orderBy: { at: "desc" }, take: 400 }),
+    db.productAlias.findMany({ select: { productCode: true, alias: true } }),
   ]);
+  // U-08: the name a screen writes is Arabic (the OMS name, else an Arabic alias); the code stays beside it
+  const labels = productLabels(econRows, aliasRows);
 
   // ── the product-days Claude pushed ──
   const pd = new Map<string, PD>();
@@ -184,17 +187,17 @@ async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?:
     return sumRaw([out]);
   }
 
-  const ctxOf = (code: string): { ctx: Ctx; cover: number | null } => {
+  const ctxOf = (code: string, upTo: string): { ctx: Ctx; cover: number | null } => {
     let delivered = 0;
     let returned = 0;
-    for (const d of eachDay(rateFrom, range.to)) {
+    for (const d of eachDay(addDays(upTo, -29), upTo)) {
       const row = pd.get(`${code}|${d}`);
       delivered += row?.delivered ?? 0;
       returned += row?.returned ?? 0;
     }
     let pieces = 0;
     let anyPieces = false;
-    for (const d of eachDay(addDays(range.to, -6), range.to)) {
+    for (const d of eachDay(addDays(upTo, -6), upTo)) {
       const v = pd.get(`${code}|${d}`)?.shippedPieces;
       if (v != null) {
         pieces += v;
@@ -209,9 +212,21 @@ async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?:
     };
   };
 
+  return { rules, fx, econ, labels, codes, rawOf, ctxOf };
+}
+
+async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?: string | null }, now = new Date()): Promise<NumbersData> {
+  const range = parseRange(q, now);
+  if (process.env.MOCK_MODE === "1") return demoNumbers(range);
+
+  const prevW = previousRange(range);
+  const baseW = baselineWindow(range);
+  const spanFrom = [prevW.from, baseW.from, addDays(range.to, -29)].sort()[0]!;
+  const { rules, fx, econ, labels, codes, rawOf, ctxOf } = await gather(spanFrom, range.to);
+
   const factor = range.days / baseW.days;
   const parts = [...codes].map((code) => {
-    const { ctx, cover } = ctxOf(code);
+    const { ctx, cover } = ctxOf(code, range.to);
     const cur = rawOf(code, range);
     const prev = rawOf(code, prevW);
     const avg = scaleFlows(rawOf(code, baseW), factor);
@@ -225,7 +240,7 @@ async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?:
   const shown = parts.filter((p) => p.has).sort((a, b) => (b.set.spend ?? 0) - (a.set.spend ?? 0) || (b.set.ordersIn ?? 0) - (a.set.ordersIn ?? 0));
   const products: ProductNumbers[] = shown.map((p) => ({
     code: p.code,
-    name: econ.get(p.code)?.name ?? p.code,
+    name: nameOf(labels, p.code),
     current: p.set,
     prev: p.setPrev,
     avg7: p.setAvg,
@@ -246,6 +261,61 @@ async function loadNumbersRaw(q: { d?: string | null; from?: string | null; to?:
     stockLevels: rules.stock,
     rulesMissing: rules.targetCost === null || !Object.keys(rules.breakeven).length,
   };
+}
+
+// ───────────────────────────── the line, day by day (P6) ─────────────────────────────
+
+/** How many days the lines of the tiles and the big chart cover. */
+export const SERIES_DAYS = 30;
+
+/**
+ * The day-by-day line of several metrics at once (docs/rebuild-v6/04-numbers.md §4): `days` values for each, the oldest first, the last one YESTERDAY — an unfinished day is never drawn. One read of the
+ * tables for all of it (`gather` runs once for the whole stretch and the 30 days each day's delivery rate looks back over), then `computeSet` per day over those same rows: it is never 30 queries.
+ * A day with no number is null (a gap in the line), never a zero. With `product`, the line of that product alone; without, of all of them together.
+ */
+export async function loadSeriesMany(keys: readonly MetricKey[], opts: { days?: number; product?: string; now?: Date } = {}): Promise<Record<MetricKey, (number | null)[]>> {
+  const now = opts.now ?? new Date();
+  const days = opts.days ?? SERIES_DAYS;
+  const to = addDays(ammanKey(now), -1);
+  const out = Object.fromEntries(METRIC_KEYS.map((k) => [k, [] as (number | null)[]])) as Record<MetricKey, (number | null)[]>;
+  if (process.env.MOCK_MODE === "1") {
+    for (const k of keys) out[k] = demoSeries(k, to, days, now);
+    return forViewer(out);
+  }
+  const first = addDays(to, -(days - 1));
+  const g = await gather(addDays(first, -29), to);
+  const codes = [...g.codes].filter((c) => !opts.product || c === opts.product);
+  const sets = new Map<string, NumbersSet | null>();
+  for (const day of eachDay(first, to)) {
+    const parts = codes
+      .map((code) => {
+        const { ctx } = g.ctxOf(code, day);
+        const raw = g.rawOf(code, { from: day, to: day });
+        const has = raw.metaSpend !== null || raw.ordersIn !== null || raw.shippedOrders !== null;
+        return { raw, ctx, has };
+      })
+      .filter((p) => p.has)
+      .map((p) => ({ raw: p.raw, set: computeSet(p.raw, p.ctx), piecesPerDay: p.ctx.piecesPerDay }));
+    sets.set(day, parts.length === 0 ? null : opts.product ? parts[0]!.set : totalSet(parts, g.fx));
+  }
+  for (const k of keys) out[k] = seriesOf(k, to, days, (d) => sets.get(d) ?? null, now);
+  return forViewer(out);
+}
+
+/** The line of one metric: `days` values, the oldest first. */
+export async function loadSeries(key: MetricKey, days = SERIES_DAYS, product?: string, now?: Date): Promise<(number | null)[]> {
+  return (await loadSeriesMany([key], { days, ...(product ? { product } : {}), ...(now ? { now } : {}) }))[key];
+}
+
+/** The demo's line: the demo's own figure with a gentle wobble, so a demo screen has a line to draw. Real sites never reach this. */
+function demoSeries(key: MetricKey, to: string, days: number, now: Date): (number | null)[] {
+  const base = valueOf(key, demoNumbers({ key: "custom", from: to, to, days: 1 }).totals.current, 1);
+  const list = eachDay(addDays(to, -(days - 1)), to);
+  if (base === null) return list.map(() => null);
+  return list.map((d, i) => {
+    const wobble = 1 + 0.12 * Math.sin(i / 2.3) + 0.05 * Math.cos(i * 1.7);
+    return key === "costPerConfirmed" && d > matureThrough(now) ? null : Math.round(base * wobble * 100) / 100;
+  });
 }
 
 // ───────────────────────────── the demo: the same arithmetic over made-up counts ─────────────────────────────

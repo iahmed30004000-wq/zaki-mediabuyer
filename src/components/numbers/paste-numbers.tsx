@@ -100,7 +100,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
                 <input type="date" value={day} dir="ltr" onChange={(e) => { setDay(e.target.value); setPre(null); }} className={field} />
               </label>
             </div>
-            <p className="text-xs leading-5 text-fg-muted">لازم عمود معرّف (Ad ID أو Campaign ID …) — الموقع ما بيخمّن معرّف. الإعلان بدو أبوه معروف: الصق الحملات أول، بعدين المجموعات، بعدين الإعلانات (وإذا الملف فيه عمود Ad set ID بيستعمله). أرقام الـ OMS وميتا لما تنربط بتحل مكان الملصوق.</p>
+            <p className="text-xs leading-5 text-fg-muted">لازم عمود معرّف (Ad ID أو Campaign ID …) — الموقع ما بيخمّن معرّف. الإعلان بدو أبوه معروف: الصق الحملات أول، بعدين المجموعات، بعدين الإعلانات (وإذا الملف فيه عمود Ad set ID بيستعمله). أرقام نظام الطلبات وميتا لما تنربط بتحل مكان الملصوق.</p>
 
             {pre ? (
               <div className="space-y-2 rounded-xl border border-border bg-surface-2/50 p-3 text-xs leading-6" role="status">

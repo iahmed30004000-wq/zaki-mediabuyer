@@ -5,6 +5,7 @@
  * the one with a condition (`has`) comes before the plain one of the same source. tests/nav.test.ts holds this table.
  *
  * Left out on purpose: `/?tab=summary` and `/ads?tab=products` — their destination IS the source, so Next would loop (the pages ignore `tab`).
+ * `/ads?product=…` is NOT here any more (v6 · P6): `/ads` is the campaigns table now and `product` is its own filter — a redirect would send every filtered view to the product's page.
  * `/tasks` is NOT here any more (v6 · P3): it is a real place now («المهام»). It used to lead to `/inbox`, so every `href: "/tasks"` the code and the database kept for a
  * decision was moved to `/inbox` (the code, and a data migration for the alerts and notices already written).
  */
@@ -18,7 +19,6 @@ export const LEGACY_REDIRECTS = [
   { source: "/done", destination: "/work/today", permanent: false },
   { source: "/videos", has: tab("flow"), destination: "/ads/videos?view=flow", permanent: false },
   { source: "/videos", destination: "/ads/videos", permanent: false },
-  { source: "/ads", has: [{ type: "query", key: "product", value: "(?<code>[A-Za-z0-9_-]+)" }], destination: "/products/:code", permanent: false },
   { source: "/ads", has: tab("campaigns"), destination: "/ads/campaigns", permanent: false },
   { source: "/ads", has: tab("tests"), destination: "/ads/tests", permanent: false },
   { source: "/ads", has: tab("(health|safety|data|naming)"), destination: "/ads/health", permanent: false },

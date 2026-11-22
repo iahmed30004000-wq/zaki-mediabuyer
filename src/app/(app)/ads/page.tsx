@@ -1,43 +1,24 @@
 import { Suspense } from "react";
-import { AdsOrders, AdsTiles, BankCard, HealthCard, NightRoundCard, ProductsVerdictTable, ScaleCandidates } from "@/components/ads/ads-dashboard";
-import { SectionSkeleton } from "@/components/home/home-sections";
+import { AdsQuickLinks } from "@/components/ads/ads-links";
+import { AdsScreen, type AdsSearch } from "@/components/ads/ads-screen";
 import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "الإعلانات" };
 export const dynamic = "force-dynamic";
 
 /**
- * الإعلانات ← اللوحة: «كيف ماشية الإعلانات بالحقيقة؟» — four tiles, the products with their verdict, the last night round, the standing
- * orders that touch ads, the video bank, the ad sets that may be raised, and the data health. Every section loads on its own. The numbers are
- * the same loaders as everywhere; the verdict only SHOWS what the night round decides on.
+ * الإعلانات (v6 · P6, docs/rebuild-v6/02-screens.md §5): the campaigns table, straight — campaign ← ad set ← ad, with «إطلاق». Above it two links: the ad sets that may be raised, and the data health. The old
+ * dashboard was distributed: its tiles and the verdict of each product are in «الأرقام»; the last night round is in the results; the video bank is the first tab of the videos.
  */
-export default async function AdsDashboardPage() {
+export default async function AdsPage({ searchParams: searchParamsP }: { searchParams: Promise<AdsSearch> }) {
   await requirePage("ads.view");
+  const searchParams = await searchParamsP;
   return (
-    <div className="space-y-6">
-      <Suspense fallback={<SectionSkeleton rows={1} />}>
-        <AdsTiles />
+    <div className="space-y-4">
+      <Suspense fallback={null}>
+        <AdsQuickLinks />
       </Suspense>
-      <Suspense fallback={<SectionSkeleton rows={3} />}>
-        <ProductsVerdictTable />
-      </Suspense>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Suspense fallback={<SectionSkeleton rows={1} />}>
-          <NightRoundCard />
-        </Suspense>
-        <Suspense fallback={<SectionSkeleton rows={1} />}>
-          <ScaleCandidates />
-        </Suspense>
-      </div>
-      <Suspense fallback={<SectionSkeleton rows={1} />}>
-        <AdsOrders />
-      </Suspense>
-      <Suspense fallback={<SectionSkeleton rows={2} />}>
-        <BankCard />
-      </Suspense>
-      <Suspense fallback={<SectionSkeleton rows={1} />}>
-        <HealthCard />
-      </Suspense>
+      <AdsScreen tab="campaigns" searchParams={searchParams} />
     </div>
   );
 }

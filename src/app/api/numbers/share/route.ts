@@ -4,7 +4,9 @@ import { summaryText } from "@/core/numbers";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { stampOf } from "@/core/freshness";
 import { loadNumbers } from "@/lib/numbers-view";
+import { loadSourceFacts } from "@/lib/source-facts";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,9 @@ export async function POST(req: Request) {
     const tg = telegramFromEnv();
     if (!tg) throw new HttpError(409, missingText("telegram") ?? "تيليجرام مش مربوط");
     const data = await loadNumbers({ d: q.get("d"), from: q.get("from"), to: q.get("to") });
-    await sendTelegram(tg, summaryText(data.label, data.totals.current, data.products.map((p) => ({ name: p.name, set: p.current }))));
+    // R-23: the summary says whether its figures are «حقيقي» or «تقدير» (the OMS silent for three hours turns them into an estimate)
+    const facts = await loadSourceFacts({ products: data.products });
+    await sendTelegram(tg, summaryText(data.label, data.totals.current, data.products.map((p) => ({ name: p.name, set: p.current })), stampOf(facts)));
     await audit({ type: "user", id: caller.id }, "numbers.share_telegram", { type: "numbers", id: `${data.range.from}..${data.range.to}` });
     return NextResponse.json({ ok: true });
   } catch (e) {

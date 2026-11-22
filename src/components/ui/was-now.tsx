@@ -22,6 +22,7 @@ export function WasNow({
   missing,
   provisional = false,
   digits,
+  tone,
   className,
 }: {
   label: string;
@@ -39,6 +40,8 @@ export function WasNow({
   provisional?: boolean;
   /** decimals of a `$` figure (default 2) */
   digits?: number;
+  /** the colour of the figure itself against the owner's target and break-even (the cost of a real order): green · amber · red. The `Delta` has its own. */
+  tone?: "ok" | "warn" | "danger";
   className?: string;
 }) {
   const absent = now === null || now === undefined || Number.isNaN(now);
@@ -48,7 +51,7 @@ export function WasNow({
         {label}
         {provisional && !absent ? <span className="rounded-full bg-surface-2 px-2 text-sm font-semibold text-fg-muted">مبدئي</span> : null}
       </span>
-      <Num value={now} unit={unit} term={term} source={source} label={label} big digits={digits} />
+      <Num value={now} unit={unit} term={term} source={source} label={label} big digits={digits} tone={tone} />
       {absent ? (
         missing ? <span className="text-sm text-fg-muted">{missing}</span> : null
       ) : (

@@ -12,6 +12,8 @@ export interface SourceFacts {
   now: string;
   /** a Meta read token is there (the spend can be pulled) */
   metaLinked: boolean;
+  /** ISO — the last successful Meta sync (P6: the age beside the spend); absent or null: not known */
+  metaLastSyncAt?: string | null;
   /** a spend row exists for yesterday (from Meta or pushed by Claude) */
   spendYesterday: boolean;
   /** the OMS address and token are there */

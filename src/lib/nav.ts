@@ -26,6 +26,8 @@ export interface PlaceTab {
   label: string;
   /** false until the phase that builds the screen: a tab with no screen is not shown. */
   ready?: boolean;
+  /** Old addresses that are this tab until P8 moves them (`/ops/stock` is «المخزون»): the tab is lit there too. */
+  also?: readonly string[];
 }
 
 export interface Place {
@@ -44,6 +46,8 @@ export interface Place {
   ready: boolean;
   /** The place of a role's bar it belongs to (`ROLE_PLACES`); the old map's places are their own. */
   role?: PlaceId;
+  /** A place that is the ads' AND the operations' («الأرقام»): a role that has any one of these in its bar is given it. Used instead of `role`. */
+  roles?: readonly PlaceId[];
   /** Where the place leads while its own screens are not built. */
   legacyHref?: string;
   /** Other address prefixes that live inside this place (the v6 «المهام» holds the addresses of the old «الشغل» too). */
@@ -89,9 +93,9 @@ export const PLACES: readonly Place[] = [
     title: "الإعلانات",
     question: "كيف ماشية الإعلانات بالحقيقة؟",
     icon: Megaphone,
+    // the dashboard was distributed (v6 · P6): the campaigns table IS `/ads`; its tiles and the verdict of each product are in «الأرقام»
     tabs: [
-      { href: "/ads", label: "اللوحة" },
-      { href: "/ads/campaigns", label: "الحملات" },
+      { href: "/ads", label: "الحملات", also: ["/ads/campaigns"] },
       { href: "/ads/videos", label: "الفيديوهات" },
       { href: "/ads/tests", label: "الاختبارات" },
     ],
@@ -144,10 +148,15 @@ export const PLACES_V6: readonly Place[] = [
     title: "الأرقام",
     question: "وين كنا، وكيف صرنا؟",
     icon: Gauge,
-    tabs: [],
-    ready: false,
-    role: "ops",
-    legacyHref: "/ops",
+    // P6 builds the screens; the old addresses (`/ops`, `/ops/stock`, `/products`) stay until P8 and light the same tabs
+    tabs: [
+      { href: "/numbers", label: "الخلاصة" },
+      { href: "/numbers/products", label: "المنتجات", also: ["/products"] },
+      { href: "/numbers/ops", label: "التأكيد والشحن", also: ["/ops"] },
+      { href: "/numbers/stock", label: "المخزون", also: ["/ops/stock"] },
+    ],
+    ready: true,
+    roles: ["ads", "ops"],
     under: ["/numbers", "/ops", "/products"],
   },
   {
@@ -183,7 +192,7 @@ export const hrefOfPlace = (p: Pick<Place, "href" | "ready" | "legacyHref">): st
 
 /** The places a role's bar has, for a map. */
 export function placesFor(map: NavMap, roleBar: readonly string[]): Place[] {
-  return NAV_MAPS[map].filter((p) => p.ready || p.legacyHref).filter((p) => roleBar.includes(p.role ?? p.key));
+  return NAV_MAPS[map].filter((p) => p.ready || p.legacyHref).filter((p) => (p.roles ? p.roles.some((r) => roleBar.includes(r)) : roleBar.includes(p.role ?? p.key)));
 }
 
 /** The settings live under the side menu, not in the places. */
@@ -233,8 +242,11 @@ export function placeOf(pathname: string, map: NavMap = "old"): Where {
 export function tabOf(pathname: string, map: NavMap = "old"): PlaceTab | null {
   const place = NAV_MAPS[map].find((p) => p.href !== "/" && inPlace(p, pathname));
   if (!place) return null;
-  const matching = place.tabs.filter((t) => pathname === t.href || (t.href !== place.href && pathname.startsWith(`${t.href}/`)));
-  return matching.sort((a, b) => b.href.length - a.href.length)[0] ?? place.tabs[0] ?? null;
+  const hits = (a: string) => pathname === a || pathname.startsWith(`${a}/`);
+  const matching = place.tabs.filter((t) => pathname === t.href || (t.href !== place.href && pathname.startsWith(`${t.href}/`)) || (t.also ?? []).some(hits));
+  // the longest address that matches wins (`/ops/stock` is «المخزون», not «التأكيد والشحن» whose old address is `/ops`)
+  const length = (t: PlaceTab) => Math.max(t.href.length, ...(t.also ?? []).filter(hits).map((a) => a.length));
+  return matching.sort((a, b) => length(b) - length(a))[0] ?? place.tabs[0] ?? null;
 }
 
 /**

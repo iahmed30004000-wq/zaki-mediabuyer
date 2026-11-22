@@ -9,6 +9,7 @@
 import { addDays, ammanKey, keyMs, parseRange, previousRange, rangeLabel, type Range } from "@/core/dates";
 import { daysRunning, earliest, indexFacts, metricsOf, stageIsTest, testShareOf, type InsightRow, type Level, type Metrics, type Node, type OrderRow, type Share } from "@/core/ads-table";
 import { MARKET_AR, OBJECTIVE_AR, STAGE_AR, parseAdName, parseAdSetName, parseCampaignName } from "@/core/naming";
+import { nameOf, productLabels } from "@/core/product-name";
 import { breakevenOf, readRules } from "@/core/rules-v2";
 import { DEMO, targetsOf, viewOf, type Product, type RowStatus, type RowView } from "@/lib/mock/data";
 import { statusOf, toProduct } from "@/lib/source";
@@ -157,7 +158,7 @@ export async function realSource(range: Range, today: string): Promise<Source> {
   const gte = new Date(keyMs(span));
   const lte = new Date(keyMs(last));
 
-  const [econ, campaigns, insights, orders, assets, bank] = await Promise.all([
+  const [econ, campaigns, insights, orders, assets, bank, aliasRows] = await Promise.all([
     db.productEconomics.findMany(),
     db.campaign.findMany({ include: { account: true, adsets: { include: { ads: true } } } }),
     db.insightDaily.findMany({
@@ -170,12 +171,15 @@ export async function realSource(range: Range, today: string): Promise<Source> {
     }),
     db.creativeAsset.findMany({ where: { driveFileId: { not: null } }, select: { crCode: true, driveFileId: true } }),
     db.videoBankItem.findMany({ where: { driveFileId: { not: null } }, select: { driveFileId: true, vName: true, job: true } }),
+    db.productAlias.findMany({ select: { productCode: true, alias: true } }),
   ]);
+  // U-08: a product is written by its Arabic name (the OMS name, else an Arabic alias)
+  const labels = productLabels(econ, aliasRows);
 
   return {
     demo: false,
     videoOf: videoMap(assets, bank),
-    products: econ.map(toProduct),
+    products: econ.map((e) => toProduct({ ...e, name: nameOf(labels, e.productCode) })),
     campaigns: campaigns.map((c) => ({
       id: c.metaId,
       name: c.name,

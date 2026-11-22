@@ -7,10 +7,12 @@
  * point for a rate) is «متل ما هو» — grey, not green or red.
  */
 import type { TermKey } from "@/lib/glossary";
-import { addDays, ammanKey } from "./dates";
+import { addDays, ammanKey, eachDay, isKey, type Range } from "./dates";
+import { sourceAfter } from "./freshness";
 import { DEFAULT_CONFIRM_WINDOW_H } from "./maturity";
 import type { NumbersSet, SetKey } from "./numbers";
 import { omsFresh, omsPullAgeHours, type SourceFacts } from "./numbers-readiness";
+import { productVerdict, type Verdict } from "./verdict";
 
 export const METRIC_KEYS = ["realCost", "orders", "confirmRate", "spend", "costPerConfirmed", "deliveredRate"] as const;
 export type MetricKey = (typeof METRIC_KEYS)[number];
@@ -177,7 +179,8 @@ export function wasNow(key: MetricKey, cur: Pick<NumbersSet, SetKey>, prev: Pick
     delta,
     tone: d?.tone ?? "flat",
     words: d?.words ?? null,
-    source: def.source,
+    // R-23: a figure from the OMS is «تقدير» the moment the OMS goes quiet (`freshness.ts` owns the rule)
+    source: sourceAfter(def.source, facts),
     missing: now === null ? missingReason(key, cur, facts) : null,
     provisional: confirms && now !== null && window.toDay > matureThrough(new Date(facts.now)),
     term: def.term,
@@ -186,7 +189,166 @@ export function wasNow(key: MetricKey, cur: Pick<NumbersSet, SetKey>, prev: Pick
   };
 }
 
-/** All the tiles of the home for a window and the one before it. */
-export function homeTiles(cur: Pick<NumbersSet, SetKey>, prev: Pick<NumbersSet, SetKey>, facts: SourceFacts, window: { days: number; toDay: string }): WasNow[] {
-  return HOME_METRICS.map((k) => wasNow(k, cur, prev, [], facts, window));
+/** All the tiles of the home for a window and the one before it. `series` (P6): the 30 days of each metric, when the screen has read them. */
+export function homeTiles(cur: Pick<NumbersSet, SetKey>, prev: Pick<NumbersSet, SetKey>, facts: SourceFacts, window: { days: number; toDay: string }, series: Partial<Record<MetricKey, (number | null)[]>> = {}): WasNow[] {
+  return HOME_METRICS.map((k) => wasNow(k, cur, prev, series[k] ?? [], facts, window));
+}
+
+// ───────────────────────────── the period of the numbers screens (P6) ─────────────────────────────
+
+/** «أمس مقابل اللي قبله» · «آخر 7 أيام» (the default) · «آخر 30 يوم» · a range written in the address. */
+export const PERIODS = ["1", "7", "30", "custom"] as const;
+export type PeriodKey = (typeof PERIODS)[number];
+export const PERIOD_AR: Record<PeriodKey, string> = { "1": "أمس مقابل اللي قبله", "7": "آخر 7 أيام", "30": "آخر 30 يوم", custom: "مخصص" };
+/** The longest range the comparison takes: the window before it must fit in the days the data reads. */
+export const MAX_PERIOD_DAYS = 45;
+
+/**
+ * `?p=1|7|30|custom&from=…&to=…` → the window. It ALWAYS ends yesterday at the latest: today is unfinished and never takes part in a comparison («اليوم لهلق» is shown on its own, without a
+ * difference). Anything unreadable is the last seven days. A custom range is put in order, cut at yesterday and capped; the window before it is `previousRange` of the result (same length).
+ */
+export function comparePeriod(q: { p?: string | null; from?: string | null; to?: string | null }, now: Date): Range & { period: PeriodKey } {
+  const yesterday = addDays(ammanKey(now), -1);
+  const mk = (period: PeriodKey, days: number, to = yesterday) => ({ key: "custom" as const, from: addDays(to, -(days - 1)), to, days, period });
+  if (q.p === "1") return mk("1", 1);
+  if (q.p === "30") return mk("30", 30);
+  if (q.p === "custom" && isKey(q.from) && isKey(q.to)) {
+    let [from, to] = q.from <= q.to ? [q.from, q.to] : [q.to, q.from];
+    if (to > yesterday) to = yesterday;
+    if (from > to) from = to;
+    const days = eachDay(from, to).length;
+    return days > MAX_PERIOD_DAYS ? mk("custom", MAX_PERIOD_DAYS, to) : { key: "custom", from, to, days, period: "custom" };
+  }
+  return mk("7", 7);
+}
+
+/** The query string that gives a window back (`""` for the default seven days): a link from one numbers screen to another keeps the period. */
+export function periodQuery(w: { period: PeriodKey; from: string; to: string }): string {
+  return w.period === "7" ? "" : w.period === "custom" ? `p=custom&from=${w.from}&to=${w.to}` : `p=${w.period}`;
+}
+
+// ───────────────────────────── a day-by-day line (P6) ─────────────────────────────
+
+/**
+ * One value of a metric for ONE day: the same figure as a tile, over a window of a day (`valueOf` with one day). `costPerConfirmed` of a day whose orders have not matured is
+ * null — a rate that can still move is never drawn as a fact (R-15) — and so is every figure that is not there (a gap in the line, never a zero).
+ */
+export function seriesValue(key: MetricKey, day: string, set: Pick<NumbersSet, SetKey> | null, now: Date): number | null {
+  if (!set) return null;
+  if (key === "costPerConfirmed" && day > matureThrough(now)) return null;
+  return valueOf(key, set, 1);
+}
+
+/** The line of `days` days ending at `toDay` (the oldest first): `setOf(day)` is the numbers of that day, or null when the day has none. */
+export function seriesOf(key: MetricKey, toDay: string, days: number, setOf: (day: string) => Pick<NumbersSet, SetKey> | null, now: Date): (number | null)[] {
+  return eachDay(addDays(toDay, -(days - 1)), toDay).map((d) => seriesValue(key, d, setOf(d), now));
+}
+
+// ───────────────────────────── a product: «كل منتج: كنا وصرنا» (P6) ─────────────────────────────
+
+export interface ProductCompare {
+  code: string;
+  name: string;
+  /** the cost of a real order: now, was, the words */
+  cost: WasNow;
+  /** the real orders of a day: now, was, the words */
+  orders: WasNow;
+  /** the word about the cost against the owner's own numbers: from `productVerdict`, nothing of its own */
+  verdict: Verdict;
+  /** the owner's break-even for this product, null until he writes it */
+  breakeven: number | null;
+}
+
+/** The products, each with the two numbers of its row and its verdict. A product with nothing in the window is left out; the order is the one given (the loader sorts by the spend). */
+export function productCompares(
+  products: readonly { code: string; name: string; current: Pick<NumbersSet, SetKey>; prev: Pick<NumbersSet, SetKey>; breakeven: number | null; hasData: boolean }[],
+  target: number | null,
+  facts: SourceFacts,
+  window: { days: number; toDay: string },
+): ProductCompare[] {
+  return products
+    .filter((p) => p.hasData)
+    .map((p) => ({
+      code: p.code,
+      name: p.name,
+      cost: wasNow("realCost", p.current, p.prev, [], facts, window),
+      orders: wasNow("orders", p.current, p.prev, [], facts, window),
+      verdict: productVerdict(p.current.costPerOrder, target, p.breakeven),
+      breakeven: p.breakeven,
+    }));
+}
+
+// ───────────────────────────── the road of an order, out of every 100 (P6) ─────────────────────────────
+
+export interface FunnelStepCompare {
+  key: "in" | "confirmed" | "shipped" | "delivered";
+  label: string;
+  /** how many of every 100 orders that came in reached this step (the first is 100); null when it is not known */
+  now: number | null;
+  was: number | null;
+  /** «أحسن 7 نقاط» · «أسوأ 3 نقاط» · «متل ما هو»; null with no «كنا» */
+  words: string | null;
+  tone: Tone;
+}
+
+type FunnelSet = Pick<NumbersSet, "ordersIn" | "confirmed" | "shippedOrders" | "delivered">;
+
+/** Of every 100 orders: how many were confirmed, shipped, delivered — this window against the one before. The code divides; a step with no orders to divide is null, never 0. */
+export function funnelCompare(cur: FunnelSet, prev: FunnelSet): FunnelStepCompare[] {
+  const per100 = (n: number | null, of: number | null): number | null => (n === null || of === null || of <= 0 ? null : r1((n * 100) / of));
+  const step = (key: FunnelStepCompare["key"], label: string, pick: (s: FunnelSet) => number | null): FunnelStepCompare => {
+    const first = key === "in";
+    const now = first ? (cur.ordersIn !== null && cur.ordersIn > 0 ? 100 : null) : per100(pick(cur), cur.ordersIn);
+    const was = first ? (prev.ordersIn !== null && prev.ordersIn > 0 ? 100 : null) : per100(pick(prev), prev.ordersIn);
+    // a share is read in points: «أحسن 7 نقاط»
+    const d = first ? null : deltaWords("confirmRate", now, was);
+    return { key, label, now, was, words: d?.words ?? null, tone: d?.tone ?? "flat" };
+  };
+  return [step("in", "دخل", (s) => s.ordersIn), step("confirmed", "تأكّد", (s) => s.confirmed), step("shipped", "انشحن", (s) => s.shippedOrders), step("delivered", "تسلّم", (s) => s.delivered)];
+}
+
+// ───────────────────────────── any of the 31 numbers of a product (P6) ─────────────────────────────
+
+/** What `STATS` says about a number that the difference needs: its unit and which way is good. */
+export interface StatLike {
+  unit: "$" | "%" | "" | "يوم";
+  good: "up" | "down" | "none";
+}
+
+/**
+ * The difference of ANY number in words, from its unit and its good direction (the six of `deltaWords` have their own kinds; the other 25 of the product screen come here): a share is read in points,
+ * the rest by percent of «كنا»; a cost in dollars is «أرخص/أغلى», a count or an average «أكتر/أقل», a number with no good direction «زاد/نزل» in grey. «كنا» of zero or missing gives no difference; a change
+ * under one percent (half a point for a share) is «متل ما هو». The colour comes from the good direction, never from the sign.
+ */
+export function statDelta(def: StatLike, now: number | null | undefined, was: number | null | undefined): { words: string; tone: Tone } | null {
+  if (now === null || now === undefined || was === null || was === undefined || Number.isNaN(now) || Number.isNaN(was)) return null;
+  const same = { words: "متل ما هو", tone: "flat" as const };
+  const toneOf = (up: boolean): Tone => (def.good === "none" ? "flat" : up === (def.good === "up") ? "good" : "bad");
+  if (def.unit === "%") {
+    const d = now - was;
+    if (Math.abs(d) < FLAT.points) return same;
+    const up = d > 0;
+    const word = def.good === "none" ? (up ? "زاد" : "نزل") : up === (def.good === "up") ? "أحسن" : "أسوأ";
+    return { words: `${word} ${pointsWords(d)}`, tone: toneOf(up) };
+  }
+  if (was === 0) return null;
+  const pct = ((now - was) / Math.abs(was)) * 100;
+  if (Math.abs(pct) < FLAT.pct) return same;
+  const n = Math.round(Math.abs(pct));
+  const up = pct > 0;
+  const word = def.good === "none" ? (up ? "زاد" : "نزل") : def.unit === "$" && def.good === "down" ? (up ? "أغلى" : "أرخص") : up ? "أكتر" : "أقل";
+  return { words: `${word} ${n}%`, tone: toneOf(up) };
+}
+
+/** Why one of the 31 numbers is missing, by the group it is in: the ads' and the cost's stand on the spend, the others on the orders. */
+export function statMissing(group: string, set: Pick<NumbersSet, SetKey>, facts: SourceFacts): string {
+  if (group === "ads" || group === "cost") {
+    const spend = missingReason("spend", set, facts);
+    if (spend) return spend;
+  }
+  if (group !== "ads" && group !== "stock") {
+    const orders = missingReason("orders", set, facts);
+    if (orders) return orders;
+  }
+  return group === "stock" ? "Claude لسا ما بعت المخزون" : "ما في رقم للفترة";
 }

@@ -8,6 +8,7 @@ import { assistantConfigured, externalModelsOff } from "@/server/assistant/confi
 import { workspaceConfigFrom } from "@/core/workspace-door";
 import { isDemo } from "@/core/readiness";
 import { WORKER_TICK_KEY, publicHealth, tickTime, workerState } from "@/core/health";
+import { loadSourceFacts } from "@/lib/source-facts";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * GET /api/health — is the system alive. Anyone gets `{ ok, version, worker: { ok } }`: `ok` is the database AND a worker heartbeat newer
  * than 3 minutes. The status code stays 200 while the database answers (the container health check and the CI start-up check read the code,
  * and the worker waits for this very route — a worker that is down must never keep the site from starting). A signed-in owner also gets
- * which links are configured (never their values).
+ * which links are configured (never their values) and, in `numbers`, the few facts the numbers stand on (is Meta linked, when the OMS last really answered, what is missing — never a figure or a name).
  */
 export async function GET() {
   let database = false;
@@ -40,6 +41,8 @@ export async function GET() {
     database,
     encryption: encryptionKeyConfigured(),
     env: { missing: envProblems().map((p) => p.name) },
+    // P6 (docs/rebuild-v6/04-numbers.md §6): what the numbers stand on; null when it could not be read — the health answer never fails because of it
+    numbers: await loadSourceFacts().catch(() => null),
     links: {
       meta: has("META_SYSTEM_USER_TOKEN"),
       oms: omsLinked(),

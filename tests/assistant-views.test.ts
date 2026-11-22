@@ -192,7 +192,7 @@ describe("explain", () => {
   it("a screen's own words; without any argument it is the screen the owner is on", () => {
     const o = explainOutput({ place: "ads" }, null);
     expect((o.data as any).screen).toMatchObject({ key: "ads", name: "الإعلانات" });
-    expect((o.data as any).screen.what).toContain("جدول");
+    expect((o.data as any).screen.what).toContain("الحملات");
     expect((explainOutput({}, "videos").data as any).screen.key).toBe("videos");
     expect((explainOutput({}, null).data as any).screen).toBeUndefined();
   });

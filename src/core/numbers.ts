@@ -298,12 +298,13 @@ export interface ProductNumbers {
 }
 
 /** The day, said in a few lines for Telegram (the code writes it; nobody types a number). */
-export function summaryText(label: string, totals: NumbersSet, products: { name: string; set: NumbersSet }[]): string {
+export function summaryText(label: string, totals: NumbersSet, products: { name: string; set: NumbersSet }[], stamp?: string): string {
   const n = (v: number | null, unit = "", d = 0) => (v === null ? "—" : `${d ? v.toFixed(d) : Math.round(v)}${unit}`);
   const money = (v: number | null) => (v === null ? "—" : `${v.toFixed(2)}$`);
   const line = (name: string, s: NumbersSet) =>
     `${name}: صرف ${money(s.spend)} · طلبات ${n(s.ordersIn)} · تكلفة الطلب ${money(s.costPerOrder)} · مؤكد ${n(s.confirmed)}${s.confirmRate === null ? "" : ` (${n(s.confirmRate, "%")})`} · انشحن ${n(s.shippedOrders)} طلب/${n(s.shippedPieces)} قطعة · مُسلَّم ${n(s.delivered)} · ربح متوقع ${money(s.expectedProfit)}`;
-  return [`📊 أرقام ${label}`, line("المجموع", totals), "", ...products.filter((p) => p.set.spend !== null || p.set.ordersIn !== null).map((p) => line(p.name, p.set))].join("\n").slice(0, 3900);
+  // P6 (R-23): the line that says whether these figures are «حقيقي» or «تقدير» (`stampOf`) goes under the title when the caller has read it
+  return [`📊 أرقام ${label}`, ...(stamp ? [`المصدر: ${stamp}`] : []), line("المجموع", totals), "", ...products.filter((p) => p.set.spend !== null || p.set.ordersIn !== null).map((p) => line(p.name, p.set))].join("\n").slice(0, 3900);
 }
 
 /** A number as it is printed: «—» when it is not known, two decimals for money, one for a rate, whole for a count. */

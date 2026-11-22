@@ -142,7 +142,7 @@ describe("«وين كنا وكيف صرنا»", () => {
     expect(out).toContain("402$"); // the day's average, written whole
     expect(out).toContain("مبدئي"); // the confirm rate of yesterday can still move
     expect(out).toContain("آخر 7 أيام مقابل الـ7 اللي قبلهم");
-    expect(out).toContain('href="/ops"');
+    expect(out).toContain('href="/numbers"'); // «كل الأرقام» leads to the summary (P6)
     expect(out).toContain("كل الأرقام");
     expect(out).not.toContain("شو ناقص لتطلع الأرقام");
   });
@@ -175,7 +175,7 @@ describe("«وين كنا وكيف صرنا»", () => {
     expect(out).toContain("الصرف ناقص: ميتا مش مربوطة");
     expect(out).not.toContain("اربط ميتا");
     expect(out).not.toContain('href="/settings/connections"');
-    expect(out).toContain('href="/ads"'); // «كل الأرقام»: the ads manager has no operations place
+    expect(out).toContain('href="/numbers"'); // «كل الأرقام»: the numbers place is the ads' and the operations' together
   });
 });
 

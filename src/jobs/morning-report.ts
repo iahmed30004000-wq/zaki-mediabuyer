@@ -7,7 +7,10 @@ import { db } from "@/server/db";
 import { fmt } from "@/lib/format";
 import { getSetting } from "@/server/settings";
 import { lastSuccess } from "./runner";
-import { lastOmsSync, omsStale } from "./oms-health";
+import { lastOmsSync } from "./oms-health";
+import { loadSourceFacts } from "@/lib/source-facts";
+import { badgeOf, omsWord } from "@/core/freshness";
+import { nameOf, productLabels } from "@/core/product-name";
 import { costPerConfirmedText, spendText } from "@/core/morning-text";
 
 const pct = (v: unknown) => (v === null || v === undefined ? null : Number(v) * 100);
@@ -18,7 +21,10 @@ export async function buildMorningReport(day: Date): Promise<string> {
   const date = new Date(`${day.toISOString().slice(0, 10)}T00:00:00Z`);
   const products = await db.truthDaily.findMany({ where: { level: "product", date } });
   const ads = await db.truthDaily.findMany({ where: { level: "ad", date } });
-  const econ = new Map((await db.productEconomics.findMany()).map((p) => [p.productCode, p]));
+  const econRows = await db.productEconomics.findMany();
+  const econ = new Map(econRows.map((p) => [p.productCode, p]));
+  // U-08: a product is written by its Arabic name
+  const labels = productLabels(econRows, await db.productAlias.findMany({ select: { productCode: true, alias: true } }));
   const adNames = new Map((await db.ad.findMany({ select: { metaId: true, name: true } })).map((a) => [a.metaId, a.name]));
   const insights = await db.insightDaily.findMany({ where: { level: "ad", date } });
   const purchases = insights.reduce((s, i) => s + i.purchases, 0);
@@ -34,9 +40,11 @@ export async function buildMorningReport(day: Date): Promise<string> {
   const webOrders = await db.attributedOrder.count({ where: { channel: "website", isFake: false, createdAtOms: { gte: date, lt: new Date(date.getTime() + 86_400_000) } } });
   const gap = webOrders ? Math.round(((purchases - webOrders) / webOrders) * 100) : null;
   const metaAge = await lastSuccess("meta.sync");
-  // The last REAL OMS sync — a skipped or backed-off slot is not one. Over 3 h old, the OMS figures are «تقدير».
+  // The last REAL OMS sync — a skipped or backed-off slot is not one. Over 3 h old, EVERY figure that stands on the OMS is «تقدير» (R-23: one rule, `src/core/freshness.ts`, for every screen, report and export).
   const omsAge = lastOmsSync(await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 }));
-  const truthTag = omsStale(omsAge, new Date()) ? "تقدير — الـ OMS ما ردّ من أكتر من 3 ساعات" : "حقيقي";
+  const facts = await loadSourceFacts({ now: new Date() });
+  const word = omsWord(facts);
+  const truthTag = word === "حقيقي" ? "حقيقي" : "تقدير — الـ OMS ما ردّ من أكتر من 3 ساعات";
   const dateAr = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", weekday: "long", day: "numeric", month: "long" }).format(day);
 
   const lines = [
@@ -47,7 +55,7 @@ export async function buildMorningReport(day: Date): Promise<string> {
     "2) لكل منتج:",
     ...products.map((p) => {
       const e = econ.get(p.objectId);
-      return `   ${e?.name ?? p.objectId}: صرف ${spendText(num(p.spendWithFee))} · تكلفة المؤكد ${costPerConfirmedText({ spend: num(p.spendWithFee), confirmed: p.confirmed, orders: p.orders, matureOrders: p.matureOrders })} (السقف ${fmt(num(p.scalingCeiling), "$")}) · مُسلَّم ${p.delivered} · ربح المُسلَّم ${fmt(num(p.profitPerDelivered), "$")} [${e?.source === "actual" ? "حقيقي" : "تقدير"}]`;
+      return `   ${nameOf(labels, p.objectId)}: صرف ${spendText(num(p.spendWithFee))} · تكلفة المؤكد ${costPerConfirmedText({ spend: num(p.spendWithFee), confirmed: p.confirmed, orders: p.orders, matureOrders: p.matureOrders })} (السقف ${fmt(num(p.scalingCeiling), "$")}) · مُسلَّم ${p.delivered} · ربح المُسلَّم ${fmt(num(p.profitPerDelivered), "$")} [${badgeOf(e?.source === "actual", facts)}]`;
     }),
     "3) أفضل 3 إعلانات:",
     ...(best.length ? best.map((a) => `   ${(adNames.get(a.objectId) ?? a.objectId).split("_")[0]} · صرف ${fmt(num(a.spendWithFee), "$")} · تكلفة المؤكد ${fmt(num(a.costPerConfirmed), "$")} · تأكيد ${fmt(pct(a.confirmRate), "%")}`) : ["   — بيانات غير كافية"]),

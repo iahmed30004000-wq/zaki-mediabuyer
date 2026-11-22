@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { areaOf, extent, linePoints, niceTicks, pathOf } from "@/core/chart";
 import { fmt } from "@/lib/format";
@@ -10,6 +11,8 @@ export interface TrendEvent {
   index: number;
   /** what we did, in a sentence — listed under the chart with the same number */
   text?: string;
+  /** where the event lives (the decision, the run): the sentence in the list is a link */
+  href?: string | null;
 }
 
 const PAD_START = 46; // room for the numbers of the axis (the right edge: the page is Arabic)
@@ -31,6 +34,7 @@ export function TrendChart({
   label,
   height = 220,
   xLabels,
+  empty,
   className,
 }: {
   values: readonly (number | null | undefined)[];
@@ -42,6 +46,8 @@ export function TrendChart({
   height?: number;
   /** the words under the two ends of the line: «قبل 30 يوم» · «اليوم» */
   xLabels?: { oldest: string; newest: string };
+  /** what to say when there are not enough numbers to draw a line — WHY, in a sentence (default: that there are not enough) */
+  empty?: string;
   className?: string;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -133,7 +139,7 @@ export function TrendChart({
             ) : null}
           </svg>
         ) : (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-base text-fg-muted">ما في أرقام كفاية لرسم الخط</p>
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-base text-fg-muted">{empty ?? "ما في أرقام كفاية لرسم الخط"}</p>
         )}
       </div>
       {marks.some((m) => m.e.text) ? (
@@ -145,7 +151,13 @@ export function TrendChart({
                 <span aria-hidden className="inline-grid size-[22px] shrink-0 place-items-center rounded-full border-2 border-fg font-display text-xs font-bold">
                   {m.n}
                 </span>
-                <span className="min-w-0 text-fg">{m.e.text}</span>
+                {m.e.href ? (
+                  <Link href={m.e.href} className="min-w-0 text-fg hover:underline">
+                    {m.e.text}
+                  </Link>
+                ) : (
+                  <span className="min-w-0 text-fg">{m.e.text}</span>
+                )}
               </li>
             ))}
         </ol>
