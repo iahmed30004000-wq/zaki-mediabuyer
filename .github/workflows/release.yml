@@ -134,7 +134,7 @@ jobs:
           node scripts/release-guard.mjs migrations
           docker network create t
           docker run -d --name db --network t -p 5433:5432 -e POSTGRES_USER=mediabuyer -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=mediabuyer postgres:16-alpine
-          for i in $(seq 1 30); do docker exec db pg_isready -U mediabuyer && break; sleep 1; done
+          for i in $(seq 1 30); do docker exec db pg_isready -h 127.0.0.1 -U mediabuyer && break; sleep 1; done
           docker exec db createdb -U mediabuyer shadow
           DATABASE_URL=postgresql://mediabuyer:ci@localhost:5433/mediabuyer \
             npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url postgresql://mediabuyer:ci@localhost:5433/shadow --exit-code
