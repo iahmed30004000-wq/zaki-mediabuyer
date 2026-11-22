@@ -1,0 +1,949 @@
+[
+  {
+    "name": "get_numbers",
+    "description": "أرقام شاشة «الأرقام» بالضبط (نفس اللي بيشوفها المالك): الصرف، الطلبات الحقيقية، تكلفة الطلب الحقيقي، المؤكد، الشحن، الأموال المتوقعة، المخزون… للمجموع ولكل منتج ولأي فترة. استعملها لأي سؤال عن رقم، وانسخ حقل display متل ما هو. المفاتيح: spend = الصرف ($) · pixelPurchases = Purchase بالبكسل · costPerPixel = تكلفة Purchase ($) · cpm = CPM ($) · ctr = CTR (%) · ordersIn = الطلبات الحقيقية · uniqueCustomers = عملاء فريدين · duplicates = تكرار انحذف · gapPct = فرق البكسل/الحقيقي (%) · costPerOrder = تكلفة الطلب الحقيقي ($) · costPerConfirmed = تكلفة المؤكد ($) · costPerDelivered = تكلفة المُسلَّم ($) · confirmed = مؤكد · rejected = مرفوض · cancelled = ملغي · waiting = بالانتظار · confirmRate = نسبة التأكيد (%) · upsellRate = نسبة الزيادة (Upsell) (%) · aov = متوسط قيمة الطلب ($) · shippedOrders = طلبات انشحنت · shippedPieces = قطع انشحنت · outForDelivery = خارجة للتوصيل · delivered = مُسلَّم · returned = مرتجع · stuck = عالق أكتر من 7 أيام · deliveryRate30 = نسبة التسليم (30 يوم) (%) · expectedRevenue = الإيراد المتوقع ($) · expectedShipping = الشحن المتوقع ($) · expectedProfit = الربح المتوقع ($) · stockUnits = القطع الباقية · stockCover = أيام التغطية (يوم)",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "today",
+            "yesterday",
+            "last7",
+            "last30",
+            "custom"
+          ],
+          "description": "today · yesterday · last7 · last30 · custom (الافتراضي today). «امبارح» = yesterday، «هالأسبوع» = last7."
+        },
+        "from": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "لـ custom: YYYY-MM-DD"
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "لـ custom: YYYY-MM-DD (فاضي = نفس from: يوم واحد)"
+        },
+        "product": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "كود المنتج أو اسمه (مثلاً TIN01 أو «الطنين»). فاضي = المجموع وكل المنتجات"
+        },
+        "stats": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "spend",
+              "pixelPurchases",
+              "costPerPixel",
+              "cpm",
+              "ctr",
+              "ordersIn",
+              "uniqueCustomers",
+              "duplicates",
+              "gapPct",
+              "costPerOrder",
+              "costPerConfirmed",
+              "costPerDelivered",
+              "confirmed",
+              "rejected",
+              "cancelled",
+              "waiting",
+              "confirmRate",
+              "upsellRate",
+              "aov",
+              "shippedOrders",
+              "shippedPieces",
+              "outForDelivery",
+              "delivered",
+              "returned",
+              "stuck",
+              "deliveryRate30",
+              "expectedRevenue",
+              "expectedShipping",
+              "expectedProfit",
+              "stockUnits",
+              "stockCover"
+            ]
+          },
+          "maxItems": 12,
+          "description": "أي أرقام بالمفاتيح. فاضي = الأساسية (الصرف، الطلبات، التكلفة، المؤكد، الشحن، الربح المتوقع)"
+        },
+        "compare": {
+          "type": "boolean",
+          "description": "true = ضيف مقارنة كل رقم بالفترة اللي قبلها وبمعدّل آخر 7 أيام"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_summary",
+    "description": "ملخّص أسبوع أو شهر بجواب واحد: مجموع الصرف والطلبات الحقيقية وتكلفة الطلب والمؤكد والتسليم والربح المتوقع مقابل الفترة اللي قبلها، وأرخص ثلاث منتجات وأغلى ثلاث بتكلفة الطلب الحقيقي (اللي لهم طلبات كافية بس). استعملها لـ «لخّصلي الأسبوع» و«كيف كان الشهر»، وانسخ حقل display متل ما هو.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "string",
+          "enum": [
+            "week",
+            "month"
+          ],
+          "description": "week = آخر 7 أيام · month = آخر 30 يوم"
+        }
+      },
+      "required": [
+        "period"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_ads",
+    "description": "جدول الإعلانات: حملات · مجموعات · إعلانات، كل سطر بصرفه وطلباته الحقيقية وتكلفة الطلب الحقيقي والتأكيد والربح التقديري وميزانيته اليومية ورقمه (id) — الرقم هو اللي بتحتاجه propose_change. الافتراضي: الشغّال بس، مرتّب بالصرف، 8 أسطر.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "range": {
+          "type": "string",
+          "enum": [
+            "today",
+            "yesterday",
+            "last7",
+            "last30",
+            "custom"
+          ],
+          "description": "today · yesterday · last7 · last30 · custom (الافتراضي today). «امبارح» = yesterday، «هالأسبوع» = last7."
+        },
+        "from": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "لـ custom: YYYY-MM-DD"
+        },
+        "to": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "لـ custom: YYYY-MM-DD (فاضي = نفس from: يوم واحد)"
+        },
+        "product": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "كود المنتج أو اسمه"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "campaign",
+            "adset",
+            "ad"
+          ],
+          "description": "حملات · مجموعات · إعلانات (فاضي = الكل)"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "all"
+          ],
+          "description": "active (الافتراضي) أو all مع الموقوف"
+        },
+        "sort": {
+          "type": "string",
+          "enum": [
+            "spend",
+            "costPerOrder",
+            "orders",
+            "profit"
+          ],
+          "description": "spend (الافتراضي) · costPerOrder (الأرخص أول) · orders · profit"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_videos",
+    "description": "لوحة الفيديوهات لكل منتج: كم فيديو بالبنك من 50، الرابحين (الأرخص طلب حقيقي فوق حد الصرف الأدنى)، كم تعبان، وكم طلب مفتوح عند هيرمز.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "كود المنتج أو اسمه (فاضي = كل المنتجات)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_tasks",
+    "description": "مهام الفريق (آخر 14 يوم للمنتهية): العنوان والحالة والمسؤول والموعد والأولوية — ورقم كل مهمة (id) لتعدّلها بـ update_task. الافتراضي: كل المفتوحة.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "new",
+              "doing",
+              "waiting_approval",
+              "stalled",
+              "done"
+            ]
+          },
+          "maxItems": 5,
+          "description": "new · doing · waiting_approval · stalled · done"
+        },
+        "assignee": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "abdullah · hassan · laith · mohammad · hermes · muse · claude"
+        },
+        "board": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "مفتاح اللوحة (main · confirmation · leak · basha · stock، أو لوحة المالك — المفاتيح بنتيجة هالأداة)"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_day",
+    "description": "إنجاز يوم واحد (توقيت عمّان): شو انعمل (تشغيلات، قرارات، مهام خلصت، فيديوهات تحرّكت) وشو مخطّط — مكتوب أسطر من الكود. استعملها لـ «لخّصلي يوم كذا» و«شو خلّصنا».",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "day": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "today (الافتراضي) · yesterday · أو YYYY-MM-DD"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_changes",
+    "description": "تغييرات الحملات: «pending» = اللي بانتظار موافقة المالك أو اقتراح مسجّل · «recent» = اللي صار آخر 3 أيام (تنفّذ/انرجع/انرفض/فشل) مع سبب كل واحد. استعملها لـ «ليش وقف…» و«شو بانتظاري».",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "recent"
+          ],
+          "description": "الافتراضي pending"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_workflows",
+    "description": "الورك فلو: بدون key = القائمة (المفتاح، شغّال؟، جدولته، آخر حالة). مع key = رسم واحد: خطواته (id · type · label · executor) ووصلاته — اللي بتحتاجه لتقترح خطوة بـ draft_node.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_overview",
+    "description": "صورة عامة من الكود: مستوى كل حساب وسقفه، آخر 7 أيام لكل منتج (صرف، مؤكد، تكلفة المؤكد، سقف التكبير، ربح)، التغييرات بانتظار المالك، قرارات الأمان آخر 24 ساعة، التنبيهات، وخطة الأسبوع. للأسئلة العامة («كيف الوضع؟»).",
+    "input_schema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "explain",
+    "description": "شرح شاشة (شو هاي الصفحة، الخطوة الجاية، أجزاءها) و/أو معادلة رقم («قاعدة الاحتساب»: معادلته ومصدره ومعناه). بدون أي وسيط: شرح الصفحة اللي المالك فيها هلأ.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "place": {
+          "type": "string",
+          "enum": [
+            "today",
+            "ads",
+            "videos",
+            "tasks",
+            "workflow",
+            "done",
+            "settings"
+          ],
+          "description": "مفتاح الصفحة"
+        },
+        "term": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "اسم الرقم أو مفتاحه، مثلاً «تكلفة الطلب الحقيقي» أو costPerOrder"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "calculate",
+    "description": "حسبة بالكود: + − × ÷ وأقواس على أرقام (من نتائج الأدوات: حقل value). لأي فرق أو نسبة أو مجموع. ما تحسب بعقلك أبداً.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "مثلاً: (4.15 - 3.8) / 3.8 * 100"
+        }
+      },
+      "required": [
+        "expression"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_task",
+    "description": "أنشئ مهمة على لوحة المهام (مثلاً «بكرا لميوز: اعمل 4 هوكات»): عنوان، ومسؤول، وموعد. بتنفّذ فوراً لما المالك يطلب. ما تحط أي رقم هاتف أو بيانات زبون.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "assignee": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "شخص أو وكيل: abdullah · hassan · laith · mohammad · hermes · muse · claude"
+        },
+        "executor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "claude · hermes · muse · n8n · person · system"
+        },
+        "due_at": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 40,
+          "description": "وقت ISO أو تاريخ YYYY-MM-DD"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "new",
+            "doing",
+            "waiting_approval",
+            "stalled",
+            "done"
+          ]
+        },
+        "board": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "main · confirmation · leak · basha · stock …"
+        },
+        "link_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30,
+          "description": "workflow · approval · video · campaign · product"
+        },
+        "link_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update_task",
+    "description": "غيّر حالة مهمة أو مسؤولها أو موعدها أو أولويتها، أو أرشفها (archived=true — ما بتنحذف). الرقم (id) من get_tasks أو create_task.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "new",
+            "doing",
+            "waiting_approval",
+            "stalled",
+            "done"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "assignee": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "executor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "due_at": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 40,
+          "description": "وقت ISO أو تاريخ YYYY-MM-DD"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ]
+        },
+        "archived": {
+          "type": "boolean",
+          "description": "true بيأرشف المهمة (ما بتنحذف)"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "propose_change",
+    "description": "اقترح تغيير على حملة/مجموعة/إعلان: pause (إيقاف) · resume (تشغيل) · set_budget (ميزانية يومية جديدة، ±50% من الحالية كحد أقصى، للحملة أو المجموعة). الأرقام (object_id) من get_ads. هاد اقتراح بس: بيروح «المهام ← بانتظار موافقتك» وما بيتنفّذ إلا بموافقة المالك على الموقع — ما تقول «تم» أبداً. اشرح بالجملة (sentence) السبب بالأرقام.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "sentence": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 280,
+          "description": "سطر واحد: شو بدك ولماذا (بالأرقام اللي رجعت من الأدوات)"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "pause",
+                  "resume",
+                  "set_budget"
+                ]
+              },
+              "object_type": {
+                "type": "string",
+                "enum": [
+                  "campaign",
+                  "adset",
+                  "ad"
+                ]
+              },
+              "object_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "الرقم (id) من get_ads"
+              },
+              "daily_budget": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10000,
+                "description": "للـ set_budget بس: الميزانية اليومية الجديدة بالدولار"
+              }
+            },
+            "required": [
+              "op",
+              "object_type",
+              "object_id"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "sentence",
+        "items"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "draft_workflow",
+    "description": "ارسم مسودة ورك فلو جديد: خطوات (id إنجليزي قصير، type، label، executor، permission، prompt…) ووصلات من ← إلى. ما بيتحفظ شي — بتظهر للمالك بطاقة ويفتحها بالمحرر ويراجعها ويحفظها. بداية واحدة (trigger)، وبوّابة موافقة (approval) أحمر قبل أي خطوة بتصرف أو بتغيّر شي على الحملات. ما تحط أي مبلغ أو بيانات زبون.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "trigger",
+                  "step",
+                  "condition",
+                  "approval",
+                  "wait",
+                  "notify"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "executor": {
+                "type": "string",
+                "enum": [
+                  "claude_task",
+                  "claude_mcp",
+                  "claude_desktop",
+                  "claude_api",
+                  "hermes",
+                  "muse",
+                  "n8n",
+                  "telegram",
+                  "http",
+                  "person",
+                  "system"
+                ]
+              },
+              "assignee": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "permission": {
+                "type": "string",
+                "enum": [
+                  "green",
+                  "yellow",
+                  "red",
+                  "black"
+                ]
+              },
+              "prompt": {
+                "type": "string",
+                "maxLength": 8000
+              },
+              "inputs": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "outputs": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "destination": {
+                "type": "string",
+                "maxLength": 300,
+                "description": "وين بتوصل النتيجة وعلى شو"
+              },
+              "desc": {
+                "type": "string",
+                "maxLength": 300,
+                "description": "شو بيعمل هالفرع بكلام المالك"
+              },
+              "timeoutS": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 86400
+              },
+              "retries": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "fallback": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "target": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "الهدف لما المنفّذ n8n (اسم الـ webhook) أو http (رابط https) — الموقع بينفّذ بس من قائمتك المسموحة"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 30
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 60
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 60
+        }
+      },
+      "required": [
+        "name",
+        "nodes",
+        "edges"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "draft_node",
+    "description": "اقترح خطوة جديدة على ورك فلو موجود (المفتاح من get_workflows). بتنحط بعد الخطوة after_node_id وبتنوصل فيها، وإذا ما حطيته بتنحط بآخر الرسم وبتنوصل بآخر خطوة. ما بيتحفظ شي: المالك بيفتح الرسم وفيه الخطوة كمسودة ويراجع ويحفظ.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "workflow_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "after_node_id": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "id الخطوة اللي بتجي بعدها (من get_workflows)"
+        },
+        "node": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "trigger",
+                "step",
+                "condition",
+                "approval",
+                "wait",
+                "notify"
+              ]
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "executor": {
+              "type": "string",
+              "enum": [
+                "claude_task",
+                "claude_mcp",
+                "claude_desktop",
+                "claude_api",
+                "hermes",
+                "muse",
+                "n8n",
+                "telegram",
+                "http",
+                "person",
+                "system"
+              ]
+            },
+            "assignee": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "permission": {
+              "type": "string",
+              "enum": [
+                "green",
+                "yellow",
+                "red",
+                "black"
+              ]
+            },
+            "prompt": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "inputs": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "outputs": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "destination": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "وين بتوصل النتيجة وعلى شو"
+            },
+            "desc": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "شو بيعمل هالفرع بكلام المالك"
+            },
+            "timeoutS": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "retries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "fallback": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "target": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "الهدف لما المنفّذ n8n (اسم الـ webhook) أو http (رابط https) — الموقع بينفّذ بس من قائمتك المسموحة"
+            }
+          },
+          "required": [
+            "type",
+            "label"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "workflow_key",
+        "node"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "edit_node",
+    "description": "عدّل خطوة موجودة بورك فلو (المفتاح وid الخطوة من get_workflows): ابعت بس الحقول اللي بدها تتغيّر (label · executor · permission · prompt · target · …). ما بتغيّر نوع الخطوة ولا بتشيلها. ما بيتحفظ شي: المالك بيفتح الرسم والتعديل مسودة ويراجع ويحفظ.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "workflow_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "id الخطوة (من get_workflows)"
+        },
+        "changes": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "executor": {
+              "type": "string",
+              "enum": [
+                "claude_task",
+                "claude_mcp",
+                "claude_desktop",
+                "claude_api",
+                "hermes",
+                "muse",
+                "n8n",
+                "telegram",
+                "http",
+                "person",
+                "system"
+              ]
+            },
+            "assignee": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "permission": {
+              "type": "string",
+              "enum": [
+                "green",
+                "yellow",
+                "red",
+                "black"
+              ]
+            },
+            "prompt": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "inputs": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "outputs": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "destination": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "وين بتوصل النتيجة وعلى شو"
+            },
+            "desc": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "شو بيعمل هالفرع بكلام المالك"
+            },
+            "timeoutS": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "retries": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "fallback": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "target": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "الهدف لما المنفّذ n8n (اسم الـ webhook) أو http (رابط https) — الموقع بينفّذ بس من قائمتك المسموحة"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "workflow_key",
+        "node_id",
+        "changes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "draft_prompt",
+    "description": "اكتب برومبت (لخطوة ورك فلو، أو طلب لهيرمز/ميوز، أو وكيل) كبطاقة قابلة للنسخ. المتغيرات بين {{ }} مثل {{product}} و{{date}}. ما بيتحفظ شي. ما تحط أي مبلغ أو بيانات زبون أو مفتاح.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "text": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 6000
+        }
+      },
+      "required": [
+        "title",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

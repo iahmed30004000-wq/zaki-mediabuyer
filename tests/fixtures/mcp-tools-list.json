@@ -1,0 +1,1909 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "push_metrics",
+        "title": "ابعت أرقام الإعلانات",
+        "description": "ابعت أرقام الإعلانات والطلبات الحقيقية اللي قريتها من مدير الإعلانات والـ OMS. كل صف = عنصر (حساب/حملة/مجموعة/إعلان/منتج) بيوم عمل عمّان. أي رقم ما ببعته بيضل متل ما هو، وإعادة البعت لنفس العنصر واليوم بتحدّث ما بتكرر. صف الإعلان: عدّاد طلباته الحقيقية (real_orders, confirmed, delivered…). صف المنتج (level=product): يوم المنتج الكامل لشاشة «الأرقام» — orders_in · unique_customers · confirmed · rejected · cancelled · waiting · reject_reasons · shipped_orders · shipped_pieces · out_for_delivery · delivered · returned · stuck · revenue_shipped · offer_breakdown · aov · stock_units (+ الصرف والـ pixel_purchases إذا عندك). الموقع بيحسب كل النسب لحاله — لا تبعت نسب. ممنوع أي بيانات زبون (اسم/هاتف/عنوان) — الصف بينرفض.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "يوم الرقم — يوم العمل بتوقيت عمّان (Asia/Amman)، مثلاً 2026-11-14"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "account",
+                      "campaign",
+                      "adset",
+                      "ad",
+                      "product",
+                      "person"
+                    ],
+                    "description": "مستوى الصف: account | campaign | adset | ad | product | person (أرقام موظف ليوم)"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$",
+                    "description": "رقم ميتا للعنصر (act_… أو رقم الحملة/المجموعة/الإعلان)، أو رمز المنتج لما يكون المستوى product"
+                  },
+                  "hour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 23,
+                    "description": "ساعة اللقطة (0–23) إذا الأرقام تراكمية لحد هالساعة. نفس اليوم بيتحدّث، ما بيتكرر"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "اسم العنصر كما هو بميتا"
+                  },
+                  "parent_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$",
+                    "description": "رقم الأب: المجموعة ← حملتها، الإعلان ← مجموعته، الحملة ← حسابها"
+                  },
+                  "account_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$",
+                    "description": "رقم الحساب الإعلاني act_…"
+                  },
+                  "product": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "رمز المنتج (إذا ما انفهم من اسم الحملة)"
+                  },
+                  "status": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "ACTIVE | PAUSED | …"
+                  },
+                  "budget_daily": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "الميزانية اليومية بالدولار"
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 40,
+                    "description": "وقت بداية الصرف (ISO) — منه بتنحسب «أيام التشغيل»"
+                  },
+                  "ads_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "عدد الإعلانات (للحملة/المجموعة)"
+                  },
+                  "spend": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "الصرف بالدولار (قبل رسوم البطاقة)"
+                  },
+                  "impressions": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "reach": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "link_clicks": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "outbound_clicks": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "lpv": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "مشاهدات صفحة الهبوط"
+                  },
+                  "pixel_purchases": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "Purchase بالبكسل (رقم ميتا — مش القرار)"
+                  },
+                  "conversations": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "video_3s": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "thruplays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "frequency": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "cpm": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "إذا ما بعت impressions، بنحسبها من الصرف والـ CPM"
+                  },
+                  "ctr": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "CTR الرابط بالمية — بيحسب النقرات إذا ما انبعتت"
+                  },
+                  "real_orders": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "الطلبات الحقيقية (هواتف فريدة) برقم هالإعلان أو المنتج بهاليوم — مستوى ad أو product بس"
+                  },
+                  "confirmed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "منها المؤكد"
+                  },
+                  "mature_orders": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "منها الناضج (مرّ عليه 24 ساعة) — للإعلان"
+                  },
+                  "shipped": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "delivered": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "returned": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000
+                  },
+                  "collected": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "المحصّل بالدولار من المُسلَّم"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "website",
+                      "whatsapp",
+                      "messenger"
+                    ],
+                    "description": "قناة الطلبات (الافتراضي website)"
+                  },
+                  "orders_in": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "طلبات الموقع الحقيقية اللي إجت بهاليوم (نفس real_orders)"
+                  },
+                  "unique_customers": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "هواتف فريدة من الطلبات — الفرق عن orders_in هو التكرار المحذوف"
+                  },
+                  "rejected": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "المرفوض بهاليوم"
+                  },
+                  "cancelled": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "الملغي بهاليوم"
+                  },
+                  "waiting": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "لسا بانتظار التأكيد (حالة وقت القراءة)"
+                  },
+                  "reject_reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1000000000
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "count"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 8,
+                    "description": "أكتر أسباب الرفض: [{reason, count}]"
+                  },
+                  "shipped_orders": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "الطلبات اللي انشحنت بهاليوم"
+                  },
+                  "shipped_pieces": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "مجموع الكمية (quantity) للطلبات اللي انشحنت بهاليوم"
+                  },
+                  "out_for_delivery": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "خارجة للتوصيل (حالة وقت القراءة)"
+                  },
+                  "stuck": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "عالقة أكتر من 7 أيام (حالة وقت القراءة)"
+                  },
+                  "revenue_shipped": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "مجموع totalAmount للطلبات اللي انشحنت بهاليوم"
+                  },
+                  "expected_revenue": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "إذا حسبتها عندك (الموقع بيحسب لحاله من revenue_shipped ونسبة التسليم)"
+                  },
+                  "offer_breakdown": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "offer": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "description": "اسم العرض (مثلاً: قطعة، 2+هدية، 3 بسعر…)"
+                        },
+                        "orders": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1000000000
+                        },
+                        "pieces": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1000000000,
+                          "description": "عدد القطع بالطلب الواحد من هالعرض"
+                        },
+                        "revenue": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1000000000
+                        }
+                      },
+                      "required": [
+                        "offer",
+                        "orders"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 12,
+                    "description": "الطلبات لكل عرض: [{offer, orders, pieces?, revenue?}]"
+                  },
+                  "aov": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "متوسط قيمة الطلب بهاليوم"
+                  },
+                  "stock_units": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "القطع الباقية بالمخزون"
+                  },
+                  "claims": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "person: المسكات (الطلبات اللي مسكها)"
+                  },
+                  "no_answer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "person: ما ردّ"
+                  },
+                  "no_answer_fast": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "person: ما ردّ بأقل من دقيقة"
+                  },
+                  "first_claim_sec": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "person: سرعة أول مسكة بالثواني"
+                  },
+                  "stuck_48h": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "person: عالق فوق 48 ساعة"
+                  },
+                  "reactivated": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "person: الطلبات اللي رجّعها للحياة"
+                  }
+                },
+                "required": [
+                  "date",
+                  "level",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 500,
+              "description": "صفوف الأرقام. كل صف: التاريخ + المستوى + الرقم + أي أرقام عندك. الصف اللي فيه غلط بينرفض لحاله وباقي الصفوف بتنحفظ."
+            },
+            "account_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "الحساب الإعلاني act_… إذا الصفوف ما فيها account_id"
+            }
+          },
+          "required": [
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "push_stock",
+        "title": "ابعت المخزون",
+        "description": "ابعت مخزون كل منتج وأيام التغطية. لما التغطية تنزل تحت حدود المخزون (🔴🟠🟡 بالقواعد) بيطلع تنبيه تلقائي للمالك وعبدالله ومحمد.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "product": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "رمز المنتج"
+                  },
+                  "units": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000000,
+                    "description": "القطع المتوفرة"
+                  },
+                  "days_cover": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10000,
+                    "description": "أيام التغطية بمعدل البيع الحالي"
+                  },
+                  "as_of": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 40,
+                    "description": "وقت القراءة (ISO) — الافتراضي هلأ"
+                  }
+                },
+                "required": [
+                  "product",
+                  "days_cover"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 100,
+              "description": "صف لكل منتج"
+            }
+          },
+          "required": [
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "push_videos",
+        "title": "ابعت بنك الفيديوهات",
+        "description": "ابعت صفوف بنك الفيديوهات: رقم الـ JOB، اسم الفيديو (V…)، المنتج، رقم ملف Drive، رقم ملف السيناريو (scenario_file_id)، رقم فيديو ميتا، والحالة. بتتحدّث بنفس (JOB + الاسم). ممنوع تعديل الفيديوهات نفسها.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "job": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "رقم الـ JOB"
+                  },
+                  "v_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "اسم الفيديو V…"
+                  },
+                  "product": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "رمز المنتج"
+                  },
+                  "drive_file_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "scenario_file_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "description": "ملف سيناريو الفيديو بدرايف (03_السيناريوهات) — بيظهر رابطه على بطاقة الفيديو وبيروح مع كل طلب لهيرمز"
+                  },
+                  "meta_video_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "bank",
+                      "requested",
+                      "ready",
+                      "uploaded",
+                      "testing",
+                      "winner",
+                      "fatigued",
+                      "dropped"
+                    ],
+                    "description": "bank | requested | ready | uploaded | testing | winner | fatigued | dropped"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "job",
+                  "v_name",
+                  "product"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 300,
+              "description": "صف لكل فيديو"
+            }
+          },
+          "required": [
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "log_run",
+        "title": "سجّل تشغيل",
+        "description": "سجّل تشغيل مهمة (مفتاح الورك فلو). بأول البدء ابعت status=running مع ref ثابت، وبعدين حدّث الخطوات (node/nodes) وبالآخر ok أو failed مع summary سطر وحد وأرقام. الورك فلو عند المالك بيتحرك لحظياً (الخطوط والخطوات). الجواب بيقلك إذا المالك طفّا هالمهمة (enabled=false) — وقتها وقّف.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "description": "مفتاح الورك فلو، مثلاً daily-check أو night-round"
+            },
+            "ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "معرّف التشغيل من عندك — نفس المعرّف بيحدّث نفس التشغيل (استعمله لتحديثات الخطوات)"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "running",
+                "ok",
+                "failed",
+                "waiting",
+                "skipped"
+              ],
+              "description": "running · ok · failed · waiting · skipped — الافتراضي running"
+            },
+            "trigger": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "manual",
+                "event"
+              ]
+            },
+            "started_at": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40
+            },
+            "finished_at": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "سطر واحد: شو صار"
+            },
+            "report": {
+              "type": "string",
+              "maxLength": 6000,
+              "description": "نص التقرير الكامل للتشغيل (لحد 6000 حرف) — بيظهر بصفحة التقرير"
+            },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                ]
+              },
+              "description": "أرقام التشغيل {الاسم: القيمة} (حتى 30)"
+            },
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "label"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 10
+            },
+            "node": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "waiting",
+                    "running",
+                    "done",
+                    "failed",
+                    "handoff",
+                    "approval"
+                  ]
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "status"
+              ],
+              "additionalProperties": false,
+              "description": "حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval, note}"
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "waiting",
+                      "running",
+                      "done",
+                      "failed",
+                      "handoff",
+                      "approval"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "id",
+                  "status"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 40,
+              "description": "حالة عدّة خطوات مرة وحدة"
+            },
+            "create_if_missing": {
+              "type": "boolean",
+              "description": "أنشئ الورك فلو إذا المفتاح جديد (حروف صغيرة وشرطات)"
+            }
+          },
+          "required": [
+            "job"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "push_jobs",
+        "title": "ابعت خريطة مهامك",
+        "description": "ابعت جدولتك كلها (من 1 لـ 40 مهمة): لكل مهمة مفتاحها (نفس مفتاح log_run)، رقمها، اسمها، المجال (ads/ops)، نوعها، موعدها (cron أو كلام)، وفروعها. مفتاح المالك بيغلب: مهمة أو فرع طفّاه ما بيرجع يشتغل، وقراره عليها ما بينمسح. الجواب بيقلك لكل مهمة: enabled (إذا false وقّف) وحالة فروعها وقرار المالك. replace=true بيعلّم اللي غاب عن القائمة «خلصت» (ولا شي بينحذف).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "jobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{2,60}$",
+                    "description": "نفس مفتاح log_run"
+                  },
+                  "number": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 999,
+                    "description": "رقمها عالخريطة"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "domain": {
+                    "type": "string",
+                    "enum": [
+                      "ads",
+                      "ops"
+                    ],
+                    "description": "ads · ops"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "recurring",
+                      "once",
+                      "window",
+                      "manual"
+                    ],
+                    "description": "recurring متكررة · once مرة وحدة · window لفترة · manual عند الطلب"
+                  },
+                  "schedule": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "cron بخمس خانات بتوقيت عمّان"
+                  },
+                  "schedule_text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "description": "الموعد بالكلام لما ما في cron"
+                  },
+                  "runs_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "ends_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "runs_from": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "origin": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "touches": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60
+                    },
+                    "maxItems": 8
+                  },
+                  "talks_to": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60
+                    },
+                    "maxItems": 8
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "advice": {
+                    "type": "string",
+                    "enum": [
+                      "keep",
+                      "merge",
+                      "cancel",
+                      "lighten",
+                      "think"
+                    ]
+                  },
+                  "advice_text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "branches": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40,
+                          "pattern": "^[A-Za-z0-9_-]+$"
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "desc": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 300
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 20
+                  },
+                  "finished": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "key",
+                  "name",
+                  "domain",
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 40,
+              "description": "خريطة مهامك: من 1 لـ 40"
+            },
+            "replace": {
+              "type": "boolean",
+              "description": "true: المهام اللي مصدرها mcp وغايبة عن القائمة بتتعلّم «خلصت» (ولا شي بينحذف)"
+            }
+          },
+          "required": [
+            "jobs"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "record_order",
+        "title": "سجّل أمر ساري",
+        "description": "المالك أعطاك تعليمة مؤقتة بالمحادثة («ما في فيديو جديد لحد ما أقلك ارجع»)؟ سجّلها هون بدل ما تعمل مهمة تذكير: text بكلامه، effect=restrict (بيشدّد: وقّف، لا تعمل، خفّض) فعّال فوراً، أو allow (بيرخّي: زيد، اسمح، ارجع) فبينزل قرار للمالك قبل ما يفعّل. domain وjob_keys وproducts تحدد شو بيأثّر عليه، وuntil لحد إيمتى (فاضي = لحد ما يقول ارجع). الجواب بيقلك أي واحد صار: active أو pending.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "الأمر بكلام المالك"
+            },
+            "effect": {
+              "type": "string",
+              "enum": [
+                "restrict",
+                "allow"
+              ],
+              "description": "restrict: بيشدّد (وقّف، لا تعمل، خفّض) — فعّال فوراً · allow: بيرخّي (زيد، اسمح، ارجع) — بينزل قرار للمالك"
+            },
+            "domain": {
+              "type": "string",
+              "enum": [
+                "ads",
+                "ops",
+                "all"
+              ],
+              "description": "ads · ops · all"
+            },
+            "job_keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "maxItems": 30,
+              "description": "مفاتيح المهام اللي بيأثّر عليها (فاضي = كل مهام المجال)"
+            },
+            "products": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30
+              },
+              "maxItems": 30,
+              "description": "رموز المنتجات (فاضي = كلها)"
+            },
+            "until": {
+              "type": "string",
+              "format": "date-time",
+              "description": "لحد إيمتى (فاضي = لحد ما يقول ارجع)"
+            },
+            "said_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "إيمتى قال المالك هالكلام"
+            }
+          },
+          "required": [
+            "text",
+            "effect"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "end_order",
+        "title": "أنهِ أمر ساري",
+        "description": "المالك قال «ارجع» بالمحادثة؟ ابعت id الأمر. إنهاء أمر بيشدّد ترخية: بينزل قرار للمالك وبيضل الأمر فعّال لحد ما يوافق (الجواب بيقلك ended=false). ولا شي بينحذف.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "request_approval",
+        "title": "اطلب موافقة المالك",
+        "description": "اطلب قرار من المالك: عنوان، سطر ليش، الأرقام الأساسية، المبلغ، الخيارات، والاستعجال (red بيرنّ التلفون وهو صاحي · orange إشعار بصوت · yellow صامت بـ «اليوم»). ابعت ref ثابت حتى ما يتكرر الطلب لو أعدت المحاولة. الجواب فيه رقم الطلب؛ اقرأ القرار بعدين بـ get_approvals ونفّذ بالتشغيل الجاي. ما بتنفّذ أي صرف قبل ما يوافق.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "معرّف من عندك — إذا بعتّ نفس الطلب مرتين بيبقى طلب وحد"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "description": "عنوان القرار"
+            },
+            "why": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400,
+              "description": "سطر واحد: ليش"
+            },
+            "urgency": {
+              "type": "string",
+              "enum": [
+                "red",
+                "orange",
+                "yellow"
+              ],
+              "description": "red بيرنّ · orange إشعار بصوت · yellow صامت"
+            },
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "نوع القرار (مثلاً cap_raise) — المالك بيحدد أي أنواع بتصحّيه وهو نايم"
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000,
+              "description": "المبلغ بالدولار إن وُجد"
+            },
+            "numbers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12,
+              "description": "الأرقام الأساسية: [{label, value}]"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 30
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "key",
+                  "label"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 2,
+              "maxItems": 5,
+              "description": "الخيارات [{key, label}] — الافتراضي موافق/رفض"
+            },
+            "analysis": {
+              "type": "object",
+              "properties": {
+                "decision": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                },
+                "analysis": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1500
+                },
+                "if_yes": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                },
+                "if_no": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                },
+                "recommendation": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                }
+              },
+              "additionalProperties": false,
+              "description": "صفحة «ليش؟»: القرار · التحليل · المآل إذا نعم/لا · التوصية"
+            },
+            "expires_in_min": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10080,
+              "description": "بعد كم دقيقة بينتهي الطلب لحاله"
+            },
+            "workflow": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "description": "مفتاح الورك فلو اللي طلبه"
+            }
+          },
+          "required": [
+            "title",
+            "why",
+            "urgency"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_approvals",
+        "title": "اقرا قرارات المالك",
+        "description": "اقرا الطلبات المفتوحة وقرارات آخر 48 ساعة: approved (موافق) · rejected (رفض) · postponed (مأجّل لـ postponed_until) · cancelled (ألغاه) · expired (انتهى بلا جواب) · pending (لسا). نفّذ جوّا القواعد بس على اللي انوافق عليه، ولا تعيد طلب انرفض.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "approved",
+                  "rejected",
+                  "postponed",
+                  "cancelled",
+                  "expired"
+                ]
+              },
+              "maxItems": 6
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "maxItems": 50
+            },
+            "since": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40,
+              "description": "وقت ISO — بس اللي تغيّر بعده"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "notify",
+        "title": "نبّه",
+        "description": "تنبيه ما بيوقف شغلك: 🔴 red · 🟠 orange · 🟡 yellow، ولمين (owner أو abdullah أو mohammad…). الأحمر والبرتقالي بيطلعوا على تيليجرام لما المالك صاحي؛ الأصفر بيظهر بـ «اليوم» بس. ابعت key ثابت حتى ما يتكرر نفس التنبيه.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "urgency": {
+              "type": "string",
+              "enum": [
+                "red",
+                "orange",
+                "yellow"
+              ]
+            },
+            "audience": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "description": "الافتراضي owner"
+            },
+            "href": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "مسار بالموقع، مثلاً /ads"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "description": "نفس المفتاح = نفس التنبيه"
+            }
+          },
+          "required": [
+            "title",
+            "urgency"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_mode",
+        "title": "المالك صاحي ولا نايم؟",
+        "description": "اقراها قبل أي شي بدو المالك: صاحي (awake) أو نايم (asleep)، وقائمة «صلاحيات الليل» (المهام المسموحة وهو نايم مع سقف كل وحدة). وهو نايم: لا ترنّ، وأي شي بدو موافقته بيستنى للصبح إلا لو نوعه (kind) من اللي بيصحّوه.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_rules",
+        "title": "قواعد الحملات",
+        "description": "القواعد الحالية (الإصدار الأخير دايماً): الأرقام والنصوص الـ 14، و standing_orders = الأوامر السارية (تعليمات المالك المؤقتة اللي بتأثّر على مهام). اقراها بأول كل تشغيل: الأمر اللي بيشدّد (restrict) بيغلب أي قاعدة. إذا في أرقام ناقصة (missing) قول للمالك بدل ما تخمّن — وما تنفّذ قاعدة رقمها ناقص.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "list_tasks",
+        "title": "المهام",
+        "description": "اقرا المهام: بالحالة (new · doing · waiting_approval · stalled · done)، المسؤول، اللوحة. المهام المؤرشفة ما بتطلع.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "new",
+                  "doing",
+                  "waiting_approval",
+                  "stalled",
+                  "done"
+                ]
+              },
+              "maxItems": 5
+            },
+            "assignee": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "board": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "update_task",
+        "title": "حرّك مهمة",
+        "description": "غيّر حالة مهمة أو مسؤولها أو موعدها، أو أرشفها (archived=true — ما بتنحذف أبداً).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "new",
+                "doing",
+                "waiting_approval",
+                "stalled",
+                "done"
+              ]
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "assignee": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "due_at": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40,
+              "description": "وقت ISO أو تاريخ YYYY-MM-DD"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ]
+            },
+            "archived": {
+              "type": "boolean",
+              "description": "true بيأرشف المهمة (ما بتنحذف)"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "create_task",
+        "title": "مهمة جديدة",
+        "description": "أنشئ مهمة (مثلاً طلب هوكات من هيرمز أو دفعة فيديوهات من ليث) مع مسؤول وموعد وربط (link_type/link_id). تتبّع الطلب بعدها بـ update_task.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "assignee": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "شخص أو وكيل: abdullah · hassan · laith · mohammad · hermes · muse · claude"
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "claude · hermes · muse · n8n · person · system"
+            },
+            "due_at": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40,
+              "description": "وقت ISO أو تاريخ YYYY-MM-DD"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "new",
+                "doing",
+                "waiting_approval",
+                "stalled",
+                "done"
+              ]
+            },
+            "board": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "main · confirmation · leak · basha · stock …"
+            },
+            "link_type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "description": "workflow · approval · video · campaign · product"
+            },
+            "link_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_handoffs",
+        "title": "شو مسلَّم إلك؟",
+        "description": "اقرا طابور التسليم: شغل المالك ضغط عليه «شغّل هلق»، أو خطوة وقفت وبدها حدا يكمّلها. كل بند فيه شو المطلوب والخطوات والمدخلات وآخر خطأ ومعرّف التشغيل (run_ref). الافتراضي: المفتوح والمأخود المسلَّم لـ Claude. اقراها بأول كل تشغيل وبين المهام.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "assignee": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "الافتراضي claude (كل أنواع Claude). أو hermes · muse · مفتاح شخص"
+            },
+            "status": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "claimed",
+                  "done",
+                  "cancelled"
+                ]
+              },
+              "maxItems": 4,
+              "description": "الافتراضي open + claimed"
+            },
+            "workflow": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "claim_handoff",
+        "title": "خذ تسليم",
+        "description": "خذ تسليم قبل ما تبلّش فيه — الورك فلو بيصير «عم يشتغل» والمالك بيشوف إنه عندك. اللي أخدها قبلك بيجيك خطأ.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "complete_handoff",
+        "title": "جاوب تسليم",
+        "description": "جاوب تسليم: سطر شو انعمل (note) وأرقام النتيجة (result). تشغيل طلبه المالك بيخلص (ok) بالجواب؛ خطوة واقفة بتتفكّ وتكمّل إنت (أو قول run_status=ok/failed). ما في صرف ولا موافقة هون — اللي بدو موافقة المالك بيروح request_approval.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "سطر: شو انعمل"
+            },
+            "result": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "description": "النتيجة {الاسم: القيمة}"
+            },
+            "run_status": {
+              "type": "string",
+              "enum": [
+                "running",
+                "ok",
+                "failed"
+              ],
+              "description": "كيف انتهى التشغيل: ok · failed · running (الافتراضي: ok لطلب المالك، running لخطوة واقفة)"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "create_handoff",
+        "title": "سلّم شغلة",
+        "description": "إذا خطوة وقفت (فشلت، انتهت مهلتها، ناقصها ربط، بدها جواب) ولا تقدر تكمّلها: سلّمها بدل ما تخليها تضيع — مع شو المطلوب بالضبط، آخر خطأ، والمدخلات (بلا بيانات زبائن). بتظهر عند المالك «متوقف — Claude بيكمّلها» وبيقدر يعطيها لحدا تاني.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "workflow": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60,
+              "description": "مفتاح الورك فلو (daily-check، night-round…)"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "manual_run",
+                "node_failed",
+                "missing_connection",
+                "timeout",
+                "needs_input"
+              ],
+              "description": "manual_run · node_failed · missing_connection · timeout · needs_input"
+            },
+            "node": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "الخطوة اللي واقفة (id من خطوات الورك فلو)"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "description": "سطر واحد: شو واقف"
+            },
+            "need": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "شو لازم يصير بالضبط عشان تكمل"
+            },
+            "last_error": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "inputs": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "description": "المدخلات {الاسم: القيمة} — بلا بيانات زبائن"
+            },
+            "assignee": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "claude (الافتراضي) · claude_desktop · hermes · muse · أو مفتاح شخص"
+            },
+            "run_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "معرّف التشغيل إذا الخطوة من تشغيل شغّال (نفس ref لـ log_run)"
+            }
+          },
+          "required": [
+            "workflow",
+            "title"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "get_video_requests",
+        "title": "شو مطلوب من الفيديوهات؟",
+        "description": "اقرا طلبات الفيديوهات (هوكات جديدة، سيناريو جديد، فيديو للتيست، فيديو تعبان) اللي المالك أو الكود طلبها وبانتظار هيرمز. كل طلب فيه JOB الفيديو وملف السيناريو وأرقامه. الافتراضي: المطلوبة والعند هيرمز. بدل REST: نفس الطابور.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "asked",
+                  "with_hermes",
+                  "ready",
+                  "uploaded",
+                  "cancelled"
+                ]
+              },
+              "maxItems": 6,
+              "description": "الافتراضي asked + with_hermes"
+            },
+            "product": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "رمز المنتج"
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "claim_video_request",
+        "title": "خذ طلب فيديو",
+        "description": "خذ طلب فيديو قبل ما تبلّش — بيصير «عند هيرمز» باسمك. اللي أخده قبلك بيجيه خطأ.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "complete_video_request",
+        "title": "جاوب طلب فيديو",
+        "description": "جاوب طلب فيديو: سطر شو انعمل (note)، أرقام النتيجة (result)، والفيديوهات اللي طلعت (new_videos: job · v_name · ملف الفيديو والسيناريو) — بتنضاف للبنك «جاهز». ما في صرف ولا ميتا هون.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "description": "سطر: شو انعمل"
+            },
+            "result": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              },
+              "description": "النتيجة {الاسم: القيمة}"
+            },
+            "new_videos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "job": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "v_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "drive_file_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "scenario_file_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "meta_video_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "job",
+                  "v_name"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 20,
+              "description": "الفيديوهات اللي طلعت من الطلب (هوكات جديدة…): بتنضاف للبنك «جاهز»"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      }
+    ]
+  }
+}
