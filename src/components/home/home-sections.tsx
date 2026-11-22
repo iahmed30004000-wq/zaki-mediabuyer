@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { InboxCard } from "@/components/inbox/inbox-card";
 import { AlertStrip } from "@/components/home/alert-strip";
+import { TileView } from "@/components/numbers/summary";
 import { RunCard } from "@/components/tasks/run-card";
 import { DayBoard } from "@/components/ui/day-board";
 import { JobNumber } from "@/components/ui/job-number";
@@ -9,7 +10,6 @@ import { ReadinessCard } from "@/components/ui/readiness-card";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StateWord } from "@/components/ui/state-word";
-import { WasNow } from "@/components/ui/was-now";
 import { asksSomething, isUrgent, needsOf, type HomePlan } from "@/core/home";
 import { canOpenPath, can } from "@/core/roles";
 import { runWordState } from "@/core/state-word";
@@ -33,8 +33,6 @@ export function SectionSkeleton({ rows = 2 }: { rows?: number }) {
   );
 }
 
-const UNIT = { usd: "$", count: "", pct: "%" } as const;
-const SOURCE = { real: "truth", meta: "meta", estimate: "estimate" } as const;
 const linkClass = "inline-flex min-h-11 items-center text-base font-semibold text-info hover:underline";
 
 /**
@@ -130,20 +128,7 @@ export async function NumbersSection({ plan }: { plan: HomePlan }) {
       ) : (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {c.tiles.map((t) => (
-            <WasNow
-              key={t.key}
-              label={t.label}
-              now={t.now}
-              was={t.was}
-              unit={UNIT[t.unit]}
-              term={t.term}
-              source={SOURCE[t.source]}
-              delta={t.words ? { words: t.words, tone: t.tone } : null}
-              series={t.series}
-              missing={t.missing}
-              provisional={t.provisional}
-              digits={t.digits}
-            />
+            <TileView key={t.key} t={t} />
           ))}
         </div>
       )}

@@ -3,78 +3,83 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown, Printer, Send } from "lucide-react";
-import { Delta } from "@/components/home/number-card";
-import { Num } from "@/components/mb/num";
-import { Panel } from "@/components/mb/section";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
 import { PasteNumbers } from "./paste-numbers";
+import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
+import { ProductName } from "@/components/ui/product-name";
+import { SectionTitle } from "@/components/ui/section-title";
+import { useToast } from "@/components/ui/toast";
+import { WasNow } from "@/components/ui/was-now";
+import { statDelta, statMissing } from "@/core/compare";
+import { badgeAfter } from "@/core/freshness";
 import { GROUPS, STATS, costTone, type GroupKey, type NumbersSet, type ProductNumbers, type StatDef } from "@/core/numbers";
+import type { SourceFacts } from "@/core/numbers-readiness";
+import { productVerdict } from "@/core/verdict";
 import type { TermKey } from "@/lib/glossary";
-import { cn } from "@/lib/utils";
-import type { NumbersData } from "@/lib/numbers-view";
+import { GLOSSARY } from "@/lib/glossary";
 import { safeFetch } from "@/lib/call";
+import { fmt } from "@/lib/format";
+import type { NumbersData } from "@/lib/numbers-view";
 
-const URGENCY_ICON = { red: "🔴", orange: "🟠", yellow: "🟡" } as const;
+const URGENCY_WORD = { red: "المخزون أحمر", orange: "المخزون برتقالي", yellow: "المخزون أصفر" } as const;
 
-/** One number: its value (with its «قاعدة الاحتساب» a tap away), coloured against the rules where the rules say so, and — with «قارن» on — against the window before and the 7-day average. */
-function Stat({ def, set, prev, avg, compare, tone, prevLabel }: { def: StatDef; set: NumbersSet; prev: NumbersSet; avg: NumbersSet; compare: boolean; tone?: "ok" | "warn" | "danger"; prevLabel: string }) {
-  const v = set[def.key];
+/** Decimals a number is written with: the days of cover have one, everything else the usual writing of its unit. */
+const digitsOf = (def: StatDef): number | undefined => (def.unit === "يوم" ? 1 : undefined);
+
+/**
+ * ONE of the 31 numbers as a «كنا ← صرنا» tile (v6 · P6): its value in the window, the value in the window before it, the difference in words — always shown, there is no «قارن» box any more. The words and
+ * the colour come from `statDelta` (the good direction of THIS number, not the sign); a missing number says why (`statMissing`); the badge «حقيقي» becomes «تقدير» while the OMS is silent.
+ */
+export function StatTile({ def, set, prev, facts, tone }: { def: StatDef; set: NumbersSet; prev: NumbersSet; facts: SourceFacts; tone?: "ok" | "warn" | "danger" | undefined }) {
+  const now = set[def.key];
+  const was = prev[def.key];
+  const d = statDelta(def, now, was);
+  const unit = def.unit === "يوم" ? "" : def.unit;
+  const term = def.term as TermKey;
   return (
-    <div className="min-w-0 rounded-lg bg-surface-2/50 px-2.5 py-2">
-      <p className="truncate text-xs text-fg-muted">{def.label}</p>
-      <div className="mt-0.5 flex items-baseline gap-1">
-        <Num value={v} unit={def.unit === "يوم" ? "" : def.unit} term={def.term as TermKey} tone={tone} />
-        {def.unit === "يوم" && v !== null ? <span className="text-xs text-fg-muted">يوم</span> : null}
-      </div>
-      {compare ? (
-        <div className="mt-1 space-y-0.5 whitespace-nowrap text-xs text-fg-muted">
-          <div className="flex items-center justify-between gap-1">
-            <span>{prevLabel}</span>
-            <Delta now={v} base={prev[def.key]} good={def.good} />
-          </div>
-          <div className="flex items-center justify-between gap-1">
-            <span title="معدّل آخر 7 أيام" aria-label="معدّل 7 أيام">7 أيام</span>
-            <Delta now={v} base={avg[def.key]} good={def.good} />
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <WasNow
+      label={def.unit === "يوم" ? `${def.label} (يوم)` : def.label}
+      now={now}
+      was={was}
+      unit={unit}
+      term={term}
+      source={badgeAfter(GLOSSARY[term]?.source, facts)}
+      delta={d}
+      missing={now === null ? statMissing(def.group, set, facts) : null}
+      digits={digitsOf(def)}
+      tone={tone}
+    />
   );
 }
 
-/** All the numbers of one product (or of the total), in their eight groups. */
-export function Groups({ p, compare, target, prevLabel, only }: { p: Pick<ProductNumbers, "current" | "prev" | "avg7" | "breakeven" | "rejectReasons" | "offers" | "stockUrgency">; compare: boolean; target: number | null; prevLabel: string; only?: GroupKey[] }) {
+/** All the numbers of one product (or of the total), in their eight groups — each a tile with its «كنا» and its difference. */
+export function Groups({ p, facts, target, only }: { p: Pick<ProductNumbers, "current" | "prev" | "breakeven" | "rejectReasons" | "offers" | "stockUrgency">; facts: SourceFacts; target: number | null; only?: GroupKey[] }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {GROUPS.filter((g) => !only || only.includes(g.key)).map((g) => (
-        <section key={g.key} aria-label={g.label}>
-          <h4 className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-fg-muted">
+        <section key={g.key} aria-label={g.label} className="space-y-2">
+          <h4 className="flex items-center gap-2 text-base font-bold text-fg">
             {g.label}
-            {g.key === "stock" && p.stockUrgency ? <span className="text-sm" title="🔴 أقل من 7 أيام · 🟠 7–10 · 🟡 10–14">{URGENCY_ICON[p.stockUrgency]}</span> : null}
+            {g.key === "stock" && p.stockUrgency ? <Pill tone={p.stockUrgency === "red" ? "danger" : "warn"}>{URGENCY_WORD[p.stockUrgency]}</Pill> : null}
           </h4>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             {STATS.filter((s) => s.group === g.key).map((s) => (
-              <Stat
+              <StatTile
                 key={s.key}
                 def={s}
                 set={p.current}
                 prev={p.prev}
-                avg={p.avg7}
-                compare={compare}
-                prevLabel={prevLabel}
+                facts={facts}
                 tone={s.key === "costPerOrder" ? costTone(p.current.costPerOrder, target, p.breakeven) : s.key === "gapPct" && p.current.gapPct !== null && Math.abs(p.current.gapPct) > 20 ? "warn" : undefined}
               />
             ))}
           </div>
-          {g.key === "confirm" && p.rejectReasons.length ? (
-            <p className="mt-1.5 text-xs text-fg-muted">أكتر أسباب الرفض: {p.rejectReasons.map((r) => `${r.reason} (${r.count})`).join(" · ")}</p>
-          ) : null}
+          {g.key === "confirm" && p.rejectReasons.length ? <p className="text-base text-fg-muted">أكتر أسباب الرفض: {p.rejectReasons.map((r) => `${r.reason} (${r.count})`).join(" · ")}</p> : null}
           {g.key === "offers" && p.offers.length ? (
-            <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+            <ul className="m-0 flex list-none flex-wrap gap-2 p-0 text-sm">
               {p.offers.map((o) => (
-                <li key={o.offer} className="rounded-full bg-surface-2 px-2.5 py-1 text-fg">
-                  {o.offer}: <span dir="ltr" className="font-semibold tabular-nums">{o.orders}</span>
+                <li key={o.offer} className="rounded-full bg-surface-2 px-3 py-1 text-fg">
+                  {o.offer}: <span dir="ltr" className="font-bold tabular-nums">{o.orders}</span>
                 </li>
               ))}
             </ul>
@@ -85,57 +90,58 @@ export function Groups({ p, compare, target, prevLabel, only }: { p: Pick<Produc
   );
 }
 
-/** The few numbers that must fit one phone screen without scrolling: spend, real orders, cost of a real order, confirmed, pieces shipped, expected profit. */
-function Strip({ s, prev, avg, compare, tone, prevLabel }: { s: NumbersSet; prev: NumbersSet; avg: NumbersSet; compare: boolean; tone?: "ok" | "warn" | "danger"; prevLabel: string }) {
-  const keys = ["spend", "ordersIn", "costPerOrder", "confirmed", "shippedPieces", "expectedProfit"] as const;
+/** The six numbers that open a card: spend, real orders, cost of a real order, confirmed, pieces shipped, expected profit. */
+const SIX = ["spend", "ordersIn", "costPerOrder", "confirmed", "shippedPieces", "expectedProfit"] as const;
+
+export function Six({ p, facts, target }: { p: Pick<ProductNumbers, "current" | "prev" | "breakeven">; facts: SourceFacts; target: number | null }) {
   return (
-    <div className="grid grid-cols-3 gap-2" data-tour="totals">
-      {keys.map((k) => (
-        <Stat key={k} def={STATS.find((x) => x.key === k)!} set={s} prev={prev} avg={avg} compare={compare} prevLabel={prevLabel} tone={k === "costPerOrder" ? tone : undefined} />
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3" data-tour="totals">
+      {SIX.map((k) => (
+        <StatTile key={k} def={STATS.find((x) => x.key === k)!} set={p.current} prev={p.prev} facts={facts} tone={k === "costPerOrder" ? costTone(p.current.costPerOrder, target, p.breakeven) : undefined} />
       ))}
     </div>
   );
 }
 
-function ProductCard({ p, compare, target, prevLabel }: { p: ProductNumbers; compare: boolean; target: number | null; prevLabel: string }) {
+const VERDICT_TONE = { neutral: "neutral", ok: "ok", warn: "warn", danger: "danger" } as const;
+
+function ProductCard({ p, facts, target, query }: { p: ProductNumbers; facts: SourceFacts; target: number | null; query: string }) {
   const [open, setOpen] = useState(false);
-  const s = p.current;
-  const tone = costTone(s.costPerOrder, target, p.breakeven);
+  const [all, setAll] = useState(false);
+  const verdict = productVerdict(p.current.costPerOrder, target, p.breakeven);
   return (
-    <Panel className="p-0">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 p-3 text-start sm:p-4">
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-fg">{p.name}</span>
-            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span>
-            {p.stockUrgency ? <span title="المخزون">{URGENCY_ICON[p.stockUrgency]}</span> : null}
+    <section className="rounded-card border border-border bg-surface-1">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-h-12 w-full items-center gap-3 p-4 text-start">
+        <span className="min-w-0 flex-1 space-y-1">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <ProductName name={p.name} code={p.code} />
+            <Pill tone={VERDICT_TONE[verdict.tone]}>{verdict.label}</Pill>
           </span>
-          <span className="mt-1 grid grid-cols-4 gap-2 text-xs">
-            {([["الصرف", s.spend, "$"], ["الطلبات", s.ordersIn, ""], ["تكلفة الطلب", s.costPerOrder, "$"], ["تأكيد", s.confirmRate, "%"]] as const).map(([l, v, u]) => (
-              <span key={l} className="min-w-0">
-                <span className="block truncate text-fg-muted">{l}</span>
-                <span dir="ltr" className={cn("font-semibold tabular-nums", l === "تكلفة الطلب" && tone === "ok" && "text-ok", l === "تكلفة الطلب" && tone === "warn" && "text-warn", l === "تكلفة الطلب" && tone === "danger" && "text-danger", !(l === "تكلفة الطلب" && tone) && "text-fg")}>
-                  {v === null ? "—" : `${u === "$" ? Number(v).toFixed(2) : u === "%" ? Number(v).toFixed(1) : Math.round(Number(v))}${u === "$" ? "$" : u}`}
-                </span>
-              </span>
-            ))}
+          <span className="flex flex-wrap gap-x-5 gap-y-1 text-base text-fg-muted">
+            <span>تكلفة الطلب <b dir="ltr" className="font-display tabular-nums text-fg">{fmt(p.current.costPerOrder, "$")}</b></span>
+            <span>طلبات <b dir="ltr" className="font-display tabular-nums text-fg">{fmt(p.current.ordersIn, "")}</b></span>
+            <span>صرف <b dir="ltr" className="font-display tabular-nums text-fg">{fmt(p.current.spend, "$")}</b></span>
           </span>
         </span>
-        <ChevronDown className={cn("size-4 shrink-0 text-fg-muted transition-transform", open && "rotate-180")} />
+        <ChevronDown className={`size-5 shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {open ? (
-        <div className="space-y-3 border-t border-border p-3 sm:p-4">
-          <Link href={`/products/${encodeURIComponent(p.code)}`} className="inline-block text-sm font-semibold text-info hover:underline">
-            صفحة المنتج ←
+        <div className="space-y-4 border-t border-border p-4">
+          <Link href={`/numbers/products/${encodeURIComponent(p.code)}${query ? `?${query}` : ""}`} className="inline-flex min-h-11 items-center text-base font-semibold text-info hover:underline">
+            صفحة المنتج
           </Link>
-          <Groups p={p} compare={compare} target={target} prevLabel={prevLabel} />
+          <Six p={p} facts={facts} target={target} />
+          <Button variant="ghost" size="sm" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? "سكّر الأرقام" : "كل الأرقام"}
+          </Button>
+          {all ? <Groups p={p} facts={facts} target={target} /> : null}
         </div>
       ) : null}
-    </Panel>
+    </section>
   );
 }
 
-/** «شارك»: the day as a phone-friendly PDF (the print page — «احفظ كـ PDF») and as a summary on Telegram. */
+/** «شارك»: the numbers as a phone-friendly PDF (the print page — «احفظ كـ PDF») and as a summary on Telegram. */
 function Share({ query }: { query: string }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -154,16 +160,16 @@ function Share({ query }: { query: string }) {
   }
   return (
     <div className="relative">
-      <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="min-h-10 max-md:min-h-[44px]">
-        <Send className="size-3.5" />
+      <Button variant="secondary" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <Send className="size-4" />
         شارك
       </Button>
       {open ? (
-        <div className="absolute end-0 top-full z-30 mt-2 w-60 space-y-1.5 rounded-xl border border-border bg-surface-1 p-2 shadow-card">
-          <a href={`/print/numbers?${query}`} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 rounded-lg px-3 text-sm text-fg hover:bg-surface-2">
+        <div className="absolute end-0 top-full z-30 mt-2 w-64 space-y-1.5 rounded-xl border border-border bg-surface-1 p-2 shadow-card">
+          <a href={`/print/numbers?${query}`} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-base text-fg hover:bg-surface-2">
             <Printer className="size-4" /> PDF — صفحة للطباعة والحفظ
           </a>
-          <button type="button" disabled={busy} onClick={telegram} className="flex min-h-10 max-md:min-h-[44px] w-full items-center gap-2 rounded-lg px-3 text-start text-sm text-fg hover:bg-surface-2 disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={telegram} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-start text-base text-fg hover:bg-surface-2 disabled:opacity-50">
             <Send className="size-4" /> ملخص على تيليجرام
           </button>
         </div>
@@ -173,61 +179,52 @@ function Share({ query }: { query: string }) {
 }
 
 /**
- * «الأرقام»: every number of the day. The totals strip first (one phone screen), then a card per product — collapsed until
- * tapped. «قارن» puts each number beside yesterday's and the 7-day average. Every figure explains itself with a tap.
+ * «الأرقام ← المنتجات» (v6 · P6): the six numbers of the total first, then a card per product — closed until tapped, open on six numbers, the 31 behind «كل الأرقام». Every number is a «كنا ← صرنا» tile
+ * with its difference in words, always shown (the «قارن» box is gone). Every figure explains itself with a tap and carries its source.
  */
-export function NumbersView({ data, query, pasteDay }: { data: NumbersData; query: string; /** set only for the owner: the day «ألصق أرقام» starts from */ pasteDay?: string }) {
-  const [compare, setCompare] = useState(false);
+export function NumbersView({ data, facts, query, pasteDay, linkQuery }: { data: NumbersData; facts: SourceFacts; /** the window as the share and print addresses read it (`d=custom&from=…&to=…`) */ query: string; /** set only for the owner: the day «ألصق أرقام» starts from */ pasteDay?: string; /** the period query the links to a product's page keep */ linkQuery: string }) {
   const [all, setAll] = useState(false);
-  // Short on purpose: it sits in a ~110px tile on a phone, next to its arrow and percentage.
-  const prevLabel = data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "قبله") : "قبلها";
   const { current, prev, avg7 } = data.totals;
-  const tone = costTone(current.costPerOrder, data.target, null);
   const total = { current, prev, avg7, breakeven: null, rejectReasons: data.products.flatMap((p) => p.rejectReasons), offers: [], stockUrgency: null };
-
+  const shown = data.products.filter((p) => p.hasData);
   return (
-    <div className="space-y-4">
-      {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">بيانات تجريبية — أرقام مثال بنفس الحسابات. لما يبعت Claude أرقامك (أو ينربط الـ OMS وميتا) وتشغّل الموقع على الحقيقي، بتطلع أرقامك الفعلية.</p> : null}
-      <div className="flex flex-wrap items-center gap-3" data-tour="toolbar">
-        <label className="inline-flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 text-sm text-fg">
-          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="size-4 accent-accent" />
-          قارن
-        </label>
-        <span className="text-xs text-fg-muted">{data.label}</span>
-        <span className="ms-auto flex flex-wrap items-center gap-2">
-          {pasteDay ? <PasteNumbers defaultDay={pasteDay} /> : null}
-          <Share query={query} />
-        </span>
+    <div className="space-y-6">
+      {data.demo ? <p className="rounded-card border border-dashed border-warn/50 bg-warn/5 p-3 text-base text-warn">بيانات تجريبية — أرقام مثال بنفس الحسابات. لما ينربط نظام الطلبات وميتا بتطلع أرقامك الفعلية.</p> : null}
+      <div className="flex flex-wrap items-center justify-end gap-2" data-tour="toolbar">
+        {pasteDay ? <PasteNumbers defaultDay={pasteDay} /> : null}
+        <Share query={query} />
       </div>
 
-      <section aria-label="الإجمالي" className="space-y-2">
-        <h3 className="text-sm font-bold text-fg">الإجمالي</h3>
-        <Strip s={current} prev={prev} avg={avg7} compare={compare} tone={tone} prevLabel={prevLabel} />
-        {compare ? (
-          // Under the strip, not above it: the strip is the part that has to stay on the first phone screen.
-          <p className="text-xs leading-4 text-fg-muted">
-            كل رقم مقابل {data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "اليوم اللي قبله") : "الفترة اللي قبلها"} («{prevLabel}») ومقابل معدّل آخر 7 أيام («7 أيام»). السهم الأخضر = أحسن، الأحمر = أسوأ.
-          </p>
-        ) : null}
-        <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all} className="inline-flex min-h-10 items-center max-md:min-h-[44px] text-xs font-medium text-accent hover:underline">
+      <section aria-label="الإجمالي" className="space-y-3">
+        <SectionTitle hint={data.range.days === 1 ? "أمس مقابل اللي قبله" : `آخر ${data.range.days} يوم مقابل اللي قبلهم`}>الإجمالي</SectionTitle>
+        <Six p={total} facts={facts} target={data.target} />
+        <Button variant="ghost" size="sm" onClick={() => setAll((v) => !v)} aria-expanded={all}>
           {all ? "سكّر أرقام الإجمالي" : "كل أرقام الإجمالي"}
-        </button>
+        </Button>
         {all ? (
-          <Panel>
-            <Groups p={total} compare={compare} target={data.target} prevLabel={prevLabel} />
-          </Panel>
+          <div className="rounded-card border border-border bg-surface-1 p-4">
+            <Groups p={total} facts={facts} target={data.target} />
+          </div>
         ) : null}
       </section>
 
-      <section aria-label="المنتجات" className="space-y-2" data-tour="products">
-        <h3 className="text-sm font-bold text-fg">المنتجات</h3>
-        {data.products.map((p) => (
-          <ProductCard key={p.code} p={p} compare={compare} target={data.target} prevLabel={prevLabel} />
+      <section aria-label="المنتجات" className="space-y-3" data-tour="products">
+        <SectionTitle>المنتجات</SectionTitle>
+        {shown.map((p) => (
+          <ProductCard key={p.code} p={p} facts={facts} target={data.target} query={linkQuery} />
         ))}
-        {!data.products.length ? <Panel className="text-sm text-fg-muted">ما في أرقام للفترة هاي لسا. أول ما يبعتها Claude (أو ينربط الـ OMS وميتا) بتطلع هون.</Panel> : null}
+        {!shown.length ? <p className="rounded-card border border-dashed border-border p-4 text-base text-fg-muted">ما في أرقام للفترة هاي لسا. أول ما توصل أرقام الطلبات والصرف بتطلع هون.</p> : null}
       </section>
 
-      {data.rulesMissing && !data.demo ? <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">الألوان (أخضر / برتقالي / أحمر) بتحتاج «الهدف» و«نقطة التعادل» من <a href="/settings/rules#campaign-rules" className="inline-flex min-h-10 items-center font-medium text-accent max-md:min-h-[44px] hover:underline">قواعد الحملات</a> — لسا ناقصة.</p> : null}
+      {data.rulesMissing && !data.demo ? (
+        <p className="rounded-card border border-border bg-surface-1 p-4 text-base text-fg-muted">
+          الألوان بتحتاج «الهدف» و«نقطة التعادل» من{" "}
+          <Link href="/settings/rules#campaign-rules" className="inline-flex min-h-11 items-center font-semibold text-info hover:underline">
+            قواعد الحملات
+          </Link>{" "}
+          — لسا ناقصة.
+        </p>
+      ) : null}
     </div>
   );
 }

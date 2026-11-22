@@ -19,6 +19,14 @@ vi.mock("@/server/db", () => ({
   },
 }));
 vi.mock("@/server/auth", () => ({ currentCaller: async () => caller }));
+const FACTS = { now: "2026-11-22T12:00:00.000Z", metaLinked: false, spendYesterday: false, omsLinked: true, omsLastPullAt: "2026-11-22T03:00:00.000Z", productsWithoutBreakeven: 2, unmappedFolders: 0, productsWithoutName: 0, stockFresh: false };
+let facts: typeof FACTS | null = FACTS;
+vi.mock("@/lib/source-facts", () => ({
+  loadSourceFacts: async () => {
+    if (!facts) throw new Error("tables down");
+    return facts;
+  },
+}));
 vi.mock("@/server/assistant/config", () => ({ assistantConfigured: async () => false, externalModelsOff: () => false }));
 
 import { GET } from "@/app/api/health/route";
@@ -72,6 +80,21 @@ describe("GET /api/health", () => {
   it("the database down: 503", async () => {
     dbUp = false;
     expect((await GET()).status).toBe(503);
+  });
+
+  it("the owner also gets the facts the numbers stand on (v6 · P6); a visitor and a member never do; when they cannot be read the answer still comes, with null", async () => {
+    tickValue = { at: new Date().toISOString() };
+    caller = { id: "u1", role: "OWNER", demo: false };
+    expect((await (await GET()).json()).numbers).toEqual(FACTS);
+    facts = null;
+    const down = await GET();
+    expect(down.status).toBe(200);
+    expect((await down.json()).numbers).toBeNull();
+    facts = FACTS;
+    caller = { id: "u2", role: "MEMBER", demo: false };
+    expect((await (await GET()).json()).numbers).toBeUndefined();
+    caller = null;
+    expect((await (await GET()).json()).numbers).toBeUndefined();
   });
 
   it("a signed-in owner gets the links; a signed-in member does not", async () => {

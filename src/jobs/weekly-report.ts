@@ -4,6 +4,7 @@
  * lessons (kept in the Lesson log) and the next week's plan. Sent to Telegram when it is linked.
  */
 import { db } from "@/server/db";
+import { productLabels } from "@/core/product-name";
 import { compareWeeks, decisionAccuracy, lessonsFrom, rankBy, weeklyText, type ProductWeek, type RankRow } from "@/core/weekly";
 
 const DAY = 86_400_000;
@@ -16,7 +17,9 @@ const dateAr = (d: Date) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZon
 
 async function productWeeks(from: Date, to: Date): Promise<ProductWeek[]> {
   const rows = await db.truthDaily.findMany({ where: { level: "product", date: { gte: from, lt: to } } });
-  const names = new Map((await db.productEconomics.findMany({ select: { productCode: true, name: true } })).map((p) => [p.productCode, p.name]));
+  // U-08: a product is written by its Arabic name (the OMS name, else an Arabic alias)
+  const labels = productLabels(await db.productEconomics.findMany({ select: { productCode: true, name: true } }), await db.productAlias.findMany({ select: { productCode: true, alias: true } }));
+  const names = new Map([...labels].map(([code, l]) => [code, l.name]));
   const by = new Map<string, ProductWeek>();
   for (const r of rows) {
     const p = by.get(r.objectId) ?? { code: r.objectId, name: names.get(r.objectId) ?? r.objectId, spend: 0, orders: 0, matureOrders: 0, confirmed: 0, shipments: 0, delivered: 0, profit: 0 };

@@ -3,6 +3,7 @@
  * database — Meta's archive (InsightDaily) and the OMS orders (AttributedOrder) over the last `days` days — so every
  * screen, the report and the export read real numbers through the very same calculator.
  */
+import { nameOf, productLabels } from "@/core/product-name";
 import { db } from "@/server/db";
 import { lastOmsSync, omsStale } from "@/jobs/oms-health";
 import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type Product, type RowStatus } from "@/lib/mock/data";
@@ -33,15 +34,19 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
   // The OMS answers once an hour at most; when its last real answer is over 3 h old, nothing here may say «حقيقي».
   const stale = omsStale(lastOmsSync(await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 })), now);
 
-  const [econ, accountsDb, campaignsDb, insights, orders] = await Promise.all([
+  const [econ, accountsDb, campaignsDb, insights, orders, aliasRows] = await Promise.all([
     db.productEconomics.findMany(),
     db.adAccount.findMany(),
     db.campaign.findMany({ include: { adsets: { include: { ads: true } }, account: true } }),
     db.insightDaily.groupBy({ by: ["objectId"], where: { level: "ad", date: { gte: since } }, _sum: { spend: true, impressions: true, linkClicks: true, video3s: true, thruplays: true, purchases: true, conversations: true } }),
     db.attributedOrder.findMany({ where: { createdAtOms: { gte: since }, isFake: false, adId: { not: null } }, select: { adId: true, status: true, matureAt: true, channel: true } }),
+    db.productAlias.findMany({ select: { productCode: true, alias: true } }),
   ]);
 
-  const products: Product[] = econ.map((p) => (stale ? { ...toProduct(p), shipmentsToDate: 0 } : toProduct(p)));
+  // U-08: a product is written by its Arabic name (the OMS name, else an Arabic alias)
+  const labels = productLabels(econ, aliasRows);
+  const named = <T extends { productCode: string; name: string }>(p: T): T => ({ ...p, name: nameOf(labels, p.productCode) });
+  const products: Product[] = econ.map((p) => (stale ? { ...toProduct(named(p)), shipmentsToDate: 0 } : toProduct(named(p))));
 
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);

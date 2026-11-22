@@ -17,6 +17,7 @@ const h = vi.hoisted(() => {
       videoBankItem: table([{ id: "v1", job: "TRF", vName: "V1", productCode: "TRF01", status: "ready" }]),
       ad: table([{ metaId: "a1", name: "TRF01_V1_hook", status: "ACTIVE" }]),
       campaign: table([{ metaId: "c1", name: "TRF01 تأكيد", status: "ACTIVE", productCode: "TRF01" }]),
+      productAlias: table([{ productCode: "TRF01", alias: "كمأة" }]),
     },
     caller: { id: "u1", role: "OWNER", demo: false } as { id: string; role: string; demo: boolean },
     approvals: [] as unknown[],
@@ -75,7 +76,7 @@ describe("searchData — what is read, by role", () => {
   it("an operations manager never reads the ads tables, and finds only the jobs of the operations", async () => {
     const hits = await searchData("تأكيد", { role: "OPS_MANAGER", taskKeys: null });
     expect(ids(hits)).toEqual(["task:t1", "workflow:ops-confirm"]);
-    for (const name of ["productEconomics", "videoBankItem", "ad", "campaign"] as const) expect(h.db[name].findMany, name).not.toHaveBeenCalled();
+    for (const name of ["productEconomics", "productAlias", "videoBankItem", "ad", "campaign"] as const) expect(h.db[name].findMany, name).not.toHaveBeenCalled();
     // and the ads job is not in the answer even for a word it has
     expect(ids(await searchData("جولة", { role: "OPS_MANAGER", taskKeys: null }))).toEqual([]);
   });
@@ -84,7 +85,7 @@ describe("searchData — what is read, by role", () => {
     await searchData("تأكيد", { role: "MEMBER", taskKeys: ["member-a"] });
     expect(h.db.task.findMany).toHaveBeenCalledTimes(1);
     expect(h.db.task.findMany.mock.calls[0]![0]).toMatchObject({ where: { archivedAt: null, assignee: { in: ["member-a"] } } });
-    for (const name of ["productEconomics", "workflow", "videoBankItem", "ad", "campaign"] as const) expect(h.db[name].findMany, name).not.toHaveBeenCalled();
+    for (const name of ["productEconomics", "productAlias", "workflow", "videoBankItem", "ad", "campaign"] as const) expect(h.db[name].findMany, name).not.toHaveBeenCalled();
   });
 
   it("a person with no scope (a person not in the directory) reads no task at all — not «everybody's»", async () => {
@@ -97,6 +98,15 @@ describe("searchData — what is read, by role", () => {
     expect(ids(hits)).toEqual(["ad:a1", "campaign:c1", "product:TRF01", "video:v1"]);
     expect(h.db.task.findMany).not.toHaveBeenCalled();
     expect(h.db.workflow.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchData — a product is found and shown by its Arabic name (v6 · P6, U-08)", () => {
+  it("a product the OMS wrote in Latin letters is shown by its Arabic alias, found by it, and opens the new product page", async () => {
+    h.db.productEconomics.findMany.mockResolvedValueOnce([{ productCode: "ALBETCHU", name: "ALBETCHU" }]);
+    h.db.productAlias.findMany.mockResolvedValueOnce([{ productCode: "ALBETCHU", alias: "حرير" }]);
+    const hits = await searchData("حرير", { role: "VIEWER", taskKeys: null });
+    expect(hits.find((x) => x.kind === "product")).toMatchObject({ id: "ALBETCHU", title: "حرير", href: "/numbers/products/ALBETCHU" });
   });
 });
 

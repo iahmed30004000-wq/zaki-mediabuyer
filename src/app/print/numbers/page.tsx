@@ -1,6 +1,8 @@
 import { PrintButton } from "@/components/numbers/print-button";
 import { GROUPS, STATS, formatStat, type NumbersSet } from "@/core/numbers";
+import { stampOf } from "@/core/freshness";
 import { loadNumbers } from "@/lib/numbers-view";
+import { loadSourceFacts } from "@/lib/source-facts";
 import { requirePage } from "@/server/auth";
 
 export const metadata = { title: "أرقام اليوم — للطباعة" };
@@ -39,6 +41,8 @@ export default async function PrintNumbersPage({ searchParams: searchParamsP }: 
   await requirePage("money.view");
   const searchParams = await searchParamsP;
   const data = await loadNumbers(searchParams);
+  // R-23: the page says whether its figures are «حقيقي» or «تقدير»
+  const stamp = stampOf(await loadSourceFacts({ products: data.products }));
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "medium", timeStyle: "short" }).format(new Date());
   return (
     <main style={{ colorScheme: "light" }} className="mx-auto min-h-dvh max-w-3xl space-y-5 bg-white p-5 text-black print:max-w-none print:p-0">
@@ -46,6 +50,7 @@ export default async function PrintNumbersPage({ searchParams: searchParamsP }: 
         <div>
           <h1 className="text-xl font-bold">الميديا باير — الأرقام</h1>
           <p className="text-sm text-neutral-600">{data.label} · انطبعت {at}{data.demo ? " · بيانات تجريبية" : ""}</p>
+          <p className="text-sm font-semibold text-neutral-800">المصدر: {stamp}</p>
         </div>
         <PrintButton />
       </header>

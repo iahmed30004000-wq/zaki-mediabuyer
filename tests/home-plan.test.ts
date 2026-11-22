@@ -7,18 +7,18 @@ import { NEEDS_SHOWN, asksSomething, homePlan, isUrgent, needsOf } from "@/core/
 import { ROLES, hasHome } from "@/core/roles";
 
 describe("homePlan — a role is given only the sections whose screens it may open", () => {
-  it("the owner and the manager get everything; «كل الأرقام» leads to the operations screens until /numbers is built", () => {
-    for (const role of ["OWNER", "MANAGER"] as const) expect(homePlan(role)).toEqual({ decisions: true, tasks: true, numbers: true, numbersHref: "/ops" });
+  it("the owner and the manager get everything; «كل الأرقام» leads to the numbers summary (P6)", () => {
+    for (const role of ["OWNER", "MANAGER"] as const) expect(homePlan(role)).toEqual({ decisions: true, tasks: true, numbers: true, numbersHref: "/numbers" });
   });
 
-  it("the ads manager has no operations place: «كل الأرقام» leads to the ads; the ops manager to the operations", () => {
-    expect(homePlan("ADS_MANAGER")).toEqual({ decisions: true, tasks: true, numbers: true, numbersHref: "/ads" });
-    expect(homePlan("OPS_MANAGER")).toEqual({ decisions: true, tasks: true, numbers: true, numbersHref: "/ops" });
+  it("the ads manager and the ops manager both have the numbers place (it is the ads and the operations together): «كل الأرقام» leads to it", () => {
+    expect(homePlan("ADS_MANAGER")).toEqual({ decisions: true, tasks: true, numbers: true, numbersHref: "/numbers" });
+    expect(homePlan("OPS_MANAGER")).toEqual({ decisions: true, tasks: true, numbers: true, numbersHref: "/numbers" });
   });
 
   it("an analyst reads the tasks and the numbers but has no inbox; a viewer has neither the tasks place nor the inbox", () => {
-    expect(homePlan("ANALYST")).toEqual({ decisions: false, tasks: true, numbers: true, numbersHref: "/ads" });
-    expect(homePlan("VIEWER")).toEqual({ decisions: false, tasks: false, numbers: true, numbersHref: "/ops" });
+    expect(homePlan("ANALYST")).toEqual({ decisions: false, tasks: true, numbers: true, numbersHref: "/numbers" });
+    expect(homePlan("VIEWER")).toEqual({ decisions: false, tasks: false, numbers: true, numbersHref: "/numbers" });
   });
 
   it("a role that has a home always has somewhere for «كل الأرقام» to lead", () => {

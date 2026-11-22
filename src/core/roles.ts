@@ -142,7 +142,7 @@ export const ROLE_START: Record<RoleKey, string> = {
  * Which capability opens an address (page level; the API checks its own). The first rule that matches wins, so the narrow ones come first.
  * `any` = one of these is enough. An address that matches none is open to any signed-in person (the login door).
  */
-const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: PlaceId }[] = [
+const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: PlaceId; /** any ONE of these places in the role's bar opens it */ places?: readonly PlaceId[] }[] = [
   { test: /^\/inbox(\/|$)/, any: ["inbox.view"], place: "inbox" },
   { test: /^\/work\/tasks(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
   // the new place «المهام» (v6 · P3): the people's board is the same screen as the old «مهام الفريق»; the rest of it is the work place
@@ -154,6 +154,10 @@ const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: P
   { test: /^\/print\/(work|report|day)(\/|$)/, any: ["work.view"] },
   { test: /^\/print\/numbers(\/|$)/, any: ["money.view"] }, // every product's spend and revenue
   { test: /^\/ring\//, any: ["inbox.view"] }, // the full-screen approval a push opens
+  // the new place «الأرقام» (v6 · P6): its summary and the products are the ads' numbers, its confirmation, shipping and stock screens are the operations'; the summary is for a role that has either
+  { test: /^\/numbers\/(ops|stock)(\/|$)/, any: ["ops.view"], place: "ops" },
+  { test: /^\/numbers\/products(\/|$)/, any: ["ads.view"], place: "ads" },
+  { test: /^\/numbers$/, any: ["ads.view", "ops.view"], places: ["ads", "ops"] },
   { test: /^\/(ads|products)(\/|$)/, any: ["ads.view"], place: "ads" },
   { test: /^\/ops(\/|$)/, any: ["ops.view"], place: "ops" },
   { test: /^\/settings\/connections(\/|$)/, any: ["owner_only"] }, // the keys and links (D62): the owner alone, like the API behind it
@@ -170,6 +174,7 @@ export function canOpenPath(role: RoleKey, path: string): boolean {
   const rule = PAGE_RULES.find((r) => r.test.test(path));
   if (!rule) return true;
   if (rule.place && !ROLE_PLACES[role].includes(rule.place)) return false;
+  if (rule.places && !rule.places.some((p) => ROLE_PLACES[role].includes(p))) return false;
   return rule.any.some((c) => can(role, c));
 }
 

@@ -12,6 +12,7 @@ import { dayBounds } from "@/core/day";
 import { lastNight } from "@/core/mode";
 import { readRules, type CampaignRules } from "@/core/rules-v2";
 import { averageDays, buildAlerts, costPerOrder, isTestStage, testShare, type DayNumbers, type TodayAlert } from "@/core/today";
+import { nameOf, productLabels } from "@/core/product-name";
 import { targetsOf } from "@/lib/mock/data";
 import { toProduct } from "@/lib/source";
 import { db } from "@/server/db";
@@ -83,13 +84,14 @@ async function loadTodayRaw(now = new Date()): Promise<TodayView> {
   const ordersFrom = dayBounds(ammanKey(new Date(start))).from;
   const ordersTo = dayBounds(ammanKey(now)).to;
 
-  const [spendRows, orderRows, econRows, campaigns, adsets, ads] = await Promise.all([
+  const [spendRows, orderRows, econRows, campaigns, adsets, ads, aliasRows] = await Promise.all([
     db.insightDaily.groupBy({ by: ["level", "date", "objectId"], where: { date: { gte: new Date(start), lte: new Date(d0) } }, _sum: { spend: true } }),
     db.attributedOrder.findMany({ where: { createdAtOms: { gte: ordersFrom, lt: ordersTo }, isFake: false }, select: { createdAtOms: true, productCode: true, campaignId: true } }),
     db.productEconomics.findMany(),
     db.campaign.findMany({ select: { metaId: true, name: true, stage: true, productCode: true } }),
     db.adSet.findMany({ select: { metaId: true, campaign: { select: { metaId: true } } } }),
     db.ad.findMany({ select: { metaId: true, adSet: { select: { campaign: { select: { metaId: true } } } } } }),
+    db.productAlias.findMany({ select: { productCode: true, alias: true } }),
   ]);
 
   // which campaign (and so which stage and product) an object of any level belongs to
@@ -109,7 +111,9 @@ async function loadTodayRaw(now = new Date()): Promise<TodayView> {
     return { total: (acct.length ? acct : detail).reduce((s, r) => s + r.spend, 0), detail };
   };
 
-  const products = new Map(econRows.map((p) => [p.productCode, toProduct(p)]));
+  // U-08: an alert names a product by its Arabic name (the OMS name, else an Arabic alias)
+  const labels = productLabels(econRows, aliasRows);
+  const products = new Map(econRows.map((p) => [p.productCode, toProduct({ ...p, name: nameOf(labels, p.productCode) })]));
   const margin = (code: string) => (products.has(code) ? targetsOf(products.get(code)!).margin : null);
 
   const ordersOn = (ms: number) => orderRows.filter((o) => ammanDay(o.createdAtOms) === ms);

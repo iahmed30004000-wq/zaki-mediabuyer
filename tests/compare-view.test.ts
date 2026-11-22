@@ -7,11 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   numbers: vi.fn(),
+  series: vi.fn(),
   token: true,
   oms: true,
   rows: { insight: null as unknown, pushed: null as unknown, oms: [] as unknown[], drive: null as unknown, stock: null as unknown },
 }));
-vi.mock("@/lib/numbers-view", () => ({ loadNumbers: h.numbers }));
+vi.mock("@/lib/numbers-view", () => ({ loadNumbers: h.numbers, loadSeriesMany: h.series }));
 vi.mock("@/jobs/meta-sync", () => ({ metaToken: async () => (h.token ? "t" : null) }));
 vi.mock("@/server/env", () => ({ omsLinked: () => h.oms }));
 vi.mock("@/server/db", () => ({
@@ -29,10 +30,11 @@ import { loadSourceFacts, productGaps } from "@/lib/source-facts";
 
 const NOW = new Date("2026-11-22T09:00:00.000Z"); // Sunday 12:00 Amman
 const set = (over: Partial<NumbersSet> = {}): NumbersSet => ({ ...Object.fromEntries(SET_KEYS.map((k) => [k, null])), ...over }) as NumbersSet;
-const answer = (cur: NumbersSet, prev: NumbersSet, products: unknown[] = []) => ({ demo: false, totals: { current: cur, prev, avg7: prev }, products });
+const answer = (cur: NumbersSet, prev: NumbersSet, products: unknown[] = []) => ({ demo: false, totals: { current: cur, prev, avg7: prev }, products, target: null });
 
 beforeEach(() => {
   h.numbers.mockReset();
+  h.series.mockReset().mockResolvedValue({});
   h.token = true;
   h.oms = true;
   h.rows = { insight: { id: "i" }, pushed: null, oms: [{ status: "ok", startedAt: new Date("2026-11-22T08:00:00.000Z"), finishedAt: new Date("2026-11-22T08:01:00.000Z"), stats: { orders: 40 } }], drive: null, stock: { id: "s" } };
@@ -102,6 +104,7 @@ describe("loadSourceFacts — read once, nothing made up", () => {
     expect(f).toEqual({
       now: NOW.toISOString(),
       metaLinked: true,
+      metaLastSyncAt: null,
       spendYesterday: true,
       omsLinked: true,
       omsLastPullAt: "2026-11-22T06:02:00.000Z",
@@ -122,5 +125,77 @@ describe("loadSourceFacts — read once, nothing made up", () => {
 
   it("the products' gaps count only the ones that have numbers in the window; a Latin name is a name with no Arabic", () => {
     expect(productGaps([{ code: "A", name: "ماء الكمأة", hasData: true, breakeven: 4 }, { code: "B", name: "B", hasData: true, breakeven: null }, { code: "C", name: "C", hasData: false, breakeven: null }])).toEqual({ withoutBreakeven: 1, withoutName: 1 });
+  });
+});
+
+describe("P6 — the period, the line of each tile, the products, the road of an order, the mark of the source", () => {
+  const prod = (code: string, name: string, cost: number, prevCost: number, breakeven: number | null) => ({ code, name, current: set({ costPerOrder: cost, ordersIn: 70 }), prev: set({ costPerOrder: prevCost, ordersIn: 56 }), breakeven, hasData: true });
+
+  it("the period of the address is the window: 30 days ends yesterday, the one before it is the same length, and the numbers are asked for exactly that range", async () => {
+    h.numbers.mockResolvedValue(answer(set({ ordersIn: 70 }), set({ ordersIn: 70 })));
+    const c = await loadCompare({ now: NOW, period: { p: "30" } });
+    expect(c.period).toBe("30");
+    expect(c.range).toMatchObject({ from: "2026-10-23", to: "2026-11-21", days: 30 });
+    expect(c.prev).toEqual({ from: "2026-09-23", to: "2026-10-22" });
+    expect(h.numbers.mock.calls[0]![0]).toEqual({ d: "custom", from: "2026-10-23", to: "2026-11-21" });
+    expect(h.numbers).toHaveBeenCalledTimes(1);
+  });
+
+  it("the thirty days of the four tiles are read ONCE for all of them and each tile carries its own line", async () => {
+    const line = Array.from({ length: 30 }, (_, i) => i);
+    h.series.mockResolvedValue({ realCost: line, orders: line, confirmRate: line, spend: line });
+    h.numbers.mockResolvedValue(answer(set({ ordersIn: 70, costPerOrder: 3, confirmRate: 50, spend: 700 }), set({ ordersIn: 70, costPerOrder: 3, confirmRate: 50, spend: 700 })));
+    const c = await loadCompare({ now: NOW });
+    expect(h.series).toHaveBeenCalledTimes(1);
+    expect(h.series.mock.calls[0]![0]).toEqual(["realCost", "orders", "confirmRate", "spend"]);
+    expect(c.tiles.every((t) => t.series.length === 30)).toBe(true);
+    expect(c.series.realCost).toHaveLength(30);
+  });
+
+  it("a line that cannot be read never takes the numbers down: the tiles are complete, without it; `series: false` does not ask for it at all", async () => {
+    h.series.mockRejectedValue(new Error("tables down"));
+    h.numbers.mockResolvedValue(answer(set({ ordersIn: 70 }), set({ ordersIn: 56 })));
+    const c = await loadCompare({ now: NOW });
+    expect(c.tiles.find((t) => t.key === "orders")).toMatchObject({ now: 10, series: [] });
+    h.series.mockClear();
+    await loadCompare({ now: NOW, series: false });
+    expect(h.series).not.toHaveBeenCalled();
+  });
+
+  it("the products with their words and their verdict, the road of an order out of 100, the target and the one break-even they share", async () => {
+    const cur = set({ ordersIn: 200, confirmed: 114, shippedOrders: 104, delivered: 82, costPerOrder: 2.5 });
+    const was = set({ ordersIn: 100, confirmed: 50, shippedOrders: 44, delivered: 36 });
+    h.numbers.mockResolvedValue({ ...answer(cur, was, [prod("A", "حرير", 2.4, 2.9, 4), prod("B", "ندبات", 4.6, 4, 4)]), target: 3 });
+    const c = await loadCompare({ now: NOW });
+    expect(c.products.map((p) => [p.code, p.cost.words, p.verdict.key])).toEqual([["A", "أرخص 17%", "win"], ["B", "أغلى 15%", "lose"]]);
+    expect(c.funnel.map((s) => [s.key, s.now, s.was])).toEqual([["in", 100, 100], ["confirmed", 57, 50], ["shipped", 52, 44], ["delivered", 41, 36]]);
+    expect(c.target).toBe(3);
+    expect(c.breakeven).toBe(4); // both products have the same break-even: the red line can be drawn over the total
+  });
+
+  it("break-evens that differ: no red line over the total", async () => {
+    h.numbers.mockResolvedValue({ ...answer(set({ ordersIn: 70 }), set({ ordersIn: 70 }), [prod("A", "أ", 2, 2, 4), prod("B", "ب", 2, 2, 5)]), target: null });
+    const c = await loadCompare({ now: NOW });
+    expect(c.breakeven).toBeNull();
+    expect(c.target).toBeNull();
+  });
+
+  it("the mark of the source follows the OMS: it answered an hour ago → «حقيقي»; silent for hours → every tile from it is «تقدير», the spend stays Meta's, and the line says so", async () => {
+    h.numbers.mockResolvedValue(answer(set({ ordersIn: 70, spend: 700, costPerOrder: 10, confirmRate: 50 }), set({ ordersIn: 70, spend: 700, costPerOrder: 10, confirmRate: 50 })));
+    const fresh = await loadCompare({ now: NOW });
+    expect(fresh.tiles.map((t) => t.source)).toEqual(["real", "real", "real", "meta"]);
+    expect(fresh.freshness.oms.kind).toBe("real");
+    h.rows.oms = [{ status: "ok", startedAt: new Date("2026-11-22T01:00:00.000Z"), finishedAt: new Date("2026-11-22T01:02:00.000Z"), stats: { orders: 40 } }];
+    const silent = await loadCompare({ now: NOW });
+    expect(silent.tiles.map((t) => t.source)).toEqual(["estimate", "estimate", "estimate", "meta"]);
+    expect(silent.freshness.line).toContain("الطلبات تقدير");
+  });
+
+  it("the age of Meta's last good sync is read for the line (one more single-row read)", async () => {
+    h.numbers.mockResolvedValue(answer(set({ ordersIn: 70 }), set({ ordersIn: 70 })));
+    h.rows.drive = { finishedAt: new Date("2026-11-22T08:30:00.000Z"), startedAt: new Date("2026-11-22T08:29:00.000Z"), stats: null };
+    const c = await loadCompare({ now: NOW });
+    expect(c.facts.metaLastSyncAt).toBe("2026-11-22T08:30:00.000Z");
+    expect(c.freshness.meta.ageText).toBe("قبل 30 دقيقة");
   });
 });

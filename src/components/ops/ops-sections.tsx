@@ -4,6 +4,7 @@ import { JobCard } from "@/components/work/job-card";
 import { Card, CardBody } from "@/components/ui/card";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { Pill } from "@/components/ui/pill";
+import { ProductName } from "@/components/ui/product-name";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Stat } from "@/components/ui/stat";
 import { funnel, type PersonFlag } from "@/core/ops";
@@ -11,6 +12,7 @@ import { can } from "@/core/roles";
 import { fmt } from "@/lib/format";
 import { loadJobs } from "@/lib/jobs-view";
 import { loadNumbers } from "@/lib/numbers-view";
+import { loadSourceFacts } from "@/lib/source-facts";
 import { currentCaller } from "@/server/auth";
 import { lastStockAlert, latestMetric, loadOpsRules, loadTeam, metricSeries, type TeamData, type TeamRow } from "@/server/ops";
 import { listOrders } from "@/server/orders";
@@ -98,7 +100,7 @@ export async function TeamSummary() {
       {(people ? team.rows : wholeTeam(team)).length ? (
         <TeamTable rows={people ? team.rows : wholeTeam(team)} />
       ) : (
-        <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق (بصف push_metrics مستواه person). لما يبعتها بتظهر هون.</p>
+        <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق. لما يبعتها بتظهر هون.</p>
       )}
     </section>
   );
@@ -124,13 +126,13 @@ const URG: Record<string, { label: string; tone: "danger" | "warn" | "info" }> =
 
 export function StockTable({ rows }: { rows: StockRow[] }) {
   const cols: Column<StockRow>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-10 items-center font-bold text-fg hover:underline max-md:min-h-[44px]">{r.name}</Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={`/numbers/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-11 items-center hover:underline"><ProductName name={r.name} code={r.code} /></Link> },
     { key: "units", header: "القطع", numeric: true, cell: (r) => num(r.units) },
     { key: "daily", header: "البيع اليومي", numeric: true, cell: (r) => (r.daily === null ? "—" : fmt(r.daily, "", 1)) },
     { key: "cover", header: "بيكفي (يوم)", numeric: true, cell: (r) => (r.cover === null ? "—" : fmt(r.cover, "", 1)) },
     { key: "u", header: "الحالة", cell: (r) => (r.urgency ? <Pill tone={URG[r.urgency]!.tone}>{URG[r.urgency]!.label}</Pill> : <span className="text-fg-muted">—</span>) },
   ];
-  return <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="المخزون" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في مخزون مسجّل. لما Claude يبعت المخزون (push_stock) بيظهر هون.</p>} />;
+  return <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="المخزون" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في مخزون مسجّل. Claude لسا ما بعته، ولما يبعته بيظهر هون.</p>} />;
 }
 
 export async function StockSummary() {
@@ -146,9 +148,10 @@ export async function StockSummary() {
 }
 
 export async function StockPage() {
-  const [rows, alert] = await Promise.all([stockRows(), lastStockAlert()]);
+  const [rows, alert, facts] = await Promise.all([stockRows(), lastStockAlert(), loadSourceFacts()]);
   return (
     <div className="space-y-4">
+      {rows.length && !facts.stockFresh ? <p className="rounded-card border border-warn/45 bg-warn/[0.06] p-3 text-base text-fg">قراءة المخزون أقدم من 24 ساعة: الأيام اللي بتكفي تقدير لحد ما Claude يبعت قراءة جديدة.</p> : null}
       <StockTable rows={rows.sort((a, b) => (a.cover ?? 9e9) - (b.cover ?? 9e9))} />
       {alert ? <p className="text-sm text-fg-muted">آخر تنبيه مخزون: <span className="font-semibold text-fg">{alert.title}</span></p> : null}
     </div>
@@ -191,7 +194,7 @@ export async function ConfirmPage() {
     <div className="space-y-6">
       <section className="space-y-3">
         <SectionTitle hint="آخر 7 أيام">فريق التأكيد</SectionTitle>
-        {shown.length ? <TeamTable rows={shown} /> : <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق.</p>}
+        {shown.length ? <TeamTable rows={shown} /> : <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق. لما يبعتها بتظهر هون.</p>}
       </section>
       {team.reasons.length ? (
         <section className="space-y-3">
@@ -239,7 +242,7 @@ export async function ShippingPage() {
   const [data, notLanded, ready, postponed] = await Promise.all([loadNumbers({ d: "7d" }), latestMetric("shipments-check", "not_landed"), latestMetric("shipments-check", "ready"), latestMetric("shipments-check", "postponed")]);
   const rows = data.products.filter((p) => p.hasData);
   const cols: Column<(typeof rows)[number]>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-10 items-center font-bold text-fg hover:underline max-md:min-h-[44px]">{r.name}</Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={`/numbers/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-11 items-center hover:underline"><ProductName name={r.name} code={r.code} /></Link> },
     { key: "shipped", header: "انشحن", numeric: true, cell: (r) => num(r.current.shippedOrders) },
     { key: "out", header: "عند المندوب", numeric: true, cell: (r) => num(r.current.outForDelivery) },
     { key: "stuck", header: "عالق +7 أيام", numeric: true, cell: (r) => num(r.current.stuck) },
@@ -259,7 +262,7 @@ export async function ShippingPage() {
       ) : null}
       <section className="space-y-3">
         <SectionTitle hint="آخر 7 أيام">العالق والمرتجع</SectionTitle>
-        <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="الشحن" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في أرقام شحن لسا — بتيجي من الـ OMS أو لما Claude يبعتها.</p>} />
+        <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="الشحن" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في أرقام شحن لسا — بتيجي من نظام الطلبات أو لما Claude يبعتها.</p>} />
       </section>
     </div>
   );
