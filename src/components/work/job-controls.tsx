@@ -6,13 +6,16 @@ import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
+import { waitingText } from "@/core/handoff";
 import type { WfGraph } from "@/core/workflow";
 import { safeFetch } from "@/lib/call";
 
-async function call(url: string, method: string, body?: unknown): Promise<{ error: string | null; demo: boolean }> {
+async function call(url: string, method: string, body?: unknown): Promise<{ error: string | null; demo: boolean; note?: string }> {
   const r = await safeFetch(url, { method, headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
-  const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean };
-  return { error: r.ok ? null : (d.error ?? "صار خطأ"), demo: !!d.demo };
+  const d = (await r.json().catch(() => ({}))) as { error?: string; demo?: boolean; created?: boolean; since?: string };
+  // asking again while a request is open: say for how long it has been waiting, not that it was «asked»
+  const note = d.created === false && d.since ? `مطلوبة ${waitingText(Math.max(0, Math.round((Date.now() - Date.parse(d.since)) / 60_000)))} — لسا ما حدا استلمها` : undefined;
+  return { error: r.ok ? null : (d.error ?? "صار خطأ"), demo: !!d.demo, ...(note ? { note } : {}) };
 }
 
 /** The job's own switch (the kill switch of that job — nothing is deleted) and «شغّلها هلأ» (hands it to Claude through the queue). */
@@ -21,12 +24,12 @@ export function JobControls({ jobKey, enabled, canSwitch, canRun }: { jobKey: st
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
-  async function run<T>(f: () => Promise<{ error: string | null; demo: boolean }>, done: string) {
+  async function run<T>(f: () => Promise<{ error: string | null; demo: boolean; note?: string }>, done: string) {
     setBusy(true);
     try {
       const r = await f();
       if (r.error) return toast(r.error, "error");
-      toast(r.demo ? "بالوضع التجريبي ما تغيّر شي" : done, r.demo ? "info" : "success");
+      toast(r.demo ? "بالوضع التجريبي ما تغيّر شي" : (r.note ?? done), r.demo ? "info" : r.note ? "info" : "success");
       router.refresh();
     } finally {
       setBusy(false);
@@ -51,8 +54,8 @@ export function JobControls({ jobKey, enabled, canSwitch, canRun }: { jobKey: st
   );
 }
 
-/** The switch of one branch: it saves a new version of the drawing (the same saving the drawing board uses). */
-export function BranchSwitch({ jobKey, graph, nodeId, disabled }: { jobKey: string; graph: WfGraph; nodeId: string; disabled: boolean }) {
+/** The switch of one branch: the server flips that one step of the drawing as it is NOW (not the drawing this page loaded), so two quick switches do not undo each other. */
+export function BranchSwitch({ jobKey, nodeId, disabled }: { jobKey: string; graph?: WfGraph; nodeId: string; disabled: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -64,8 +67,7 @@ export function BranchSwitch({ jobKey, graph, nodeId, disabled }: { jobKey: stri
       onCheckedChange={async (on) => {
         setBusy(true);
         try {
-          const next: WfGraph = { ...graph, nodes: graph.nodes.map((n) => (n.id === nodeId ? { ...n, disabled: !on } : n)) };
-          const r = await call(`/api/workflow/${jobKey}`, "PATCH", { graph: next, note: on ? `شغّلت فرع ${nodeId}` : `طفّيت فرع ${nodeId}` });
+          const r = await call(`/api/jobs/${jobKey}/steps/${encodeURIComponent(nodeId)}`, "POST", { enabled: on });
           if (r.error) return toast(r.error, "error");
           toast(r.demo ? "بالوضع التجريبي ما تغيّر شي" : on ? "اشتغل الفرع" : "انطفى الفرع", r.demo ? "info" : "success");
           router.refresh();

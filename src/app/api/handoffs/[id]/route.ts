@@ -28,7 +28,7 @@ export async function PATCH(req: Request, { params: paramsP }: { params: Promise
       const b = parsed.data;
       if (b.action === "reassign") return NextResponse.json({ ok: true, handoff: await reassignHandoff(params.id, b.assignee, actor) });
       if (b.action === "cancel") return NextResponse.json({ ok: true, handoff: await cancelHandoff(params.id, actor) });
-      const r = await completeHandoff(params.id, { ...(b.note ? { note: b.note } : {}) }, `owner:${caller.id}`.slice(0, 60), actor);
+      const r = await completeHandoff(params.id, { ...(b.note ? { note: b.note } : {}) }, `owner:${caller.id}`.slice(0, 60), actor, new Date(), { owner: true });
       return NextResponse.json({ ok: true, handoff: r.handoff, run: r.run });
     } catch (e) {
       if (e instanceof HandoffRefused) throw new HttpError(e.status, e.message);

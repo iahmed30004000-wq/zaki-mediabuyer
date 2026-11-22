@@ -4,8 +4,11 @@ import { claimHandoff } from "@/server/handoffs";
 
 export const dynamic = "force-dynamic";
 
-/** POST /api/v1/handoffs/:id/claim — take it before starting: the workflow shows «running, with you». A second taker gets 409. */
+/** POST /api/v1/handoffs/:id/claim — take it before starting: the workflow shows «running, with you». A second taker gets 409; one it was not given to gets 403. `claim` is the code the answer must show. */
 export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
   const params = await paramsP;
-  return withHandoffToken(req, async ({ by, actor }) => NextResponse.json({ handoff: await claimHandoff(params.id, by, actor) }));
+  return withHandoffToken(req, async ({ by, actor, actorKey }) => {
+    const r = await claimHandoff(params.id, by, actor, new Date(), { actorKey });
+    return NextResponse.json({ handoff: r.handoff, claim: r.claim });
+  });
 }

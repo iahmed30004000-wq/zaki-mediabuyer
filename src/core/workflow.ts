@@ -18,10 +18,29 @@ export const SITE_EXECUTORS = ["n8n", "http", "telegram"] as const;
 export type SiteExecutor = (typeof SITE_EXECUTORS)[number];
 export const isSiteExecutor = (x: string | undefined): x is SiteExecutor => !!x && (SITE_EXECUTORS as readonly string[]).includes(x);
 
+/**
+ * Who carries a job out, from its executor (docs/rebuild-v6/01-model.md §3 — the migration fills the same way): the Claude executors are «claude», Hermes and
+ * Muse keep their keys, what the site itself carries out (n8n, an HTTP address, Telegram, the system) is «site». A person's job has no key to guess: null.
+ */
+export function assigneeOfExecutor(executor: string): string | null {
+  if (executor.startsWith("claude")) return "claude";
+  if (executor === "hermes" || executor === "muse") return executor;
+  if (executor === "n8n" || executor === "http" || executor === "telegram" || executor === "system") return "site";
+  return null;
+}
+
 export const PERMISSIONS = ["green", "yellow", "red", "black"] as const;
 export const DATA_SOURCES = ["api", "mcp", "manual"] as const;
-export const NODE_STATUSES = ["waiting", "running", "done", "failed", "handoff", "approval"] as const;
-export const RUN_STATUSES = ["running", "ok", "failed", "waiting", "skipped"] as const;
+export const NODE_STATUSES = ["waiting", "running", "done", "failed", "handoff", "approval", "skipped"] as const;
+/**
+ * Every status a run can have (docs/rebuild-v6/01-model.md §4). `queued`, `missed` and `lost` are written by the site only: an agent that
+ * sends one of them is refused (the tool's schema lists AGENT_RUN_STATUSES).
+ */
+export const RUN_STATUSES = ["queued", "running", "waiting", "ok", "failed", "skipped", "missed", "lost"] as const;
+/** What an agent may say about its own run. */
+export const AGENT_RUN_STATUSES = ["running", "ok", "failed", "waiting", "skipped"] as const;
+/** A run in one of these has ended: only the site's own buttons (retry) reopen it. */
+export const TERMINAL_RUN_STATUSES = ["ok", "failed", "skipped", "missed", "lost"] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];
 export type Executor = (typeof EXECUTORS)[number];
@@ -93,6 +112,15 @@ export interface NodeState {
   status: NodeStatus;
   at: string;
   note?: string;
+  /** v6: when the step started / ended (the first «running» writes startedAt; done · failed · skipped write endedAt and keep startedAt) */
+  startedAt?: string;
+  endedAt?: string;
+  /** v6: why it failed (≤ 300 characters; the server passes it through the customer-data filter) */
+  error?: string;
+  /** v6: which try this is (a retry from the owner's button, or the agent running the step again, makes it 2, 3…) */
+  attempt?: number;
+  /** v6: the site guessed this from the status of the run — the agent did not send it */
+  inferred?: true;
 }
 export type NodeStates = Record<string, NodeState>;
 
@@ -112,12 +140,30 @@ export function stepOrder(g: WfGraph): WfNode[] {
   return out;
 }
 
-/** New states with `updates` applied on top (a state that was not mentioned stays). */
-export function mergeNodeStates(prev: NodeStates, updates: { id: string; status: NodeStatus; note?: string }[], at: string, known?: Set<string>): NodeStates {
+const ENDED: readonly NodeStatus[] = ["done", "failed", "skipped"];
+
+/**
+ * New states with `updates` applied on top (a state that was not mentioned stays). The times are the site's: the first «running» writes
+ * `startedAt` (a step that goes on, or waits and goes on, keeps it); done · failed · skipped write `endedAt` and keep `startedAt`; running a
+ * step that had ended is a new try (`attempt` + 1, the old end and error are gone).
+ */
+export function mergeNodeStates(prev: NodeStates, updates: { id: string; status: NodeStatus; note?: string; error?: string }[], at: string, known?: Set<string>): NodeStates {
   const next: NodeStates = { ...prev };
   for (const u of updates) {
     if (known && !known.has(u.id)) continue;
-    next[u.id] = { status: u.status, at, ...(u.note ? { note: u.note.slice(0, 200) } : {}) };
+    const was = prev[u.id];
+    const retry = u.status === "running" && !!was && ENDED.includes(was.status);
+    const startedAt = u.status === "running" ? (retry || !was?.startedAt ? at : was.startedAt) : was?.startedAt;
+    const attempt = retry ? (was.attempt ?? 1) + 1 : was?.attempt;
+    next[u.id] = {
+      status: u.status,
+      at,
+      ...(u.note ? { note: u.note.slice(0, 200) } : {}),
+      ...(startedAt ? { startedAt } : {}),
+      ...(ENDED.includes(u.status) ? { endedAt: at } : {}),
+      ...(u.error ? { error: u.error.slice(0, 300) } : {}),
+      ...(attempt ? { attempt } : {}),
+    };
   }
   return next;
 }
@@ -130,22 +176,25 @@ export function mergeNodeStates(prev: NodeStates, updates: { id: string; status:
 export function settleStates(g: WfGraph, states: NodeStates, status: RunStatus, at: string): NodeStates {
   const order = stepOrder(g).filter((n) => !n.disabled);
   const next: NodeStates = { ...states };
-  const terminal = (s?: NodeState) => s?.status === "done" || s?.status === "failed";
+  const terminal = (s?: NodeState) => s?.status === "done" || s?.status === "failed" || s?.status === "skipped";
+  // everything written here is the site's guess from the status of the run, not the agent's word: it says so (`inferred`)
   if (status === "ok") {
-    for (const n of order) if (!terminal(next[n.id])) next[n.id] = { status: "done", at };
-  } else if (status === "failed") {
+    for (const n of order) if (!terminal(next[n.id])) next[n.id] = { status: "done", at, endedAt: at, ...(next[n.id]?.startedAt ? { startedAt: next[n.id]!.startedAt } : {}), inferred: true };
+  } else if (status === "failed" || status === "lost") {
     const running = order.filter((n) => next[n.id]?.status === "running");
-    if (running.length) for (const n of running) next[n.id] = { ...next[n.id]!, status: "failed", at };
-    else {
+    if (running.length) for (const n of running) next[n.id] = { ...next[n.id]!, status: "failed", at, endedAt: at, inferred: true };
+    else if (status === "failed") {
       const first = order.find((n) => !terminal(next[n.id]));
-      if (first) next[first.id] = { status: "failed", at };
+      if (first) next[first.id] = { status: "failed", at, endedAt: at, inferred: true };
     }
   } else if (status === "waiting") {
-    for (const n of order) if (next[n.id]?.status === "running") next[n.id] = { ...next[n.id]!, status: n.type === "approval" ? "approval" : "handoff", at };
+    for (const n of order) if (next[n.id]?.status === "running") next[n.id] = { ...next[n.id]!, status: n.type === "approval" ? "approval" : "handoff", at, inferred: true };
+  } else if (status === "skipped") {
+    for (const n of order) if (["running", "handoff", "approval"].includes(next[n.id]?.status ?? "")) next[n.id] = { ...next[n.id]!, status: "skipped", at, endedAt: at, inferred: true };
   } else if (status === "running" && !Object.keys(next).length) {
     const [first, second] = order;
-    if (first) next[first.id] = { status: "done", at };
-    if (second) next[second.id] = { status: "running", at };
+    if (first) next[first.id] = { status: "done", at, endedAt: at, inferred: true };
+    if (second) next[second.id] = { status: "running", at, startedAt: at, inferred: true };
   }
   return next;
 }

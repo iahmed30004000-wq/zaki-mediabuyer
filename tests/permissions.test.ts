@@ -74,7 +74,7 @@ describe("token scopes (§5)", () => {
 
   it("every tool the MCP server has is in the scope table, and no stale name is left in it", () => {
     expect(Object.keys(TOOL_SCOPE).sort()).toEqual([...names].sort());
-    expect(names).toHaveLength(22);
+    expect(names).toHaveLength(23); // 22 + ack_approval (v6 P1-1)
     for (const s of Object.values(TOOL_SCOPE)) expect(MCP_SCOPES).toContain(s);
   });
   it("the old `mcp` is everything; a finer token is only its own tools", () => {
@@ -98,6 +98,6 @@ describe("token scopes (§5)", () => {
   it("each scope has a plain Arabic line, and a token lists the tools it holds", () => {
     for (const s of [...MCP_SCOPES, "mcp", "handoff"] as const) expect(SCOPE_AR[s].length).toBeGreaterThan(3);
     expect(toolsOf(["mcp:run"], names)).toEqual(["log_run"]);
-    expect(toolsOf(["mcp"], names)).toHaveLength(22);
+    expect(toolsOf(["mcp"], names)).toHaveLength(23);
   });
 });

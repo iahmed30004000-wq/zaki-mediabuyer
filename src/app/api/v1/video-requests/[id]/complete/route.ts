@@ -14,5 +14,5 @@ export async function POST(req: Request, { params: paramsP }: { params: Promise<
     const parsed = VideoRequestComplete.safeParse((await req.json().catch(() => ({}))) ?? {});
     if (!parsed.success) return invalid(parsed.error.issues);
     return NextResponse.json({ request: await completeVideoRequest(params.id, parsed.data, by, actor) });
-  });
+  }, "videos");
 }

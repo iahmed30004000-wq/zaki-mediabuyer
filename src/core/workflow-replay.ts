@@ -31,6 +31,7 @@ export const REPLAY_VERB_AR: Record<NodeStatus, string> = {
   failed: "فشلت",
   handoff: "وقفت وسلّمها Claude",
   approval: "وقفت عند موافقتك",
+  skipped: "انتخطّت",
 };
 
 const ms = (iso: string): number => {
@@ -74,7 +75,7 @@ export function replayAt(graph: WfGraph, events: ReplayEvent[], upTo: number): N
   for (const node of graph.nodes) {
     if (!later.has(node.id) || node.disabled) continue;
     // a line counts as done when its step finished in the film so far — or never reported at all (a caller that skipped it)
-    const ready = (preds.get(node.id) ?? []).every((p) => (applied.has(p) ? applied.get(p)!.status === "done" : !reported.has(p)));
+    const ready = (preds.get(node.id) ?? []).every((p) => (applied.has(p) ? ["done", "skipped"].includes(applied.get(p)!.status) : !reported.has(p)));
     if (ready) out[node.id] = { status: "running", at: last };
   }
   return out;

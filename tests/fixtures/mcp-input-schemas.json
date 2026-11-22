@@ -545,7 +545,7 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 80,
-        "description": "معرّف التشغيل من عندك — نفس المعرّف بيحدّث نفس التشغيل (استعمله لتحديثات الخطوات)"
+        "description": "معرّف التشغيل من عندك — لازم، ونفس المعرّف بيحدّث نفس التشغيل (استعمله لتحديثات الخطوات). بلا ref التسجيل بينرفض"
       },
       "status": {
         "type": "string",
@@ -556,7 +556,7 @@
           "waiting",
           "skipped"
         ],
-        "description": "running · ok · failed · waiting · skipped — الافتراضي running"
+        "description": "running · ok · failed · waiting · skipped — الافتراضي running. تشغيل خلص (ok/failed/skipped) ما بينفتح من جديد بـ running"
       },
       "trigger": {
         "type": "string",
@@ -575,6 +575,16 @@
         "type": "string",
         "minLength": 8,
         "maxLength": 40
+      },
+      "scheduled_for": {
+        "type": "string",
+        "minLength": 8,
+        "maxLength": 40,
+        "description": "الموعد اللي هالتشغيل جواب عليه (ISO) — بيربط التشغيل بموعده"
+      },
+      "heartbeat": {
+        "type": "boolean",
+        "description": "true: لسا شغّال — للتشغيل الطويل، كل 20 دقيقة"
       },
       "summary": {
         "type": "string",
@@ -613,7 +623,8 @@
             },
             "url": {
               "type": "string",
-              "maxLength": 300
+              "maxLength": 300,
+              "pattern": "^https:\\/\\/"
             },
             "text": {
               "type": "string",
@@ -643,12 +654,18 @@
               "done",
               "failed",
               "handoff",
-              "approval"
+              "approval",
+              "skipped"
             ]
           },
           "note": {
             "type": "string",
             "maxLength": 200
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "ليش فشلت الخطوة (سطر، بلا بيانات زبائن)"
           }
         },
         "required": [
@@ -656,7 +673,7 @@
           "status"
         ],
         "additionalProperties": false,
-        "description": "حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval, note}"
+        "description": "حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval|skipped, note, error}"
       },
       "nodes": {
         "type": "array",
@@ -676,12 +693,18 @@
                 "done",
                 "failed",
                 "handoff",
-                "approval"
+                "approval",
+                "skipped"
               ]
             },
             "note": {
               "type": "string",
               "maxLength": 200
+            },
+            "error": {
+              "type": "string",
+              "maxLength": 300,
+              "description": "ليش فشلت الخطوة (سطر، بلا بيانات زبائن)"
             }
           },
           "required": [
@@ -1056,6 +1079,12 @@
       "analysis": {
         "type": "object",
         "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "نص الرسالة اللي بتنبعت للفريق (لطلب send_message)"
+          },
           "decision": {
             "type": "string",
             "minLength": 1,
@@ -1096,6 +1125,18 @@
         "minLength": 1,
         "maxLength": 60,
         "description": "مفتاح الورك فلو اللي طلبه"
+      },
+      "run_ref": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "description": "معرّف التشغيل (نفس ref لـ log_run) — القرار بيظهر على خطوته"
+      },
+      "node_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40,
+        "description": "الخطوة اللي طلبت القرار (id من خطوات الورك فلو)"
       }
     },
     "required": [
@@ -1144,6 +1185,20 @@
         "maximum": 200
       }
     },
+    "additionalProperties": false
+  },
+  "ack_approval": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      }
+    },
+    "required": [
+      "id"
+    ],
     "additionalProperties": false
   },
   "notify": {
@@ -1374,7 +1429,7 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 40,
-        "description": "الافتراضي claude (كل أنواع Claude). أو hermes · muse · مفتاح شخص"
+        "description": "الافتراضي: وكيل توكنك (Claude = كل أنواع Claude). أو hermes · muse · مفتاح شخص"
       },
       "status": {
         "type": "array",
@@ -1443,7 +1498,13 @@
           "ok",
           "failed"
         ],
-        "description": "كيف انتهى التشغيل: ok · failed · running (الافتراضي: ok لطلب المالك، running لخطوة واقفة)"
+        "description": "كيف انتهى التشغيل: ok · failed · running. بلا run_status التشغيل بيضل على حالته (تشغيل فشل ما بينقلب نجاح)؛ تشغيل طلبه المالك ما فشلت خطوة منه بيصير ok"
+      },
+      "claim": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80,
+        "description": "رمز الاستلام اللي إجاك بـ claim_handoff — بلاه بيطلب إنك تكون المكلّف"
       },
       "id": {
         "type": "string",

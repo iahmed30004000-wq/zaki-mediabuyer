@@ -22,6 +22,7 @@ export async function loadWorkflowCards(now = new Date()): Promise<{ cards: Work
       permission: s.permission,
       enabled: true,
       version: 1,
+      updatedAt: now.toISOString(),
       graph: s.graph,
       nextRun: s.schedule && isValidCron(s.schedule) ? (nextRuns(s.schedule, now, 1)[0]?.toISOString() ?? null) : null,
       lastRun: null,

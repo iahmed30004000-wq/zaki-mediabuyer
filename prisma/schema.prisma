@@ -53,6 +53,8 @@ model Actor {
   /// the Telegram chat the notifications for this one go to
   telegram  String?
   active    Boolean  @default(true)
+  /// v6: the last time a tool call came in under a token of this agent (written at most once a minute)
+  lastSeenAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -961,6 +963,24 @@ model Workflow {
   decidedAt    DateTime?
   /// seed · ui · mcp — who defined it
   source       String            @default("seed")
+  /// v6: who carries it out — an Actor.key (claude · hermes · muse · site · a person). Filled from `executor` by the migration.
+  assigneeKey       String?
+  /// v6: who wakes it — self (the agent, on its own schedule) · site (the site asks the agent) · site_run (the site runs it: a recipe)
+  wake              String   @default("self")
+  /// v6: minutes of delay before a run counts as «فاتت»
+  graceMin          Int      @default(15)
+  /// v6: minutes of silence before a started run counts as «انقطعت»
+  maxRunMin         Int      @default(90)
+  /// v6: which events ring — missed · stuck · failed (and optionally done)
+  notifyOn          String[] @default(["missed", "stuck", "failed"])
+  /// v6: the fields the owner edited — a push of the agent's map does not write over them
+  ownerEdited       String[] @default([])
+  /// v6: the key of the job this one was merged into (a duplicate)
+  mergedInto        String?
+  scheduleChangedAt DateTime?
+  /// v6: for the jobs the site itself carries out — stock_alert · daily_summary · remind · metric_watch
+  recipe            String?
+  recipeParams      Json?
   runs         WorkflowRun[]
   versions     WorkflowVersion[]
 }
@@ -987,7 +1007,7 @@ model WorkflowRun {
   workflow   Workflow  @relation(fields: [workflowId], references: [id])
   /// the caller's own id of this run, so the same log_run twice is one run
   ref        String
-  /// running · ok · failed · waiting · skipped
+  /// queued · running · waiting · ok · failed · skipped · missed · lost (the agent sends the first five at most; queued, missed and lost are the site's)
   status     String
   /// schedule · manual · event
   trigger    String    @default("schedule")
@@ -1004,10 +1024,21 @@ model WorkflowRun {
   report     String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  /// v6: the slot this run answers
+  scheduledFor DateTime?
+  /// v6: the Actor.key that logged it
+  doneBy       String?
+  /// v6: the last time the one who runs it spoke
+  heartbeatAt  DateTime?
+  /// v6: the version of the steps when it ran
+  graphVersion Int?
+  /// v6: missed · lost · cancelled · owner_skipped · error
+  endReason    String?
 
   @@unique([workflowId, ref])
   @@index([startedAt])
   @@index([status])
+  @@index([workflowId, scheduledFor])
 }
 
 /// A request for the owner's decision (title, why, numbers, amount, options) — it rings the phone when it is urgent.
@@ -1045,6 +1076,11 @@ model Approval {
   notifiedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  /// v6: the run and the step that asked (the decision shows on that step)
+  runRef         String?
+  nodeId         String?
+  /// v6: the agent carried the decision out (ack_approval) — it is not offered to it again
+  actedAt        DateTime?
 
   @@index([status, createdAt])
 }
@@ -1195,7 +1231,7 @@ model Handoff {
   /// the run it holds up: whoever does it passes this ref to log_run
   runRef      String?
   nodeId      String?
-  /// manual_run · node_failed · missing_connection · timeout · needs_input
+  /// manual_run · node_failed · missing_connection · timeout · needs_input · resume
   kind        String
   title       String
   /// { need, lastError, prompt, inputs, steps } — filtered for customer data when written
@@ -1213,6 +1249,14 @@ model Handoff {
   createdBy   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  /// v6: the slot this request answers (a scheduled run)
+  scheduledFor DateTime?
+  /// v6: nobody took it by then — it ends (a scheduled one: slot + graceMin; a manual one: 6 hours)
+  expiresAt   DateTime?
+  /// v6: taken but silent after this — it reopens (every log_run of the run pushes it on)
+  leaseUntil  DateTime?
+  /// v6: what the one who took it must show to answer it
+  claimNonce  String?
 
   @@index([status, assignee])
   @@index([workflowKey, status])

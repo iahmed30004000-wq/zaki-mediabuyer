@@ -4,6 +4,7 @@
  * card, the list, the red number in the menu and the Telegram link can never disagree. No database here: src/server/inbox.ts reads
  * the tables and calls these.
  */
+import { isTeamMessage } from "./approval-rules";
 import { inboxDomainsOf, type Capability, type RoleKey } from "./roles";
 
 export const INBOX_KINDS = ["spend", "safety_net", "launch", "message", "order", "advice", "stuck", "creative", "stock", "other"] as const;
@@ -139,19 +140,20 @@ export function fromChange(c: ChangeIn): InboxItem {
   };
 }
 
-/** The kind of a request from Claude: a message to send, stock, money, or anything else. */
+/** The kind of a request from Claude: a message to send, stock, money, or anything else. A «message» that names money is money. */
 export function kindOfApproval(a: Pick<ApprovalIn, "kind" | "amount">): InboxKind {
-  if (a.kind === "send_message") return "message";
+  if (a.kind === "send_message" && !(a.amount !== null && a.amount > 0)) return "message";
   if (a.kind === "stock") return "stock";
   if (a.amount !== null && a.amount > 0) return "spend";
   return "other";
 }
 
-const domainOfApproval = (a: ApprovalIn): InboxDomain => (a.kind === "stock" || a.kind === "send_message" ? "ops" : a.workflowKey ? "work" : "ads");
+const domainOfApproval = (a: ApprovalIn): InboxDomain => (a.kind === "stock" || isTeamMessage({ kind: a.kind, amount: a.amount, analysis: a.analysis }) ? "ops" : a.workflowKey ? "work" : "ads");
 
 /** A request Claude made with `request_approval`. Its options are the answers (the first is the primary one); «أجّل» is always there. */
 export function fromApproval(a: ApprovalIn): InboxItem {
-  const kind = kindOfApproval(a);
+  // who may answer is decided by what the request carries, not by the `kind` the agent wrote (the server decides the same way): a «message» with no text to show is the owner's
+  const kind = kindOfApproval(a) === "message" && !isTeamMessage({ kind: a.kind, amount: a.amount, analysis: a.analysis }) ? "other" : kindOfApproval(a);
   const [first, second] = a.options;
   const actions: InboxAction[] =
     kind === "message"

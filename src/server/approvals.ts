@@ -8,13 +8,18 @@
  */
 import { z } from "zod";
 import type { Approval } from "@prisma/client";
+import { approvalCapabilityOf, expiryAfterPostpone } from "@/core/approval-rules";
 import { can } from "@/core/roles";
 import { nextRuns } from "@/core/cron";
 import { deliveryFor, effectiveMode, type Delivery, type Urgency } from "@/core/mode";
 import { refuseIfPrivate } from "@/core/push-rows";
+import { isTerminalRun, runSteps } from "@/core/run-state";
+import { GraphSchema } from "@/core/workflow";
 import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { db } from "./db";
 import { audit, type Actor } from "./audit";
+import { createHandoff } from "./handoffs";
+import { logRun } from "./workflows";
 import { HttpError } from "./auth";
 import { appOrigin } from "./env";
 import { URGENCY_ICON } from "./notify";
@@ -35,12 +40,14 @@ export const ApprovalInput = z
     numbers: z.array(NumberRow).max(12).optional().describe("الأرقام الأساسية: [{label, value}]"),
     options: z.array(Option).min(2).max(5).optional().describe("الخيارات [{key, label}] — الافتراضي موافق/رفض"),
     analysis: z
-      .object({ decision: text(600).optional(), analysis: text(1500).optional(), if_yes: text(600).optional(), if_no: text(600).optional(), recommendation: text(600).optional() })
+      .object({ text: text(2000).optional().describe("نص الرسالة اللي بتنبعت للفريق (لطلب send_message)"), decision: text(600).optional(), analysis: text(1500).optional(), if_yes: text(600).optional(), if_no: text(600).optional(), recommendation: text(600).optional() })
       .strict()
       .optional()
       .describe("صفحة «ليش؟»: القرار · التحليل · المآل إذا نعم/لا · التوصية"),
     expires_in_min: z.number().int().min(1).max(10_080).optional().describe("بعد كم دقيقة بينتهي الطلب لحاله"),
     workflow: text(60).optional().describe("مفتاح الورك فلو اللي طلبه"),
+    run_ref: text(80).optional().describe("معرّف التشغيل (نفس ref لـ log_run) — القرار بيظهر على خطوته"),
+    node_id: text(40).optional().describe("الخطوة اللي طلبت القرار (id من خطوات الورك فلو)"),
   })
   .strict();
 export type ApprovalInputT = z.infer<typeof ApprovalInput>;
@@ -59,6 +66,10 @@ export interface ApprovalView {
   status: string;
   source: string;
   workflowKey: string | null;
+  runRef: string | null;
+  nodeId: string | null;
+  /** the agent carried the decision out (ack_approval) */
+  actedAt: string | null;
   expiresAt: string | null;
   postponedUntil: string | null;
   chosenOption: string | null;
@@ -83,6 +94,9 @@ export function approvalView(a: Approval): ApprovalView {
     status: a.status,
     source: a.source,
     workflowKey: a.workflowKey,
+    runRef: a.runRef,
+    nodeId: a.nodeId,
+    actedAt: a.actedAt?.toISOString() ?? null,
     expiresAt: a.expiresAt?.toISOString() ?? null,
     postponedUntil: a.postponedUntil?.toISOString() ?? null,
     chosenOption: a.chosenOption,
@@ -140,6 +154,8 @@ export async function requestApproval(input: ApprovalInputT, actor: Actor, now =
       kind: input.kind ?? null,
       source: actor.type === "agent" ? "mcp" : "user",
       workflowKey: input.workflow ?? null,
+      runRef: input.run_ref ?? null,
+      nodeId: input.node_id ?? null,
       expiresAt: input.expires_in_min ? new Date(now.getTime() + input.expires_in_min * 60_000) : null,
       wakeOwner,
     },
@@ -149,21 +165,33 @@ export async function requestApproval(input: ApprovalInputT, actor: Actor, now =
   return { approval: approvalView(row), created: true, delivery };
 }
 
-/** Expires what ran out and brings back what was postponed. Cheap: it is called whenever approvals are read. */
+/**
+ * Brings back what was postponed, then expires what ran out. Cheap: it is called whenever approvals are read. A postponed request does not end
+ * while it sleeps (W-10): it comes back first, with its expiry moved past the moment it returns when that had already gone by.
+ */
 export async function refreshApprovals(now = new Date()): Promise<{ expired: number; woken: number }> {
-  const expired = await db.approval.updateMany({ where: { status: { in: ["pending", "postponed"] }, expiresAt: { lt: now } }, data: { status: "expired" } });
   const due = await db.approval.findMany({ where: { status: "postponed", postponedUntil: { lte: now } } });
   const mode = effectiveMode(await getSetting("owner.mode"), now);
+  let woken = 0;
   for (const a of due) {
-    const woke = await db.approval.updateMany({ where: { id: a.id, status: "postponed" }, data: { status: "pending", postponedUntil: null, notifiedAt: null } });
-    if (woke.count) await deliver({ ...a, status: "pending", notifiedAt: null }, deliveryFor(a.urgency as Urgency, mode, a.wakeOwner), now);
+    const expiresAt = expiryAfterPostpone({ expiresAt: a.expiresAt, createdAt: a.createdAt, until: now });
+    const woke = await db.approval.updateMany({ where: { id: a.id, status: "postponed" }, data: { status: "pending", postponedUntil: null, notifiedAt: null, expiresAt } });
+    if (woke.count) {
+      woken += 1;
+      await deliver({ ...a, status: "pending", notifiedAt: null, expiresAt }, deliveryFor(a.urgency as Urgency, mode, a.wakeOwner), now);
+    }
   }
-  return { expired: expired.count, woken: due.length };
+  // a postponed one that is still asleep is not expired (it ends after it has come back and nobody answered)
+  const expired = await db.approval.updateMany({ where: { OR: [{ status: "pending" }, { status: "postponed", postponedUntil: null }], expiresAt: { lt: now } }, data: { status: "expired" } });
+  return { expired: expired.count, woken };
 }
 
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected", "postponed", "cancelled", "expired"] as const;
 
-/** What Claude reads: the open ones, and what was decided in the last 48 hours (so it can act on the answer once). */
+/**
+ * What Claude reads: the open ones, and what was decided in the last 48 hours that it has not carried out yet (`ack_approval` marks one carried
+ * out, and it is not offered again — W-06). A request by id or by status is read as it is, acked or not.
+ */
 export async function listApprovals(f: { status?: string[]; ids?: string[]; since?: Date; limit?: number } = {}, now = new Date()): Promise<ApprovalView[]> {
   await refreshApprovals(now);
   const since = f.since ?? new Date(now.getTime() - 48 * 3_600_000);
@@ -172,7 +200,7 @@ export async function listApprovals(f: { status?: string[]; ids?: string[]; sinc
       ? { id: { in: f.ids } }
       : f.status?.length
         ? { status: { in: f.status }, ...(f.since ? { updatedAt: { gte: f.since } } : {}) }
-        : { OR: [{ status: { in: ["pending", "postponed"] } }, { updatedAt: { gte: since } }] },
+        : { OR: [{ status: { in: ["pending", "postponed"] } }, { updatedAt: { gte: since }, actedAt: null }] },
     orderBy: { createdAt: "desc" },
     take: Math.min(f.limit ?? 50, 200),
   });
@@ -196,15 +224,17 @@ export async function morningAfter(now: Date): Promise<Date> {
   return nextRuns(`${m} ${h} * * *`, now, 1)[0]!;
 }
 
-/** Who may answer a request of this kind (docs/rebuild/05-permissions.md §8). */
-export const approvalCapability = (kind: string | null): "owner_only" | "ops.send" => (kind === "send_message" ? "ops.send" : "owner_only");
+/** Who may answer a request (docs/rebuild-v6/01-model.md §8): decided from what it carries — see src/core/approval-rules.ts. */
+export const approvalCapability = (a: Pick<Approval, "kind" | "amount" | "analysis">): "owner_only" | "ops.send" =>
+  approvalCapabilityOf({ kind: a.kind, amount: a.amount === null ? null : Number(a.amount), analysis: (a.analysis as { text?: unknown } | null) ?? null });
 
 /** The owner's answer. Throws HttpError (403 for anybody else, 409 when it is no longer open). */
 export async function decideApproval(id: string, d: DecisionInputT, caller: { id: string; role: Parameters<typeof can>[0] }, now = new Date()): Promise<ApprovalView> {
   const found = await db.approval.findUnique({ where: { id } });
   if (!found) throw new HttpError(404, "الطلب مش موجود");
   // a message to the team is the operations manager's to approve; everything else (money, stock, anything Claude asks) is the owner's
-  if (!can(caller.role, approvalCapability(found.kind))) throw new HttpError(403, found.kind === "send_message" ? "رسايل الفريق بتنوافق من مسؤول التشغيل أو المالك" : "القرار للمالك");
+  const need = approvalCapability(found);
+  if (!can(caller.role, need)) throw new HttpError(403, need === "ops.send" ? "رسايل الفريق بتنوافق من مسؤول التشغيل أو المالك" : "القرار للمالك");
   await refreshApprovals(now);
 
   let until: Date | null = null;
@@ -212,12 +242,55 @@ export async function decideApproval(id: string, d: DecisionInputT, caller: { id
     until = d.until === "15m" || !d.until ? new Date(now.getTime() + 15 * 60_000) : d.until === "1h" ? new Date(now.getTime() + 3_600_000) : d.until === "morning" ? await morningAfter(now) : new Date(d.until);
     if (until <= now) throw new HttpError(400, "وقت التأجيل لازم يكون بالمستقبل");
   }
+  // it must not end while it sleeps: the expiry moves past the moment it comes back
+  const expiresAt = until ? expiryAfterPostpone({ expiresAt: found.expiresAt, createdAt: found.createdAt, until }) : found.expiresAt;
   const status = { approve: "approved", reject: "rejected", postpone: "postponed", cancel: "cancelled" }[d.action];
   const done = await db.approval.updateMany({
     where: { id, status: { in: ["pending", "postponed"] } },
-    data: { status, decidedBy: caller.id, decidedAt: now, decisionNote: d.note ?? null, chosenOption: d.option ?? (d.action === "approve" || d.action === "reject" ? d.action : null), postponedUntil: until },
+    data: { status, decidedBy: caller.id, decidedAt: now, decisionNote: d.note ?? null, chosenOption: d.option ?? (d.action === "approve" || d.action === "reject" ? d.action : null), postponedUntil: until, ...(until ? { expiresAt } : {}) },
   });
   if (!done.count) throw new HttpError(409, "الطلب مش مفتوح لهالقرار (انجاوب أو انتهى)");
   await audit({ type: "user", id: caller.id }, "approval.decide", { type: "approval", id }, { after: { action: d.action, option: d.option, until: until?.toISOString() } });
+  const decided = await db.approval.findUniqueOrThrow({ where: { id } });
+  await afterDecision(decided, caller.id, now);
+  return approvalView(decided);
+}
+
+/**
+ * A decision that came from a step of a run puts the run back on its way (§8): approved → the step goes on and a request «كمّل من الخطوة N» goes to
+ * the job's agent; rejected → the step is set aside and the request is for the step after it. A run that has ended, a step the job no longer has,
+ * or any other answer (postpone · cancel) changes nothing here. A failure here never undoes the decision.
+ */
+async function afterDecision(a: Approval, userId: string, now: Date): Promise<void> {
+  if (!a.runRef || !a.nodeId || !a.workflowKey || (a.status !== "approved" && a.status !== "rejected")) return;
+  try {
+    const wf = await db.workflow.findUnique({ where: { key: a.workflowKey } });
+    if (!wf) return;
+    const run = await db.workflowRun.findUnique({ where: { workflowId_ref: { workflowId: wf.id, ref: a.runRef } } });
+    if (!run || isTerminalRun(run.status)) return;
+    const graph = GraphSchema.parse(wf.graph);
+    const steps = runSteps(graph);
+    const at = steps.findIndex((n) => n.id === a.nodeId);
+    if (at === -1) return;
+    const target = a.status === "approved" ? steps[at] : steps[at + 1];
+    const actor = { type: "user" as const, id: userId };
+    // the step moves with the run in the same write: «queued» (waiting for the agent) or, when nothing is left to ask, «ok» — never «waiting», which would turn the step back into a gate
+    const nodeUpdate = { id: a.nodeId, status: (a.status === "approved" ? "running" : "skipped") as "running" | "skipped", note: a.status === "approved" ? "المالك وافق" : "المالك رفض" };
+    await logRun({ job: wf.key, ref: a.runRef, status: target ? "queued" : "ok", node: nodeUpdate, ...(target ? {} : { summary: "المالك رفض آخر خطوة" }) }, actor, "ui", now, { site: true });
+    if (target) await createHandoff({ workflow: wf.key, kind: "resume", node: target.id, title: `كمّل من الخطوة ${steps.indexOf(target) + 1}: ${target.label}`.slice(0, 160), run_ref: a.runRef }, actor, now);
+  } catch (e) {
+    console.error("approval resume failed:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** «نفّذت هالقرار»: the agent says it carried a decision out; it is not offered to it again. Only a decided one can be acked. */
+export async function ackApproval(id: string, actor: Actor, now = new Date()): Promise<ApprovalView> {
+  const found = await db.approval.findUnique({ where: { id } });
+  if (!found) throw new Refused("الطلب مش موجود");
+  if (found.status === "pending" || found.status === "postponed") throw new Refused("الطلب لسا ما انقرر — ما في شي تنفّذه");
+  if (!found.actedAt) {
+    await db.approval.updateMany({ where: { id, actedAt: null }, data: { actedAt: now } });
+    await audit(actor, "approval.ack", { type: "approval", id }, { after: { status: found.status } });
+  }
   return approvalView(await db.approval.findUniqueOrThrow({ where: { id } }));
 }

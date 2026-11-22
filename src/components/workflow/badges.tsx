@@ -32,7 +32,7 @@ export function ExecutorBadge({ executor, className }: { executor: Executor | st
   );
 }
 
-export const NODE_STATE_AR: Record<NodeStatus, string> = { waiting: "بالانتظار", running: "عم يشتغل", done: "خلص", failed: "فشل", handoff: "متوقف — Claude بيكمّلها", approval: "بانتظار موافقتك" };
+export const NODE_STATE_AR: Record<NodeStatus, string> = { waiting: "بالانتظار", running: "عم يشتغل", done: "خلص", failed: "فشل", handoff: "متوقف — Claude بيكمّلها", approval: "بانتظار موافقتك", skipped: "انتخطّت" };
 
 /** The icon of a node's live state. */
 export function StateIcon({ status, className }: { status: NodeStatus | undefined; className?: string }) {

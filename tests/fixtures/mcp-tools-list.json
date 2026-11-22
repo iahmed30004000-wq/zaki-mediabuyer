@@ -572,7 +572,7 @@
       {
         "name": "log_run",
         "title": "سجّل تشغيل",
-        "description": "سجّل تشغيل مهمة (مفتاح الورك فلو). بأول البدء ابعت status=running مع ref ثابت، وبعدين حدّث الخطوات (node/nodes) وبالآخر ok أو failed مع summary سطر وحد وأرقام. الورك فلو عند المالك بيتحرك لحظياً (الخطوط والخطوات). الجواب بيقلك إذا المالك طفّا هالمهمة (enabled=false) — وقتها وقّف.",
+        "description": "سجّل تشغيل مهمة (مفتاح الورك فلو). ref ثابت لكل تشغيل لازم (بلاه بينرفض). بأول البدء ابعت status=running مع ref وscheduled_for (موعد التشغيل)، وبعدين حدّث الخطوات (node/nodes: بأول كل خطوة running وبآخرها done أو failed مع error) وبالآخر ok أو failed مع summary سطر وحد وأرقام. تشغيل طويل: heartbeat=true كل 20 دقيقة. تشغيل خلص ما بينفتح من جديد. الجواب بيقلك: enabled=false (المالك طفّا المهمة) · disabled_steps (خطوات طفّاها المالك: تخطّاها) · stop=true (المالك لغى التشغيل) — وقتها وقّف.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -586,7 +586,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 80,
-              "description": "معرّف التشغيل من عندك — نفس المعرّف بيحدّث نفس التشغيل (استعمله لتحديثات الخطوات)"
+              "description": "معرّف التشغيل من عندك — لازم، ونفس المعرّف بيحدّث نفس التشغيل (استعمله لتحديثات الخطوات). بلا ref التسجيل بينرفض"
             },
             "status": {
               "type": "string",
@@ -597,7 +597,7 @@
                 "waiting",
                 "skipped"
               ],
-              "description": "running · ok · failed · waiting · skipped — الافتراضي running"
+              "description": "running · ok · failed · waiting · skipped — الافتراضي running. تشغيل خلص (ok/failed/skipped) ما بينفتح من جديد بـ running"
             },
             "trigger": {
               "type": "string",
@@ -616,6 +616,16 @@
               "type": "string",
               "minLength": 8,
               "maxLength": 40
+            },
+            "scheduled_for": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 40,
+              "description": "الموعد اللي هالتشغيل جواب عليه (ISO) — بيربط التشغيل بموعده"
+            },
+            "heartbeat": {
+              "type": "boolean",
+              "description": "true: لسا شغّال — للتشغيل الطويل، كل 20 دقيقة"
             },
             "summary": {
               "type": "string",
@@ -654,7 +664,8 @@
                   },
                   "url": {
                     "type": "string",
-                    "maxLength": 300
+                    "maxLength": 300,
+                    "pattern": "^https:\\/\\/"
                   },
                   "text": {
                     "type": "string",
@@ -684,12 +695,18 @@
                     "done",
                     "failed",
                     "handoff",
-                    "approval"
+                    "approval",
+                    "skipped"
                   ]
                 },
                 "note": {
                   "type": "string",
                   "maxLength": 200
+                },
+                "error": {
+                  "type": "string",
+                  "maxLength": 300,
+                  "description": "ليش فشلت الخطوة (سطر، بلا بيانات زبائن)"
                 }
               },
               "required": [
@@ -697,7 +714,7 @@
                 "status"
               ],
               "additionalProperties": false,
-              "description": "حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval, note}"
+              "description": "حالة خطوة وحدة: {id, status: running|done|failed|waiting|handoff|approval|skipped, note, error}"
             },
             "nodes": {
               "type": "array",
@@ -717,12 +734,18 @@
                       "done",
                       "failed",
                       "handoff",
-                      "approval"
+                      "approval",
+                      "skipped"
                     ]
                   },
                   "note": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "error": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "ليش فشلت الخطوة (سطر، بلا بيانات زبائن)"
                   }
                 },
                 "required": [
@@ -1141,6 +1164,12 @@
             "analysis": {
               "type": "object",
               "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "description": "نص الرسالة اللي بتنبعت للفريق (لطلب send_message)"
+                },
                 "decision": {
                   "type": "string",
                   "minLength": 1,
@@ -1181,6 +1210,18 @@
               "minLength": 1,
               "maxLength": 60,
               "description": "مفتاح الورك فلو اللي طلبه"
+            },
+            "run_ref": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "معرّف التشغيل (نفس ref لـ log_run) — القرار بيظهر على خطوته"
+            },
+            "node_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "الخطوة اللي طلبت القرار (id من خطوات الورك فلو)"
             }
           },
           "required": [
@@ -1200,7 +1241,7 @@
       {
         "name": "get_approvals",
         "title": "اقرا قرارات المالك",
-        "description": "اقرا الطلبات المفتوحة وقرارات آخر 48 ساعة: approved (موافق) · rejected (رفض) · postponed (مأجّل لـ postponed_until) · cancelled (ألغاه) · expired (انتهى بلا جواب) · pending (لسا). نفّذ جوّا القواعد بس على اللي انوافق عليه، ولا تعيد طلب انرفض.",
+        "description": "اقرا الطلبات المفتوحة وقرارات آخر 48 ساعة اللي ما نفّذتها لسا: approved (موافق) · rejected (رفض) · postponed (مأجّل لـ postponed_until) · cancelled (ألغاه) · expired (انتهى بلا جواب) · pending (لسا). نفّذ جوّا القواعد بس على اللي انوافق عليه، ولا تعيد طلب انرفض. بعد ما تنفّذ قرار ابعت ack_approval عشان ما يرجع يتعرض عليك.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1246,6 +1287,31 @@
           "readOnlyHint": true,
           "destructiveHint": false,
           "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "ack_approval",
+        "title": "نفّذت هالقرار",
+        "description": "بعد ما تنفّذ قرار المالك (موافق أو رفض أو أي قرار انحسم) ابعت id الطلب: بيتعلّم «انعمل عليه» وما بيرجع يطلع بـ get_approvals. ما بتقدر تعمل ack لطلب لسا ما انقرر.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
           "openWorldHint": false
         }
       },
@@ -1539,7 +1605,7 @@
       {
         "name": "get_handoffs",
         "title": "شو مسلَّم إلك؟",
-        "description": "اقرا طابور التسليم: شغل المالك ضغط عليه «شغّل هلق»، أو خطوة وقفت وبدها حدا يكمّلها. كل بند فيه شو المطلوب والخطوات والمدخلات وآخر خطأ ومعرّف التشغيل (run_ref). الافتراضي: المفتوح والمأخود المسلَّم لـ Claude. اقراها بأول كل تشغيل وبين المهام.",
+        "description": "اقرا طابور التسليم: شغل المالك ضغط عليه «شغّل هلق»، أو خطوة وقفت وبدها حدا يكمّلها. كل بند فيه شو المطلوب والخطوات والمدخلات وآخر خطأ ومعرّف التشغيل (run_ref). الافتراضي: المفتوح والمأخود المسلَّم لتوكنك (اللي مكلّف فيه وكيلك). اقراها بأول كل تشغيل وكل 10 دقايق.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1547,7 +1613,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 40,
-              "description": "الافتراضي claude (كل أنواع Claude). أو hermes · muse · مفتاح شخص"
+              "description": "الافتراضي: وكيل توكنك (Claude = كل أنواع Claude). أو hermes · muse · مفتاح شخص"
             },
             "status": {
               "type": "array",
@@ -1581,7 +1647,7 @@
       {
         "name": "claim_handoff",
         "title": "خذ تسليم",
-        "description": "خذ تسليم قبل ما تبلّش فيه — الورك فلو بيصير «عم يشتغل» والمالك بيشوف إنه عندك. اللي أخدها قبلك بيجيك خطأ.",
+        "description": "خذ تسليم قبل ما تبلّش فيه — الورك فلو بيصير «عم يشتغل» والمالك بيشوف إنه عندك. بس المكلّف فيه بياخده، واللي أخدها قبلك بيجيك خطأ. الجواب فيه claim: رمز الاستلام، ابعته مع complete_handoff. إذا سكتّ (ما سجّلت log_run) أكتر من مدة التشغيل بيرجع للطابور.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1606,7 +1672,7 @@
       {
         "name": "complete_handoff",
         "title": "جاوب تسليم",
-        "description": "جاوب تسليم: سطر شو انعمل (note) وأرقام النتيجة (result). تشغيل طلبه المالك بيخلص (ok) بالجواب؛ خطوة واقفة بتتفكّ وتكمّل إنت (أو قول run_status=ok/failed). ما في صرف ولا موافقة هون — اللي بدو موافقة المالك بيروح request_approval.",
+        "description": "جاوب تسليم: سطر شو انعمل (note) وأرقام النتيجة (result) ورمز الاستلام (claim). بلا run_status حالة التشغيل ما بتنقلب: تشغيل خلص بيضل متل ما خلص، وتشغيل طلبه المالك وما فشلت خطوة منه بيصير ok، وخطوة واقفة بتتفكّ وتكمّل إنت (أو قول run_status=ok/failed). ما في صرف ولا موافقة هون — اللي بدو موافقة المالك بيروح request_approval.",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -1638,7 +1704,13 @@
                 "ok",
                 "failed"
               ],
-              "description": "كيف انتهى التشغيل: ok · failed · running (الافتراضي: ok لطلب المالك، running لخطوة واقفة)"
+              "description": "كيف انتهى التشغيل: ok · failed · running. بلا run_status التشغيل بيضل على حالته (تشغيل فشل ما بينقلب نجاح)؛ تشغيل طلبه المالك ما فشلت خطوة منه بيصير ok"
+            },
+            "claim": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "رمز الاستلام اللي إجاك بـ claim_handoff — بلاه بيطلب إنك تكون المكلّف"
             },
             "id": {
               "type": "string",

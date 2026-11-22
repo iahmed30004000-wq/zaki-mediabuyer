@@ -16,14 +16,17 @@ export interface HandoffCaller {
   /** shown as «who has it» */
   by: string;
   actor: Actor;
+  /** which agent of the team directory the token is (null for an older token tied to nobody) */
+  actorKey: string | null;
 }
 
-export async function withHandoffToken(req: Request, run: (who: HandoffCaller) => Promise<Response>): Promise<Response> {
+/** `scope`: the handoff queue (default) or the video requests — each has its own scope. */
+export async function withHandoffToken(req: Request, run: (who: HandoffCaller) => Promise<Response>, scope: "handoff" | "videos" = "handoff"): Promise<Response> {
   try {
-    const token = await requireToken(req, "handoff");
+    const token = await requireToken(req, scope);
     const rl = limit(token.id);
     if (!rl.ok) return NextResponse.json({ code: "rate_limited", message: `كتير نداءات — جرّب بعد ${rl.retryAfterS} ثانية` }, { status: 429, headers: { "Retry-After": String(rl.retryAfterS) } });
-    return await run({ by: token.name.slice(0, 60), actor: { type: "agent", id: `api:${token.name}`.slice(0, 60) } });
+    return await run({ by: token.name.slice(0, 60), actor: { type: "agent", id: `api:${token.name}`.slice(0, 60) }, actorKey: token.actorKey });
   } catch (e) {
     if (e instanceof HandoffRefused) return NextResponse.json({ code: e.status === 404 ? "not_found" : e.status === 409 ? "conflict" : "refused", message: e.message }, { status: e.status });
     if (e instanceof UnknownJob) return NextResponse.json({ code: "unknown_workflow", message: `مفتاح الورك فلو مش معروف. المفاتيح: ${e.known.join("، ")}` }, { status: 404 });
