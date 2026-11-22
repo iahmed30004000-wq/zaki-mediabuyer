@@ -21,7 +21,7 @@ vi.mock("@/server/audit", () => ({ audit: async (_a: unknown, action: string, _t
 
 import { POST } from "@/app/api/jobs/route";
 import { createJobFromDraft, DraftRefused } from "@/server/jobs-create";
-import type { JobDraft } from "@/core/job-draft";
+import { PERSON_REPEAT_REFUSAL, type JobDraft } from "@/core/job-draft";
 import { GraphSchema } from "@/core/workflow";
 
 type Rows = Record<string, any>[];
@@ -115,11 +115,23 @@ describe("what a saved job is", () => {
     expect(rows("workflow").find((x) => x.key === out.key)).toMatchObject({ assigneeKey: "hermes", executor: "hermes" });
   });
 
-  it("a person's repeating job stays a job, the site asks for it (`wake: site`) and the person is its doer", async () => {
-    const out = await (await post({ draft: draft({ name: "تذكير يومي", assigneeKey: "member1" }) })).json();
-    expect(out.kind).toBe("job");
-    expect(rows("workflow").find((x) => x.key === out.key)).toMatchObject({ assigneeKey: "member1", executor: "person", wake: "site" });
+  it("a repeating or window job for a person is refused (a person cannot log a run, so every slot would be marked missed) and nothing is written", async () => {
+    const whens: JobDraft["when"][] = [
+      { kind: "daily", time: "09:30" },
+      { kind: "weekly", days: [0, 2], time: "09:30" },
+      { kind: "hourly", from: "09:00", to: "17:00", everyHours: 2 },
+      { kind: "window", everyHours: 2, until: "2099-01-05T10:00:00.000Z" },
+    ];
+    for (const when of whens) {
+      const r = await post({ draft: draft({ name: "تذكير متكرر", assigneeKey: "member1", when }) });
+      const out = await r.json();
+      expect(r.status).toBe(400);
+      expect(out).toMatchObject({ ok: false, field: "assigneeKey", error: PERSON_REPEAT_REFUSAL });
+    }
+    expect(rows("workflow")).toHaveLength(3);
+    expect(rows("workflowVersion")).toHaveLength(0);
     expect(rows("task")).toHaveLength(0);
+    expect(rows("handoff")).toHaveLength(0);
   });
 });
 

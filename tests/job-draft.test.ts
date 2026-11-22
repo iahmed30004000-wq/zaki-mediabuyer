@@ -24,6 +24,8 @@ import {
   graphToDraft,
   graphToSteps,
   isPersonTask,
+  isPersonRepeat,
+  PERSON_REPEAT_REFUSAL,
   moveItem,
   moveStep,
   nodeToStep,
@@ -271,7 +273,7 @@ describe("draftToJob", () => {
   });
 
   it("who does it decides the executor: Claude, the two other agents, the site, a person by the directory", () => {
-    const exec = (k: string, kind?: "agent" | "person") => draftToJob(draft({ assigneeKey: k }), NOW, { kind }).executor;
+    const exec = (k: string, kind?: "agent" | "person") => draftToJob(draft({ assigneeKey: k, when: { kind: "once", date: "2026-11-25", time: "09:00" } }), NOW, { kind }).executor;
     expect(exec("claude")).toBe("claude_mcp");
     expect(exec("claude_ads")).toBe("claude_mcp");
     expect(exec("hermes")).toBe("hermes");
@@ -604,6 +606,21 @@ describe("a one-time job for a person is a task", () => {
     expect(isPersonTask({ when: once }, "agent")).toBe(false);
     expect(isPersonTask({ when: { kind: "daily", time: "09:00" } }, "person")).toBe(false);
     expect(isPersonTask({ when: once, recipe: { name: "remind", params: {} } }, "person")).toBe(false);
+  });
+
+  it("a repeating or window job for a person is refused: nobody could answer its runs", () => {
+    const daily = { kind: "daily", time: "09:00" } as const;
+    const window = { kind: "window", everyHours: 2, until: "2026-11-30T10:00:00.000Z" } as const;
+    expect(isPersonRepeat({ when: daily }, "person")).toBe(true);
+    expect(isPersonRepeat({ when: window }, "person")).toBe(true);
+    expect(isPersonRepeat({ when: { kind: "now" } }, "person")).toBe(false);
+    expect(isPersonRepeat({ when: { kind: "once", date: "2026-11-25", time: "09:00" } }, "person")).toBe(false);
+    expect(isPersonRepeat({ when: daily }, "agent")).toBe(false);
+    expect(isPersonRepeat({ when: daily, recipe: { name: "remind", params: {} } }, "person")).toBe(false);
+    expect(() => draftToJob(draft({ assigneeKey: "member1", when: daily }), NOW, { kind: "person" })).toThrow(PERSON_REPEAT_REFUSAL);
+    expect(() => draftToJob(draft({ assigneeKey: "member1", when: window }), NOW)).toThrow(PERSON_REPEAT_REFUSAL);
+    // the same schedule for an agent is fine
+    expect(draftToJob(draft({ assigneeKey: "hermes", when: daily }), NOW, { kind: "agent" })).toMatchObject({ kind: "recurring", wake: "site" });
   });
 
   it("its title is the name, its note the steps in order, its time the moment (the Amman clock) or now", () => {

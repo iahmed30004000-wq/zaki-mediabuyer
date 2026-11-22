@@ -510,6 +510,7 @@ export function draftToJob(input: JobDraft, now: Date, opts: { kind?: "agent" | 
   if (!check.ok) throw new Error(`draftToJob: ${check.field}: ${check.message}`);
   const w = d.when;
   const executor = executorOfAssignee(d.assigneeKey, opts.kind);
+  if (isPersonRepeat(d, executor === "person" ? "person" : "agent")) throw new Error(`draftToJob: assigneeKey: ${PERSON_REPEAT_REFUSAL}`);
   const graph = draftGraph(d.steps, { executor, triggerLabel: whenWords(w) });
   const permission = graph.nodes.reduce<Permission>((top, n) => (RANK[n.permission ?? "green"] > RANK[top] ? (n.permission ?? "green") : top), "green");
   const base = { name: d.name, description: null, domain: d.domain, graph, assigneeKey: d.assigneeKey, executor, permission, notifyOn: d.notifyOn, scheduleText: whenWords(w) };
@@ -522,6 +523,14 @@ export function draftToJob(input: JobDraft, now: Date, opts: { kind?: "agent" | 
 }
 
 /** A one-time job for a person is a task on the team's board with its time, not a job with runs (a repeating one stays a job). */
+/**
+ * A repeating (or window) job for a person has nobody to answer its runs: the site asks for a run at every slot, but a person cannot claim a request or log a run, so every slot
+ * would pass unanswered and be written down as missed. Until a person can answer a run, such a draft is refused (a one-time job for a person is a task; a recipe is run by the site).
+ */
+export const PERSON_REPEAT_REFUSAL = "الشخص ما بيسجّل تشغيل — اعمل مهمة مرة وحدة أو اختار وكيل";
+export const isPersonRepeat = (d: Pick<JobDraft, "when" | "recipe">, assigneeKind: "agent" | "person"): boolean =>
+  assigneeKind === "person" && !d.recipe && d.when.kind !== "now" && d.when.kind !== "once";
+
 export const isPersonTask = (d: Pick<JobDraft, "when" | "recipe">, assigneeKind: "agent" | "person"): boolean => assigneeKind === "person" && !d.recipe && (d.when.kind === "now" || d.when.kind === "once");
 
 /** The task a one-time job for a person is: the name, the steps as lines of the note, the time it is due. */

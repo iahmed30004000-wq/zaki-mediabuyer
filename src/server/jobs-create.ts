@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { queueAssignee } from "@/core/handoff";
-import { draftToJob, draftToTask, isPersonTask, normalizeDraft, validateDraft, type JobDraft } from "@/core/job-draft";
+import { PERSON_REPEAT_REFUSAL, draftToJob, draftToTask, isPersonRepeat, isPersonTask, normalizeDraft, validateDraft, type JobDraft } from "@/core/job-draft";
 import { findNameClash } from "@/core/job-map";
 import { refuseIfPrivate } from "@/core/push-rows";
 import { slotRef } from "@/core/slot-for";
@@ -59,6 +59,9 @@ export async function createJobFromDraft(draft: JobDraft, actor: Actor, now = ne
 
   const who = (await loadDirectory()).find((e) => e.key === d.assigneeKey && e.active);
   if (!who) throw new DraftRefused("هالشخص أو الوكيل مش بدليل الفريق", 400, "assigneeKey");
+
+  // a repeating job for a person would never be answered (a person cannot log a run): it is refused, not saved to be marked missed at every slot
+  if (isPersonRepeat(d, who.kind)) throw new DraftRefused(PERSON_REPEAT_REFUSAL, 400, "assigneeKey");
 
   // a one-time job for a person is a task on the team's board, with its time
   if (isPersonTask(d, who.kind)) {
