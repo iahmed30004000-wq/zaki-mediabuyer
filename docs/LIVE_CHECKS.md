@@ -30,7 +30,7 @@
 
 **المتوقّع**
 - `/api/health` (بلا دخول): `{ ok, version, worker: { ok } }` بس — ولا `links`. `ok:true` معناها القاعدة شغّالة **و**الـ worker نبض آخر 3 دقايق. (وانت داخل كمالك: `database:true` وتحت `links` وتحت `env.missing` فاضي.)
-- `/api/health`: `ok:true`. `version` = أول 7 حروف من آخر commit بـ `main` (قارنها بصفحة الـ commits بـ GitHub). `mock` = `true` قبل القلب و`false` بعده. تحت `links` كل مفتاح `false` لحد ما ينحط، و`scheduler:false` دايماً (قرار المالك).
+- `/api/health`: `ok:true`. `version` = أول 7 حروف من آخر commit بـ `main` (قارنها بصفحة الـ commits بـ GitHub، أو `git rev-parse --short origin/main`). صفحة Actions: آخر تشغيل لـ «Release» أخضر، وخطوة «Deploy» كتبت `live and healthy on <نفس الرقم>`. `mock` = `true` قبل القلب و`false` بعده. تحت `links` كل مفتاح `false` لحد ما ينحط، و`scheduler:false` دايماً (قرار المالك).
 - `/settings/connections`: عنوان «جاهزية الربط» وسطر «N من 15 مربوطين» وبطاقة لكل ربط. كل بطاقة ناقصة بتكتب أسماء المتغيّرات الناقصة (`ناقص: …`)، **ولا قيمة مفتاح بأي مكان**. قبل القلب بيطلع شريط أصفر «الوضع التجريبي».
 - آخر سطر: «الكتابة على ميتا: تجريبية (dry-run)…».
 

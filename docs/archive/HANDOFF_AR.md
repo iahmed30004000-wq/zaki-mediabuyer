@@ -114,7 +114,7 @@ npm run worker                       # العامل: كل المهام المج�
 2. افتح طلب دمج لـ `main`. **ملاحظة:** `gh` على هالجهاز مسجّل بحساب `MKory18` وما بيشوف المستودع. الطريقة اللي اشتغلت: من كروم المالك (مسجّل بـ `iahmed30004000-wq`) افتح
    `https://github.com/iahmed30004000-wq/zaki-mediabuyer/compare/main...feat/structure-and-themes?quick_pull=1&title=…&body=…`
    وابعت النموذج بـ JS: `[...document.querySelectorAll('button[type=submit]')].find(x => /Create pull request/.test(x.textContent)).form.requestSubmit(...)` (الضغط العادي ما بيسجّل لما نافذة كروم مصغّرة).
-3. `.github/workflows/image.yml`: npm ci ← tsc ← vitest ← فحص الأسرار ← بناء الصورة وتشغيلها مع Postgres ← **دمج الطلب لحاله** ← نشر الصورة ← نداء كوليفاي (`restart?latest=true` بسر `COOLIFY_TOKEN`) ← **بينجح بس لما `/api/health` يرد بـ `version` هالبناء**.
+3. (v6 P0-3: صار ملفين بدل `image.yml`) `ci.yml` على الطلب: npm ci ← tsc ← vitest ← فحص الأسرار ← هجرات إضافية فقط ← بناء الصورة وتشغيلها مع Postgres ← بذر حساب مالك ودخول حقيقي وفتح الصفحات (`scripts/smoke.mjs`). بعدها `release.yml` (دايماً من `main`): **دمج الطلب** (نفس الريبو، مش مسودة، نفس الـ commit اللي انفحص، ما بيلمس ملفات النشر) ← بناء الصورة من `main` ← نشر `sha-<7>` و`main` (القديمة بتصير `previous`) ← نداء واحد لكوليفاي (`COOLIFY_TOKEN`) ← **بينجح بس لما `/api/health` يرد `"ok":true` و`version` هالبناء**، وإلا بيرجّع `previous`.
 4. تأكد: `curl https://mediabuyer.zakiai.io/api/health` ← `version` تغيّر، وصفحة Actions خضرا.
 5. الصورة بتشغّل `prisma migrate deploy` قبل الموقع، فالترحيلات بتمشي لحالها.
 

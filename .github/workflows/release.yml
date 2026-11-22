@@ -1,0 +1,226 @@
+# Release — merge a passing pull request, then build and deploy `main`. This file always runs from `main`
+# (a `workflow_run` / `push` / manual run uses the default branch's copy), so the code of a pull request can never
+# change the rules that merge and publish it. It never checks out a pull request's code.
+#
+#   1. merge  : only for a pull request whose CI run (ci.yml) passed, from THIS repository, not a draft, whose head is exactly the
+#               commit CI checked, and which does not touch the deploy files (.github/**, Dockerfile, docker-compose*.yml, the guard
+#               itself — scripts/release-guard.mjs). Those wait for the owner's own merge; the robot leaves a comment saying so.
+#   2. deploy : always from `main` itself. Migrations are checked, the image is built from `main` and proved (starts, signs in, five
+#               pages open), tagged `sha-<first 7 of main>` and `main` (the old `main` becomes `previous` first), then ONE call to
+#               Coolify and a wait for /api/health to say "ok":true with this very version. No answer in 8 minutes: `main` is pointed
+#               back at `previous`, Coolify is asked once more, and the run fails.
+#
+# One deploy at a time (`deploy-production`, never cancelled midway). A merge made with GITHUB_TOKEN does not start another
+# run, so the same run goes on to deploy what it just merged.
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      merged: ${{ steps.decide.outputs.merged }}
+    steps:
+      # `main`, never the pull request: the guard that judges the pull request is the one already on main
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Merge when every condition holds
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # event fields go through env, never straight into the script (an expression is pasted in before bash runs)
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          CHECKED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          echo "merged=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$PR_NUMBER" ]; then echo "::notice::this CI run has no pull request of this repository (a fork?) — not merged"; exit 0; fi
+
+          info="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,isDraft,isCrossRepository,baseRefName,headRefOid,title)"
+          [ "$(jq -r .state <<<"$info")" = "OPEN" ] || { echo "::notice::the pull request is not open"; exit 0; }
+          [ "$(jq -r .baseRefName <<<"$info")" = "main" ] || { echo "::notice::not a pull request into main"; exit 0; }
+          [ "$(jq -r .isCrossRepository <<<"$info")" = "false" ] || { echo "::notice::the pull request comes from a fork — not merged"; exit 0; }
+          [ "$(jq -r .isDraft <<<"$info")" = "false" ] || { echo "::notice::the pull request is a draft — not merged"; exit 0; }
+          # the checked commit must still be the head: a push after CI started is a commit nobody checked
+          [ "$(jq -r .headRefOid <<<"$info")" = "$CHECKED_SHA" ] || { echo "::notice::the pull request moved after CI ran — the next CI run decides"; exit 0; }
+
+          # deploy files (and the guard itself) are the owner's own merge
+          gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[] | .filename, (.previous_filename // empty)' > changed.txt
+          if held="$(node scripts/release-guard.mjs protected-paths < changed.txt)"; then :; else
+            echo "::notice::the pull request changes deploy files — it waits for the owner"
+            marker='<!-- release-guard -->'
+            already="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments --jq '[.comments[].body] | any(contains("'"$marker"'"))')"
+            if [ "$already" != "true" ]; then
+              gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$marker
+          هاد الطلب بيغيّر ملفات النشر، فما بيندمج لحاله: بدّه ضغطة دمج من المالك.
+          This pull request changes release files, so it is not merged automatically. The owner merges it by hand.
+
+          $(printf '%s\n' "$held" | sed 's/^/- `/; s/$/`/')"
+            fi
+            exit 0
+          fi
+
+          title="$(jq -r .title <<<"$info")"
+          gh pr merge "$PR_NUMBER" --repo "$REPO" --merge --match-head-commit "$CHECKED_SHA" --subject "Merge #$PR_NUMBER: $title"
+          echo "merged=true" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: [merge]
+    # a push to main and a manual run always deploy; after CI, only when the robot merged something
+    if: ${{ !cancelled() && needs.merge.result != 'failure' && (github.event_name != 'workflow_run' || needs.merge.outputs.merged == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Which commit of main this is
+        id: ver
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "short=${sha::7}" >> "$GITHUB_OUTPUT"
+          echo "Deploying main at ${sha::7}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Migrations — additive, and the same as the schema
+        run: |
+          node scripts/release-guard.mjs migrations
+          docker network create t
+          docker run -d --name db --network t -p 5433:5432 -e POSTGRES_USER=mediabuyer -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=mediabuyer postgres:16-alpine
+          for i in $(seq 1 30); do docker exec db pg_isready -U mediabuyer && break; sleep 1; done
+          docker exec db createdb -U mediabuyer shadow
+          DATABASE_URL=postgresql://mediabuyer:ci@localhost:5433/mediabuyer \
+            npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url postgresql://mediabuyer:ci@localhost:5433/shadow --exit-code
+
+      - name: Build the image from main
+        env:
+          SHORT: ${{ steps.ver.outputs.short }}
+        run: docker build --build-arg "APP_VERSION=$SHORT" -t mb:release .
+
+      - name: Prove it before publishing — starts on a real database, signs in, opens the pages
+        env:
+          SHORT: ${{ steps.ver.outputs.short }}
+        run: |
+          docker run -d --name app --network t -p 3140:3140 \
+            -e DATABASE_URL=postgresql://mediabuyer:ci@db:5432/mediabuyer \
+            -e AUTH_SECRET=ci-only-placeholder-secret-0000000000000 \
+            -e ENCRYPTION_KEY=ci-only-placeholder-encryption-key-000000 \
+            -e MOCK_MODE=1 mb:release
+          ok=""
+          for i in $(seq 1 60); do
+            body="$(curl -s --max-time 10 http://localhost:3140/api/health || true)"
+            if jq -e --arg v "$SHORT" '.version == $v' >/dev/null 2>&1 <<<"$body"; then ok=1; break; fi
+            sleep 2
+          done
+          if [ -z "$ok" ]; then docker logs app; echo "::error::the image did not answer /api/health with its own version"; exit 1; fi
+          pw="$(openssl rand -hex 16)"
+          echo "::add-mask::$pw"
+          docker exec -e SEED_OWNER_EMAIL=owner@ci.test -e "SEED_OWNER_PASSWORD=$pw" app npx tsx prisma/seed.ts
+          SMOKE_BASE_URL=http://localhost:3140 SMOKE_EMAIL=owner@ci.test SMOKE_PASSWORD="$pw" node scripts/smoke.mjs || { docker logs --tail 200 app; exit 1; }
+
+      - name: Publish — the current main becomes previous, then sha-tag and main
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHORT: ${{ steps.ver.outputs.short }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/zaki-mediabuyer"
+          if docker pull "$image:main"; then
+            docker tag "$image:main" "$image:previous"
+            docker push "$image:previous"
+          else
+            echo "::warning::no earlier image on main to keep as previous (first release?)"
+          fi
+          for tag in "sha-$SHORT" main; do
+            docker tag mb:release "$image:$tag"
+            docker push "$image:$tag"
+          done
+
+      - name: Deploy — one call to Coolify, then wait for this version to be healthy
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHORT: ${{ steps.ver.outputs.short }}
+          # «Pull latest and restart» of the Coolify service `mediabuyer`. The address is not a secret (a repo variable can override
+          # it); the token is: COOLIFY_TOKEN = a Coolify API token (deploy ability) the owner creates himself, stored as a repo secret.
+          COOLIFY_WEBHOOK_URL: ${{ vars.COOLIFY_WEBHOOK_URL || 'https://coolify.zakiai.io/api/v1/services/wqsoxkdltpwmcqudnqgybom9/restart?latest=true' }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APP_HEALTH_URL: ${{ vars.APP_HEALTH_URL || 'https://mediabuyer.zakiai.io/api/health' }}
+        run: |
+          set -uo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/zaki-mediabuyer"
+          if [ -z "${COOLIFY_TOKEN:-}" ]; then
+            echo "::error::COOLIFY_TOKEN is not set — the image is published but nothing was deployed. Deploy by hand in Coolify, or set the secret and run this workflow again."
+            exit 1
+          fi
+
+          ask_coolify() {
+            curl -sS --max-time 120 -X POST "$COOLIFY_WEBHOOK_URL" -H "Authorization: Bearer $COOLIFY_TOKEN" -H "Accept: application/json" -o /dev/null -w '%{http_code}' || true
+          }
+          # "ok":true AND this version (a stale answer from the old container does not count)
+          healthy_on() {
+            local deadline=$((SECONDS + 480)) body
+            while [ "$SECONDS" -lt "$deadline" ]; do
+              body="$(curl -s --max-time 15 "$APP_HEALTH_URL" || true)"
+              if jq -e --arg v "$1" '.ok == true and .version == $v' >/dev/null 2>&1 <<<"$body"; then return 0; fi
+              sleep 10
+            done
+            return 1
+          }
+
+          code="$(ask_coolify)"
+          echo "Coolify answered: ${code:-no answer}"
+          # a refusal (401, 403, 404...) means nothing was asked of the server; no answer at all may still have started it, so we go on and look
+          if [[ "$code" =~ ^4 ]]; then refused=1; else refused=""; fi
+          sleep 20
+          if [ -z "$refused" ] && healthy_on "$SHORT"; then
+            echo "live and healthy on $SHORT"
+            exit 0
+          fi
+
+          echo "::error::the site is not healthy on $SHORT — putting the previous image back"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if docker pull "$image:previous"; then
+            docker tag "$image:previous" "$image:main"
+            docker push "$image:main"
+            if [ -z "$refused" ]; then echo "second call to Coolify answered: $(ask_coolify)"; fi
+            echo "::error::rolled back: main points at the previous image again"
+          else
+            echo "::error::there is no previous image to go back to — check Coolify by hand"
+          fi
+          exit 1

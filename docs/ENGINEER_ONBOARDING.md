@@ -37,10 +37,10 @@ Arabic terms are kept in Arabic on purpose (they are the exact words on the scre
 1. Owner: GitHub → repo → Settings → Collaborators → add your account with **Write**.
 2. You accept the invitation, `git clone https://github.com/iahmed30004000-wq/zaki-mediabuyer.git`, then `git checkout -b <your-branch>` from `main` (or use `feat/structure-and-themes`; keep it merged with `main` first).
 3. You do **not** receive any secret. You do not need Coolify access: deployment is automatic (§6). If a value must change in production (an environment variable), you ask the owner; he changes it in Coolify.
-4. Pull requests are opened from your account into `main`. The workflow (`.github/workflows/image.yml`) tests, merges the PR by itself and deploys. Details in `HANDOFF.md` D7.
+4. Pull requests are opened from your account into `main`. `ci.yml` checks it; when it is green `release.yml` (always run from `main`) merges it by itself, then builds from `main` and deploys. A pull request that touches `.github/**`, `Dockerfile` or `docker-compose*.yml` is not merged by the robot: it waits for the owner. Details in `docs/DECISIONS.md` D8.
 
 ### 1.2 Do NOT do these "account" things (they silently break the deploy)
-- Do **not** fork, rename, transfer or move the repository. The account name `iahmed30004000-wq` is written in: `docker-compose.prod.yml` (image name), `.github/workflows/image.yml` (image name, Coolify URL default), and in Coolify. If the owner ever moves the repo, all three must change together — that is a planned operation, not something you do on your own.
+- Do **not** fork, rename, transfer or move the repository. The account name `iahmed30004000-wq` is written in: `docker-compose.prod.yml` (image name), `.github/workflows/release.yml` (image name, Coolify URL default), and in Coolify. If the owner ever moves the repo, all three must change together — that is a planned operation, not something you do on your own.
 - Do **not** change visibility of the GHCR package (it must stay public so Coolify can pull without a login).
 - Do **not** add repository secrets/variables; `COOLIFY_TOKEN` (deploy call) is the owner's. Without it the workflow prints "deploy by hand" and exits 0.
 - Do **not** use the `MKory18` remote or its `gh` login.
@@ -146,7 +146,7 @@ Identity & audit: `User`, `AuditLog`, `Setting`, `SettingVersion`, `ApiToken`. M
 6. `src/server/auth.ts`, `src/core/roles.ts`, `src/middleware.ts`, `src/lib/session-token.ts`, `src/server/crypto.ts`, `src/server/api-token.ts`
 7. `src/gateway/gateway.ts`, `src/gateway/privacy.ts`
 8. `worker/index.ts` (the schedule), `src/jobs/runner.ts`
-9. `docker-compose.prod.yml`, `Dockerfile`, `.github/workflows/image.yml`
+9. `docker-compose.prod.yml`, `Dockerfile`, `.github/workflows/ci.yml` and `release.yml`
 
 ---
 
