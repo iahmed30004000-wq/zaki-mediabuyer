@@ -50,6 +50,8 @@ export interface WatchMetric {
   unit: "$" | "%" | "";
   /** why it can be missing, in words (the step fails with it) */
   missing: string;
+  /** the number only exists for one product (the totals row never has it): «كل المنتجات» can not be watched with it */
+  perProduct?: boolean;
 }
 
 /** The short list of 04-numbers.md §3: the numbers that have a «was / now». */
@@ -59,7 +61,7 @@ export const WATCH_METRICS: readonly WatchMetric[] = [
   { key: "confirmRate", label: "نسبة التأكيد", set: "confirmRate", unit: "%", missing: "المؤكد والمرفوض ناقصين" },
   { key: "spend", label: "الصرف", set: "spend", unit: "$", missing: "ميتا مش مربوطة وClaude ما بعت أرقام الصرف" },
   { key: "costPerConfirmed", label: "تكلفة المؤكد", set: "costPerConfirmed", unit: "$", missing: "الصرف أو المؤكد ناقصين" },
-  { key: "deliveredRate", label: "نسبة التسليم (30 يوم)", set: "deliveryRate30", unit: "%", missing: "ما في تسليم أو مرتجع مسجّل لآخر 30 يوم" },
+  { key: "deliveredRate", label: "نسبة التسليم (30 يوم)", set: "deliveryRate30", unit: "%", missing: "ما في تسليم أو مرتجع مسجّل لآخر 30 يوم", perProduct: true },
 ];
 export const WATCH_METRIC_KEYS = WATCH_METRICS.map((m) => m.key) as [string, ...string[]];
 export const watchMetric = (key: string): WatchMetric | undefined => WATCH_METRICS.find((m) => m.key === key);
@@ -75,13 +77,22 @@ export const OP_AR = { above: "فوق", below: "تحت" } as const;
 const StockParams = z.object({ product: PRODUCT.default(ALL_PRODUCTS) });
 const SummaryParams = z.object({ period: z.enum(["today", "yesterday"]).default("yesterday") });
 const RemindParams = z.object({ person: ACTOR_KEY, text: z.string().trim().min(1, "اكتب نص التذكير").max(200, "نص التذكير لحد 200 حرف") });
-const MetricParams = z.object({
-  metric: z.enum(WATCH_METRIC_KEYS),
-  product: PRODUCT.default(ALL_PRODUCTS),
-  op: z.enum(OPS),
-  limit: z.number({ message: "اكتب الحد رقم" }).min(0, "الحد من صفر وطالع").max(1_000_000, "الحد كبير كتير"),
-  period: z.enum(PERIODS).default("yesterday"),
-});
+/** The message when a per-product number is asked for all the products. */
+export const PER_PRODUCT_ONLY = "هالرقم بيتحسب لكل منتج لحاله — اختار منتج واحد";
+/** May this number be watched for this product? A per-product number (the 30-day delivery rate) has no total, so «كل المنتجات» can never give it a value. */
+export const canWatch = (metricKey: string, product: string): boolean => !(watchMetric(metricKey)?.perProduct && product === ALL_PRODUCTS);
+
+const MetricParams = z
+  .object({
+    metric: z.enum(WATCH_METRIC_KEYS),
+    product: PRODUCT.default(ALL_PRODUCTS),
+    op: z.enum(OPS),
+    limit: z.number({ message: "اكتب الحد رقم" }).min(0, "الحد من صفر وطالع").max(1_000_000, "الحد كبير كتير"),
+    period: z.enum(PERIODS).default("yesterday"),
+  })
+  .superRefine((v, ctx) => {
+    if (!canWatch(v.metric, v.product)) ctx.addIssue({ code: "custom", path: ["product"], message: PER_PRODUCT_ONLY });
+  });
 
 export type StockParamsT = z.infer<typeof StockParams>;
 export type SummaryParamsT = z.infer<typeof SummaryParams>;
@@ -104,7 +115,7 @@ export function parseRecipeParams<N extends RecipeName>(name: N, raw: unknown): 
   const issue = r.error.issues[0]!;
   const key = String(issue.path[0] ?? "");
   // a field that is not there says what to do about it; one that is there and wrong says what is wrong with it
-  const message = input[key] === undefined ? (FIELD_MISSING[key] ?? "في حقل ناقص بالوصفة") : issue.message;
+  const message = input[key] === undefined && issue.code !== "custom" ? (FIELD_MISSING[key] ?? "في حقل ناقص بالوصفة") : issue.message;
   return { ok: false, field: FIELD_OF[key] ?? "recipe", message };
 }
 

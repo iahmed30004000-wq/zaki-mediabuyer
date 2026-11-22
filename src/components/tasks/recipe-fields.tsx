@@ -14,6 +14,7 @@ import {
   RECIPE_HINT,
   RECIPE_TITLE,
   WATCH_METRICS,
+  canWatch,
   watchMetric,
   type RecipeName,
 } from "@/core/recipes";
@@ -126,14 +127,19 @@ export function RecipeFields({ value, onChange, products, people }: { value: Rec
           <div className="flex flex-wrap gap-3">
             <Field label="أي رقم" className="min-w-52 flex-1">
               <Select value={str(p.metric)} onChange={(e) => set({ metric: e.target.value })}>
-                {WATCH_METRICS.map((m) => (
+                {WATCH_METRICS.filter((m) => canWatch(m.key, str(p.product) || ALL_PRODUCTS)).map((m) => (
                   <option key={m.key} value={m.key}>
                     {m.label}
                   </option>
                 ))}
               </Select>
             </Field>
-            <ProductSelect value={str(p.product)} products={products} onChange={(product) => set({ product })} />
+            <ProductSelect
+              value={str(p.product)}
+              products={products}
+              // a number that only a single product has can not follow «كل المنتجات»: the number goes back to the first of the list
+              onChange={(product) => set(canWatch(str(p.metric), product) ? { product } : { product, metric: WATCH_METRICS[0]!.key })}
+            />
           </div>
           <div className="space-y-1.5">
             <span className="block text-base font-semibold text-fg">متى أنبّهك</span>

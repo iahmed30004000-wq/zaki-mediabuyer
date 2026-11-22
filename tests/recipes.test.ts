@@ -11,6 +11,8 @@ import {
   RECIPE_STEP_IDS,
   STOCK_FRESH_H,
   WATCH_METRICS,
+  PER_PRODUCT_ONLY,
+  canWatch,
   checkRecipeTargets,
   dailySummaryReport,
   evalDailySummary,
@@ -82,6 +84,20 @@ describe("the four recipes and their parameters", () => {
     expect(validateRecipe({ name: "stock_alert", params: {} })).toEqual({ ok: true });
     expect(validateRecipe({ name: "nope", params: {} })).toMatchObject({ ok: false, field: "recipe" });
     expect(validateRecipe({ name: "metric_watch", params: { metric: "spend", op: "above" } })).toMatchObject({ ok: false, field: "recipe.limit" });
+  });
+
+  it("the 30-day delivery rate is per product: «كل المنتجات» with it can not be saved (the totals row never has it)", () => {
+    const base = { metric: "deliveredRate", op: "below", limit: 60 };
+    expect(validateRecipe({ name: "metric_watch", params: { ...base, product: "all" } })).toMatchObject({ ok: false, field: "recipe.product" });
+    // the product is a default: leaving it out is «all» too
+    expect(validateRecipe({ name: "metric_watch", params: base })).toMatchObject({ ok: false, field: "recipe.product", message: PER_PRODUCT_ONLY });
+    expect(parseRecipeParams("metric_watch", { ...base, product: "all" })).toMatchObject({ ok: false, field: "recipe.product" });
+    expect(validateRecipe({ name: "metric_watch", params: { ...base, product: "TIN01" } })).toEqual({ ok: true });
+    // every other number still follows all the products
+    expect(validateRecipe({ name: "metric_watch", params: { metric: "spend", op: "above", limit: 1, product: "all" } })).toEqual({ ok: true });
+    expect(canWatch("deliveredRate", "all")).toBe(false);
+    expect(canWatch("deliveredRate", "TIN01")).toBe(true);
+    expect(canWatch("spend", "all")).toBe(true);
   });
 
   it("checkRecipeTargets: a product the site does not know, a person who is not there or not a person", () => {

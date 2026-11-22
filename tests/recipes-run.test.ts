@@ -379,6 +379,8 @@ describe("saving a recipe job from «مهمة جديدة»", () => {
     await refused({ name: "remind", params: { person: "ghost", text: "x" } }, "recipe.person");
     await refused({ name: "metric_watch", params: { metric: "spend", op: "above" } }, "recipe.limit");
     await refused({ name: "remind", params: { person: "member1", text: "اتصل على 0791234567" } }, "recipe");
+    // the 30-day delivery rate has no total: with «كل المنتجات» it could never have a value, so the job is not saved
+    await refused({ name: "metric_watch", params: { metric: "deliveredRate", product: "all", op: "below", limit: 60, period: "yesterday" } }, "recipe.product");
     expect(rows("workflow").filter((w) => w.source === "ui")).toHaveLength(0);
   });
 
