@@ -19,18 +19,18 @@ export const dynamic = "force-dynamic";
  * ends yesterday, and «اليوم لهلق» is shown on its own, with no difference.
  */
 export default async function NumbersPage({ searchParams: searchParamsP }: { searchParams: Promise<{ p?: string; from?: string; to?: string }> }) {
-  const caller = await requirePage(["ads.view", "ops.view"]);
+  await requirePage(["ads.view", "ops.view"]);
+  const me = await currentCaller();
   // the ads' side (spend, cost, products, «شو عملنا») is for a role with `ads.view`; a role that only has the operations' numbers is never handed it (src/core/numbers-scope.ts)
-  const ads = seesAdsNumbers(caller.role);
+  const ads = !!me && seesAdsNumbers(me.role);
   const search = await searchParamsP;
   const now = new Date();
-  const [me, loaded, events, today] = await Promise.all([
-    currentCaller(),
+  const [loaded, events, today] = await Promise.all([
     loadCompare({ now, period: search }),
     ads ? loadEvents(chartRange(now)).catch(() => []) : Promise.resolve([]),
     ads ? loadNumbers({ d: "today" }, now).catch(() => null) : Promise.resolve(null),
   ]);
-  const c = compareForRole(loaded, caller.role);
+  const c = me ? compareForRole(loaded, me.role) : compareForRole(loaded, "MEMBER");
   const canOpen = (href: string) => !!me && canOpenPath(me.role, href);
   const query = periodQuery({ period: c.period, from: c.range.from, to: c.range.to });
   return (
