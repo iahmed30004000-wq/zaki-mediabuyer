@@ -16,6 +16,7 @@ import type { AdsTableData, TableRow } from "@/lib/ads-table";
 import { cn } from "@/lib/utils";
 import { Pill } from "@/components/ui/pill";
 import { productVerdict } from "@/core/verdict";
+import { safeFetch } from "@/lib/call";
 import { STATUS_LABEL, StatusChip } from "./status-chip";
 
 const DEF = new Map(COLUMNS.map((c) => [c.key, c]));
@@ -260,7 +261,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
 
   async function saveColumns(next: ColumnKey[]) {
     setCols(next);
-    const r = await fetch("/api/ads/columns", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ columns: next }) }).catch(() => null);
+    const r = await safeFetch("/api/ads/columns", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ columns: next }) }).catch(() => null);
     if (!r || !r.ok) toast("ما انحفظ اختيار الأعمدة — بيضل لهالجلسة بس", "error");
   }
 

@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NoAccess } from "@/components/shell/no-access";
 import { Sidebar } from "@/components/shell/sidebar";
@@ -14,6 +14,7 @@ import { MissionProvider } from "@/components/mb/mission";
 import { ROLE_PLACES, ROLE_START, canOpenPath, can, capabilitiesOf, hasHome } from "@/core/roles";
 import { isDemo } from "@/core/readiness";
 import { countWaiting } from "@/lib/inbox-count";
+import { NAV_COOKIE, navMapFor } from "@/lib/nav";
 import { loadPages } from "@/lib/ui-view";
 import { currentCaller } from "@/server/auth";
 import { loadDirectory } from "@/server/directory";
@@ -34,6 +35,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const [pages, inbox, directory, accounts] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => []), loadStopAccounts()]);
   // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
   const path = (await headers()).get("x-pathname") ?? "/";
+  // which map of places this person sees: the cookie `mb_nav` (the owner gets the new one until he asks for the old one back)
+  const navMap = navMapFor((await cookies()).get(NAV_COOKIE)?.value, me.role);
   if (me && path === "/" && !hasHome(me.role)) redirect(ROLE_START[me.role]);
   const body = me && !canOpenPath(me.role, path) ? <NoAccess home={ROLE_START[me.role]} /> : children;
   // «وضع التعديل» is the owner's, signed in: with sign-in switched off nothing can be saved, so nothing is offered
@@ -41,7 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <MissionProvider>
       <PeopleProvider people={directory.map((d) => ({ key: d.key, label: d.name }))}>
-      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} caps={me ? capabilitiesOf(me.role) : undefined} stopAccounts={accounts}>
+      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} navMap={navMap} caps={me ? capabilitiesOf(me.role) : undefined} stopAccounts={accounts}>
         <div className="flex min-h-dvh">
           <Sidebar />
           <div className="min-w-0 flex-1">

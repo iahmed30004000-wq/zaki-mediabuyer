@@ -21,8 +21,8 @@ export async function searchData(query: string, limit = 24): Promise<SearchHit[]
   ]);
   const items: SearchItem[] = [
     ...products.map((p) => ({ kind: "product" as const, id: p.productCode, title: p.name, sub: `منتج · ${p.productCode}`, words: p.productCode, href: `/products/${encodeURIComponent(p.productCode)}` })),
-    ...workflows.map((w) => ({ kind: "workflow" as const, id: w.key, title: w.name, sub: "ورك فلو", words: `${w.key} ${w.description ?? ""}`, href: `/workflow/${encodeURIComponent(w.key)}` })),
-    ...tasks.map((t) => ({ kind: "task" as const, id: t.id, title: t.title, sub: `مهمة · ${t.status}`, href: `/tasks` })),
+    ...workflows.map((w) => ({ kind: "workflow" as const, id: w.key, title: w.name, sub: "مهمة مجدولة", words: `${w.key} ${w.description ?? ""}`, href: `/tasks/${encodeURIComponent(w.key)}` })),
+    ...tasks.map((t) => ({ kind: "task" as const, id: t.id, title: t.title, sub: `مهمة · ${t.status}`, href: `/tasks/team` })),
     ...videos.map((v) => ({ kind: "video" as const, id: v.id, title: `${v.vName} — ${v.job}`, sub: `فيديو · ${v.productCode} · ${v.status}`, words: `${v.job} ${v.vName}`, href: "/ads/videos" })),
     ...ads.map((a) => ({ kind: "ad" as const, id: a.metaId, title: a.name, sub: `إعلان · ${a.status}`, words: a.metaId, href: `/ads?open=${encodeURIComponent(a.metaId)}` })),
     ...campaigns.map((c) => ({ kind: "campaign" as const, id: c.metaId, title: c.name, sub: `حملة · ${c.status}${c.productCode ? ` · ${c.productCode}` : ""}`, words: c.metaId, href: `/ads?${c.productCode ? `product=${encodeURIComponent(c.productCode)}&` : ""}open=${encodeURIComponent(c.metaId)}` })),

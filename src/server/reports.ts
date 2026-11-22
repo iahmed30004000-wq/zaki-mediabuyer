@@ -4,6 +4,8 @@
  */
 import { dayBounds } from "@/core/day";
 import { isDemo } from "@/core/readiness";
+import { readReportText } from "@/core/report-body";
+import { isEmptyReportObject } from "@/core/report-empty";
 import { isMoneyKey } from "@/core/redact-money";
 import { can } from "@/core/roles";
 import { db } from "./db";
@@ -24,14 +26,23 @@ export interface ReportRow {
   /** there is a full text to open */
   hasFull: boolean;
   href: string;
+  /** the run's report says nothing (every figure zero, every list empty) and it has no sentence either: «المهمة اشتغلت» is all there is */
+  empty: boolean;
 }
 
 const PERIODIC_AR: Record<string, string> = { morning: "التقرير الصباحي", weekly: "التقرير الأسبوعي", monthly: "التقرير الشهري" };
 const clip = (s: string | null, n = 160) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
-export const reportHref = (id: string) => `/work/reports/${encodeURIComponent(id)}`;
+export const reportHref = (id: string, base = "/work/reports") => `${base}/${encodeURIComponent(id)}`;
 
-/** Newest first. `jobKey` keeps one job's runs; `day` (an Amman calendar key) keeps one day. A demo site has none. */
-export async function loadReports(opts: { limit?: number; jobKey?: string; domain?: "ads" | "ops"; day?: string } = {}): Promise<ReportRow[]> {
+/** A run whose report is a JSON value of the code with nothing in it, and which has no sentence of its own, has nothing to show (docs/rebuild-v6/02-screens.md §3.4). */
+export function runReportIsEmpty(r: { summary: string | null; report: string | null }): boolean {
+  if (r.summary?.trim()) return false;
+  const read = readReportText(r.report);
+  return read.kind === "none" || (read.kind === "value" && isEmptyReportObject(read.value));
+}
+
+/** Newest first. `jobKey` keeps one job's runs; `day` (an Amman calendar key) keeps one day. A demo site has none. `base` is the address the rows link under (the new place or the old one). */
+export async function loadReports(opts: { limit?: number; jobKey?: string; domain?: "ads" | "ops"; day?: string; base?: string } = {}): Promise<ReportRow[]> {
   if (isDemo(process.env)) return [];
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
   const range = opts.day ? dayBounds(opts.day) : null;
@@ -51,8 +62,8 @@ export async function loadReports(opts: { limit?: number; jobKey?: string; domai
     db.report.findMany({ where: { kind: { in: ["morning", "weekly", "monthly"] }, empty: false, ...(opts.day ? { forDate: new Date(`${opts.day}T00:00:00Z`) } : {}) }, orderBy: { forDate: "desc" }, take: limit }),
   ]);
   const rows: ReportRow[] = [
-    ...runs.map((r) => ({ id: `run:${r.id}`, kind: "run" as const, title: r.workflow.name, jobKey: r.workflow.key, jobNumber: r.workflow.number, domain: r.workflow.domain === "ops" ? ("ops" as const) : ("ads" as const), status: r.status, at: r.startedAt.toISOString(), summary: clip(r.summary), hasFull: !!r.report, href: reportHref(`run:${r.id}`) })),
-    ...periodic.map((p) => ({ id: `report:${p.id}`, kind: "periodic" as const, title: PERIODIC_AR[p.kind] ?? p.kind, jobKey: null, jobNumber: null, domain: null, status: null, at: p.createdAt.toISOString(), summary: clip(p.text), hasFull: true, href: reportHref(`report:${p.id}`) })),
+    ...runs.map((r) => ({ id: `run:${r.id}`, kind: "run" as const, title: r.workflow.name, jobKey: r.workflow.key, jobNumber: r.workflow.number, domain: r.workflow.domain === "ops" ? ("ops" as const) : ("ads" as const), status: r.status, at: r.startedAt.toISOString(), summary: clip(r.summary), hasFull: !!r.report, href: reportHref(`run:${r.id}`, opts.base), empty: runReportIsEmpty(r) })),
+    ...periodic.map((p) => ({ id: `report:${p.id}`, kind: "periodic" as const, title: PERIODIC_AR[p.kind] ?? p.kind, jobKey: null, jobNumber: null, domain: null, status: null, at: p.createdAt.toISOString(), summary: clip(p.text), hasFull: true, href: reportHref(`report:${p.id}`, opts.base), empty: false })),
   ];
   // a role sees the reports of the areas it may look at; the general ones (morning, weekly, monthly) carry profit, so they need `money.view`
   const role = await viewerRole();

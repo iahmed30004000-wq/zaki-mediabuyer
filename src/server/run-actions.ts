@@ -15,7 +15,7 @@ import { logRun, runView, type RunView } from "./workflows";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
-export const RUN_ACTIONS = ["retry", "skip", "cancel", "reassign"] as const;
+export const RUN_ACTIONS = ["retry", "skip", "cancel", "reassign", "dismiss"] as const;
 export type RunAction = (typeof RUN_ACTIONS)[number];
 
 export interface RunActionResult {
@@ -113,6 +113,19 @@ export async function cancelRun(key: string, runId: string, actor: Actor, now = 
   await closeOpenRequests(wf.key, run.ref, actor, now);
   await logRun({ job: wf.key, ref: run.ref, status: "skipped", summary: "ألغاه المالك" }, actor, "ui", now, { site: true, endReason: "cancelled" });
   await audit(actor, "run.cancel", { type: "workflow_run", id: run.id }, { after: { job: wf.key } });
+  return { run: runView(await db.workflowRun.findUniqueOrThrow({ where: { id: run.id } })) };
+}
+
+/**
+ * «تجاهل» (v6 · P3): the owner has seen a slot that was missed and says it does not matter. The run (`missed`) becomes `skipped` with the reason «owner_skipped» — it leaves the lane of
+ * the missed, and the day board says «انتخطت» for it. Only a missed slot can be dismissed; one that is still being waited on is cancelled (`cancelRun`), one that stopped is retried or skipped.
+ */
+export async function dismissMissed(key: string, runId: string, actor: Actor, now = new Date()): Promise<RunActionResult> {
+  const { wf, run } = await load(key, runId);
+  if (run.status !== "missed") throw new HandoffRefused("هالتشغيل مش «فاتت» — ما في شي تتجاهله", 409);
+  const moved = await db.workflowRun.updateMany({ where: { id: run.id, status: "missed" }, data: { status: "skipped", endReason: "owner_skipped", finishedAt: run.finishedAt ?? now } });
+  if (!moved.count) throw new HandoffRefused("حدا غيّر التشغيل قبلك — حدّث الصفحة", 409);
+  await audit(actor, "run.dismiss", { type: "workflow_run", id: run.id }, { after: { job: wf.key } });
   return { run: runView(await db.workflowRun.findUniqueOrThrow({ where: { id: run.id } })) };
 }
 

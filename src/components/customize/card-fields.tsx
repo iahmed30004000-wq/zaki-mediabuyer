@@ -5,6 +5,7 @@ import { Play } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { usePeople } from "@/components/shell/people-context";
 import { valueText, type ButtonCfgT, type Entity, type FieldCfgT } from "@/core/customize";
+import { safeFetch } from "@/lib/call";
 import { cn } from "@/lib/utils";
 
 export type CardValues = Record<string, string | number>;
@@ -94,7 +95,7 @@ export function RunButton({ button, entityId, entity = "task", large }: { button
   async function go() {
     setBusy(true);
     setArmed(false);
-    const r = await fetch("/api/ui/button", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ buttonId: button.id, entity, entityId }) }).catch(() => null);
+    const r = await safeFetch("/api/ui/button", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ buttonId: button.id, entity, entityId }) }).catch(() => null);
     const d = (await r?.json().catch(() => ({}))) as { error?: string; demo?: boolean; created?: boolean };
     setBusy(false);
     if (!r || !r.ok) return toast(d?.error ?? "صار خطأ، جرّب كمان مرة", "error");

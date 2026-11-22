@@ -13,6 +13,22 @@ export function isEmptyMorning(text: string): boolean {
   return account && products;
 }
 
+/**
+ * Is a report AS A VALUE empty — every figure in it zero, every text blank, every list and object empty or made of such? (docs/rebuild-v6/02-screens.md §3.4.)
+ * The words of the code («good», «by: code») are texts and would make a report «not empty» — so a string counts only when it is not one of the code's own markers
+ * (`by`, `attribution_health`). A boolean `false` is empty, `true` is content. Pure: it reads nothing, decides nothing about a number.
+ */
+export function isEmptyReportObject(report: unknown, key = ""): boolean {
+  if (report === null || report === undefined) return true;
+  if (typeof report === "number") return report === 0 || !Number.isFinite(report);
+  if (typeof report === "boolean") return report === false;
+  if (typeof report === "string") return report.trim() === "" || CODE_MARKERS.has(key);
+  if (Array.isArray(report)) return report.every((v) => isEmptyReportObject(v));
+  if (typeof report === "object") return Object.entries(report as Record<string, unknown>).every(([k, v]) => isEmptyReportObject(v, k));
+  return false;
+}
+const CODE_MARKERS = new Set(["by", "attribution_health", "source", "kind", "version", "day", "date", "for_date"]);
+
 /** `kind`: morning · weekly · monthly (text) or plan · attribution · analysis (JSON). Anything else is never called empty. */
 export function isEmptyReport(kind: string, text: string): boolean {
   if (!text.trim()) return true;

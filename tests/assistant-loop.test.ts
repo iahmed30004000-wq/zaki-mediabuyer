@@ -370,7 +370,7 @@ describe("what it may do", () => {
     const llm = script(call("create_task", { title: "تابع الكرتون", assignee: "muse", due_at: "2026-11-16" }), call("create_task", { notitle: true }, "bad"), say("انعملت"));
     const r = await runLoop(base(llm, tools), ask("اعملي مهمة"));
     expect(made).toEqual([{ title: "تابع الكرتون", assignee: "muse", due_at: "2026-11-16" }]);
-    expect(r.artifacts).toMatchObject([{ kind: "task_created", id: "t9", title: "تابع الكرتون", href: "/tasks" }]);
+    expect(r.artifacts).toMatchObject([{ kind: "task_created", id: "t9", title: "تابع الكرتون", href: "/tasks/team" }]);
   });
 
   it("demo callers (sign-in switched off) cannot write at all", async () => {

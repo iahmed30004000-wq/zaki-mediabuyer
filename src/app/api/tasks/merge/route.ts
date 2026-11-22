@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { assertTasksInScope } from "@/server/task-scope";
 import { TaskRefused, mergeTasks } from "@/server/tasks";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export async function POST(req: Request) {
     if (caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");
+    // S-19: every card of the merge (the kept one too) must be in the caller's scope
+    await assertTasksInScope(caller, [parsed.data.keep, ...parsed.data.drop]);
     try {
       return NextResponse.json({ ok: true, task: await mergeTasks(parsed.data.keep, parsed.data.drop, { type: "user", id: caller.id }) });
     } catch (e) {

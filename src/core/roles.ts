@@ -142,6 +142,9 @@ export const ROLE_START: Record<RoleKey, string> = {
 const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: PlaceId }[] = [
   { test: /^\/inbox(\/|$)/, any: ["inbox.view"], place: "inbox" },
   { test: /^\/work\/tasks(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
+  // the new place «المهام» (v6 · P3): the people's board is the same screen as the old «مهام الفريق»; the rest of it is the work place
+  { test: /^\/tasks\/team(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
+  { test: /^\/tasks(\/|$)/, any: ["work.view"], place: "work" },
   { test: /^\/work(\/|$)/, any: ["work.view"], place: "work" },
   { test: /^\/print\/(work|report|day)(\/|$)/, any: ["work.view"] },
   { test: /^\/print\/numbers(\/|$)/, any: ["money.view"] }, // every product's spend and revenue

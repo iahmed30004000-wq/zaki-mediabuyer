@@ -324,7 +324,7 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
               count: rows.length,
               changes: rows.map((r) => ({ id: r.id, sentence: r.sentence, kind: r.kind, state: STATE_LABEL[r.state] ?? r.state, from: r.source, daily_spend_effect: { value: r.spendDeltaDaily, display: money(r.spendDeltaDaily) }, at: r.at })),
             },
-            { sources: [{ id: "changes", label: "المهام ← بانتظار موافقتك", href: "/tasks" }], facts: [{ label: q.state === "recent" ? "تغييرات آخر 3 أيام" : "تغييرات بانتظارك", value: String(rows.length), raw: rows.length, source: "changes" }] },
+            { sources: [{ id: "changes", label: "بانتظارك", href: "/inbox" }], facts: [{ label: q.state === "recent" ? "تغييرات آخر 3 أيام" : "تغييرات بانتظارك", value: String(rows.length), raw: rows.length, source: "changes" }] },
           );
         }),
     },
@@ -385,8 +385,8 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
         guarded(async () => {
           if (ctx.caller.demo) return toolError("المساعد ما بيكتب بالوضع التجريبي (بدون تسجيل دخول).");
           const t = await deps.createTask(a as z.infer<typeof TaskCreateInput>, { type: "user", id: ctx.caller.id } satisfies Actor, "assistant");
-          const art: Artifact = { kind: "task_created", id: t.id, title: t.title, assignee: t.assignee, dueAt: t.dueAt, href: "/tasks" };
-          return toolData({ ok: true, id: t.id, title: t.title, assignee: t.assignee, due: t.dueAt?.slice(0, 10) ?? null, status: t.status }, { artifacts: [art], sources: [{ id: "tasks:board", label: "المهام", href: "/tasks" }] });
+          const art: Artifact = { kind: "task_created", id: t.id, title: t.title, assignee: t.assignee, dueAt: t.dueAt, href: "/tasks/team" };
+          return toolData({ ok: true, id: t.id, title: t.title, assignee: t.assignee, due: t.dueAt?.slice(0, 10) ?? null, status: t.status }, { artifacts: [art], sources: [{ id: "tasks:board", label: "المهام", href: "/tasks/team" }] });
         }),
     },
     {
@@ -402,8 +402,8 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           const t = await deps.updateTask(i, { type: "user", id: ctx.caller.id } satisfies Actor);
           if (!t) return toolError("المهمة مش موجودة — جيب الرقم من get_tasks");
           const parts = [i.status ? `الحالة ← ${COLUMN_LABEL[i.status] ?? i.status}` : "", i.assignee ? `المسؤول ← ${i.assignee}` : "", i.due_at === null ? "بلا موعد" : i.due_at ? `الموعد ← ${i.due_at.slice(0, 10)}` : "", i.priority ? `الأولوية ← ${i.priority}` : "", i.archived ? "انأرشفت" : "", i.note !== undefined ? "الملاحظة تغيّرت" : ""].filter(Boolean);
-          const art: Artifact = { kind: "task_updated", id: t.id, title: t.title, change: parts.join(" · ") || "تحدّثت", href: "/tasks" };
-          return toolData({ ok: true, id: t.id, title: t.title, status: t.status }, { artifacts: [art], sources: [{ id: "tasks:board", label: "المهام", href: "/tasks" }] });
+          const art: Artifact = { kind: "task_updated", id: t.id, title: t.title, change: parts.join(" · ") || "تحدّثت", href: "/tasks/team" };
+          return toolData({ ok: true, id: t.id, title: t.title, status: t.status }, { artifacts: [art], sources: [{ id: "tasks:board", label: "المهام", href: "/tasks/team" }] });
         }),
     },
     {
@@ -437,10 +437,10 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           const r = await deps.propose(p, ctx.caller);
           if (!r.ok) return toolError(r.error);
           const stateLabel = STATE_LABEL[r.state] ?? r.state;
-          const art: Artifact = { kind: "change_proposed", id: r.id, state: r.state, stateLabel, sentence: p.sentence, items: r.items, spendDeltaDaily: r.spendDeltaDaily, href: "/tasks" };
+          const art: Artifact = { kind: "change_proposed", id: r.id, state: r.state, stateLabel, sentence: p.sentence, items: r.items, spendDeltaDaily: r.spendDeltaDaily, href: "/inbox" };
           return toolData(
             { ok: true, id: r.id, state: stateLabel, items: r.items, daily_spend_effect: { value: r.spendDeltaDaily, display: money(r.spendDeltaDaily) }, dropped: r.refused, executed: false, note: "هاد اقتراح — ما انتنفّذ شي. المالك بيوافق من الموقع." },
-            { artifacts: [art], sources: [{ id: "changes", label: "المهام ← بانتظار موافقتك", href: "/tasks" }] },
+            { artifacts: [art], sources: [{ id: "changes", label: "بانتظارك", href: "/inbox" }] },
           );
         }),
     },

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { PASTE_LEVELS, type PushLevel } from "@/core/push-rows";
+import { safeFetch } from "@/lib/call";
 import { cn } from "@/lib/utils";
 
 const LEVEL_AR: Record<PushLevel, string> = { account: "حساب", campaign: "حملات", adset: "مجموعات", ad: "إعلانات", product: "منتجات", person: "موظفين" };
@@ -39,7 +40,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
 
   async function call(apply: boolean) {
     setBusy(true);
-    const r = await fetch("/api/numbers/paste", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, day, level, apply }) }).catch(() => null);
+    const r = await safeFetch("/api/numbers/paste", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, day, level, apply }) }).catch(() => null);
     const d = (await r?.json().catch(() => ({}))) as Partial<Preview> & { error?: string; demo?: boolean; applied?: number; rejected?: number; rejectedList?: { line: number; error: string }[]; warnings?: string[] };
     setBusy(false);
     if (!r || !r.ok) return toast(d?.error ?? "صار خطأ، جرّب كمان مرة", "error");

@@ -88,5 +88,41 @@ export function describeReport(report: unknown, opts: DescribeOptions = {}): Rep
   return build(report, 1);
 }
 
+/**
+ * What a report's text is: a JSON object or list the code wrote (`plan` · `attribution` · `analysis`, or an agent that wrote JSON by habit) is read as a VALUE and shown by
+ * `ReportBody`; anything else is text for people. JSON that does not parse, a bare number or a bare string is text too — it is never shown to the owner as braces.
+ */
+export function readReportText(text: string | null | undefined): { kind: "none" } | { kind: "value"; value: Record<string, unknown> | unknown[] } | { kind: "text"; text: string } {
+  const t = (text ?? "").trim();
+  if (!t) return { kind: "none" };
+  if (t.startsWith("{") || t.startsWith("[")) {
+    try {
+      const v = JSON.parse(t) as unknown;
+      if (v && typeof v === "object") return { kind: "value", value: v as Record<string, unknown> | unknown[] };
+    } catch {
+      // it only looked like JSON: it is shown as the raw text, folded (the screen decides how)
+    }
+    return { kind: "text", text: t };
+  }
+  return { kind: "text", text: t };
+}
+
+/** A report document as plain lines of text (for a copy to paper or the assistant): «الاسم: القيمة», a table as rows joined by « · ». Never a brace. */
+export function docToText(d: ReportDoc, depth = 0): string {
+  const pad = "  ".repeat(depth);
+  const out: string[] = [];
+  for (const f of d.facts) out.push(`${pad}${f.label ? `${f.label}: ` : ""}${f.value}`);
+  for (const t of d.tables) {
+    out.push(`${pad}${t.title}`);
+    for (const r of t.rows) out.push(`${pad}  ${r.join(" · ")}`);
+    if (t.more) out.push(`${pad}  و ${t.more} كمان`);
+  }
+  for (const s of d.sections) {
+    out.push(`${pad}${s.title}`);
+    out.push(docToText(s.doc, depth + 1));
+  }
+  return out.join("\n");
+}
+
 /** Does the document say nothing at all? (the screen then says «ما في تفاصيل» instead of an empty box) */
 export const isEmptyDoc = (d: ReportDoc): boolean => !d.facts.length && !d.tables.length && d.sections.every((s) => isEmptyDoc(s.doc));

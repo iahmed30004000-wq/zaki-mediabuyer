@@ -259,7 +259,7 @@ const BOARD_AR: Record<string, string> = Object.fromEntries(TASK_BOARDS.map((b) 
 
 export function tasksOutput(list: TaskView[], boards: { key: string; label: string }[] = []): ToolOutput {
   const boardName = (k: string) => boards.find((b) => b.key === k)?.label ?? BOARD_AR[k] ?? k;
-  const source: SourceRef = { id: "tasks:board", label: "المهام", href: "/tasks" };
+  const source: SourceRef = { id: "tasks:board", label: "المهام", href: "/tasks/team" };
   const by: Record<string, number> = {};
   for (const t of list) by[COLUMN_AR[t.status] ?? t.status] = (by[COLUMN_AR[t.status] ?? t.status] ?? 0) + 1;
   const facts: Fact[] = Object.entries(by).map(([label, n]) => ({ label: `مهام «${label}»`, value: String(n), raw: n, source: source.id }));

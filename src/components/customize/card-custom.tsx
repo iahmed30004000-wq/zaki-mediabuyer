@@ -5,6 +5,7 @@ import { ChevronDown, Save } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import type { ButtonCfgT, Entity, FieldCfgT } from "@/core/customize";
 import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/call";
 import { FieldChips, FieldInput, RunButton, type CardValues } from "./card-fields";
 
 /** What a screen needs to draw the owner's fields and buttons on one kind of card (the task board has its own sheet for it). */
@@ -38,7 +39,7 @@ export function CardCustom({ entity, entityId, custom, canEdit }: { entity: Enti
     setBusy(true);
     // only what changed is sent; an emptied field clears
     const body = { entity, entityId, values: Object.fromEntries(changed.map((f) => [f.id, current(f) === "" ? null : current(f)])) };
-    const r = await fetch("/api/ui/values", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    const r = await safeFetch("/api/ui/values", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     const d = (await r?.json().catch(() => ({}))) as { error?: string; demo?: boolean; values?: CardValues };
     setBusy(false);
     if (!r || !r.ok) return toast(d?.error ?? "ما انحفظ، جرّب كمان مرة", "error");

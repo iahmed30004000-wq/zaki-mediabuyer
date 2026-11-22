@@ -1000,7 +1000,7 @@ export function suggestMerges(i: SuggestInput): Suggestion[] {
     }
   }
 
-  if (i.taskGroups > 0) out.push({ id: "tasks", kind: "tasks", text: `${i.taskGroups} ${i.taskGroups === 1 ? "مجموعة" : "مجموعات"} مهام شبه بعض — ادمجها من لوحة المهام`, href: "/tasks" });
+  if (i.taskGroups > 0) out.push({ id: "tasks", kind: "tasks", text: `${i.taskGroups} ${i.taskGroups === 1 ? "مجموعة" : "مجموعات"} مهام شبه بعض — ادمجها من لوحة المهام`, href: "/tasks/team" });
 
   const seen = new Map<string, { key: string; name: string }>();
   for (const w of i.workflows) {

@@ -24,7 +24,7 @@ export default async function PrintWorkPage() {
         <PrintButton />
       </header>
       <p className="text-sm">
-        {counters.total} مهمة · شغّالة {counters.running} · مشكلة {counters.problem} · جاية {counters.upcoming} · عند الطلب {counters.manual} · موقوفة أو خلصت {counters.off}
+        {counters.total} مهمة · مفعّلة {counters.running} · مشكلة {counters.problem} · جاية {counters.upcoming} · عند الطلب {counters.manual} · مطفية أو خلصت {counters.off}
       </p>
       {(["ads", "ops"] as const).map((d) => {
         const list = jobs.filter((j) => j.domain === d);

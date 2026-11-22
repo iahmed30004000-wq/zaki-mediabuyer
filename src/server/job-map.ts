@@ -62,6 +62,57 @@ export async function listDuplicates(): Promise<DuplicatePair[]> {
   return suggestDuplicates(rows.map((r) => ({ key: r.key, name: r.name, number: r.number, domain: r.domain, schedule: r.schedule, assigneeKey: r.assigneeKey, enabled: r.enabled, createdAt: r.createdAt, runs: count.get(r.id) ?? 0 })));
 }
 
+/** The jobs the site planted (the first seed) that never ran once: the owner may put them away in the same tidy-up (docs/rebuild-v6/01-model.md §12). */
+export async function listNeverRun(): Promise<{ key: string; name: string; number: number | null }[]> {
+  const seeded = await db.workflow.findMany({ where: { archivedAt: null, mergedInto: null, source: "seed" }, select: { id: true, key: true, name: true, number: true } });
+  if (!seeded.length) return [];
+  const ran = await db.workflowRun.groupBy({ by: ["workflowId"], where: { workflowId: { in: seeded.map((s) => s.id) } }, _count: { _all: true } });
+  const has = new Set(ran.map((r) => r.workflowId));
+  return seeded.filter((s) => !has.has(s.id)).map((s) => ({ key: s.key, name: s.name, number: s.number }));
+}
+
+export interface TidyInput {
+  /** «هاي هي» — the owner picked each pair: `drop` joins `keep` */
+  merges: { keep: string; drop: string }[];
+  /** the jobs that never ran, put away */
+  archive: string[];
+  /** renumber 1…N when everything else is done */
+  renumber: boolean;
+}
+
+export interface TidyResult {
+  merged: number;
+  archived: number;
+  renumbered: { changed: number; total: number } | null;
+  /** what was refused, in words (the rest went through) */
+  refused: string[];
+}
+
+/**
+ * «نظّف المكرّر» (v6 · P3): the owner's tidy-up of the map in one press — the pairs he chose are merged (`mergeJobs`), the jobs that never ran are put away (nothing is deleted),
+ * and the map is renumbered 1…N. A step that is refused (a job that was merged meanwhile, say) is reported and the rest goes on; nothing here touches Meta.
+ */
+export async function tidyJobs(input: TidyInput, actor: Actor, now = new Date()): Promise<TidyResult> {
+  const out: TidyResult = { merged: 0, archived: 0, renumbered: null, refused: [] };
+  for (const m of input.merges) {
+    try {
+      await mergeJobs(m.keep, m.drop, actor, now);
+      out.merged++;
+    } catch (e) {
+      if (!(e instanceof MergeRefused)) throw e;
+      out.refused.push(`${m.drop}: ${e.message}`);
+    }
+  }
+  const keys = [...new Set(input.archive)];
+  if (keys.length) {
+    const r = await db.workflow.updateMany({ where: { key: { in: keys }, archivedAt: null }, data: { archivedAt: now, enabled: false } });
+    out.archived = r.count;
+    await audit(actor, "workflow.archive_unrun", { type: "workflow", id: "map" }, { after: { keys: keys.slice(0, 30), archived: r.count } });
+  }
+  if (input.renumber && (out.merged > 0 || out.archived > 0)) out.renumbered = await renumberJobs(actor);
+  return out;
+}
+
 export interface MergeResult {
   keep: string;
   drop: string;

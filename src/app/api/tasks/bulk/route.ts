@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
+import { assertTasksInScope } from "@/server/task-scope";
 import { TaskBulkInput, bulkUpdateTasks } from "@/server/tasks";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export async function POST(req: Request) {
     if (caller.demo) return NextResponse.json({ ok: true, demo: true });
     const parsed = TaskBulkInput.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم: " + parsed.error.issues.slice(0, 2).map((i) => i.message).join(" · "));
+    // S-19: a person whose scope is their own team changes the tasks of that team only — checked before anything is written
+    await assertTasksInScope(caller, parsed.data.ids);
     return NextResponse.json({ ok: true, ...(await bulkUpdateTasks(parsed.data, { type: "user", id: caller.id })) });
   } catch (e) {
     return errorResponse(e);

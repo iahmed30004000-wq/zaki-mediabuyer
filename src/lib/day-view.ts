@@ -10,6 +10,7 @@ import {
   approvalItem, countItems, dayBounds, dayState, dayTitle, decisionItem, dueItem, expiryItem, groupItems, handoffItem, runItem, scheduledItems, taskDoneItem, videoItem,
   type DayGroup, type DayItem, type DayState,
 } from "@/core/day";
+import { WORKDAY_START_HOUR, workdayBounds, workdayOf } from "@/core/timeline";
 import { SEED_WORKFLOWS } from "@/core/workflow";
 import { db } from "@/server/db";
 import { writeMode } from "@/meta/write";
@@ -28,9 +29,14 @@ export interface DayData {
 
 const CAP = 300;
 
-export async function loadDay(day: string, now = new Date()): Promise<DayData> {
-  const { from, to } = dayBounds(day);
-  const state = dayState(day, now);
+/**
+ * `workday: true` reads the day as the owner lives it — 06:00 to 06:00 on the Amman clock (W-16), so the night round after midnight is part of the evening before — instead of
+ * the calendar day (midnight to midnight) the old screens use.
+ */
+export async function loadDay(day: string, now = new Date(), opts: { workday?: boolean } = {}): Promise<DayData> {
+  const { from, to } = opts.workday ? workdayOf(day) : dayBounds(day);
+  // the working day that `now` belongs to starts on the key of (now − 6 hours): until 06:00 «today» is still yesterday's day
+  const state = opts.workday ? dayState(day, new Date(now.getTime() - WORKDAY_START_HOUR * 3_600_000)) : dayState(day, now);
   const planFrom = state === "today" ? now : from;
   const planning = state !== "past";
   const demo = process.env.MOCK_MODE === "1";
@@ -80,7 +86,7 @@ export async function loadDay(day: string, now = new Date()): Promise<DayData> {
   }
 
   const g = { done: groupItems(done), planned: groupItems(planned) };
-  return { demo, day, today: ammanKey(now), title: dayTitle(day, now), state, done: g.done, planned: g.planned, counts: { done: countItems(g.done), planned: countItems(g.planned) } };
+  return { demo, day, today: opts.workday ? workdayBounds(now).key : ammanKey(now), title: dayTitle(day, opts.workday ? new Date(now.getTime() - WORKDAY_START_HOUR * 3_600_000) : now), state, done: g.done, planned: g.planned, counts: { done: countItems(g.done), planned: countItems(g.planned) } };
 }
 
 /** `?day=2026-11-14` → a valid day; anything else is today. */

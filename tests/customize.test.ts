@@ -428,7 +428,7 @@ describe("the duplicates it suggests merging", () => {
     c = { ...c, buttons: [...c.buttons, { id: "bt-2", entity: "task", label: "ابعت", workflow: "daily", confirm: true }] };
     const s = suggestMerges({ ...base, cfg: c, taskGroups: 2, workflows: [{ key: "a", name: "فحص الصباح" }, { key: "b", name: "فحص  الصباح" }, { key: "c", name: "غيره" }] });
     expect(s.find((x) => x.kind === "button")).toMatchObject({ op: { op: "button.archive", id: "bt-2" } });
-    expect(s.find((x) => x.kind === "tasks")).toMatchObject({ href: "/tasks" });
+    expect(s.find((x) => x.kind === "tasks")).toMatchObject({ href: "/tasks/team" });
     expect(s.find((x) => x.kind === "workflow")).toMatchObject({ href: "/workflow" });
     expect(s.filter((x) => x.kind === "workflow")).toHaveLength(1);
     expect(suggestMerges({ ...base, cfg: emptyUi() })).toEqual([]);

@@ -145,3 +145,19 @@ export function buildLive(input: { actors: LiveActor[]; jobs: LiveJob[]; runs: L
     .sort((x, y) => x.key.localeCompare(y.key));
   return { at: now.toISOString(), agents, runs, queue };
 }
+
+/** How often a screen asks for the live answer: every 5 seconds while a run is going (queued · running · waiting), every 30 otherwise (the query also pauses when the tab is hidden). */
+export const LIVE_POLL_MS = { busy: 5_000, idle: 30_000 } as const;
+export const livePollMs = (out: Pick<LiveOut, "runs"> | undefined): number => (out && out.runs.length > 0 ? LIVE_POLL_MS.busy : LIVE_POLL_MS.idle);
+
+/**
+ * A short text that changes exactly when something a screen draws has changed (a run began, moved to another status or step, spoke, or went away; a request was taken). A screen that
+ * was drawn on the server asks for the live answer, compares the signature with the last one, and reads itself again only when it differs — so it follows a run without a reload and
+ * without redrawing for nothing. `jobKey` / `runId` narrow it to what the screen shows; no filter = everything live.
+ */
+export function liveSignature(out: LiveOut | undefined, filter: { jobKey?: string; runId?: string } = {}): string | null {
+  if (!out) return null;
+  const runs = out.runs.filter((r) => (!filter.jobKey || r.jobKey === filter.jobKey) && (!filter.runId || r.id === filter.runId));
+  const queue = out.queue.filter((q) => !filter.jobKey || q.jobKey === filter.jobKey);
+  return [...runs.map((r) => `${r.id}:${r.status}:${r.heartbeatAt ?? ""}:${r.steps.map((s) => s.lamp[0]).join("")}`).sort(), ...queue.map((q) => `q:${q.id}`).sort()].join("|");
+}

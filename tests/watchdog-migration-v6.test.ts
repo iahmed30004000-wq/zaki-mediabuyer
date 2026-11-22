@@ -18,9 +18,8 @@ const code = sql
   .join("\n");
 
 describe("the migration is additive and safe", () => {
-  it("is the newest one, after the engine's (P1-1)", () => {
+  it("comes after the engine's (P1-1); a later phase's own migration (P3's data-only one) comes after it", () => {
     const all = readdirSync(dir).filter((d) => /^\d{14}_/.test(d)).sort();
-    expect(all[all.length - 1]).toBe(name);
     expect(all.indexOf(name)).toBeGreaterThan(all.findIndex((d) => d.endsWith("_v6_engine")));
   });
 

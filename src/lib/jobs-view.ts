@@ -4,6 +4,7 @@
  */
 import { ADVICE_AR, DOMAIN_AR, KIND_AR, branchNumbers, jobCounters, jobStatus, scheduleWords, type JobAdvice, type JobBadge, type JobCounters, type JobDomain, type JobKind } from "@/core/jobs";
 import { EXECUTOR_AR, stepOrder, type Executor, type WfGraph } from "@/core/workflow";
+import { directoryNames } from "@/server/directory";
 import { listHandoffs } from "@/server/handoffs";
 import type { WorkflowCard } from "@/server/workflows";
 import { loadWorkflowCards } from "./workflow-view";
@@ -32,6 +33,17 @@ export interface JobView {
   words: string;
   /** who runs it: «Claude (MCP)» */
   runner: string;
+  /** `Actor.key` of whoever carries it out (null: not set), and the name to show for it */
+  assigneeKey: string | null;
+  assigneeName: string;
+  /** who wakes it, the grace and the silence it is given (docs/rebuild-v6/01-model.md §5) */
+  wake: string;
+  graceMin: number;
+  maxRunMin: number;
+  notifyOn: string[];
+  ownerEdited: string[];
+  recipe: string | null;
+  version: number;
   branches: BranchView[];
   /** the last run: how it ended and its one line */
   last: { ok: boolean | null; at: string; summary: string | null } | null;
@@ -45,9 +57,15 @@ export interface JobView {
   source: string;
 }
 
+/** The name to show for whoever carries a job out: the directory's, «الموقع» for the site itself, «بلا مسؤول» when nobody is set. */
+export function whoName(key: string | null, names: Readonly<Record<string, string>>): string {
+  if (!key) return "بلا مسؤول";
+  return names[key] ?? (key === "site" ? "الموقع" : key === "claude" ? "Claude" : key);
+}
+
 const isAdvice = (v: string | null): v is JobAdvice => v === "keep" || v === "merge" || v === "cancel" || v === "lighten" || v === "think";
 
-export function toJobView(c: WorkflowCard, stuck: ReadonlySet<string>, now: Date): JobView {
+export function toJobView(c: WorkflowCard, stuck: ReadonlySet<string>, now: Date, names: Readonly<Record<string, string>> = {}): JobView {
   const domain: JobDomain = c.domain === "ops" ? "ops" : "ads";
   const kind: JobKind = c.kind === "once" || c.kind === "window" || c.kind === "manual" ? c.kind : "recurring";
   const like = { enabled: c.enabled, kind, schedule: c.schedule, scheduleText: c.scheduleText, runsAt: c.runsAt, endsAt: c.endsAt, finishedAt: c.finishedAt };
@@ -65,9 +83,18 @@ export function toJobView(c: WorkflowCard, stuck: ReadonlySet<string>, now: Date
     kindLabel: KIND_AR[kind],
     description: c.description,
     enabled: c.enabled,
-    badge: jobStatus(like, c.lastRun, now, stuck.has(c.key)),
+    badge: jobStatus(like, c.lastRun, now, stuck.has(c.key), whoName(c.assigneeKey, names)),
     words: scheduleWords({ schedule: c.schedule, scheduleText: c.scheduleText, kind, runsAt: c.runsAt }, now),
     runner: EXECUTOR_AR[c.executor as Executor] ?? c.executor,
+    assigneeKey: c.assigneeKey,
+    assigneeName: whoName(c.assigneeKey, names),
+    wake: c.wake,
+    graceMin: c.graceMin,
+    maxRunMin: c.maxRunMin,
+    notifyOn: c.notifyOn,
+    ownerEdited: c.ownerEdited,
+    recipe: c.recipe,
+    version: c.version,
     branches,
     last: c.lastRun ? { ok: c.lastRun.status === "ok" ? true : c.lastRun.status === "failed" ? false : null, at: c.lastRun.startedAt, summary: c.lastRun.summary } : null,
     next: c.nextRun,
@@ -91,9 +118,10 @@ export async function loadJobs(now = new Date()): Promise<JobsData> {
   const { cards, demo } = await loadWorkflowCards(now);
   const open = demo ? [] : await listHandoffs({ status: ["open", "claimed"], limit: 200 });
   const stuck = new Set(open.map((h) => h.workflowKey));
+  const names = await directoryNames().catch(() => ({}) as Record<string, string>);
   const jobs = cards
     .filter((c) => c.source !== "archived")
-    .map((c) => toJobView(c, stuck, now))
+    .map((c) => toJobView(c, stuck, now, names))
     .sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));
   return { demo, jobs, counters: jobCounters(jobs.map((j) => j.badge)) };
 }

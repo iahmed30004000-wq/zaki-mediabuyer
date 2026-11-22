@@ -23,12 +23,22 @@ export async function runTour(key: string) {
 /** The «؟» of every page: what this page is, the next step, and «فرجيني». */
 export function PageHelp({ place }: { place: { key: string; label: string } }) {
   const [open, setOpen] = useState(false);
-  const g = guideOf(place.key);
   return (
     <>
       <IconButton aria-label="شو هاي الصفحة؟" title="شو هاي الصفحة؟" onClick={() => setOpen(true)}>
         <CircleHelp className="size-5" aria-hidden />
       </IconButton>
+      <PageHelpSheet place={place} open={open} onOpenChange={setOpen} />
+    </>
+  );
+}
+
+/** The sheet itself: opened by the «؟» of the old header, or by «شو هاي الصفحة؟» in the «⋯» menu of the new one. */
+export function PageHelpSheet({ place, open, onOpenChange }: { place: { key: string; label: string }; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const setOpen = onOpenChange;
+  const g = guideOf(place.key);
+  return (
+    <>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
           <SheetHeader>

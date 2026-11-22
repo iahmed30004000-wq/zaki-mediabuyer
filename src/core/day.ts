@@ -147,7 +147,7 @@ export function scheduledItems(w: { name: string; executor: string }, times: str
 }
 
 export function dueItem(t: { title: string; dueAt: string; assignee: string | null; priority: string }): DayItem {
-  return { at: t.dueAt, actor: t.assignee ?? "owner", kind: "due", text: `موعدها: ${t.title}`, tone: t.priority === "urgent" ? "warn" : undefined, href: "/tasks" };
+  return { at: t.dueAt, actor: t.assignee ?? "owner", kind: "due", text: `موعدها: ${t.title}`, tone: t.priority === "urgent" ? "warn" : undefined, href: "/tasks/team" };
 }
 
 export function expiryItem(a: { title: string; at: string }): DayItem {
