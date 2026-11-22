@@ -200,8 +200,7 @@ describe("what is refused — and nothing is written", () => {
     await refused(draft({ assigneeKey: "gone", when: FUTURE }), 400, "assigneeKey");
   });
 
-  it("the site by itself: its recipes are not built yet, so a draft that wants one is told so; the site with free steps is refused by the draft's own rule", async () => {
-    await refused(draft({ assigneeKey: "site", steps: [], recipe: { name: "stock_alert", params: {} }, when: FUTURE }), 400, "recipe", /وصفات/);
+  it("the site by itself carries out recipes only: with free steps it is refused by the draft's own rule (the recipes themselves are tests/recipes-run.test.ts)", async () => {
     await refused(draft({ assigneeKey: "site", when: FUTURE }), 400, "assigneeKey");
   });
 

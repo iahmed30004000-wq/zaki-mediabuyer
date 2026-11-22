@@ -20,8 +20,11 @@ import {
 } from "@/core/assistant";
 import { effectiveBoards } from "@/core/customize";
 import { addDays, ammanKey, isKey } from "@/core/dates";
+import type { DirEntry } from "@/core/directory";
+import { PERSON_REPEAT_REFUSAL, JobDraftSchema, VERBS, draftSentence, isPersonRepeat, normalizeDraft, suggestName, validateDraft, type JobDraft } from "@/core/job-draft";
 import { SET_KEYS } from "@/core/numbers";
 import { refuseIfPrivate } from "@/core/push-rows";
+import { RECIPE_TITLE, RECIPES, WATCH_METRICS, checkRecipeTargets, suggestRecipeName } from "@/core/recipes";
 import { can } from "@/core/roles";
 import { TASK_COLUMNS } from "@/core/tasks";
 import { EdgeSchema, GraphSchema, NodeSchema, stepOrder } from "@/core/workflow";
@@ -37,6 +40,8 @@ import { HttpError, type Caller } from "../auth";
 import { getUiConfig } from "../ui-config";
 import { db } from "../db";
 import { propose } from "../changes";
+import { loadDirectory, taskKeysFor } from "../directory";
+import { assertTasksInScope } from "../task-scope";
 import { TASK_STATUSES, TaskCreateInput, TaskRefused, TaskUpdateInput, createTask, listTasks, updateTask, type TaskView } from "../tasks";
 import { graphTexts, listWorkflows, type WorkflowCard } from "../workflows";
 
@@ -80,6 +85,12 @@ export interface ToolDeps {
   createTask: typeof createTask;
   updateTask: typeof updateTask;
   propose: (p: ProposeIn, caller: Caller) => Promise<Proposed>;
+  /** the team directory (who a job can be given to) and the codes of the products the site knows: what `draft_job` checks a draft against */
+  directory: () => Promise<DirEntry[]>;
+  productCodes: () => Promise<string[]>;
+  /** whose tasks this caller may see (null: everybody's) and a check that tasks are theirs to change — the same scope the team board uses */
+  taskKeys: (caller: Caller) => Promise<string[] | null>;
+  tasksInScope: (caller: Caller, ids: string[]) => Promise<void>;
 }
 
 // ───────────────────────────── the real loaders ─────────────────────────────
@@ -142,6 +153,10 @@ export const defaultDeps: ToolDeps = {
   createTask,
   updateTask,
   propose: proposeReal,
+  directory: () => loadDirectory(),
+  productCodes: async () => (await db.productEconomics.findMany({ select: { productCode: true } })).map((p) => p.productCode),
+  taskKeys: (caller) => taskKeysFor(caller),
+  tasksInScope: (caller, ids) => assertTasksInScope(caller, ids),
 };
 
 // ───────────────────────────── helpers ─────────────────────────────
@@ -293,7 +308,10 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
       run: (a, ctx) =>
         guarded(async () => {
           const f = a as { status?: string[]; assignee?: string; board?: string; limit?: number };
-          return tasksOutput(await deps.tasks({ status: f.status, assignee: f.assignee, board: f.board, limit: f.limit ?? 30, doneWithinDays: 14 }, ctx.now), await deps.boards());
+          const rows = await deps.tasks({ status: f.status, assignee: f.assignee, board: f.board, limit: f.limit ?? 30, doneWithinDays: 14 }, ctx.now);
+          // the same scope the team board has: a person who looks after their own tasks (or their team's) is not told about everybody else's
+          const keys = await deps.taskKeys(ctx.caller);
+          return tasksOutput(keys === null ? rows : rows.filter((t) => !!t.assignee && keys.includes(t.assignee)), await deps.boards());
         }),
     },
     {
@@ -399,7 +417,8 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
         guarded(async () => {
           if (ctx.caller.demo) return toolError("المساعد ما بيكتب بالوضع التجريبي (بدون تسجيل دخول).");
           const i = a as z.infer<typeof TaskUpdateInput>;
-          const t = await deps.updateTask(i, { type: "user", id: ctx.caller.id } satisfies Actor);
+          await deps.tasksInScope(ctx.caller, [i.id]);
+          const t = await deps.updateTask(i,{ type: "user", id: ctx.caller.id } satisfies Actor);
           if (!t) return toolError("المهمة مش موجودة — جيب الرقم من get_tasks");
           const parts = [i.status ? `الحالة ← ${COLUMN_LABEL[i.status] ?? i.status}` : "", i.assignee ? `المسؤول ← ${i.assignee}` : "", i.due_at === null ? "بلا موعد" : i.due_at ? `الموعد ← ${i.due_at.slice(0, 10)}` : "", i.priority ? `الأولوية ← ${i.priority}` : "", i.archived ? "انأرشفت" : "", i.note !== undefined ? "الملاحظة تغيّرت" : ""].filter(Boolean);
           const art: Artifact = { kind: "task_updated", id: t.id, title: t.title, change: parts.join(" · ") || "تحدّثت", href: "/tasks/team" };
@@ -558,8 +577,54 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           return toolData({ ok: true, saved: false, variables, note: "البرومبت ظهر للمالك بطاقة قابلة للنسخ." }, { artifacts: [art] });
         }),
     },
+    {
+      name: "draft_job",
+      access: "read",
+      status: "عم أجهّز المهمة…",
+      description: DRAFT_JOB_HELP,
+      input: JobDraftSchema,
+      run: (a, ctx) =>
+        guarded(async () => {
+          const d0 = normalizeDraft(a as JobDraft);
+          const texts = [d0.name, ...d0.steps.map((s) => s.text), ...(d0.recipe ? Object.values(d0.recipe.params).filter((v): v is string => typeof v === "string") : [])];
+          const refusal = refuseIfPrivate(...texts);
+          if (refusal) return toolError(refusal);
+
+          const directory = await deps.directory();
+          const active = directory.filter((e) => e.active);
+          const who = active.find((e) => e.key === d0.assigneeKey);
+          if (!who) return toolError(`ما في حدا بهالمفتاح «${d0.assigneeKey}» بدليل الفريق. المفاتيح: ${active.map((e) => `${e.key} (${e.name}${e.kind === "person" ? " — شخص" : ""})`).join("، ")}`);
+          // a name is suggested the way the screen suggests it, when the model left it out
+          const named = d0.name ? d0 : { ...d0, name: d0.recipe ? suggestRecipeName(d0.recipe.name, d0.recipe.params) : suggestName(d0.steps) };
+          const d = normalizeDraft(named);
+
+          const check = validateDraft(d, ctx.now);
+          if (!check.ok) return toolError(`${check.field}: ${check.message}`);
+          if (isPersonRepeat(d, who.kind)) return toolError(PERSON_REPEAT_REFUSAL);
+          if (d.recipe) {
+            const target = checkRecipeTargets(d.recipe, { productCodes: await deps.productCodes(), directory: active });
+            if (target) return toolError(`${target.field}: ${target.message}`);
+          }
+          const sentence = draftSentence(d, Object.fromEntries(directory.map((e) => [e.key, e.name])));
+          const art: Artifact = { kind: "job_draft", draft: d, sentence };
+          return toolData(
+            { ok: true, saved: false, sentence, note: "المسودة ظهرت للمالك بطاقة — هو بيراجعها ويعتمدها من «مهمة جديدة». لسا ما انحفظ شي." },
+            { artifacts: [art], sources: [{ id: "jobs:new", label: "مهمة جديدة", href: "/tasks/new" }] },
+          );
+        }),
+    },
   ];
 }
+
+const DRAFT_JOB_HELP = [
+  "جهّز مسودة مهمة من جملة المالك (مثلاً «كل يوم الساعة 9:30 اقرا المخزون وبلّغني لو في شي ناقص»). ما بيتحفظ شي: بتظهر للمالك بطاقة «هيك فهمتها — صح؟» وهو بيعتمدها أو بيعدّلها. إذا ناقصك شي ما بتعرفه (مين بينفّذها، أو إيمتى) اسأله بدل ما تخمّن.",
+  "الحقول: name اسم قصير · domain: ads (إعلانات) أو ops (فريق وتشغيل) · assigneeKey: مفتاح الوكيل أو الشخص من دليل الفريق، أو site إذا الموقع بينفّذها لحاله بوصفة.",
+  "when: now (هلق) · once {date:YYYY-MM-DD,time:HH:MM} · daily {time} · hourly {from,to,everyHours:1|2|3|4|6} · weekly {days:[0..6] (0 الأحد),time} · window {everyHours,until:ISO}. الأوقات كلها بتوقيت عمّان بصيغة 24 ساعة. مرة وحدة بالماضي مرفوضة.",
+  `steps (للوكلاء والأشخاص): كل خطوة {verb,text}: verb واحد من ${VERBS.join(" · ")} (قراءة · مقارنة · قرّر (إذا) · نفّذ · استنى موافقة المالك · بلّغ · اطلب من حدا). decide ممكن معها elseGoto: رقم خطوة بعد اللي بعدها (من 0)، أو "end". لحد 20 خطوة، والنص لحد 100 حرف. ما تحط أرقام هواتف ولا إيميلات ولا مفاتيح.`,
+  "notifyOn: done (لما تخلص) · stuck (لما توقف) · missed (لما تفوت) · failed (لما تفشل). الافتراضي المعتاد: stuck و missed و failed.",
+  `الوصفات (لما الموقع هو المنفّذ، assigneeKey = "site" وsteps فاضية): recipe {name, params}: ${RECIPES.map((r) => `${r} = ${RECIPE_TITLE[r]}`).join(" · ")}. params: stock_alert {product: "all" أو كود المنتج} · daily_summary {period: today|yesterday} · remind {person: مفتاح شخص (مش وكيل), text: نص التذكير} · metric_watch {metric: ${WATCH_METRICS.map((m) => m.key).join("|")} (${WATCH_METRICS.filter((m) => m.perProduct).map((m) => m.key).join("، ")} بس مع كود منتج، مش مع "all"), product: "all" أو كود, op: above|below, limit: رقم, period: today|yesterday|7d}.`,
+  "مهمة متكررة لشخص ما بتنفع (الشخص ما بيسجّل تشغيل): مرة وحدة بس، أو اعطها لوكيل. أي تغيير على الإعلانات بيضل بموافقة المالك: المهمة مسودة وصف شغل بس.",
+].join("\n");
 
 /** Used by the loop to check «may this person run a write tool». */
 export const canWrite = (caller: Caller) => can(caller.role, "ads.propose");

@@ -192,8 +192,9 @@ describe("the queue, on a database", () => {
     it("the default list is the requests of one agent: Claude sees Claude's, Hermes sees Hermes's", async () => {
       await requestRun("daily-check", owner, NOW);
       await requestRun("hermes-requests", owner, NOW);
-      expect((await listHandoffs({ assignee: "claude" })).map((x) => x.workflowKey)).toEqual(["daily-check"]);
-      expect((await listHandoffs({ assignee: "hermes" })).map((x) => x.workflowKey)).toEqual(["hermes-requests"]);
+      // the clock is the test's (min(10)): a request made at the fixed NOW ends 6 hours later, which the real clock has already passed
+      expect((await listHandoffs({ assignee: "claude" }, min(10))).map((x) => x.workflowKey)).toEqual(["daily-check"]);
+      expect((await listHandoffs({ assignee: "hermes" }, min(10))).map((x) => x.workflowKey)).toEqual(["hermes-requests"]);
     });
   });
 

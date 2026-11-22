@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { consult } from "@/agents/consultant";
-import { LIMITS } from "@/core/assistant";
+import { LIMITS, NOT_YOUR_NUMBERS, canConsult } from "@/core/assistant";
 import { can } from "@/core/roles";
-import { PrivacyRefusal } from "@/gateway/privacy";
-import { AssistantError, askAssistant } from "@/server/assistant";
+import { askAssistant } from "@/server/assistant";
 import { NO_KEY, OFF_BY_PRIVACY, assistantConfigured, assistantModel, externalModelsOff } from "@/server/assistant/config";
+import { failure } from "@/server/assistant/failure";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { isDemo } from "@/core/readiness";
 
@@ -34,17 +34,6 @@ export async function GET() {
   }
 }
 
-function failure(e: unknown): { status: number; message: string; code?: string } {
-  if (e instanceof PrivacyRefusal) {
-    const what = e.hits.map((h) => ({ phone: "رقم هاتف", email: "إيميل", token: "مفتاح" })[h]).join(" و");
-    return { status: 422, message: `رسالتك فيها ${what} — ما بدخل بيانات زبون ولا مفاتيح للموديل. شيله وجرّب كمان مرة.`, code: "privacy" };
-  }
-  if (e instanceof AssistantError) return { status: e.status, message: e.message, code: e.code };
-  if (e instanceof HttpError) return { status: e.status, message: e.message };
-  console.error("[assistant]", e);
-  return { status: 500, message: "صار خطأ، جرّب كمان مرة." };
-}
-
 /**
  * POST /api/assistant — the smart assistant (v3 · H). With a Claude key it answers from the screens' own numbers through tools,
  * streaming what it is doing (NDJSON: `status` lines, then one `final` or `error`). Without one — or while PRIVACY_MODE keeps
@@ -63,6 +52,8 @@ export async function POST(req: Request) {
     }
 
     if (!(await assistantConfigured()) || externalModelsOff()) {
+      // the consultant answers from the code's overview (money inside it): only a role that may see the ads and the money is given it
+      if (!canConsult(caller.role)) return NextResponse.json({ mode: "consultant", by: "code", answer: NOT_YOUR_NUMBERS, facts: [], sources: [], artifacts: [], verified: true, unsupported: [], notice: externalModelsOff() ? OFF_BY_PRIVACY : NO_KEY });
       const c = await consult(question, place?.label ?? "");
       return NextResponse.json({
         mode: "consultant",

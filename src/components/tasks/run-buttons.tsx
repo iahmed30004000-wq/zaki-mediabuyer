@@ -23,6 +23,10 @@ interface Answer {
   demo?: boolean;
   created?: boolean;
   since?: string;
+  /** a recipe: the site carried it out right now, and this is how it ended */
+  site?: boolean;
+  status?: "ok" | "failed";
+  summary?: string;
 }
 
 /**
@@ -41,7 +45,9 @@ export function RunButtons({ jobKey, runId, actions, canControl, className }: { 
       const r = key === "run_now" ? await callJson<Answer>(`/api/workflow/${encodeURIComponent(jobKey)}/run`, { method: "POST" }) : await callJson<Answer>(`/api/jobs/${encodeURIComponent(jobKey)}/runs/${encodeURIComponent(runId ?? "")}/${key}`, { method: "POST", body: {} });
       if (!r.ok) return toast(r.error ?? "صار خطأ", "error");
       if (r.data?.demo) return toast("بالوضع التجريبي ما تغيّر شي", "info");
-      if (key === "run_now") {
+      if (key === "run_now" && r.data?.site) {
+        toast(r.data.status === "failed" ? `اشتغلت من الموقع ووقفت: ${r.data.summary ?? ""}`.trim() : `اشتغلت من الموقع ✓ ${r.data.summary ?? ""}`.trim(), r.data.status === "failed" ? "error" : "success");
+      } else if (key === "run_now") {
         const since = r.data?.created === false && r.data.since ? Math.max(0, Math.round((Date.now() - Date.parse(r.data.since)) / 60_000)) : null;
         toast(since !== null ? `مطلوبة ${waitingText(since)} — لسا ما حدا استلمها` : "انطلبت — بتشتغل بأقرب فرصة", since !== null ? "info" : "success");
       } else toast(DONE[key], "success");

@@ -9,6 +9,7 @@ import { queueAssignee } from "@/core/handoff";
 import { PERSON_REPEAT_REFUSAL, draftToJob, draftToTask, isPersonRepeat, isPersonTask, normalizeDraft, validateDraft, type JobDraft } from "@/core/job-draft";
 import { findNameClash } from "@/core/job-map";
 import { refuseIfPrivate } from "@/core/push-rows";
+import { checkRecipeTargets } from "@/core/recipes";
 import { slotRef } from "@/core/slot-for";
 import { ensureLayout } from "@/core/workflow-edit";
 import { audit, type Actor } from "./audit";
@@ -16,6 +17,7 @@ import { db } from "./db";
 import { loadDirectory } from "./directory";
 import { HandoffRefused, createHandoff } from "./handoffs";
 import { nextJobNumber, withNumberLock } from "./job-map";
+import { RecipeRefused, runRecipe } from "./recipes";
 import { createTask } from "./tasks";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
@@ -26,12 +28,6 @@ export class DraftRefused extends Error {
     super(message);
   }
 }
-
-/**
- * The site's own recipes (docs/rebuild-v6/01-model.md §9) are built in P4-2. Until then a draft that wants one is refused plainly: a job the site «carries out itself» that nothing
- * carries out would only be a job that never runs.
- */
-export const RECIPES_BUILT = false;
 
 export type CreatedJob =
   | {
@@ -53,12 +49,20 @@ export async function createJobFromDraft(draft: JobDraft, actor: Actor, now = ne
   const d = normalizeDraft(draft);
   const check = validateDraft(d, now);
   if (!check.ok) throw new DraftRefused(check.message, 400, check.field);
-  if (d.recipe && !RECIPES_BUILT) throw new DraftRefused("وصفات الموقع لسا ما انبنت — اختار حدا من الفريق يعملها", 400, "recipe");
-  const private_ = refuseIfPrivate(d.name, ...d.steps.map((s) => s.text));
-  if (private_) throw new DraftRefused(private_, 400, "steps");
+  // the texts of a recipe (a reminder's words) are the owner's too: no phone, e-mail or key in them either
+  const private_ = refuseIfPrivate(d.name, ...d.steps.map((s) => s.text), ...(d.recipe ? Object.values(d.recipe.params).filter((v): v is string => typeof v === "string") : []));
+  if (private_) throw new DraftRefused(private_, 400, d.recipe ? "recipe" : "steps");
 
-  const who = (await loadDirectory()).find((e) => e.key === d.assigneeKey && e.active);
+  const directory = await loadDirectory();
+  const who = directory.find((e) => e.key === d.assigneeKey && e.active);
   if (!who) throw new DraftRefused("هالشخص أو الوكيل مش بدليل الفريق", 400, "assigneeKey");
+  const labels: Record<string, string> = Object.fromEntries(directory.map((e) => [e.key, e.name]));
+  if (d.recipe) {
+    const products = await db.productEconomics.findMany({ select: { productCode: true, name: true } });
+    const refused = checkRecipeTargets(d.recipe, { productCodes: products.map((p) => p.productCode), directory });
+    if (refused) throw new DraftRefused(refused.message, 400, refused.field);
+    for (const p of products) labels[p.productCode] = p.name;
+  }
 
   // a repeating job for a person would never be answered (a person cannot log a run): it is refused, not saved to be marked missed at every slot
   if (isPersonRepeat(d, who.kind)) throw new DraftRefused(PERSON_REPEAT_REFUSAL, 400, "assigneeKey");
@@ -75,7 +79,7 @@ export async function createJobFromDraft(draft: JobDraft, actor: Actor, now = ne
   const clash = findNameClash(names, d.name);
   if (clash) throw new DraftRefused(`في مهمة بنفس الاسم («${clash.name}») — غيّر الاسم، أو عدّل المهمة اللي موجودة`, 409, "name");
 
-  const spec = draftToJob(d, now, { kind: who.kind });
+  const spec = draftToJob(d, now, { kind: who.kind, names: labels });
   let key = "";
   for (let i = 0; i < 10; i++) {
     key = `wf-${randomBytes(4).toString("hex").slice(0, 6)}`;
@@ -96,11 +100,12 @@ export async function createJobFromDraft(draft: JobDraft, actor: Actor, now = ne
         domain: spec.domain,
         executor: spec.executor,
         assigneeKey: spec.assigneeKey,
-        dataSource: "mcp",
+        dataSource: spec.recipe ? "api" : "mcp",
         permission: spec.permission,
         graph: json(graph),
         wake: spec.wake,
         notifyOn: spec.notifyOn,
+        ...(spec.recipe ? { recipe: spec.recipe, recipeParams: json(spec.recipeParams ?? {}) } : {}),
         source: "ui",
         // what the owner wrote here is his: a push of the agent's map does not write over it
         ownerEdited: OWNER_FIELDS_WRITTEN,
@@ -113,7 +118,16 @@ export async function createJobFromDraft(draft: JobDraft, actor: Actor, now = ne
   await audit(actor, "workflow.create", { type: "workflow", id: row.id }, { after: { key, name: spec.name, from: "builder", kind: spec.kind, assignee: spec.assigneeKey } });
 
   let asked: boolean | null = null;
-  if (spec.runNow && spec.runsAt) {
+  if (spec.runNow && spec.runsAt && spec.recipe) {
+    // «هلق» for a recipe: nobody in the queue could take it, so the site carries it out now, with the slot's own reference (the one-off finishes when it ends well)
+    try {
+      await runRecipe(key, actor, undefined, { ref: slotRef(spec.runsAt), scheduledFor: spec.runsAt, trigger: "schedule", now });
+      asked = true;
+    } catch (e) {
+      if (!(e instanceof RecipeRefused)) throw e;
+      asked = false;
+    }
+  } else if (spec.runNow && spec.runsAt) {
     // «هلق»: exactly the request the clock would make for this moment (the slot's own reference), so the run answers the slot and the one-off finishes when it is done
     try {
       await createHandoff({ workflow: key, kind: "manual_run", title: `شغّل «${spec.name}» هلق`.slice(0, 160), run_ref: slotRef(spec.runsAt), assignee: queueAssignee(spec.assigneeKey) }, actor, now, { scheduledFor: spec.runsAt, trigger: "schedule" });

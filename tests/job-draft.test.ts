@@ -285,7 +285,8 @@ describe("draftToJob", () => {
 
   it("a recipe is carried out by the site itself", () => {
     const j = draftToJob(draft({ assigneeKey: "site", steps: [], recipe: { name: "stock_alert", params: { days: 7 } } }), NOW);
-    expect(j).toMatchObject({ wake: "site_run", recipe: "stock_alert", recipeParams: { days: 7 }, executor: "system" });
+    // the parameters are the recipe's own: a key it does not know is dropped, the one it needs gets its default
+    expect(j).toMatchObject({ wake: "site_run", recipe: "stock_alert", recipeParams: { product: "all" }, executor: "system" });
   });
 
   it("a draft that is not sound is not turned into a job that looks fine: it throws", () => {
@@ -560,7 +561,7 @@ describe("moving the blocks", () => {
 describe("the words", () => {
   it("the bar under the builder: who · when · steps · who is told", () => {
     expect(draftSentence(draft(), { claude: "Claude الرئيسي" })).toBe("Claude الرئيسي · كل يوم 09:30 · 3 خطوات · بخبّرك لما توقف أو تفوت");
-    expect(draftSentence(draft({ assigneeKey: "site", steps: [], recipe: { name: "stock_alert", params: {} }, notifyOn: ["done", "stuck", "missed", "failed"] }))).toBe("الموقع لحاله · كل يوم 09:30 · وصفة جاهزة · بخبّرك لما تخلص أو توقف");
+    expect(draftSentence(draft({ assigneeKey: "site", steps: [], recipe: { name: "stock_alert", params: {} }, notifyOn: ["done", "stuck", "missed", "failed"] }))).toBe("الموقع لحاله · كل يوم 09:30 · نبّهني لما منتج يقرب يخلص · بخبّرك لما تخلص أو توقف");
     expect(draftSentence(draft({ steps: [{ verb: "read", text: "a" }], notifyOn: ["missed", "failed"] }))).toBe("claude · كل يوم 09:30 · خطوة وحدة · بخبّرك بس لو في شي مهم");
     expect(draftSentence(draft({ steps: [] }))).toContain("0 خطوات");
     expect(draftSentence(draft({ assigneeKey: "" }))).toMatch(/^مين؟/);

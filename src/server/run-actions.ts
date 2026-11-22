@@ -7,10 +7,12 @@ import type { Prisma } from "@prisma/client";
 import { can, type RoleKey } from "@/core/roles";
 import { isTerminalRun, resumePoint, retryNodeState, skipNodeState, stepAfter } from "@/core/run-state";
 import { GraphSchema, type NodeStates } from "@/core/workflow";
+import { isRecipeName } from "@/core/recipes";
 import { audit, type Actor } from "./audit";
 import { approvalCapability } from "./approvals";
 import { db } from "./db";
 import { HandoffRefused, createHandoff, reassignHandoff, type HandoffView } from "./handoffs";
+import { runRecipe } from "./recipes";
 import { logRun, runView, type RunView } from "./workflows";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
@@ -48,6 +50,12 @@ export async function retryRun(key: string, runId: string, actor: Actor, now = n
   const stoppedWaiting = run.status === "waiting" && Object.values(states).some((s) => s.status === "failed");
   if (run.status !== "failed" && run.status !== "lost" && !stoppedWaiting) throw new HandoffRefused("التشغيل مش واقف — ما في شي تعيد محاولته", 409);
   if (run.endReason === "cancelled") throw new HandoffRefused("إنت لغيت هالتشغيل — شغّل واحد جديد", 409);
+  // one of the site's own recipes: nobody in the queue could resume it from a step, and its steps are fixed — «أعد المحاولة» runs it again, now (the old run stays as it was)
+  if (wf.wake === "site_run" && isRecipeName(wf.recipe)) {
+    const again = await runRecipe(wf.key, actor, undefined, { now });
+    await audit(actor, "run.retry", { type: "workflow_run", id: run.id }, { after: { job: wf.key, recipe: wf.recipe, again: again.runId } });
+    return { run: runView(await db.workflowRun.findUniqueOrThrow({ where: { id: again.runId } })) };
+  }
   const graph = GraphSchema.parse(wf.graph);
   const point = resumePoint(graph, states);
   if (!point) throw new HandoffRefused("كل الخطوات خلصت — ما في شي تكمّله", 409);
@@ -73,6 +81,7 @@ export async function skipRunStep(key: string, runId: string, actor: Actor, now 
   const { wf, run, states } = await load(key, runId);
   if (run.status !== "failed" && run.status !== "lost" && run.status !== "waiting") throw new HandoffRefused("التشغيل مش واقف — ما في خطوة تتخطّاها", 409);
   if (run.endReason === "cancelled") throw new HandoffRefused("إنت لغيت هالتشغيل — شغّل واحد جديد", 409);
+  if (wf.wake === "site_run" && isRecipeName(wf.recipe)) throw new HandoffRefused("هاي وصفة جاهزة — خطواتها ثابتة وما بتنتخطّى منها خطوة. شغّلها كمان مرة", 409);
   const graph = GraphSchema.parse(wf.graph);
   const target = nodeId ? { id: nodeId } : (() => {
     const p = resumePoint(graph, states);

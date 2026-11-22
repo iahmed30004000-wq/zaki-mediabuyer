@@ -86,7 +86,7 @@ export interface Table {
   updateMany(a: { where?: Row; data: Row }): Promise<{ count: number }>;
   upsert(a: { where: Row; create: Row; update: Row }): Promise<Row>;
   count(a?: { where?: Row }): Promise<number>;
-  aggregate(a: { _max?: Record<string, true> }): Promise<{ _max: Record<string, unknown> }>;
+  aggregate(a: { where?: Row; _max?: Record<string, true>; _sum?: Record<string, true> }): Promise<{ _max: Record<string, unknown>; _sum: Record<string, number | null> }>;
   /** the one shape the code uses: `by` columns, `where`, and `_max` / `_count` */
   groupBy(a: { by: string[]; where?: Row; _max?: Record<string, true>; _count?: { _all: true } }): Promise<Row[]>;
   deleteMany(a?: { where?: Row }): Promise<{ count: number }>;
@@ -203,13 +203,19 @@ export function makeTable(defaults: () => Row, unique: string[][], clock: () => 
       for (const r of hit) rows.splice(rows.indexOf(r), 1);
       return { count: hit.length };
     },
-    async aggregate({ _max }) {
+    async aggregate({ where, _max, _sum }) {
+      const hit = rows.filter((x) => matches(x, where));
       const out: Record<string, unknown> = {};
       for (const k of Object.keys(_max ?? {})) {
-        const vals = rows.map((r) => r[k]).filter((v) => v !== null && v !== undefined);
+        const vals = hit.map((r) => r[k]).filter((v) => v !== null && v !== undefined);
         out[k] = vals.length ? vals.reduce((a, b) => ((time(a) as number) >= (time(b) as number) ? a : b)) : null;
       }
-      return { _max: out };
+      const sum: Record<string, number | null> = {};
+      for (const k of Object.keys(_sum ?? {})) {
+        const vals = hit.map((r) => r[k]).filter((v) => v !== null && v !== undefined);
+        sum[k] = vals.length ? vals.reduce<number>((a, b) => a + Number(b), 0) : null;
+      }
+      return { _max: out, _sum: sum };
     },
   };
   return t;
@@ -228,6 +234,9 @@ export function makeFakeDb(start = new Date("2026-11-22T09:00:00Z")) {
     standingOrder: makeTable(() => ({}), [], clock),
     task: makeTable(() => ({ assignee: null, status: "new", dueAt: null, archivedAt: null, priority: "normal" }), [], clock),
     notification: makeTable(() => ({ audience: "owner", body: null, href: null, source: "mcp", key: null, readAt: null, sentAt: null }), [["audience", "key"]], clock),
+    agentRun: makeTable(() => ({ blocked: null, tokensIn: 0, tokensOut: 0, costUsd: 0, ms: 0, error: null }), [], clock),
+    productEconomics: makeTable(() => ({ stockDays: null }), [["productCode"]], clock),
+    stockSnapshot: makeTable(() => ({ units: null, source: "mcp" }), [], clock),
     setting: makeTable(() => ({ version: 1 }), [["key"]], clock),
     actor: makeTable(() => ({ lastSeenAt: null, active: true, telegram: null, kind: "agent" }), [["key"]], clock),
     apiToken: makeTable(() => ({ scopes: [], actorKey: null, revokedAt: null, expiresAt: null, lastUsedAt: null }), [["tokenHash"]], clock),
