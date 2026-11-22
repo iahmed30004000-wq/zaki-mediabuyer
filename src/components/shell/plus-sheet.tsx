@@ -1,21 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { ListPlus, Megaphone } from "lucide-react";
+import { ListPlus, Megaphone, SquarePlus } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCan } from "./shell-context";
 
-/** What the «＋» can start. Only what has a real screen is offered: «مهمة جديدة» joins when its screen exists (P4-1), «أمر ساري» is written from the job's page. */
+/** What the «＋» can start. Only what has a real screen is offered: «أمر ساري» is written from the job's page. Each item shows for the roles that hold its capability. */
 export const PLUS_ITEMS = [
+  { key: "new_job", href: "/tasks/new", label: "مهمة جديدة", hint: "ركّبها بأربع أسئلة، أو من قالب", cap: "work.create", icon: SquarePlus },
   { key: "person_task", href: "/tasks/team", label: "مهمة لشخص", hint: "لحدا من الفريق، بموعد", cap: "tasks.manage", icon: ListPlus },
   { key: "launch", href: "/ads", label: "إطلاق حملة", hint: "من صفحة الإعلانات، بزر «＋ إطلاق»", cap: "ads.view", icon: Megaphone },
 ] as const;
 
 /** The panel of the «＋»: big rows, each a link to the place where that thing is made. */
 export function PlusSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const manage = useCan("tasks.manage");
-  const ads = useCan("ads.view");
-  const items = PLUS_ITEMS.filter((i) => (i.cap === "tasks.manage" ? manage : ads));
+  const caps: Record<string, boolean> = { "work.create": useCan("work.create"), "tasks.manage": useCan("tasks.manage"), "ads.view": useCan("ads.view") };
+  const items = PLUS_ITEMS.filter((i) => caps[i.cap]);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>

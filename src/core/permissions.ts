@@ -58,6 +58,7 @@ const ROLE_ACTIONS: readonly RoleAction[] = [
   { key: "order_relax", label: "الأمر اللي بيرخّي", cap: "owner_only", locked: true, group: "ops" },
   { key: "work.view", label: "يشوف خريطة المهام والتقارير (لمجالاته)", cap: "work.view", group: "work" },
   { key: "work.control", label: "يشغّل أو يطفي مهمة، ويقرّر على ورقة القرار", cap: "work.control", group: "work" },
+  { key: "work.create", label: "ينشئ مهمة جديدة (يركّبها أو من قالب)", cap: "work.create", group: "work" },
   { key: "inbox.view", label: "يشوف القرارات بمجالاته", cap: "inbox.view", group: "work" },
   { key: "assistant.use", label: "يسأل المساعد", cap: "assistant.use", group: "work" },
   { key: "settings.view", label: "يشوف الإعدادات (قراءة)", cap: "settings.view", group: "work" },
@@ -145,5 +146,5 @@ export function agentMatrix(agents: readonly AgentIn[], accounts: readonly Accou
   ];
 }
 
-/** How many capabilities the table holds (the test pins it at eighteen). */
+/** How many capabilities the table holds (the test pins it at nineteen). */
 export const CAPABILITY_COUNT = CAPABILITIES.length;

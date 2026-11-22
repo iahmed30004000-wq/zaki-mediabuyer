@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CAPABILITIES, ROLES, ROLE_PLACES, ROLE_START, can, canOpenPath, capabilitiesOf, hasHome, inboxDomainsOf, taskScopeOf, type Capability, type RoleKey } from "@/core/roles";
 import { redact } from "@/server/audit";
 
-/** docs/rebuild/05-permissions.md §3, cell by cell: eight roles × eighteen capabilities. 1 = the role has it. */
+/** docs/rebuild/05-permissions.md §3, cell by cell: eight roles × nineteen capabilities. 1 = the role has it. */
 const COLS: RoleKey[] = ["OWNER", "MANAGER", "ADS_MANAGER", "OPS_MANAGER", "TEAM_LEAD", "MEMBER", "ANALYST", "VIEWER"];
 const EXPECTED: Record<Capability, number[]> = {
   //                          OWN MGR ADS OPS LEAD MEM ANA VIEW
@@ -17,6 +17,7 @@ const EXPECTED: Record<Capability, number[]> = {
   "money.view": [1, 1, 1, 0, 0, 0, 1, 0],
   "work.view": [1, 1, 1, 1, 1, 0, 1, 1],
   "work.control": [1, 1, 0, 0, 0, 0, 0, 0],
+  "work.create": [1, 1, 0, 0, 0, 0, 0, 0],
   "orders.restrict": [1, 1, 0, 0, 0, 0, 0, 0],
   "tasks.manage": [1, 1, 1, 1, 1, 0, 0, 0],
   "tasks.own": [1, 1, 1, 1, 1, 1, 1, 0],
@@ -26,10 +27,10 @@ const EXPECTED: Record<Capability, number[]> = {
   owner_only: [1, 0, 0, 0, 0, 0, 0, 0],
 };
 
-describe("roles (docs/rebuild/05-permissions.md §3): 8 roles × 18 capabilities", () => {
-  it("the table has exactly eight roles and eighteen capabilities, in the documented order", () => {
+describe("roles (docs/rebuild/05-permissions.md §3): 8 roles × 19 capabilities", () => {
+  it("the table has exactly eight roles and nineteen capabilities, in the documented order", () => {
     expect(ROLES).toEqual(COLS);
-    expect(CAPABILITIES).toHaveLength(18);
+    expect(CAPABILITIES).toHaveLength(19);
     expect(Object.keys(EXPECTED).sort()).toEqual([...CAPABILITIES].sort());
   });
   for (const [cap, row] of Object.entries(EXPECTED) as [Capability, number[]][]) {

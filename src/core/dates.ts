@@ -68,3 +68,24 @@ export function baselineWindow(r: Range): { from: string; to: string; days: 7 } 
 export function rangeLabel(r: Range): string {
   return r.key === "custom" ? `${r.from} ← ${r.to}` : r.days === 1 ? `${RANGE_AR[r.key]} (${r.from})` : `${RANGE_AR[r.key]} (${r.from} ← ${r.to})`;
 }
+
+/** Amman's offset from UTC at an instant, in minutes (read from the zone database, so a change of the rule does not need a change here). */
+function ammanOffsetMin(at: number): number {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+  const local = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) === 24 ? 0 : Number(p.hour), Number(p.minute), Number(p.second));
+  return Math.round((local - Math.floor(at / 1000) * 1000) / 60_000);
+}
+
+/** The instant of a wall-clock time on the Amman clock: «2026-11-23» + «09:30». Null when either part is not a real date or time. */
+export function ammanInstant(day: string, hhmm: string): Date | null {
+  const t = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!isKey(day) || !t) return null;
+  const wall = keyMs(day) + (Number(t[1]) * 60 + Number(t[2])) * 60_000;
+  return new Date(wall - ammanOffsetMin(wall) * 60_000);
+}
+
+/** The hour and the minute an instant has on the Amman clock. */
+export function ammanClock(at: Date): { hour: number; minute: number } {
+  const wall = new Date(at.getTime() + ammanOffsetMin(at.getTime()) * 60_000);
+  return { hour: wall.getUTCHours(), minute: wall.getUTCMinutes() };
+}
