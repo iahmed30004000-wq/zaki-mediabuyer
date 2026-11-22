@@ -18,6 +18,7 @@ import { audit, type Actor } from "@/server/audit";
 import { db } from "@/server/db";
 import { emit } from "@/server/events";
 import { HandoffRefused, createHandoff, expireHandoff } from "@/server/handoffs";
+import { RecipeRefused, runRecipe } from "@/server/recipes";
 import { ExecRefused, executeWorkflow, realDeps } from "@/server/step-exec";
 import { logRun } from "@/server/workflows";
 
@@ -112,6 +113,13 @@ export async function applyWatch(actions: readonly WatchAction[], now: Date): Pr
           const slot = new Date(a.slot);
           const ref = slotRef(slot);
           if (await db.workflowRun.findUnique({ where: { workflowId_ref: { workflowId: wf.id, ref } }, select: { id: true } })) { skip(); continue; }
+          if (wf.wake === "site_run" && wf.recipe) {
+            // one of the site's own recipes: it carries it out itself (read · compare · tell), with the slot's own ref, so the run answers the slot and nothing is asked of an agent
+            const r = await runRecipe(wf.key, ACTOR, undefined, { ref, scheduledFor: slot, trigger: "schedule", now });
+            await audit(ACTOR, "workflow.scheduled", { type: "workflow", id: wf.key }, { after: { slot: a.slot, how: "recipe", status: r.status } });
+            done("fire");
+            break;
+          }
           if (wf.wake === "site_run") {
             try {
               const r = await executeWorkflow(wf.key, ACTOR, realDeps(), { ref, scheduledFor: slot, trigger: "schedule" });
@@ -218,7 +226,7 @@ export async function applyWatch(actions: readonly WatchAction[], now: Date): Pr
         }
       }
     } catch (e) {
-      if (e instanceof HandoffRefused || e instanceof ExecRefused) skip();
+      if (e instanceof HandoffRefused || e instanceof ExecRefused || e instanceof RecipeRefused) skip();
       else res.errors.push(`${a.type}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200));
     }
   }

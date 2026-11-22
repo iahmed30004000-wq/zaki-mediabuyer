@@ -29,6 +29,8 @@ export interface ViewJob {
   graceMin: number;
   assigneeKey: string | null;
   finishedAt?: string | null;
+  /** one of the site's own recipes: nobody in the queue could resume it, so a stopped run is run again */
+  recipe?: string | null;
   graph: Pick<WfGraph, "nodes" | "edges">;
 }
 
@@ -106,11 +108,13 @@ const OPEN = (label: string, variant: CardAction["variant"] = "ghost"): CardActi
  * there, with «وافق» and «ارفض»); a run that stopped or whose step failed offers «أعد المحاولة من هون» and «تخطّى هالخطوة»; a request nobody took offers «ألغِ التشغيل»; a missed slot
  * offers «شغّلها هلق» and «تجاهل». A run that is going, finished or yet to come has none (its card opens the run).
  */
-export function actionsFor(state: WordState): CardAction[] {
+export function actionsFor(state: WordState, opts: { recipe?: boolean } = {}): CardAction[] {
   switch (state) {
     case "stuck":
     case "fail":
     case "lost":
+      // a recipe is the site's own: there is no agent to resume it from a step, and its steps are fixed — the way out is to run it again
+      if (opts.recipe) return [{ key: "run_now", label: "شغّلها كمان مرة", variant: "primary" }, OPEN("شوف التشغيل")];
       return [
         { key: "retry", label: "أعد المحاولة من هون", variant: "primary" },
         { key: "skip", label: "تخطّى هالخطوة", variant: "secondary" },
@@ -233,7 +237,7 @@ function cardOf(job: ViewJob, run: ViewRun, names: Names, now: Date, more = 0): 
     state,
     sentence: sentenceOf(job, run, names, now),
     steps: stripOf(job, run),
-    actions: actionsFor(state),
+    actions: actionsFor(state, { recipe: !!job.recipe }),
     href: runHref(job.key, run.id),
     at: run.scheduledFor ?? run.startedAt,
     more,

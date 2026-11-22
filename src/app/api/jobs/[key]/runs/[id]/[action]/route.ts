@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isDemo } from "@/core/readiness";
 import { HttpError, errorResponse, requireCapability } from "@/server/auth";
 import { HandoffRefused } from "@/server/handoffs";
+import { RecipeRefused } from "@/server/recipes";
 import { RUN_ACTIONS, cancelRun, dismissMissed, reassignRun, retryRun, skipRunStep } from "@/server/run-actions";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export async function POST(req: Request, { params: paramsP }: { params: Promise<
                 : await reassignRun(params.key, params.id, b.assignee ?? "", actor);
       return NextResponse.json({ ok: true, ...r });
     } catch (e) {
-      if (e instanceof HandoffRefused) throw new HttpError(e.status, e.message);
+      if (e instanceof HandoffRefused || e instanceof RecipeRefused) throw new HttpError(e.status, e.message);
       throw e;
     }
   } catch (e) {

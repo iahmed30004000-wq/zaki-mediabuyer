@@ -13,8 +13,11 @@
 import { z } from "zod";
 import { addDays, ammanClock, ammanInstant, ammanKey, isKey, keyMs } from "./dates";
 import type { JobDomain, JobKind } from "./jobs";
+import { RECIPES, RECIPE_TITLE, normalizeRecipe, recipeSteps, validateRecipe, type RecipeName } from "./recipes";
 import type { Executor, Permission, WfEdge, WfGraph, WfNode } from "./workflow";
 import { autoLayout, graphDiff } from "./workflow-edit";
+
+export { RECIPES, type RecipeName };
 
 // ───────────────────────────── the words of the builder ─────────────────────────────
 
@@ -54,9 +57,6 @@ export const DEFAULT_NOTIFY: NotifyEvent[] = ["stuck", "missed", "failed"];
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
 /** Which of the three choices a list of events is (null: a list of its own — it came from somewhere else than the builder). */
 export const presetOf = (on: readonly string[]): NotifyPresetKey | null => NOTIFY_PRESETS.find((p) => sameSet(p.on, on))?.key ?? null;
-
-export const RECIPES = ["stock_alert", "daily_summary", "remind", "metric_watch"] as const;
-export type RecipeName = (typeof RECIPES)[number];
 
 export const MAX_STEPS = 20;
 /** The label of a node is at most 120 characters and starts with «<verb>: » (at most 15): what is left is the text. */
@@ -178,7 +178,8 @@ export function normalizeDraft(d: JobDraft): JobDraft {
     return out;
   });
   const when: When = d.when.kind === "weekly" ? { ...d.when, days: [...new Set(d.when.days)].sort((a, b) => a - b) } : d.when;
-  return { ...d, name: d.name.trim(), when, steps };
+  const { recipe, ...rest } = d;
+  return { ...rest, name: d.name.trim(), when, steps, ...(recipe ? { recipe: normalizeRecipe(recipe) } : {}) };
 }
 
 /** A name for the job, from its first step: «اقرا المخزون». Empty while no step has a text. */
@@ -242,7 +243,10 @@ export function validateDraft(d: JobDraft, now: Date): DraftCheck {
   if (d.assigneeKey === SITE_KEY && !d.recipe) return bad("assigneeKey", "الموقع لحاله بينفّذ وصفاته الجاهزة بس — اختار وصفة أو اختار حدا تاني");
   if (d.recipe) {
     if (d.assigneeKey !== SITE_KEY) return bad("recipe", "الوصفة بينفّذها الموقع لحاله");
-    if (!(RECIPES as readonly string[]).includes(d.recipe.name)) return bad("recipe", "وصفة مش معروفة");
+    const r = validateRecipe(d.recipe);
+    if (!r.ok) return bad(r.field, r.message);
+    // a recipe has its own three steps: blocks of the owner's are not mixed into it
+    if (d.steps.length) return bad("steps", "الوصفة خطواتها ثابتة — شيل الخطوات الحرّة");
   } else if (!d.steps.length) return bad("steps", "ضيف خطوة وحدة على الأقل");
 
   const steps = validateSteps(d.steps);
@@ -360,7 +364,7 @@ export function notifyWords(on: readonly string[]): string {
 /** «الموقع لحاله · كل يوم 09:30 · 3 خطوات · بخبّرك لما توقف أو تفوت» — the bar under the builder. `names` turns a key into the name the team directory shows. */
 export function draftSentence(d: JobDraft, names: Readonly<Record<string, string>> = {}): string {
   const who = d.assigneeKey === SITE_KEY ? "الموقع لحاله" : (names[d.assigneeKey] ?? d.assigneeKey);
-  const steps = d.recipe ? "وصفة جاهزة" : countWords(d.steps.length);
+  const steps = d.recipe ? (RECIPE_TITLE[d.recipe.name] ?? "وصفة جاهزة") : countWords(d.steps.length);
   return [who || "مين؟", whenWords(d.when), steps, notifyWords(d.notifyOn)].join(" · ");
 }
 
@@ -475,6 +479,16 @@ export function settleLayout(prev: WfGraph, next: WfGraph): WfGraph {
   return same ? prev : autoLayout(next);
 }
 
+/**
+ * The drawing of a recipe: its three fixed blocks (read, compare, tell) in a line, done by the site itself — so what they read comes from the site's own numbers (`api`), not from an agent (`mcp`).
+ * The steps of a recipe are the code's: the edit screen says so instead of offering blocks.
+ */
+export function recipeGraph(recipe: { name: RecipeName; params: Record<string, unknown> }, opts: { triggerLabel: string; names?: Readonly<Record<string, string>> }): WfGraph {
+  const steps: DraftStep[] = recipeSteps(recipe.name, recipe.params, opts.names ?? {});
+  const g = draftGraph(steps, { executor: "system", triggerLabel: opts.triggerLabel });
+  return { ...g, nodes: g.nodes.map((n) => (n.type === "step" ? { ...n, dataSource: "api" as const } : n)) };
+}
+
 /** What a draft becomes: the columns of a `Workflow` (minus its key and number, which the site gives), ready to write. */
 export interface JobSpec {
   name: string;
@@ -504,14 +518,14 @@ const RANK: Record<Permission, number> = { green: 0, yellow: 1, red: 2, black: 3
  * The job a draft means. The draft must have passed `validateDraft` (the server does that first); a bad one is not made into something that looks fine, it throws.
  * `now` is the moment of saving («هلق» is that moment; a window counts from it). `kind` is what the team directory says the assignee is.
  */
-export function draftToJob(input: JobDraft, now: Date, opts: { kind?: "agent" | "person" } = {}): JobSpec {
+export function draftToJob(input: JobDraft, now: Date, opts: { kind?: "agent" | "person"; /** product codes and person keys to their names (the words on the steps of a recipe) */ names?: Readonly<Record<string, string>> } = {}): JobSpec {
   const d = normalizeDraft(input);
   const check = validateDraft(d, now);
   if (!check.ok) throw new Error(`draftToJob: ${check.field}: ${check.message}`);
   const w = d.when;
   const executor = executorOfAssignee(d.assigneeKey, opts.kind);
   if (isPersonRepeat(d, executor === "person" ? "person" : "agent")) throw new Error(`draftToJob: assigneeKey: ${PERSON_REPEAT_REFUSAL}`);
-  const graph = draftGraph(d.steps, { executor, triggerLabel: whenWords(w) });
+  const graph = d.recipe ? recipeGraph(d.recipe, { triggerLabel: whenWords(w), names: opts.names }) : draftGraph(d.steps, { executor, triggerLabel: whenWords(w) });
   const permission = graph.nodes.reduce<Permission>((top, n) => (RANK[n.permission ?? "green"] > RANK[top] ? (n.permission ?? "green") : top), "green");
   const base = { name: d.name, description: null, domain: d.domain, graph, assigneeKey: d.assigneeKey, executor, permission, notifyOn: d.notifyOn, scheduleText: whenWords(w) };
   const recipe = { recipe: d.recipe?.name ?? null, recipeParams: d.recipe?.params ?? null };

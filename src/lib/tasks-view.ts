@@ -45,6 +45,8 @@ interface JobRow {
   graceMin: number;
   assigneeKey: string | null;
   finishedAt: Date | null;
+  /** one of the site's own recipes (it runs itself: a failed run is run again, not asked of an agent) */
+  recipe?: string | null;
   graph: unknown;
 }
 
@@ -63,6 +65,7 @@ const asJob = (j: JobRow): ViewJob => ({
   graceMin: j.graceMin,
   assigneeKey: j.assigneeKey,
   finishedAt: iso(j.finishedAt),
+  ...(j.recipe ? { recipe: j.recipe } : {}),
   graph: GraphSchema.safeParse(j.graph).data ?? EMPTY,
 });
 
@@ -360,7 +363,7 @@ export async function loadRunPage(key: string, runId: string, role: RoleKey | nu
     who: names[v.assignee ?? v.doneBy ?? job.assigneeKey ?? ""] ?? (v.assignee ?? v.doneBy ?? job.assigneeKey ?? "بلا مسؤول"),
     steps,
     inferred: stepsAreInferred(v),
-    actions: actionsFor(state),
+    actions: actionsFor(state, { recipe: !!jobView.recipe }),
     live: isLiveRun(run.status),
     duration: durationWords(v.startedAt, v.finishedAt),
     resultHidden: !seeResult,
@@ -412,12 +415,12 @@ export async function loadJobPage(key: string, now = new Date()): Promise<JobPag
   const { jobs, demo } = await loadJobs(now);
   const job = jobs.find((j) => j.key === key);
   if (!job) return null;
-  const view: ViewJob = { key: job.key, number: job.number, name: job.name, domain: job.domain, kind: job.kind, schedule: null, scheduleText: null, runsAt: null, endsAt: null, enabled: job.enabled, graceMin: job.graceMin, assigneeKey: job.assigneeKey, graph: job.graph };
+  const view: ViewJob = { key: job.key, number: job.number, name: job.name, domain: job.domain, kind: job.kind, schedule: null, scheduleText: null, runsAt: null, endsAt: null, enabled: job.enabled, graceMin: job.graceMin, assigneeKey: job.assigneeKey, ...(job.recipe ? { recipe: job.recipe } : {}), graph: job.graph };
   if (demo) return { job, view, runs: [], live: null, last: null, names: {} };
   const row = await db.workflow.findUnique({ where: { key }, select: { id: true } });
   if (!row) return null;
   const { runs, live, names } = await loadJobRuns(view, row.id, now);
-  const liveRun = live ? { id: live.id, state: stateOfRun(live), sentence: sentenceOf(view, live, names, now), steps: stripOf(view, live), actions: actionsFor(stateOfRun(live)) } : null;
+  const liveRun = live ? { id: live.id, state: stateOfRun(live), sentence: sentenceOf(view, live, names, now), steps: stripOf(view, live), actions: actionsFor(stateOfRun(live), { recipe: !!job.recipe }) } : null;
   return { job, view, runs, live: liveRun, last: liveRun ? null : (runs[0] ?? null), names };
 }
 
