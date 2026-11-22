@@ -8,6 +8,7 @@ import { Pill } from "@/components/ui/pill";
 import { useToast } from "@/components/ui/toast";
 import type { JobView } from "@/lib/jobs-view";
 import { safeFetch } from "@/lib/call";
+import { Table } from "@/components/ui/table";
 
 type Choice = "keep" | "cancel";
 
@@ -54,9 +55,9 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
   return (
     <section aria-label="ورقة القرار" className="space-y-3">
       <div className="overflow-x-auto rounded-card border border-border bg-surface-1">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        <Table aria-label="ورقة القرار" className="w-full min-w-[640px] border-collapse text-sm">
           <thead>
-            <tr className="bg-surface-2 text-xs font-bold text-fg-muted">
+            <tr className="bg-surface-2 text-sm font-bold text-fg-muted">
               <th className="h-10 max-md:h-[44px] w-10 px-3 text-start">#</th>
               <th className="px-3 text-start">المهمة</th>
               <th className="px-3 text-start">الموعد</th>
@@ -74,11 +75,11 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
                     {j.number ?? "·"}
                   </td>
                   <td className="px-3 py-2 font-bold text-fg">{j.name}</td>
-                  <td className="px-3 py-2 text-xs text-fg-muted">{j.words}</td>
+                  <td className="px-3 py-2 text-sm text-fg-muted">{j.words}</td>
                   <td className="px-3 py-2">
                     <Pill tone={j.badge.tone}>{j.badge.label}</Pill>
                   </td>
-                  <td className="px-3 py-2 text-xs text-fg-muted">{j.advice ? j.advice.label : "—"}</td>
+                  <td className="px-3 py-2 text-sm text-fg-muted">{j.advice ? j.advice.label : "—"}</td>
                   <td className="px-3 py-2 text-center">
                     <Checkbox aria-label={`خلّي ${j.name}`} checked={pick[j.key] === "keep"} onChange={(e) => set(j.key, "keep", e.target.checked)} className="justify-center" />
                   </td>
@@ -87,7 +88,7 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
                   </td>
                 </tr>
                 {j.branches.map((b) => (
-                  <tr key={b.id} className="border-t border-border/60 bg-surface-2/40 text-xs">
+                  <tr key={b.id} className="border-t border-border/60 bg-surface-2/40 text-sm">
                     <td dir="ltr" className="px-3 py-1.5 text-start tabular-nums text-fg-muted">
                       {b.number ?? ""}
                     </td>
@@ -105,7 +106,7 @@ export function DecisionSheet({ jobs, onClose }: { jobs: JobView[]; onClose: () 
               </Fragment>
             ))}
           </tbody>
-        </table>
+        </Table>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button loading={busy} disabled={!items.length} onClick={() => void send()}>

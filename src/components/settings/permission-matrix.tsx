@@ -2,6 +2,7 @@ import { Check, Clock, Lock, X } from "lucide-react";
 import { ROLES, ROLE_AR, ROLE_NOTE } from "@/core/roles";
 import type { AgentRow, Cell, RoleRow, Section } from "@/core/permissions";
 import { cn } from "@/lib/utils";
+import { Table as KitTable } from "@/components/ui/table";
 
 const STATE = {
   self: { word: "لحاله", Icon: Check, tone: "text-ok" },
@@ -24,7 +25,7 @@ function Mark({ cell }: { cell: Cell }) {
 function Table<R extends { key: string; label: string; locked: boolean }>({ sections, columns, cellOf, caption }: { sections: Section<R>[]; columns: { key: string; label: string; note?: string }[]; cellOf: (row: R, col: string) => Cell | undefined; caption: string }) {
   return (
     <div className="relative overflow-x-auto rounded-card border border-border bg-surface-1">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
+      <KitTable aria-label="الصلاحيات" className="w-full min-w-[720px] border-collapse text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead>
           <tr className="border-b border-border bg-surface-2">
@@ -65,7 +66,7 @@ function Table<R extends { key: string; label: string; locked: boolean }>({ sect
             ))}
           </tbody>
         ))}
-      </table>
+      </KitTable>
     </div>
   );
 }

@@ -224,7 +224,7 @@ export async function tick(now = new Date()) {
       await db.report.upsert({ where: { kind_forDate: { kind: "morning", forDate: utcDay(yesterday) } }, create: { kind: "morning", forDate: utcDay(yesterday), text, empty }, update: { text, empty } });
       if (empty) return { empty: true, chars: text.length };
       // v6 · P7: «تقرير الصبح جاهز» — a silent notice (the report itself still goes to Telegram below, as its own message)
-      await createNotification({ urgency: "yellow", kind: "report.morning", title: "تقرير الصبح جاهز", body: "أرقام أمس كاملة بالموقع.", href: "/work/reports", source: "report", key: `report.morning:${yesterday}` }).catch(() => undefined);
+      await createNotification({ urgency: "yellow", kind: "report.morning", title: "تقرير الصبح جاهز", body: "أرقام أمس كاملة بالموقع.", href: "/tasks/results", source: "report", key: `report.morning:${yesterday}` }).catch(() => undefined);
       const tg = telegramFromEnv();
       if (!tg) {
         requireKeys("telegram");

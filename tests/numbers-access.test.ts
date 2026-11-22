@@ -15,13 +15,13 @@ describe("canOpenPath — the new addresses", () => {
     expect(canOpenPath("MEMBER", "/numbers")).toBe(false);
   });
 
-  it("the products and a product: the ads' roles, like the old «المنتجات»", () => {
-    for (const p of ["/numbers/products", "/numbers/products/TRF01"]) expect(opens(p), p).toEqual(opens("/products"));
+  it("the products and a product: the ads' roles, like «الإعلانات»", () => {
+    for (const p of ["/numbers/products", "/numbers/products/TRF01"]) expect(opens(p), p).toEqual(opens("/ads"));
     expect(opens("/numbers/products")).toEqual(["OWNER", "MANAGER", "ADS_MANAGER", "ANALYST", "VIEWER"]);
   });
 
-  it("confirmation, shipping and stock: the operations' roles, like the old «التشغيل»", () => {
-    for (const p of ["/numbers/ops", "/numbers/stock"]) expect(opens(p), p).toEqual(opens("/ops"));
+  it("confirmation, shipping and stock: the operations' roles", () => {
+    for (const p of ["/numbers/ops", "/numbers/stock"]) expect(opens(p), p).toEqual(["OWNER", "MANAGER", "OPS_MANAGER", "TEAM_LEAD", "VIEWER"]);
     expect(opens("/numbers/ops")).toEqual(["OWNER", "MANAGER", "OPS_MANAGER", "TEAM_LEAD", "VIEWER"]);
   });
 
@@ -30,9 +30,9 @@ describe("canOpenPath — the new addresses", () => {
     expect(canOpenPath("MEMBER", "/numbers/products")).toBe(false);
   });
 
-  it("the old addresses keep their rules", () => {
-    expect(canOpenPath("ANALYST", "/ops/stock")).toBe(false);
-    expect(canOpenPath("ADS_MANAGER", "/products")).toBe(true);
+  it("the old addresses have no rule of their own any more (they are redirected before a page is asked for): they follow the new ones", () => {
+    expect(canOpenPath("ANALYST", "/numbers/stock")).toBe(false);
+    expect(canOpenPath("ADS_MANAGER", "/numbers/products")).toBe(true);
     expect(canOpenPath("ADS_MANAGER", "/ads")).toBe(true);
   });
 

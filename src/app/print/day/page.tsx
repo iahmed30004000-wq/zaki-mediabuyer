@@ -2,6 +2,7 @@ import { PrintButton } from "@/components/numbers/print-button";
 import { lineTime, type DayGroup } from "@/core/day";
 import { loadDay, readDay } from "@/lib/day-view";
 import { requirePage } from "@/server/auth";
+import { Table } from "@/components/ui/table";
 
 export const metadata = { title: "الإنجاز — للطباعة" };
 export const dynamic = "force-dynamic";
@@ -11,22 +12,22 @@ function Section({ title, groups }: { title: string; groups: DayGroup[] }) {
     <section className="space-y-3 border-t border-neutral-300 pt-4">
       <h2 className="text-base font-bold">{title}</h2>
       {groups.map((g) => (
-        <table key={g.key} className="w-full break-inside-avoid text-sm">
+        <Table key={g.key} aria-label="جدول اليوم" className="w-full break-inside-avoid text-sm">
           <thead>
             <tr>
-              <th colSpan={3} className="pb-1 text-start text-xs font-semibold text-neutral-600">{g.label} ({g.items.length})</th>
+              <th colSpan={3} className="pb-1 text-start text-sm font-semibold text-neutral-600">{g.label} ({g.items.length})</th>
             </tr>
           </thead>
           <tbody>
             {g.items.map((i, n) => (
               <tr key={`${i.at}-${n}`} className="border-b border-neutral-200 align-top">
-                <td dir="ltr" className="w-14 py-1 tabular-nums text-xs text-neutral-600">{lineTime(i)}</td>
+                <td dir="ltr" className="w-14 py-1 tabular-nums text-sm text-neutral-600">{lineTime(i)}</td>
                 <td className={`py-1 ${i.tone === "danger" ? "font-semibold" : ""}`}>{i.text}</td>
-                <td dir="ltr" className="py-1 text-end text-xs tabular-nums text-neutral-600">{i.numbers?.join(" · ")}</td>
+                <td dir="ltr" className="py-1 text-end text-sm tabular-nums text-neutral-600">{i.numbers?.join(" · ")}</td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </Table>
       ))}
     </section>
   );
@@ -49,7 +50,7 @@ export default async function PrintDayPage({ searchParams: searchParamsP }: { se
       </header>
       {data.state !== "future" ? (data.done.length ? <Section title="اللي انعمل" groups={data.done} /> : <p className="border-t border-neutral-300 pt-4 text-sm text-neutral-600">ما في إنجاز مسجّل لهاليوم.</p>) : null}
       {data.state !== "past" ? (data.planned.length ? <Section title={data.state === "today" ? "لسا اليوم" : "المخطّط"} groups={data.planned} /> : <p className="border-t border-neutral-300 pt-4 text-sm text-neutral-600">ما في شي مجدول.</p>) : null}
-      <p className="border-t border-neutral-300 pt-3 text-xs text-neutral-500">كل سطر مكتوب بالكود من تشغيلات وقرارات ومهام انسجّلت — ما حدا بيكتب اليوم بإيده. الأوقات بتوقيت عمّان.</p>
+      <p className="border-t border-neutral-300 pt-3 text-sm text-neutral-500">كل سطر مكتوب بالكود من تشغيلات وقرارات ومهام انسجّلت — ما حدا بيكتب اليوم بإيده. الأوقات بتوقيت عمّان.</p>
     </main>
   );
 }

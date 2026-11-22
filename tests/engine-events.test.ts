@@ -50,7 +50,7 @@ describe("the rows — pure", () => {
       const r = runEventRow({ kind, runId: "r1", jobKey: "k", jobName: long, scheduledFor: new Date("2026-11-22T07:00:00Z"), minutes: 95, who: "Claude الرئيسي", queued: kind === "run.stuck" });
       expect(r.title.length, kind).toBeLessThanOrEqual(45);
       expect(r.key).toBe(`${kind}:r1`);
-      expect(r.href).toBe("/work/job/k");
+      expect(r.href).toBe("/tasks/k");
     }
     expect(titleOf("جولة الليل", "فاتت 10:00")).toBe("جولة الليل فاتت 10:00");
     expect(titleOf("جولة الليل", "فاتت").endsWith("فاتت")).toBe(true);

@@ -19,9 +19,9 @@ function field(src: string, min: number, max: number, name: string): number[] | 
   const out = new Set<number>();
   for (const part of src.split(",")) {
     const m = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/.exec(part);
-    if (!m) throw new Error(`cron: ${name} «${part}» مش مفهوم`);
+    if (!m) throw new Error(`جدول التشغيل: ${name} «${part}» مش مفهوم`);
     const step = m[2] ? Number(m[2]) : 1;
-    if (step < 1) throw new Error(`cron: خطوة ${name} لازم ≥ 1`);
+    if (step < 1) throw new Error(`جدول التشغيل: خطوة ${name} لازم ≥ 1`);
     let a: number;
     let b: number;
     if (m[1] === "*") {
@@ -35,7 +35,7 @@ function field(src: string, min: number, max: number, name: string): number[] | 
       a = Number(m[1]);
       b = m[2] ? max : a; // «5/15»: from 5, every 15, to the end
     }
-    if (a < min || b > max || a > b) throw new Error(`cron: ${name} خارج المجال ${min}–${max}`);
+    if (a < min || b > max || a > b) throw new Error(`جدول التشغيل: ${name} خارج المجال ${min}–${max}`);
     for (let v = a; v <= b; v += step) out.add(v);
   }
   return [...out].sort((x, y) => x - y);
@@ -43,7 +43,7 @@ function field(src: string, min: number, max: number, name: string): number[] | 
 
 export function parseCron(expr: string): Parsed {
   const f = expr.trim().split(/\s+/);
-  if (f.length !== 5) throw new Error("cron: لازم 5 خانات (دقيقة ساعة يوم-بالشهر شهر يوم-بالأسبوع)");
+  if (f.length !== 5) throw new Error("جدول التشغيل: لازم 5 خانات (دقيقة ساعة يوم-بالشهر شهر يوم-بالأسبوع)");
   const dow = field(f[4]!, 0, 7, "اليوم بالأسبوع");
   return {
     minute: field(f[0]!, 0, 59, "الدقيقة") ?? Array.from({ length: 60 }, (_, i) => i),

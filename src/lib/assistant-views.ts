@@ -219,7 +219,7 @@ export function adsOutput(d: AdsTableData, o: { q: RangeQuery; status?: "active"
 
 /** Each product's bank against fifty, its winners and how many are tired — the board's own numbers. */
 export function videosOutput(d: BoardData, o: { product?: { code: string; name: string } | null }): ToolOutput {
-  const source: SourceRef = { id: "videos:board", label: "الفيديوهات · حسب المنتج", href: "/videos" };
+  const source: SourceRef = { id: "videos:board", label: "الفيديوهات · حسب المنتج", href: "/ads/videos" };
   const facts: Fact[] = [];
   const products = d.products.filter((p) => !o.product || p.code === o.product.code);
   const out = products.map((p) => {
@@ -244,7 +244,7 @@ export function videosOutput(d: BoardData, o: { product?: { code: string; name: 
 
 /** One Amman day: what was done and what is planned, as the code wrote it (the same lines as the Telegram summary). */
 export function dayOutput(d: DayData): ToolOutput {
-  const source: SourceRef = { id: `day:${d.day}`, label: `الإنجاز · ${d.title}`, href: `/done?tab=day&day=${d.day}` };
+  const source: SourceRef = { id: `day:${d.day}`, label: `جدول اليوم · ${d.title}`, href: `/tasks/day?day=${d.day}` };
   const facts: Fact[] = [
     { label: `اللي انعمل · ${d.title}`, value: String(d.counts.done), raw: d.counts.done, source: source.id },
     { label: `المخطّط · ${d.title}`, value: String(d.counts.planned), raw: d.counts.planned, source: source.id },
@@ -275,13 +275,13 @@ export function tasksOutput(list: TaskView[], boards: { key: string; label: stri
   );
 }
 
-// ───────────────────────────── «الورك فلو» ─────────────────────────────
+// ───────────────────────────── المهام (الورك فلو بالكود) ─────────────────────────────
 
 export function workflowsOutput(cards: WorkflowCard[], key?: string): ToolOutput {
-  const source: SourceRef = { id: key ? `workflow:${key}` : "workflows", label: key ? "الورك فلو · الرسم" : "الورك فلو", href: key ? `/workflow/${key}` : "/workflow" };
+  const source: SourceRef = { id: key ? `workflow:${key}` : "workflows", label: key ? "المهمة وخطواتها" : "المهام", href: key ? `/tasks/${encodeURIComponent(key)}` : "/tasks/all" };
   if (key) {
     const c = cards.find((x) => x.key === key);
-    if (!c) return toolError(`ما في ورك فلو بالمفتاح «${key}». المفاتيح: ${cards.map((x) => x.key).join("، ")}`);
+    if (!c) return toolError(`ما في مهمة بالمفتاح «${key}». المفاتيح: ${cards.map((x) => x.key).join("، ")}`);
     return toolData(
       {
         key: c.key,
@@ -305,21 +305,24 @@ export function workflowsOutput(cards: WorkflowCard[], key?: string): ToolOutput
 
 // ───────────────────────────── «اشرح» ─────────────────────────────
 
-const PLACE_KEYS = PLACES.map((p) => p.key);
+const PLACE_KEYS = [...PLACES.map((p) => p.key), "inbox", "settings"];
+/** The names the old map used for its places: a model that learned them (or a saved conversation) still gets the right page. */
+const OLD_PLACE: Record<string, string> = { work: "tasks", ops: "numbers", products: "numbers", workflow: "tasks", today: "home" };
 
 /** A screen's own explanation, and the formulas behind its numbers («قاعدة الاحتساب»). Nothing here is a number of the owner's. */
 export function explainOutput(a: { place?: string; term?: string }, current: string | null): ToolOutput {
   const result: Record<string, unknown> = {};
-  const wantPlace = a.place ?? (a.term ? undefined : current ?? undefined);
+  const asked = a.place ?? (a.term ? undefined : current ?? undefined);
+  const wantPlace = asked ? (OLD_PLACE[asked] ?? asked) : undefined;
   if (wantPlace) {
     const p = PLACES.find((x) => x.key === wantPlace || x.label === wantPlace);
-    // the page the owner is on may be one he made himself: it has no entry in the guide, and that is not a mistake of the model's
-    if (!p && a.place) return toolError(`الصفحة «${wantPlace}» مش معروفة. الصفحات: ${PLACE_KEYS.join(" · ")}`);
-    if (p) {
-      const g = PAGE_GUIDE[p.key];
-      result.screen = { key: p.key, name: p.label, question: p.question, what: g.what, next: g.next, parts: g.tour.map((t) => `${t.title}: ${t.text}`) };
-    } else {
-      result.screen = { key: wantPlace, what: "صفحة عملها المالك بوضع التعديل (لوحة مهام أو رابط) — ما إلها شرح جاهز؛ هي لوحة المهام نفسها أو رابط." };
+    // the decisions list and the settings have a guide but are no place of the map
+    const other = !p && (wantPlace === "inbox" || wantPlace === "settings") ? wantPlace : null;
+    if (!p && !other && a.place) return toolError(`الصفحة «${wantPlace}» مش معروفة. الصفحات: ${PLACE_KEYS.join(" · ")}`);
+    if (p || other) {
+      const key = p ? p.key : (other as "inbox" | "settings");
+      const g = PAGE_GUIDE[key];
+      result.screen = { key, name: p ? p.label : other === "inbox" ? "بانتظارك" : "الإعدادات", question: p ? p.question : undefined, what: g.what, next: g.next, parts: g.tour.map((t) => `${t.title}: ${t.text}`) };
     }
   }
   if (a.term) {

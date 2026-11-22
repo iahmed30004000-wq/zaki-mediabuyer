@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -6,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { JobNumber } from "@/components/ui/job-number";
 import { StateWord } from "@/components/ui/state-word";
 import { isKey } from "@/core/dates";
+import { oldReportAddress } from "@/core/legacy-links";
 import { DOMAIN_AR } from "@/core/jobs";
 import { runWordState } from "@/core/state-word";
 import { loadResults } from "@/lib/tasks-view";
@@ -21,9 +23,12 @@ const when = (iso: string) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZ
  * المهام ← النتائج: what every run said when it finished, and the periodic reports — newest first; filter by job, area and day. A report with nothing in it is not listed: one line at the end
  * counts them and says why. The same result twice in a row is one line with a count. Never a bracket of JSON: a report of the code is read as sentences on its own page.
  */
-export default async function TasksResultsPage({ searchParams: searchParamsP }: { searchParams: Promise<{ job?: string; domain?: string; day?: string }> }) {
+export default async function TasksResultsPage({ searchParams: searchParamsP }: { searchParams: Promise<{ r?: string; job?: string; domain?: string; day?: string }> }) {
   await requirePage("work.view");
   const sp = await searchParamsP;
+  // an old address of a report (`/work/reports?r=<id>`) arrives here with its query: it opens that report
+  const old = oldReportAddress(sp.r);
+  if (old) redirect(old);
   const domain = sp.domain === "ads" || sp.domain === "ops" ? sp.domain : undefined;
   const day = isKey(sp.day) ? sp.day : undefined;
   const job = /^[a-z0-9][a-z0-9_.-]{0,79}$/i.test(sp.job ?? "") ? sp.job : undefined;

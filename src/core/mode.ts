@@ -28,7 +28,7 @@ export const DEFAULT_MODE: OwnerMode = { mode: "awake", since: null, schedule: {
 /** A job (or a kind of action) the owner allows while he sleeps, with the most it may spend. */
 export const NightPermissionSchema = z
   .object({
-    key: z.string().trim().min(1).max(60).describe("مفتاح الورك فلو (مثلاً night-round)"),
+    key: z.string().trim().min(1).max(60).describe("مفتاح المهمة (مثلاً night-round)"),
     label: z.string().trim().min(1).max(120),
     cap: z.number().nonnegative().max(1_000_000).nullable().optional().describe("أقصى صرف بالدولار لهالمهمة وهو نايم"),
   })

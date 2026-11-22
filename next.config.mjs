@@ -1,32 +1,51 @@
 /** @type {import('next').NextConfig} */
 /**
- * The old places live inside the new ones (v5, docs/rebuild/02-structure.md §5): every old address still opens, on its new home.
+ * Every old address still opens, on its new home (v5, docs/rebuild/02-structure.md §5; v6 · P8, docs/rebuild-v6/02-screens.md §8): the table below is the whole of it.
  * Not permanent (307): the owner may still move things around. A request's query string is carried over. The order matters:
- * the one with a condition (`has`) comes before the plain one of the same source. tests/nav.test.ts holds this table.
+ * the one with a condition (`has`) comes before the plain one of the same source, and a longer address before the shorter one that would swallow it
+ * (`/work/job/:key/draw` before `/work/job/:key`). tests/nav.test.ts holds this table, and tests/old-routes.test.ts keeps the code from linking to any source of it.
  *
- * Left out on purpose: `/?tab=summary` and `/ads?tab=products` — their destination IS the source, so Next would loop (the pages ignore `tab`).
- * `/ads?product=…` is NOT here any more (v6 · P6): `/ads` is the campaigns table now and `product` is its own filter — a redirect would send every filtered view to the product's page.
- * `/tasks` is NOT here any more (v6 · P3): it is a real place now («المهام»). It used to lead to `/inbox`, so every `href: "/tasks"` the code and the database kept for a
- * decision was moved to `/inbox` (the code, and a data migration for the alerts and notices already written).
+ * Left out on purpose: `/?tab=summary` and `/ads?tab=products` — their destination IS the source, so Next would loop (the pages ignore `tab`). So is `/ads?tab=campaigns` (the campaigns
+ * table IS `/ads` since v6 · P6). `/ads?product=…` is not here either: `product` is the table's own filter. `/tasks` is a real place («المهام»), not an old address.
+ *
+ * The drawing board of a job (`/work/job/:key/draw`) was removed in P8 (Q4): its old address opens the steps screen of the same job. The pages a person made in the old edit mode
+ * (`/p/:key`) were removed too (Q5): a board of tasks is one of the boards of the team's tasks now, so the old address opens `/tasks/team`.
  */
 const tab = (value) => [{ type: "query", key: "tab", value }];
 
 export const LEGACY_REDIRECTS = [
-  { source: "/", has: tab("numbers"), destination: "/products", permanent: false },
-  { source: "/workflow/:key", destination: "/work/job/:key", permanent: false },
-  { source: "/workflow", destination: "/work", permanent: false },
-  { source: "/done", has: tab("reports"), destination: "/work/reports", permanent: false },
-  { source: "/done", destination: "/work/today", permanent: false },
+  // the places of v5: «الشغل» is «المهام», «التشغيل» and «المنتجات» are «الأرقام»
+  { source: "/work", destination: "/tasks/all", permanent: false },
+  { source: "/work/today", destination: "/tasks/day", permanent: false },
+  { source: "/work/tasks", destination: "/tasks/team", permanent: false },
+  { source: "/work/reports", destination: "/tasks/results", permanent: false },
+  { source: "/work/reports/:id", destination: "/tasks/results/:id", permanent: false },
+  { source: "/work/job/:key/draw", destination: "/tasks/:key/edit", permanent: false },
+  { source: "/work/job/:key", destination: "/tasks/:key", permanent: false },
+  { source: "/ops", destination: "/numbers/ops", permanent: false },
+  { source: "/ops/confirm", destination: "/numbers/ops", permanent: false },
+  { source: "/ops/shipping", destination: "/numbers/ops", permanent: false },
+  { source: "/ops/stock", destination: "/numbers/stock", permanent: false },
+  { source: "/products", destination: "/numbers/products", permanent: false },
+  { source: "/products/:code", destination: "/numbers/products/:code", permanent: false },
+  { source: "/ads/campaigns", destination: "/ads", permanent: false },
+  // the pages of the old edit mode
+  { source: "/p/:key", destination: "/tasks/team", permanent: false },
+  // the addresses of v3 and v4
+  { source: "/", has: tab("numbers"), destination: "/numbers/products", permanent: false },
+  { source: "/workflow/:key", destination: "/tasks/:key", permanent: false },
+  { source: "/workflow", destination: "/tasks/all", permanent: false },
+  { source: "/done", has: tab("reports"), destination: "/tasks/results", permanent: false },
+  { source: "/done", destination: "/tasks/day", permanent: false },
   { source: "/videos", has: tab("flow"), destination: "/ads/videos?view=flow", permanent: false },
   { source: "/videos", destination: "/ads/videos", permanent: false },
-  { source: "/ads", has: tab("campaigns"), destination: "/ads/campaigns", permanent: false },
   { source: "/ads", has: tab("tests"), destination: "/ads/tests", permanent: false },
   { source: "/ads", has: tab("(health|safety|data|naming)"), destination: "/ads/health", permanent: false },
   { source: "/ads", has: tab("scale"), destination: "/ads/scale", permanent: false },
   { source: "/decisions", destination: "/inbox", permanent: false },
   { source: "/creatives", destination: "/ads/videos?view=flow", permanent: false },
   { source: "/reports", has: tab("(safety|data)"), destination: "/ads/health", permanent: false },
-  { source: "/reports", destination: "/work/reports", permanent: false },
+  { source: "/reports", destination: "/tasks/results", permanent: false },
   { source: "/guide", destination: "/settings/advanced/guide", permanent: false },
   { source: "/setup", destination: "/settings/connections", permanent: false },
 ];

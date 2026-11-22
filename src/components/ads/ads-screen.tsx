@@ -2,7 +2,7 @@ import { AdsView } from "@/components/ads/ads-view";
 import type { Filters } from "@/core/ads-table";
 import { loadAdsTable } from "@/lib/ads-table";
 import { loadExperiments, loadLaunchOptions } from "@/lib/launch-view";
-import { productView } from "@/lib/mock/data";
+import { productView } from "@/core/ads-model";
 import { loadDataset } from "@/lib/source";
 import { loadColumns } from "@/server/ads-prefs";
 import { currentCaller } from "@/server/auth";

@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
-import { LEVEL_AR, LEVEL_HINT } from "@/lib/mock/data";
+import { LEVEL_AR, LEVEL_HINT } from "@/core/ads-model";
 import { cn } from "@/lib/utils";
 import type { LevelRow } from "@/lib/settings-view";
 import { safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
 
 /** One account's level (spec 10.1): the owner taps a level; a level it may not take says why instead. */
 export function LevelPicker({ row }: { row: LevelRow }) {
@@ -39,7 +40,7 @@ export function LevelPicker({ row }: { row: LevelRow }) {
         {LEVEL_AR.map((l, i) => {
           const o = row.options[i]!;
           return (
-            <button
+            <Tap
               key={l}
               type="button"
               disabled={busy}
@@ -48,7 +49,7 @@ export function LevelPicker({ row }: { row: LevelRow }) {
               className={cn("min-h-10 max-md:min-h-[44px] rounded-md py-1 text-center text-sm", i === row.level ? "bg-accent text-accent-fg" : o.ok ? "bg-surface-2 text-fg hover:bg-accent/15" : "bg-surface-2 text-fg-muted/60")}
             >
               {l}
-            </button>
+            </Tap>
           );
         })}
       </div>

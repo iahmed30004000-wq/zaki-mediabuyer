@@ -57,7 +57,7 @@ describe("the watchdog", () => {
       expect(rows("workflowRun")[0]!.startedAt.toISOString()).toBe(SLOT);
       const n = rows("notification");
       expect(n).toHaveLength(1);
-      expect(n[0]).toMatchObject({ source: "workflow", audience: "owner", urgency: "orange", key: `run.missed:${rows("workflowRun")[0]!.id}`, href: "/work/job/daily" });
+      expect(n[0]).toMatchObject({ source: "workflow", audience: "owner", urgency: "orange", key: `run.missed:${rows("workflowRun")[0]!.id}`, href: "/tasks/daily" });
       expect(n[0]!.title).toContain("مهمة daily");
       expect(n[0]!.title).toContain("فاتت");
       expect(n[0]!.title.length).toBeLessThanOrEqual(45);

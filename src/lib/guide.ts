@@ -4,8 +4,8 @@
  */
 import type { PlaceKey } from "./nav";
 
-/** The five places, the settings and the products. */
-export type GuideKey = PlaceKey | "products" | "settings";
+/** The four places, the decisions list and the settings. */
+export type GuideKey = PlaceKey | "inbox" | "settings";
 
 export interface TourStep {
   /** `data-tour` value on the page. */
@@ -37,14 +37,6 @@ export const PAGE_GUIDE: Record<GuideKey, PageGuide> = {
     next: "افتح أول قرار: الأرقام والأثر فيه، وبزر «وافق» أو «ارفض» أو «أجّل».",
     tour: [{ target: "pending", title: "بدها قرارك", text: "كل قرار مفتوح. الأحمر أول، بعدين اللي بينتهي وقته." }],
   },
-  work: {
-    what: "كل شغل بيمشي لحاله أو بيعمله حدا: المهام المجدولة عند Claude، واللي انعمل اليوم، ومهام الفريق، والتقارير.",
-    next: "شوف أي مهمة واقفة أو فاشلة. بضغطة على اسمها بتشوف آخر تشغيل وبتقرر.",
-    tour: [
-      { target: "counters", title: "عدّادات الشغل", text: "كم مهمة شغّالة وكم واقفة وكم فيها ملاحظة. ضغطة على أي عدّاد بتفلتر الخريطة." },
-      { target: "orders", title: "الأوامر السارية", text: "أمر مؤقت بيمشي على المهام (مثلاً «وقّف التكبير لبكرا»). بينكتب مرة وبينتهي لحاله." },
-    ],
-  },
   ads: {
     what: "الحملات (حملة ← مجموعة ← إعلان)، والفيديوهات، والاختبارات. كل رقم محسوب من الطلبات الحقيقية. أرقام كل منتج وحكمه صارت بـ «الأرقام».",
     next: "افتح الجدول وفلتر بالمنتج. فوقه رابطين: «مرشّحين للتكبير» و«صحة البيانات».",
@@ -52,11 +44,6 @@ export const PAGE_GUIDE: Record<GuideKey, PageGuide> = {
       { target: "filters", title: "الفلاتر", text: "المنتج · الصفحة · السوق · اختبار/تكبير · الحالة. بتنحفظ بالرابط، فالرجوع بيرجّع نفس الشاشة." },
       { target: "launch", title: "＋ إطلاق", text: "معالج: منتج ← قالب ← فيديوهات ← مراجعة الأثر. بيستنى موافقتك، وكل شي بينشأ موقوف." },
     ],
-  },
-  ops: {
-    what: "التأكيد والشحن والمخزون: قراءة بس. ولا زر بيعدّل طلب أو شحنة.",
-    next: "شوف رحلة الطلب: مين دخل ومين تأكد ومين نزل على الشحن ومين تسلّم.",
-    tour: [{ target: "funnel", title: "رحلة الطلب", text: "دخل ← مؤكد ← نزل على الشحن ← انشحن ← تسلّم، ونسبة كل مرحلة من اللي قبلها. اللي ما إله رقم بيطلع «—»." }],
   },
   tasks: {
     what: "كل شغل بيمشي لحاله أو بيعمله حدا: مين عم يشتغل شو، ووين وصلت كل مهمة. كل تشغيل إله حبل ضو: لمبة لكل خطوة، وبتوقف عند الخطوة اللي علقت.",
@@ -82,15 +69,6 @@ export const PAGE_GUIDE: Record<GuideKey, PageGuide> = {
       { target: "chart", title: "الرسم وشو عملنا", text: "آخر 30 يوم، الأقدم عاليمين وأمس عاليسار. الخط الأحمر المتقطّع نقطة تعادلك والأخضر هدفك (بس لما تكتبهم). الدواير المرقّمة شو عملنا بذاك اليوم؛ الرسم بيحط الحدث جنب الرقم والحكم إلك." },
       { target: "products", title: "كل منتج: كنا وصرنا", text: "تكلفة الطلب الحقيقي كنا وصرنا، وطلبات اليوم، والحكم من أرقامك إنت (هدفك ونقطة تعادلك). ضغطة على المنتج بتفتح صفحته." },
       { target: "funnel", title: "رحلة الطلب", text: "من كل 100 طلب دخلوا: كم تأكّد، كم انشحن، كم تسلّم — ومعه «كنا»." },
-    ],
-  },
-  products: {
-    what: "أرقام كل منتج لفترة: الصرف، الطلبات الحقيقية، التأكيد، الشحن، الأموال، المخزون. كل رقم مع «كنا» والفرق بالكلام.",
-    next: "اختار الفترة فوق، وافتح كرت أي منتج: بيفتح على ستة أرقام، والباقي (31 رقم) وراء «كل الأرقام».",
-    tour: [
-      { target: "range", title: "الفترة", text: "أمس مقابل اللي قبله · آخر 7 أيام · آخر 30 يوم · أو من تاريخ لتاريخ. بتخلص عند أمس دايماً." },
-      { target: "totals", title: "الإجمالي", text: "ست أرقام بنظرة، كل واحد مع «كنا» وفرقه. ضغطة على أي رقم بتشرح معادلته." },
-      { target: "products", title: "كرت لكل منتج", text: "مسكّر وبيعرض الأساسيات. افتحه بتشوف ستة أرقام، و«كل الأرقام» بتفتح الباقي." },
     ],
   },
   settings: {
@@ -119,12 +97,8 @@ export const ARTICLES: { slug: string; title: string; body: string[]; art?: stri
   { slug: "telegram", title: "شو بقدر أعمل من تيليجرام؟", body: ["بيوصلك التقرير الصباحي والتنبيهات. وبتقدر تكتب «اوقف» على إعلان أو مجموعة.", "أي زيادة صرف أو تشغيل أو حملة جديدة: من الموقع بس، بعد ما تشوف الأثر المالي."] },
 ];
 
-/** A page the owner made in the old edit mode (a board or a link) has no tour: this is what the «؟» and the assistant say about it. */
-const CUSTOM_GUIDE: PageGuide = {
-  what: "صفحة عملتها إنت قبل: لوحة مهام أو رابط. اللوحة صارت من لوحات «مهام الفريق»، والرابط بيروح لمكانه.",
-  next: "لوحاتك وحقولك وأزرارك بتلاقيها بالإعدادات ← متقدّم ← التخصيص.",
-  tour: [],
-};
+/** What a page that has no guide of its own says (the «؟» and the assistant): the home's. */
+const FALLBACK_GUIDE: PageGuide = PAGE_GUIDE.home;
 
-/** The guide of a page by its key — a built-in place's own, or the one every page of the owner's shares. */
-export const guideOf = (key: string): PageGuide => (PAGE_GUIDE as Record<string, PageGuide>)[key] ?? CUSTOM_GUIDE;
+/** The guide of a page by its key — a place's own, or the home's when the key is not one of them. */
+export const guideOf = (key: string): PageGuide => (PAGE_GUIDE as Record<string, PageGuide>)[key] ?? FALLBACK_GUIDE;

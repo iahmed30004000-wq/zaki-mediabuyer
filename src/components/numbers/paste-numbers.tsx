@@ -8,7 +8,7 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTit
 import { useToast } from "@/components/ui/toast";
 import { PASTE_LEVELS, type PushLevel } from "@/core/push-rows";
 import { safeFetch } from "@/lib/call";
-import { cn } from "@/lib/utils";
+import { Input, Select, Textarea } from "@/components/ui/input";
 
 const LEVEL_AR: Record<PushLevel, string> = { account: "حساب", campaign: "حملات", adset: "مجموعات", ad: "إعلانات", product: "منتجات", person: "موظفين" };
 
@@ -22,7 +22,6 @@ interface Preview {
   sample: Record<string, unknown>[];
 }
 
-const field = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-3 text-sm text-fg";
 
 /**
  * «ألصق أرقام»: paste a table (an Ads Manager export, a sheet), look at what was understood, and enter the rows that are fine.
@@ -73,7 +72,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
             <SheetDescription>انسخ جدول من Ads Manager أو من شيت والصقه هون — الكود بيقراه، وإنت بتشوف شو انفهم قبل ما ينحفظ شي.</SheetDescription>
           </SheetHeader>
           <SheetBody className="space-y-3">
-            <textarea
+            <Textarea
               value={text}
               dir="auto"
               rows={7}
@@ -84,26 +83,26 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
               }}
               aria-label="الجدول الملصوق"
               placeholder={"Day, Ad ID, Ad name, Amount spent, Impressions, Link clicks, Purchases\n2026-11-14, 120001, TIN_V01, 12.50, 3400, 85, 2"}
-              className={cn(field, "py-2 tabular-nums text-xs leading-6")}
+              className="tabular-nums text-sm leading-6"
             />
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
-                <span className="text-xs font-semibold text-fg">مستوى الأسطر</span>
-                <select value={level} onChange={(e) => { setLevel(e.target.value as PushLevel); setPre(null); }} className={field}>
+                <span className="text-sm font-semibold text-fg">مستوى الأسطر</span>
+                <Select value={level} onChange={(e) => { setLevel(e.target.value as PushLevel); setPre(null); }}>
                   {PASTE_LEVELS.map((l) => (
                     <option key={l} value={l}>{LEVEL_AR[l]}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="block space-y-1">
-                <span className="text-xs font-semibold text-fg">اليوم (إذا ما في عمود تاريخ)</span>
-                <input type="date" value={day} dir="ltr" onChange={(e) => { setDay(e.target.value); setPre(null); }} className={field} />
+                <span className="text-sm font-semibold text-fg">اليوم (إذا ما في عمود تاريخ)</span>
+                <Input type="date" value={day} dir="ltr" onChange={(e) => { setDay(e.target.value); setPre(null); }} />
               </label>
             </div>
-            <p className="text-xs leading-5 text-fg-muted">لازم عمود معرّف (Ad ID أو Campaign ID …) — الموقع ما بيخمّن معرّف. الإعلان بدو أبوه معروف: الصق الحملات أول، بعدين المجموعات، بعدين الإعلانات (وإذا الملف فيه عمود Ad set ID بيستعمله). أرقام نظام الطلبات وميتا لما تنربط بتحل مكان الملصوق.</p>
+            <p className="text-sm leading-5 text-fg-muted">لازم عمود معرّف (Ad ID أو Campaign ID …) — الموقع ما بيخمّن معرّف. الإعلان بدو أبوه معروف: الصق الحملات أول، بعدين المجموعات، بعدين الإعلانات (وإذا الملف فيه عمود Ad set ID بيستعمله). أرقام نظام الطلبات وميتا لما تنربط بتحل مكان الملصوق.</p>
 
             {pre ? (
-              <div className="space-y-2 rounded-xl border border-border bg-surface-2/50 p-3 text-xs leading-6" role="status">
+              <div className="space-y-2 rounded-xl border border-border bg-surface-2/50 p-3 text-sm leading-6" role="status">
                 <p className="text-sm font-semibold text-fg">
                   {pre.valid} صف صالح{pre.problemCount ? ` · ${pre.problemCount} فيها مشكلة` : ""}
                 </p>
@@ -119,7 +118,7 @@ export function PasteNumbers({ defaultDay }: { defaultDay: string }) {
                 {pre.sample.length ? (
                   <ul className="space-y-1 text-fg">
                     {pre.sample.map((r, i) => (
-                      <li key={i} dir="ltr" className="truncate text-start tabular-nums text-xs">
+                      <li key={i} dir="ltr" className="truncate text-start tabular-nums text-sm">
                         {String(r.date)} · {String(r.level)} · {String(r.id)}
                         {r.name ? ` · ${String(r.name)}` : ""}
                         {r.spend !== undefined ? ` · $${String(r.spend)}` : ""}

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { describeRules, missingRules, type CampaignRules } from "@/core/rules-v2";
 import { safeFetch } from "@/lib/call";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Kind = "int" | "money" | "pct" | "factor" | "bool" | "time";
 interface Field {
@@ -188,7 +189,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
           <div className="mt-3 space-y-2">
             {be.map(([p, v]) => (
               <div key={p} className="flex items-center gap-2 text-sm">
-                <span dir="ltr" className="w-28 tabular-nums text-xs text-fg">{p}</span>
+                <span dir="ltr" className="w-28 tabular-nums text-sm text-fg">{p}</span>
                 <NumberField f={{ path: `breakeven.${p}`, label: `تعادل ${p}`, kind: "money", hint: "$" }} value={v} onChange={(n) => n !== null && edit("breakeven", { ...rules.breakeven, [p]: n })} />
                 <IconButton aria-label={`شيل ${p}`} onClick={() => { const { [p]: _gone, ...rest } = rules.breakeven; edit("breakeven", rest); }}>
                   <X className="size-4" />
@@ -230,7 +231,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
                   <label key={f.path} className="flex min-h-10 items-center justify-between gap-3 text-sm text-fg max-md:min-h-[44px]">
                     <span className="leading-5">{f.label}</span>
                     {f.kind === "bool" ? (
-                      <input type="checkbox" checked={!!v} onChange={(e) => edit(f.path, e.target.checked)} className="size-5 shrink-0 accent-accent" />
+                      <Checkbox aria-label={f.label} checked={!!v} onChange={(e) => edit(f.path, e.target.checked)} className="min-h-0 shrink-0" />
                     ) : f.kind === "time" ? (
                       <Input type="time" dir="ltr" value={String(v)} onChange={(e) => e.target.value && edit(f.path, e.target.value)} className="w-28 shrink-0" />
                     ) : (

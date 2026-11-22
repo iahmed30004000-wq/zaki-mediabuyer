@@ -9,38 +9,21 @@ import {
   addAfter,
   addNode,
   autoLayout,
-  boundsOf,
   checkGraph,
-  commitHistory,
   connect,
   descendants,
   diffText,
-  disconnect,
-  duplicateNode,
-  edgeGeometry,
   ensureLayout,
-  fitView,
   graphDiff,
   insertOnEdge,
-  isChain,
   isPlaced,
   layersOf,
-  moveInChain,
   moveNode,
   nextId,
-  pushHistory,
   reaches,
-  redoHistory,
-  replaceGraph,
-  removeNode,
   setNode,
-  setPredecessor,
   snap,
-  startHistory,
   templateOf,
-  toWorld,
-  undoHistory,
-  zoomAt,
   type Edit,
 } from "@/core/workflow-edit";
 
@@ -100,9 +83,9 @@ describe("autoLayout", () => {
     const g = diamond();
     expect(autoLayout(g)).toEqual(autoLayout(g));
     expect(autoLayout(g).edges).toEqual(g.edges);
-    const b = boundsOf(autoLayout(g));
-    expect(b.x).toBe(GRID * 2);
-    expect(b.y).toBe(GRID * 2);
+    const placed = autoLayout(g).nodes;
+    expect(Math.min(...placed.map((n) => n.x!))).toBe(GRID * 2);
+    expect(Math.min(...placed.map((n) => n.y!))).toBe(GRID * 2);
   });
 
   it("a wide branch of three stays centred on the step above", () => {
@@ -119,38 +102,6 @@ describe("autoLayout", () => {
     expect(ensureLayout(placed)).toBe(placed);
     expect(isPlaced(chain("a", "b"))).toBe(false);
     expect(isPlaced(ensureLayout(chain("a", "b")))).toBe(true);
-  });
-});
-
-describe("the view", () => {
-  const g = autoLayout(diamond());
-  it("fits the whole graph inside the box, centred, never bigger than life", () => {
-    const b = boundsOf(g);
-    const v = fitView(b, { w: 360, h: 640 });
-    expect(b.w * v.k).toBeLessThanOrEqual(360);
-    expect(b.h * v.k).toBeLessThanOrEqual(640);
-    expect(v.k).toBeLessThanOrEqual(1);
-    expect(Math.round(v.x + (b.x + b.w / 2) * v.k)).toBe(180);
-    expect(Math.round(v.y + (b.y + b.h / 2) * v.k)).toBe(320);
-    expect(fitView({ x: 0, y: 0, w: 50, h: 50 }, { w: 800, h: 600 }).k).toBe(1);
-  });
-
-  it("zooms around the finger: the point under it does not move", () => {
-    const v0 = { x: 40, y: 20, k: 1 };
-    const before = toWorld(v0, 200, 150);
-    const v1 = zoomAt(v0, 1.6, 200, 150);
-    const after = toWorld(v1, 200, 150);
-    expect(after.x).toBeCloseTo(before.x, 6);
-    expect(after.y).toBeCloseTo(before.y, 6);
-    expect(zoomAt(v0, 50, 0, 0).k).toBe(2);
-    expect(zoomAt(v0, 0.01, 0, 0).k).toBe(0.3);
-  });
-
-  it("draws a line from the bottom middle of one step to the top middle of the next", () => {
-    const e = edgeGeometry({ x: 0, y: 0 }, { x: 0, y: 128 });
-    expect(e.d.startsWith(`M ${NODE_W / 2} ${NODE_H}`)).toBe(true);
-    expect(e.d.endsWith(`${NODE_W / 2} 128`)).toBe(true);
-    expect(e.mid).toEqual({ x: NODE_W / 2, y: (NODE_H + 128) / 2 });
   });
 });
 
@@ -198,10 +149,6 @@ describe("adding and joining", () => {
     expect(g2.edges.at(-1)).toEqual({ from: "c", to: "x", label: "فوق التعادل" });
   });
 
-  it("takes a line away", () => {
-    expect(disconnect(chain("a", "b"), "a", "b").edges).toEqual([]);
-  });
-
   it("knows what a step reaches", () => {
     const g = diamond();
     expect([...descendants(g, "b")]).toEqual(["d"]);
@@ -236,39 +183,7 @@ describe("a «+» on a line", () => {
   });
 });
 
-describe("taking a step out", () => {
-  it("a step in a line leaves the line closed", () => {
-    const next = ok(removeNode(chain("a", "b", "c"), "b"));
-    expect(next.nodes.map((n) => n.id)).toEqual(["a", "c"]);
-    expect(next.edges).toEqual([{ from: "a", to: "c" }]);
-  });
-
-  it("a step with several roads in or out just takes its lines away", () => {
-    const next = ok(removeNode(diamond(), "b"));
-    expect(next.edges).toEqual([{ from: "a", to: "c" }, { from: "c", to: "d" }]);
-    const fork = ok(removeNode(diamond(), "a"));
-    expect(fork.edges).toEqual([{ from: "b", to: "d" }, { from: "c", to: "d" }]);
-  });
-
-  it("the last step cannot go, and an unknown one is said", () => {
-    expect(removeNode({ nodes: [node("a")], edges: [] }, "a").ok).toBe(false);
-    expect(removeNode(chain("a", "b"), "zzz").ok).toBe(false);
-  });
-});
-
 describe("copying and editing a step", () => {
-  it("a copy sits next to it, with a new id, not joined to anything", () => {
-    const g = autoLayout(chain("a", "b"));
-    const r = duplicateNode(g, "b");
-    const next = ok(r);
-    const copy = next.nodes.find((n) => n.id === (r.ok ? r.id : ""))!;
-    expect(copy.label).toBe("b (نسخة)");
-    expect(copy.id).not.toBe("b");
-    expect(next.edges).toEqual(g.edges);
-    expect(copy.x).not.toBe(g.nodes[1]!.x);
-    expect(valid(next)).toBe(true);
-  });
-
   it("edits fields; an emptied one is removed; the id never changes", () => {
     const g = chain("a", "b");
     const g2 = ok(setNode(g, "b", { label: "اسم جديد", prompt: "اقرا {{product}}", timeoutS: 300, id: "hacked" as never }));
@@ -291,34 +206,9 @@ describe("copying and editing a step", () => {
     expect(g.nodes[1]).toMatchObject({ x: 96, y: 208 });
   });
 
-  it("«بعد: …» makes one step the only thing flowing into another", () => {
-    const g = chain("a", "b", "c");
-    const g2 = ok(setPredecessor(g, "c", "a"));
-    expect(g2.edges.filter((e) => e.to === "c")).toEqual([{ from: "a", to: "c" }]);
-    expect(ok(setPredecessor(g, "c", null)).edges.some((e) => e.to === "c")).toBe(false);
-    expect(setPredecessor(g, "b", "c").ok).toBe(false);
-  });
-
   it("finds the next free id", () => {
     expect(nextId(chain("step1", "step2"), "step")).toBe("step3");
     expect(nextId(chain("a", "b"), "الخطوة")).toBe("node1");
-  });
-});
-
-describe("the steps list", () => {
-  it("knows a straight line and moves a step up or down it", () => {
-    const g = chain("a", "b", "c", "d");
-    expect(isChain(g)).toBe(true);
-    const moved = ok(moveInChain(g, "d", -1));
-    expect(moved.edges).toEqual([{ from: "a", to: "b" }, { from: "b", to: "d" }, { from: "d", to: "c" }]);
-    expect(moveInChain(g, "b", -1).ok).toBe(false);
-    expect(moveInChain(g, "d", 1).ok).toBe(false);
-  });
-
-  it("a branch, a join or a labelled line is not a line — it is edited on the canvas", () => {
-    expect(isChain(diamond())).toBe(false);
-    expect(isChain({ nodes: [node("a", "trigger"), node("b")], edges: [{ from: "a", to: "b", label: "x" }] })).toBe(false);
-    expect(moveInChain(diamond(), "b", 1).ok).toBe(false);
   });
 });
 
@@ -337,7 +227,8 @@ describe("what a version changed", () => {
   it("the same graph is «بلا تغيير»; a removed step and line are counted", () => {
     const a = chain("a", "b", "c");
     expect(diffText(graphDiff(a, a))).toBe("بلا تغيير");
-    expect(diffText(graphDiff(a, ok(removeNode(a, "b"))))).toBe("−1 خطوة · +1 وصلة · −2 وصلة");
+    const gone: WfGraph = { nodes: a.nodes.filter((n) => n.id !== "b"), edges: [{ from: "a", to: "c" }] };
+    expect(diffText(graphDiff(a, gone))).toBe("−1 خطوة · +1 وصلة · −2 وصلة");
   });
 });
 
@@ -381,49 +272,6 @@ describe("a new workflow", () => {
 
   it("no template carries an amount of money", () => {
     expect(JSON.stringify(WORKFLOW_TEMPLATES)).not.toMatch(/\$|\d+\s*دولار/);
-  });
-});
-
-describe("undo and redo", () => {
-  const a = chain("a", "b");
-  const b = ok(addNode(a, "step"));
-  const c = ok(addNode(b, "notify"));
-
-  it("goes back and forth along the steps", () => {
-    let h = pushHistory(pushHistory(startHistory(a), b), c);
-    expect(h.graph).toBe(c);
-    h = undoHistory(h);
-    expect(h.graph).toBe(b);
-    h = undoHistory(undoHistory(h));
-    expect(h.graph).toBe(a);
-    expect(undoHistory(h)).toBe(h);
-    h = redoHistory(h);
-    expect(h.graph).toBe(b);
-    expect(redoHistory(redoHistory(redoHistory(h))).graph).toBe(c);
-  });
-
-  it("a new change after an undo throws the redo steps away; the same drawing is no step", () => {
-    let h = undoHistory(pushHistory(startHistory(a), b));
-    h = pushHistory(h, c);
-    expect(h.future).toEqual([]);
-    expect(pushHistory(h, h.graph)).toBe(h);
-  });
-
-  it("a drag moves the drawing without steps and makes ONE step at its end", () => {
-    const h0 = startHistory(a);
-    const moving = moveNode(a, "b", 200, 200);
-    const h1 = replaceGraph(replaceGraph(h0, moveNode(a, "b", 100, 100)), moving);
-    expect(h1.past).toEqual([]);
-    const h2 = commitHistory(h1, a, moving);
-    expect(h2.past).toEqual([a]);
-    expect(undoHistory(h2).graph).toBe(a);
-    expect(commitHistory(h1, moving, moving).past).toEqual([]);
-  });
-
-  it("keeps only the last 50 steps", () => {
-    let h = startHistory(a);
-    for (let i = 0; i < 80; i++) h = pushHistory(h, moveNode(h.graph, "b", i * 16, 0));
-    expect(h.past).toHaveLength(50);
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * THE FULL CHECK (spec 17.4, T6.2) — every line of the list, in order, on the local database in dry-run, and the
- * evidence written to docs/FULL_CHECK.md. Run before the real ad account is handed over:
+ * evidence written to docs/archive/FULL_CHECK.md. Run before the real ad account is handed over:
  *   `npm run check:full`   (needs the local database and ffmpeg; Meta, the OMS and Telegram are the pretend ones)
  */
 import { spawnSync } from "node:child_process";
@@ -60,6 +60,6 @@ const md = [
   "",
   ...lines,
 ].join("\n");
-writeFileSync("docs/FULL_CHECK.md", md);
-console.log(failed ? `\n✗ ${failed} item(s) failed — see docs/FULL_CHECK.md` : "\n✓ every item held — docs/FULL_CHECK.md");
+writeFileSync("docs/archive/FULL_CHECK.md", md);
+console.log(failed ? `\n✗ ${failed} item(s) failed — see docs/archive/FULL_CHECK.md` : "\n✓ every item held — docs/archive/FULL_CHECK.md");
 process.exit(failed ? 1 : 0);

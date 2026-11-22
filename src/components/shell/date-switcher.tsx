@@ -6,6 +6,8 @@ import { CalendarRange } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { RANGE_AR, type Range, type RangeKey } from "@/core/dates";
 import { cn } from "@/lib/utils";
+import { Tap } from "@/components/ui/tap";
+import { Button } from "@/components/ui/button";
 
 const CHOICES: RangeKey[] = ["today", "yesterday", "7d", "custom"];
 
@@ -33,7 +35,7 @@ export function DateSwitcher({ range }: { range: Range }) {
         {CHOICES.map((k) => {
           const on = k === "custom" ? custom || range.key === "custom" : range.key === k && !custom;
           return (
-            <button
+            <Tap
               key={k}
               type="button"
               role="radio"
@@ -47,7 +49,7 @@ export function DateSwitcher({ range }: { range: Range }) {
             >
               {k === "custom" ? <CalendarRange className="size-3.5" /> : null}
               {RANGE_AR[k]}
-            </button>
+            </Tap>
           );
         })}
       </div>
@@ -57,9 +59,9 @@ export function DateSwitcher({ range }: { range: Range }) {
           <Input type="date" dir="ltr" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="w-40" aria-label="من" />
           لـ
           <Input type="date" dir="ltr" value={to} min={from} onChange={(e) => setTo(e.target.value)} className="w-40" aria-label="لـ" />
-          <button type="button" disabled={!from || !to} onClick={() => go({ d: "custom", from, to })} className="min-h-10 max-md:min-h-[44px] rounded-lg bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-50">
+          <Button size="sm" disabled={!from || !to} onClick={() => go({ d: "custom", from, to })}>
             اعرض
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>

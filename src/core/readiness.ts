@@ -36,7 +36,7 @@ export const INTEGRATIONS: Integration[] = [
   { key: "telegram", label: "تيليجرام", needs: [["TELEGRAM_BOT_TOKEN"], ["TELEGRAM_OWNER_CHAT_ID"]], writes: true, jobs: ["alerts.send"], probe: "telegram", why: "التنبيهات والتقارير و«اوقف»" },
   { key: "telegramIn", label: "تيليجرام — استقبال «اوقف»", needs: [["TELEGRAM_BOT_TOKEN"], ["TELEGRAM_OWNER_CHAT_ID"], ["TELEGRAM_WEBHOOK_SECRET"]], writes: false, jobs: [], probe: "telegramIn", why: "أي رسالة «اوقف» بتصير إيقاف مسجّل (والصرف بيتعمل من الموقع بس)" },
   { key: "workspace", label: "Zaki Workspace — مهام الفريق", needs: [["WORKSPACE_BASE_URL"], ["WORKSPACE_API_TOKEN"]], writes: true, jobs: ["workspace.sync"], probe: "workspace", why: "دفع مهام الأشخاص وسحب «خلص»" },
-  { key: "n8n", label: "n8n (تنفيذ الخطوات)", needs: [["N8N_BASE_URL"], ["N8N_WEBHOOK_SECRET"]], writes: true, jobs: [], probe: "n8n", why: "زر «من الموقع» ومواعيد الورك فلو" },
+  { key: "n8n", label: "n8n (تنفيذ الخطوات)", needs: [["N8N_BASE_URL"], ["N8N_WEBHOOK_SECRET"]], writes: true, jobs: [], probe: "n8n", why: "زر «من الموقع» ومواعيد المهام" },
   { key: "n8nApi", label: "n8n (فحص الحالة)", needs: [["N8N_BASE_URL"], ["N8N_API_KEY"]], writes: false, jobs: [], probe: "none", why: "قراءة حالة الفلوهات" },
   { key: "drive", label: "درايف — الوارد", needs: [["GOOGLE_SERVICE_ACCOUNT_JSON"], ["DRIVE_PRODUCTS_FOLDER_ID"]], writes: true, jobs: ["creative.intake"], why: "استلام الفيديوهات ونقلها (ولا حذف)" },
   { key: "driveLibrary", label: "درايف — مكتبة الفيديوهات", needs: [["GOOGLE_SERVICE_ACCOUNT_JSON"], ["DRIVE_PRODUCTION_FOLDER_ID"]], writes: false, jobs: ["drive.library"], why: "ربط كل فيديو بملفه وسيناريوه" },

@@ -20,6 +20,7 @@ import { GLOSSARY } from "@/lib/glossary";
 import { safeFetch } from "@/lib/call";
 import { fmt } from "@/lib/format";
 import type { NumbersData } from "@/lib/numbers-view";
+import { Tap } from "@/components/ui/tap";
 
 const URGENCY_WORD = { red: "المخزون أحمر", orange: "المخزون برتقالي", yellow: "المخزون أصفر" } as const;
 
@@ -111,7 +112,7 @@ function ProductCard({ p, facts, target, query }: { p: ProductNumbers; facts: So
   const verdict = productVerdict(p.current.costPerOrder, target, p.breakeven);
   return (
     <section className="rounded-card border border-border bg-surface-1">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-h-12 w-full items-center gap-3 p-4 text-start">
+      <Tap type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex min-h-12 w-full items-center gap-3 p-4 text-start">
         <span className="min-w-0 flex-1 space-y-1">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ProductName name={p.name} code={p.code} />
@@ -124,7 +125,7 @@ function ProductCard({ p, facts, target, query }: { p: ProductNumbers; facts: So
           </span>
         </span>
         <ChevronDown className={`size-5 shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
-      </button>
+      </Tap>
       {open ? (
         <div className="space-y-4 border-t border-border p-4">
           <Link href={`/numbers/products/${encodeURIComponent(p.code)}${query ? `?${query}` : ""}`} className="inline-flex min-h-11 items-center text-base font-semibold text-info hover:underline">
@@ -169,9 +170,9 @@ function Share({ query }: { query: string }) {
           <a href={`/print/numbers?${query}`} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-base text-fg hover:bg-surface-2">
             <Printer className="size-4" /> PDF — صفحة للطباعة والحفظ
           </a>
-          <button type="button" disabled={busy} onClick={telegram} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-start text-base text-fg hover:bg-surface-2 disabled:opacity-50">
+          <Tap type="button" disabled={busy} onClick={telegram} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-start text-base text-fg hover:bg-surface-2 disabled:opacity-50">
             <Send className="size-4" /> ملخص على تيليجرام
-          </button>
+          </Tap>
         </div>
       ) : null}
     </div>

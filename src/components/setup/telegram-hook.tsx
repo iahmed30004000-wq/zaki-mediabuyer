@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { safeFetch } from "@/lib/call";
 
-/** «سجّل الـ webhook» and «افحصه» for Telegram's «اوقف»: the site does it with the keys it already has — nobody types a token. */
+/** «سجّل الربط مع تيليجرام» and «افحصه» for Telegram's «اوقف»: the site does it with the keys it already has — nobody types a token. */
 export function TelegramHook() {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -28,7 +28,7 @@ export function TelegramHook() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" variant="secondary" disabled={busy} onClick={() => void call("POST")}>
-        سجّل الـ webhook
+        سجّل الربط مع تيليجرام
       </Button>
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => void call("GET")}>
         افحصه

@@ -66,7 +66,7 @@ export function StudioLink() {
             <KeyRound className="size-4 text-fg-muted" />
             <span className="text-fg">{t.name}</span>
             <span className="text-sm text-fg-muted">{t.scopes.map((s) => STUDIO_NAME[s] ?? s).join(" · ")}</span>
-            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{t.prefix}…</span>
+            <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{t.prefix}…</span>
             <span className="ms-auto text-sm text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
             <Button size="sm" variant="ghost" onClick={async () => (await call(`/api/studio/tokens/${t.id}`, { method: "DELETE" })) && load()}>
               وقّفه
@@ -80,7 +80,7 @@ export function StudioLink() {
         <div className="space-y-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
           <p className="text-sm text-fg">هاد التوكن بيظهر هلأ بس. انسخه وحطه بالاستوديو، وما تبعته بأي محادثة.</p>
           <div className="flex items-center gap-2">
-            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-xs text-fg">{fresh}</code>
+            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-sm text-fg">{fresh}</code>
             <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(fresh).then(() => toast("انسخ ✓ — حطه بالاستوديو هلأ", "success"))}>
               <Copy className="size-3.5" /> انسخ
             </Button>
@@ -132,7 +132,7 @@ export function StudioLink() {
         {links.length ? (
           <ul className="flex flex-wrap gap-2">
             {links.map((l) => (
-              <li key={l.crCode} dir="ltr" className="rounded-full bg-surface-2 px-2.5 py-1 tabular-nums text-xs text-fg-muted">
+              <li key={l.crCode} dir="ltr" className="rounded-full bg-surface-2 px-2.5 py-1 tabular-nums text-sm text-fg-muted">
                 {l.crCode} ↔ {l.sourceRef}
               </li>
             ))}

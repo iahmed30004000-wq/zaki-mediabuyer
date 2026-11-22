@@ -1,4 +1,4 @@
-import type { RowStatus } from "@/lib/mock/data";
+import type { RowStatus } from "@/core/ads-model";
 import { cn } from "@/lib/utils";
 
 const STATUS: Record<RowStatus, { label: string; cls: string }> = {
@@ -13,5 +13,5 @@ export const STATUS_LABEL: Record<RowStatus, string> = { active: STATUS.active.l
 
 export function StatusChip({ status }: { status: RowStatus }) {
   const s = STATUS[status];
-  return <span className={cn("inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-xs font-semibold", s.cls)}>{s.label}</span>;
+  return <span className={cn("inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-sm font-semibold", s.cls)}>{s.label}</span>;
 }

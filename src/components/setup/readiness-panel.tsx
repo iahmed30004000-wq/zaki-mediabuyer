@@ -39,7 +39,7 @@ export function ReadinessPanel({ data }: { data: Readiness }) {
           <p className="text-sm font-semibold text-warn">ناقص من إعدادات الموقع نفسه</p>
           {data.env.map((p) => (
             <p key={p.name} className="text-sm text-fg-muted">
-              <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg">{p.name}</code> — {p.why}
+              <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-sm text-fg">{p.name}</code> — {p.why}
             </p>
           ))}
         </Panel>
@@ -59,7 +59,7 @@ export function ReadinessPanel({ data }: { data: Readiness }) {
                 <p className="flex flex-wrap items-center gap-1 text-sm text-fg-muted">
                   ناقص:
                   {r.missing.map((m) => (
-                    <code key={m} dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg">{m}</code>
+                    <code key={m} dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-sm text-fg">{m}</code>
                   ))}
                 </p>
               ) : null}

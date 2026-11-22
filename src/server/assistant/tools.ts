@@ -523,7 +523,7 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           const afterLabel = anchor ? base.nodes.find((n) => n.id === anchor)?.label : undefined;
           const summary = `خطوة «${i.node.label}»${afterLabel ? ` بعد «${afterLabel}»` : ""} — ${diffText(graphDiff(base, set.graph))}`;
           const art: Artifact = { kind: "node_draft", workflowKey: card.key, workflowName: card.name, graph: set.graph, summary, issues };
-          return toolData({ ok: true, saved: false, new_node_id: added.id, summary, warnings: issues, note: "الخطوة ظهرت للمالك بطاقة — هو بيفتح الرسم وفيها كمسودة ويحفظ." }, { artifacts: [art], sources: [{ id: `workflow:${card.key}`, label: `الورك فلو · ${card.name}`, href: `/workflow/${card.key}` }] });
+          return toolData({ ok: true, saved: false, new_node_id: added.id, summary, warnings: issues, note: "الخطوة ظهرت للمالك بطاقة — هو بيضيفها بخطوات المهمة ويحفظ." }, { artifacts: [art], sources: [{ id: `workflow:${card.key}`, label: `المهمة · ${card.name}`, href: `/tasks/${encodeURIComponent(card.key)}` }] });
         }),
     },
     {
@@ -556,7 +556,7 @@ export function makeTools(over: Partial<ToolDeps> = {}): Tool[] {
           const issues = issueTexts(set.graph);
           const summary = `تعديل خطوة «${node.label}» (${Object.keys(i.changes).join("، ")}) — ${diffText(graphDiff(base, set.graph))}`;
           const art: Artifact = { kind: "node_draft", workflowKey: card.key, workflowName: card.name, graph: set.graph, summary, issues };
-          return toolData({ ok: true, saved: false, summary, warnings: issues, note: "التعديل ظهر للمالك بطاقة — هو بيفتح الرسم وفيه التعديل كمسودة ويحفظ." }, { artifacts: [art], sources: [{ id: `workflow:${card.key}`, label: `الورك فلو · ${card.name}`, href: `/workflow/${card.key}` }] });
+          return toolData({ ok: true, saved: false, summary, warnings: issues, note: "التعديل ظهر للمالك بطاقة — هو بيعدّل الخطوة بخطوات المهمة ويحفظ." }, { artifacts: [art], sources: [{ id: `workflow:${card.key}`, label: `المهمة · ${card.name}`, href: `/tasks/${encodeURIComponent(card.key)}` }] });
         }),
     },
     {

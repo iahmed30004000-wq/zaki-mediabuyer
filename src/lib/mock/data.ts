@@ -1,27 +1,12 @@
 /**
- * DEMO DATA (`MOCK_MODE=1`) — what every screen shows until Meta and the OMS are connected.
- * The raw counts are invented; every derived number goes through the real calculator
- * (src/core/economics.ts), so what you see is computed exactly as it will be on real data.
- * No customer data of any kind lives here.
+ * DEMO DATA (`MOCK_MODE=1`) — what the server reads until Meta and the OMS are connected, and what the tests use. NO screen imports this file (v6 · P8, `mockInUi` of the ratchet): the screens
+ * read the model (src/core/ads-model.ts) and a dataset from src/lib/source.ts, which is this one only when the site is in demo mode.
+ * The raw counts are invented; every derived number goes through the real calculator (src/core/economics.ts), so what you see is computed exactly as it will be on real data.
+ * No customer data of any kind lives here. The model is re-exported so that the lib files that already imported it from here keep working.
  */
-import { computeTruth, estimateTargets, round2, pct1, type Truth } from "@/core/economics";
+import type { Account, Counts, CampaignRow, Dataset, Product, Creative, SourceHealth } from "@/core/ads-model";
 
-export type Market = "SY" | "JO";
-
-export interface Product {
-  code: string;
-  name: string;
-  market: Market;
-  price: number;
-  unitCost: number;
-  delivery: number;
-  returnFee: number;
-  codFee: number;
-  confirmCost: number;
-  stockDays: number;
-  /** Real shipments so far (< 50 = the targets are an estimate). */
-  shipmentsToDate: number;
-}
+export * from "@/core/ads-model";
 
 export const PRODUCTS: Product[] = [
   { code: "TRF01", name: "ماء الكمأة", market: "SY", price: 20, unitCost: 2.2, delivery: 2.5, returnFee: 0, codFee: 0, confirmCost: 0.3, stockDays: 18, shipmentsToDate: 214 },
@@ -32,85 +17,10 @@ export const PRODUCTS: Product[] = [
 
 export const productByCode = (code: string) => PRODUCTS.find((p) => p.code === code);
 
-export function targetsOf(p: Product) {
-  const e = estimateTargets({ price: p.price, unitCost: p.unitCost, shipping: p.delivery, returnFee: p.returnFee, codFee: p.codFee, confirmCost: p.confirmCost, confirmRate: "0.65", deliveryRate: "0.75", profitMinShare: "0.30" });
-  return { tOrder: round2(e.tOrder)!, tConfirmed: round2(e.tConfirmed)!, margin: round2(e.margin)!, losing: e.losing, estimated: p.shipmentsToDate < 50 };
-}
-
-// ───────────────────────────── the ad accounts ─────────────────────────────
-
-export interface Account {
-  id: string;
-  name: string;
-  market: Market;
-  /** 0 مستشار · 1 حارس · 2 مكبّر محدود · 3 مدير */
-  level: 0 | 1 | 2 | 3;
-  dailyCap: number;
-  spentToday: number;
-  plannedToday: number;
-  paymentOk: boolean;
-  note?: string;
-}
-
 export const ACCOUNTS: Account[] = [
   { id: "act_1029", name: "حساب سوريا", market: "SY", level: 1, dailyCap: 260, spentToday: 151.4, plannedToday: 240, paymentOk: true, note: "الدفع من حساب مالي برّا سوريا" },
   { id: "act_2207", name: "حساب الأردن", market: "JO", level: 1, dailyCap: 90, spentToday: 38.2, plannedToday: 80, paymentOk: true },
 ];
-
-export const LEVEL_AR = ["مستشار", "حارس", "مكبّر محدود", "مدير"] as const;
-export const LEVEL_HINT = [
-  "بيقترح بس، ولا بيلمس شي.",
-  "بيوقف الخاسر ويخفّض لحاله. أي زيادة صرف بموافقتك.",
-  "متل الحارس، وكمان بيكبّر بخطوة 20% ضمن السقف.",
-  "بيدير كل شي ضمن السقف. (مطفي لهلأ)",
-] as const;
-
-// ───────────────────────────── the campaign tree ─────────────────────────────
-
-export interface Counts {
-  spend: number;
-  impressions: number;
-  clicks: number;
-  v3s: number;
-  thru: number;
-  purchases: number;
-  conversations?: number;
-  orders: number;
-  mature: number;
-  confirmed: number;
-  shipments: number;
-  delivered: number;
-  returned: number;
-}
-
-export type RowStatus = "active" | "paused" | "learning" | "untested" | "rejected";
-
-export interface AdRow {
-  id: string;
-  name: string;
-  status: RowStatus;
-  counts: Counts;
-  /** The rule that acted on it, in the owner's words. */
-  note?: string;
-}
-export interface AdSetRow {
-  id: string;
-  name: string;
-  status: RowStatus;
-  dailyBudget: number;
-  learning: { events: number; of: number };
-  ads: AdRow[];
-}
-export interface CampaignRow {
-  id: string;
-  account: string;
-  name: string;
-  productCode: string | null;
-  status: RowStatus;
-  adsets: AdSetRow[];
-  /** A name the parser could not read. */
-  needsNaming?: boolean;
-}
 
 const c = (spend: number, impressions: number, clicks: number, v3s: number, thru: number, purchases: number, orders: number, mature: number, confirmed: number, shipments: number, delivered: number, returned: number, conversations?: number): Counts => ({
   spend, impressions, clicks, v3s, thru, purchases, orders, mature, confirmed, shipments, delivered, returned, conversations,
@@ -168,106 +78,10 @@ export const CAMPAIGNS: CampaignRow[] = [
 
 // ───────────────────────────── the truth of a set of counts ─────────────────────────────
 
-export function sumCounts(list: Counts[]): Counts {
-  const z = c(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-  let conv: number | undefined;
-  for (const x of list) {
-    (Object.keys(z) as (keyof Counts)[]).forEach((k) => {
-      if (k !== "conversations") (z[k] as number) += x[k] as number;
-    });
-    if (x.conversations !== undefined) conv = (conv ?? 0) + x.conversations;
-  }
-  return { ...z, conversations: conv };
-}
-
-export const adsetCounts = (s: AdSetRow) => sumCounts(s.ads.map((a) => a.counts));
-export const campaignCounts = (cmp: CampaignRow) => sumCounts(cmp.adsets.map(adsetCounts));
-
-export function truthOf(k: Counts, p: Product | undefined): Truth {
-  const price = p?.price ?? 0;
-  return computeTruth({
-    spend: k.spend,
-    fxFee: "0.01",
-    conversations: k.conversations,
-    orders: k.orders,
-    confirmed: k.confirmed,
-    matureOrders: k.mature,
-    shipments: k.shipments,
-    delivered: k.delivered,
-    returned: k.returned,
-    collected: k.delivered * price,
-    deliveryFees: k.shipments * (p?.delivery ?? 0),
-    returnFees: k.returned * (p?.returnFee ?? 0),
-    cogsDelivered: k.delivered * (p?.unitCost ?? 0),
-    overheadFactor: "0.97",
-  });
-}
-
-/** What a screen shows for a row: meta numbers, true numbers, and the gap between them. */
-export function viewOf(k: Counts, p: Product | undefined) {
-  const t = truthOf(k, p);
-  const ratio = (a: number, b: number) => (b > 0 ? (a / b) * 100 : null);
-  // messaging campaigns have no pixel Purchase to compare: no gap, not a 100% one
-  const gap = k.orders > 0 && k.conversations === undefined ? ((k.purchases - k.orders) / k.orders) * 100 : null;
-  return {
-    spend: round2(t.spendWithFee),
-    ctr: ratio(k.clicks, k.impressions),
-    hook: ratio(k.v3s, k.impressions),
-    hold: ratio(k.thru, k.v3s),
-    cpaPixel: k.purchases > 0 ? round2(t.spendWithFee.div(k.purchases)) : null,
-    orders: k.orders,
-    confirmed: k.confirmed,
-    open: k.orders - k.mature,
-    confirmRate: pct1(t.confirmRate),
-    costPerConfirmed: round2(t.costPerConfirmed),
-    delivered: k.delivered,
-    deliveryRate: pct1(t.deliveryRate),
-    returnRate: pct1(t.returnRate),
-    ceiling: round2(t.scalingCeiling),
-    profit: round2(t.profitAfterCosts),
-    profitPerDelivered: round2(t.profitPerDelivered),
-    roas: round2(t.trueRoas),
-    gap: gap === null ? null : Math.round(gap),
-    enoughData: k.impressions >= 3000 && k.spend >= 2 * (p ? targetsOf(p).tOrder : 1),
-  };
-}
-export type RowView = ReturnType<typeof viewOf>;
-
-/** What the screens read: the demo set, or the same shapes built from the database (src/lib/source.ts). */
-export interface Dataset {
-  products: Product[];
-  accounts: Account[];
-  campaigns: CampaignRow[];
-  /** true when the numbers are the demo ones */
-  demo: boolean;
-  /** true when the last real OMS sync is older than 3 h (or never ran): every OMS-based figure is «تقدير» */
-  omsStale?: boolean;
-}
-
 export const DEMO: Dataset = { products: PRODUCTS, accounts: ACCOUNTS, campaigns: CAMPAIGNS, demo: true };
 
-export function productView(code: string, ds: Dataset = DEMO) {
-  const p = ds.products.find((x) => x.code === code)!;
-  const rows = ds.campaigns.filter((x) => x.productCode === code);
-  const k = sumCounts(rows.map(campaignCounts));
-  return { product: p, counts: k, view: viewOf(k, p), targets: targetsOf(p) };
-}
-
-/** All the ads, flattened, with their product and view. */
-export function allAds(ds: Dataset = DEMO) {
-  return ds.campaigns.flatMap((cmp) =>
-    cmp.adsets.flatMap((s) =>
-      s.ads.map((a) => {
-        const p = cmp.productCode ? ds.products.find((x) => x.code === cmp.productCode) : undefined;
-        return { ad: a, adset: s, campaign: cmp, product: p, view: viewOf(a.counts, p) };
-      }),
-    ),
-  );
-}
-
-// ───────────────────────────── decisions (ChangeSets) ─────────────────────────────
-
 export type ChangeState = "pending_approval" | "executed" | "rolled_back" | "failed";
+
 export interface ChangeSet {
   id: string;
   state: ChangeState;
@@ -299,24 +113,6 @@ export const REASON_AR: Record<string, string> = {
 
 // ───────────────────────────── creatives ─────────────────────────────
 
-export type CreativeStage = "inbox" | "review" | "ready" | "live" | "fatigued" | "excluded";
-export interface Creative {
-  code: string;
-  product: string;
-  stage: CreativeStage;
-  duration: number;
-  aspect: "9:16" | "4:5" | "1:1";
-  hook?: string;
-  angle?: string;
-  dialect?: string;
-  policy: "green" | "yellow" | "red" | "pending";
-  policyNote?: string;
-  hookRate?: number;
-  holdRate?: number;
-  costPerConfirmed?: number;
-  dupOf?: string;
-}
-
 export const CREATIVES: Creative[] = [
   { code: "CR00190", product: "TRF01", stage: "inbox", duration: 24, aspect: "9:16", policy: "pending" },
   { code: "CR00191", product: "TRF01", stage: "inbox", duration: 31, aspect: "9:16", policy: "pending" },
@@ -330,22 +126,6 @@ export const CREATIVES: Creative[] = [
   { code: "—", product: "TRF01", stage: "excluded", duration: 24, aspect: "9:16", policy: "green", dupOf: "CR00147" },
 ];
 
-export const STAGE_FLOW: { key: CreativeStage; label: string; hint: string }[] = [
-  { key: "inbox", label: "وارد", hint: "وصل من Drive أو الاستديو، عم ينفحص" },
-  { key: "review", label: "بانتظارك", hint: "فحص السياسات بدو قرارك" },
-  { key: "ready", label: "جاهز", hint: "متسمّي ومفحوص — بينرفع لميتا لحاله وبيصير جاهز للإعلانات" },
-  { key: "live", label: "شغّال", hint: "بإعلان نشط" },
-  { key: "fatigued", label: "متعب", hint: "بدو هوكات جديدة — انطلبوا من الاستديو" },
-];
-
-// ───────────────────────────── health, alerts, set-up ─────────────────────────────
-
-export interface SourceHealth {
-  key: string;
-  label: string;
-  state: "ok" | "late" | "off";
-  detail: string;
-}
 export const SOURCES: SourceHealth[] = [
   { key: "meta", label: "ميتا", state: "ok", detail: "آخر سحب قبل 12 دقيقة" },
   { key: "oms", label: "الـ OMS", state: "ok", detail: "آخر مزامنة قبل 38 دقيقة" },
@@ -360,10 +140,11 @@ export interface Alert {
   text: string;
   href?: string;
 }
+
 export const ALERTS: Alert[] = [
   { id: "al1", tone: "warn", text: "قطرة الطنين: المخزون بيكفي 4 أيام — التكبير مجمّد لحاله.", href: "/ads?product=TIN01" },
   { id: "al2", tone: "warn", text: "حملة «كمأة جديد - نسخة 3» بلا رمز منتج: صرفها 12.63$ يتيم لحد ما تنسمّى.", href: "/ads?tab=naming" },
-  { id: "al3", tone: "info", text: "CR00186 مرفوض من الحارس بسبب ادعاء علاجي، وفي بديل جاهز.", href: "/videos" },
+  { id: "al3", tone: "info", text: "CR00186 مرفوض من الحارس بسبب ادعاء علاجي، وفي بديل جاهز.", href: "/ads/videos" },
 ];
 
 export interface SetupStep {
@@ -375,6 +156,7 @@ export interface SetupStep {
   who: "owner" | "system";
   done: boolean;
 }
+
 export const SETUP_STEPS: SetupStep[] = [
   { key: "meta", title: "اربط فيسبوك", why: "عشان النظام يقرأ أرقام إعلاناتك بالـ API الرسمي، بلا متصفح.", how: "اعمل تطبيق Meta Developer + System User بصلاحيات على حساباتك بس، وحط الأرقام بملف .env.", who: "owner", done: false },
   { key: "oms", title: "اربط الـ OMS", why: "الحقيقة: الطلبات المؤكدة والمُسلَّمة برقم الإعلان.", how: "الـ OMS بيفتح API قراءة (/orders/attribution) بتوكن خاص بالميديا باير.", who: "owner", done: false },

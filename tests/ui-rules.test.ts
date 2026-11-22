@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { AGENT_FACING, METRICS, RULES_VERSION, addCounts, countJargon, countRepo, countSource, emptyCounts, overBaseline, type Counts } from "../scripts/ui-rules";
+import { AGENT_FACING, JARGON_ALLOWED, METRICS, RULES_VERSION, addCounts, countJargon, countRepo, countSource, emptyCounts, overBaseline, type Counts } from "../scripts/ui-rules";
 
 const root = path.resolve(__dirname, "..");
 const none = (over: Partial<Counts> = {}): Counts => ({ ...emptyCounts(), ...over });
@@ -57,13 +57,14 @@ describe("what the ratchet counts", () => {
       'href={`/products/${code}`}',
       'router.push("/ads/campaigns")',
       'redirect("/work")',
+      'router.push("/p/pg-1a2b3c")',
       '<Link href="/workflow-x">', // not an old route
       '<Link href="/numbers/products">', // the new one
       '<Link href="/tasks">', // a real place now
       '// href="/work/old" in a comment',
       'const x = "/work/today"; // a plain string is not a link',
     ].join("\n");
-    expect(screen(src).oldRoutes).toBe(5);
+    expect(screen(src).oldRoutes).toBe(6);
   });
 
   it("a file in src/core or src/lib is read for words and old routes only — not for classes", () => {
@@ -97,6 +98,14 @@ describe("jargon: only inside Arabic UI text — not in code, comments or Englis
     expect(countJargon("<p>مهمة جديدة</p>", { jsx: true })).toBe(0);
   });
 
+  it("JSX text exists only in a .tsx file: the code of a route (.ts) between a `>` and a `{` is not text", () => {
+    const code = 'x => 1;\n  if (!ok) throw new HttpError(400, "طلب غير مفهوم");\n  const approval = await decide(id, {';
+    expect(countSource(code, "src/app/api/changes/[id]/route.ts").jargon).toBe(0);
+    expect(countSource(code, "src/components/x.tsx").jargon).toBe(1);
+    // …while a string literal of a route is read in both
+    expect(countSource('throw new HttpError(400, "اربط الـ MCP");', "src/app/api/x/route.ts").jargon).toBe(1);
+  });
+
   it("«خطوة» and «مهمة» are the right words now; «تسليم» alone is the delivery rate, not the handoff", () => {
     expect(countJargon('x = "خطوة جديدة بالمهمة"', { jsx: false })).toBe(0);
     expect(countJargon('x = "نسبة التسليم 70%"', { jsx: false })).toBe(0);
@@ -120,6 +129,13 @@ describe("jargon: only inside Arabic UI text — not in code, comments or Englis
     expect(countSource(src, "src/app/(app)/settings/connections/page.tsx").jargon).toBe(0);
     expect(countSource(src, "src/components/settings/claude-link.tsx").jargon).toBe(0);
     expect(countSource(src, "src/components/settings/rules-editor.tsx").jargon).toBe(1);
+  });
+
+  it("the files that only write the sentences of the connections page are allowed too — and no other file of src/core or src/lib is", () => {
+    const src = 'const a = "مش مربوط — ناقص N8N_BASE_URL بـ Coolify";';
+    for (const f of ["src/core/readiness.ts", "src/core/connections.ts", "src/lib/readiness-view.ts", "src/lib/settings-view.ts"]) expect(countSource(src, f).jargon, f).toBe(0);
+    expect(countSource(src, "src/core/alerts.ts").jargon).toBe(1);
+    expect(JARGON_ALLOWED.length).toBe(10);
   });
 });
 
@@ -148,8 +164,9 @@ describe("the ratchet: a number only goes down", () => {
     expect(overBaseline(total, baseline)).toEqual([]);
   });
 
-  it("the rules that must stay at zero are at zero", () => {
-    for (const m of ["arbitraryText", "offScaleText", "offScaleHeights", "hexColors", "decorImports", "mockChecks", "fontMono"] as const) expect(total[m], m).toBe(0);
+  it("every rule is at zero (v6 · P8: the old screens are gone, the kit is the only place of a raw element, no screen speaks the old words, links to the old map or reads the demo data)", () => {
+    for (const m of METRICS) expect(total[m], m).toBe(0);
+    for (const m of METRICS) expect(baseline[m], `${m} in the baseline`).toBe(0);
   });
 
   it("the kit itself is not counted (it is where the allowed raw elements live)", () => {

@@ -45,11 +45,11 @@ export function VersionsSheet({ open, onClose, workflowKey, canEdit, demo, onLoa
                   <li key={v.version} className="space-y-1.5 rounded-xl border border-border bg-surface-1 p-3">
                     <div className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-bold text-fg">النسخة {v.version}</span>
-                      {v.current ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent">الحالية</span> : null}
-                      <span className="ms-auto text-xs text-fg-muted">{when(v.createdAt)}</span>
+                      {v.current ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-sm font-semibold text-accent">الحالية</span> : null}
+                      <span className="ms-auto text-sm text-fg-muted">{when(v.createdAt)}</span>
                     </div>
-                    {change ? <p className="text-xs leading-5 text-fg">{change}</p> : null}
-                    <p className="text-xs text-fg-muted">{v.graph.nodes.length} خطوة · {v.graph.edges.length} وصلة{v.createdBy ? ` · ${who(v.createdBy)}` : ""}</p>
+                    {change ? <p className="text-sm leading-5 text-fg">{change}</p> : null}
+                    <p className="text-sm text-fg-muted">{v.graph.nodes.length} خطوة · {v.graph.edges.length} وصلة{v.createdBy ? ` · ${who(v.createdBy)}` : ""}</p>
                     {canEdit && !v.current ? (
                       <Button size="sm" variant="secondary" className="min-h-10 max-md:min-h-[44px]" onClick={() => onLoad(v.graph, v.version)}>
                         افتحها كمسودة

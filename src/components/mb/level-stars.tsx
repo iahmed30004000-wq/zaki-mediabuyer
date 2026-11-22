@@ -1,5 +1,5 @@
 import { Star } from "lucide-react";
-import { LEVEL_AR, LEVEL_HINT } from "@/lib/mock/data";
+import { LEVEL_AR, LEVEL_HINT } from "@/core/ads-model";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,7 +14,7 @@ export function LevelStars({ level, showLabel = true, className }: { level: 0 | 
           <Star key={i} className={cn("size-3.5", i <= level ? "fill-fg text-fg" : "text-border")} strokeWidth={2} />
         ))}
       </span>
-      {showLabel ? <span className="text-xs text-fg-muted">المستوى {level} · {LEVEL_AR[level]}</span> : <span className="sr-only">المستوى {level}: {LEVEL_AR[level]}</span>}
+      {showLabel ? <span className="text-sm text-fg-muted">المستوى {level} · {LEVEL_AR[level]}</span> : <span className="sr-only">المستوى {level}: {LEVEL_AR[level]}</span>}
     </span>
   );
 }

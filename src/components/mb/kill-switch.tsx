@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
-import { cn } from "@/lib/utils";
 import { callJson } from "@/lib/call";
 import { stopSentence, type StopResult } from "@/core/stop-result";
+import { Input } from "@/components/ui/input";
+import { Radio } from "@/components/ui/radio";
 
 /**
  * The full stop (spec 10.3, 18.2): always visible at the top, in the risk frame. Two confirmations:
@@ -57,17 +58,14 @@ export function KillSwitch({ compact = false, accounts = [] }: { compact?: boole
         <div className="space-y-4">
           <p className="text-sm text-fg">بيوقف الحملات الشغّالة بميتا. بترجعها من «بانتظارك ← قررتها» بزر رجّع، وكل شي بينسجّل.</p>
           <fieldset className="space-y-2">
-            <legend className="mb-1 text-xs font-medium text-fg-muted">شو بدك توقف؟</legend>
+            <legend className="mb-1 text-sm font-medium text-fg-muted">شو بدك توقف؟</legend>
             {[{ id: "all", name: "كل الحسابات" }, ...accounts].map((o) => (
-              <label key={o.id} className="flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5">
-                <input type="radio" name="scope" value={o.id} checked={scope === o.id} onChange={() => setScope(o.id)} className="accent-[rgb(var(--danger))]" />
-                <span className="text-sm text-fg">{o.name}</span>
-              </label>
+              <Radio key={o.id} name="scope" value={o.id} label={o.name} checked={scope === o.id} onChange={() => setScope(o.id)} className="w-full rounded-lg border border-border px-3 has-[:checked]:border-danger/60 has-[:checked]:bg-danger/5" />
             ))}
           </fieldset>
           <label className="block space-y-1">
-            <span className="text-xs font-medium text-fg-muted">للتأكيد اكتب «اوقف»</span>
-            <input value={typed} onChange={(e) => setTyped(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+            <span className="text-sm font-medium text-fg-muted">للتأكيد اكتب «اوقف»</span>
+            <Input value={typed} onChange={(e) => setTyped(e.target.value)} />
           </label>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>

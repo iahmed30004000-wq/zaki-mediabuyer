@@ -54,7 +54,7 @@ export const DEFAULT_SETTINGS = {
   "notify.contacts": {} as Record<string, string>,
   /** v3 · D — the least a video must spend (USD, over its last 7 days) before it is ranked as a winner. null until the owner types it: then twice the cost he aims for per order */
   "videos.min_spend": null as number | null,
-  /** v3 · K — «وضع التعديل»: the owner's pages, boards, fields and buttons over the built-in ones (src/core/customize.ts) */
+  /** v3 · K — the owner's boards and fields of the team's tasks over the built-in ones (src/core/customize.ts); v6 · P8 (Q5): the pages and buttons it used to hold are no longer drawn */
   "ui.config": emptyUi() as UiConfig,
   /** v5 · P9 — the limits for the flags beside a team member (src/core/ops.ts). Empty until the owner writes them: no limit = no flag */
   "ops.rules": { stuckMax: null, noAnswerMargin: null, newDays: null } as { stuckMax: number | null; noAnswerMargin: number | null; newDays: number | null },

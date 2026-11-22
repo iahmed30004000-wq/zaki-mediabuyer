@@ -12,7 +12,7 @@ export interface SettingsPage {
 export const SETTINGS_PAGES: readonly SettingsPage[] = [
   { href: "/settings/connections", title: "الربط", line: "جاهزية الربط، ربط Claude والاستوديو، الكتابة على ميتا" },
   { href: "/settings/team", title: "الفريق والصلاحيات", line: "الناس وأدوارهم، دليل الفريق، توكنات الوكلاء، مين بيقدر شو" },
-  { href: "/settings/rules", title: "القواعد", line: "السقوف، مستوى كل حساب، أحكام الحملات، صاحي ونايم، الأوامر السارية" },
+  { href: "/settings/rules", title: "القواعد", line: "السقوف، مستوى كل حساب، أحكام الحملات، الأوامر السارية" },
   { href: "/settings/products", title: "المنتجات", line: "الأسعار والتكاليف ونقطة التعادل، الصفحات، صفحات الهبوط" },
   { href: "/settings/notifications", title: "الإشعارات", line: "شو بيرنّ على جوالك وشو بالجرس، أجهزتك، وصاحي ونايم" },
   { href: "/settings/look", title: "المظهر", line: "فاتح أو داكن" },
@@ -20,7 +20,7 @@ export const SETTINGS_PAGES: readonly SettingsPage[] = [
 ];
 
 export const ADVANCED_PAGES: readonly SettingsPage[] = [
-  { href: "/settings/advanced/customize", title: "التخصيص", line: "لوحات المهام، حقول البطاقات وأزرارها، المحذوفات، روابطي" },
+  { href: "/settings/advanced/customize", title: "التخصيص", line: "لوحات مهام الفريق، حقول بطاقاتها، المحذوفات" },
   { href: "/settings/advanced/automation", title: "الأتمتة والجدولة", line: "n8n، تنفيذ الخطوات من الموقع، الجدولة" },
   { href: "/settings/advanced/manual", title: "الإدخال اليدوي", line: "لصق الأرقام، الاستيراد، التصدير" },
   { href: "/settings/advanced/log", title: "السجل", line: "مين عمل شو ومتى: ناس، قواعد، وكلاء، النظام" },

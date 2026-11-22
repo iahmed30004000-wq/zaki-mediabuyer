@@ -119,7 +119,7 @@ export type Gate = { ok: true } | { ok: false; status: number; message: string }
 /** May this caller take the request? Only whoever it was given to (the owner, signed in, may take it for anyone). */
 export function claimGate(h: { assignee: string }, who: { actorKey: string | null; owner?: boolean }): Gate {
   if (who.owner || actorOwnsAssignee(who.actorKey, h.assignee)) return { ok: true };
-  return { ok: false, status: 403, message: `هالتسليم مكلّف فيه ${assigneeLabel(h.assignee)} — مش لهالتوكن` };
+  return { ok: false, status: 403, message: `هالطلب مكلّف فيه ${assigneeLabel(h.assignee)} — مش لهالمفتاح` };
 }
 
 /**
@@ -133,5 +133,5 @@ export function completeGate(h: { assignee: string; claimNonce: string | null },
     return { ok: false, status: 403, message: "رمز الاستلام غلط — الرمز اللي إجاك بـ claim_handoff" };
   }
   if (actorOwnsAssignee(who.actorKey, h.assignee)) return { ok: true };
-  return { ok: false, status: 403, message: `هالتسليم مكلّف فيه ${assigneeLabel(h.assignee)} — ابعت رمز الاستلام (claim) أو استعمل توكنه` };
+  return { ok: false, status: 403, message: `هالطلب مكلّف فيه ${assigneeLabel(h.assignee)} — ابعت رمز الاستلام أو استعمل مفتاحه` };
 }

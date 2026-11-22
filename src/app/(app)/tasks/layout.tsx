@@ -5,7 +5,7 @@ export default function TasksLayout({ children }: { children: React.ReactNode })
   return (
     <>
       <div data-tour="views">
-        <PlaceTabs place="tasks" map="v6" />
+        <PlaceTabs place="tasks" />
       </div>
       {children}
     </>

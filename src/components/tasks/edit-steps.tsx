@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/components/ui/toast";
-import { VersionsSheet } from "@/components/workflow/editor/versions-sheet";
+import { VersionsSheet } from "@/components/tasks/versions-sheet";
 import { addStep, draftGraph, graphToSteps, moveItem, moveStep, removeItem, removeStep, setElse, setStepText, settleLayout, validateSteps, type DraftStep } from "@/core/job-draft";
 import type { Executor, WfGraph } from "@/core/workflow";
 import { graphDiff, isChanged } from "@/core/workflow-edit";

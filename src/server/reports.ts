@@ -32,7 +32,7 @@ export interface ReportRow {
 
 const PERIODIC_AR: Record<string, string> = { morning: "التقرير الصباحي", weekly: "التقرير الأسبوعي", monthly: "التقرير الشهري" };
 const clip = (s: string | null, n = 160) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
-export const reportHref = (id: string, base = "/work/reports") => `${base}/${encodeURIComponent(id)}`;
+export const reportHref = (id: string, base = "/tasks/results") => `${base}/${encodeURIComponent(id)}`;
 
 /** A run whose report is a JSON value of the code with nothing in it, and which has no sentence of its own, has nothing to show (docs/rebuild-v6/02-screens.md §3.4). */
 export function runReportIsEmpty(r: { summary: string | null; report: string | null }): boolean {

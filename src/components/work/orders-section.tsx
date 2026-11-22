@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { DOMAIN_AR, EFFECT_AR, untilWords, type OrderDomain, type OrderEffect } from "@/core/orders";
 import type { OrderView } from "@/server/orders";
 import { safeFetch } from "@/lib/call";
+import { Input } from "@/components/ui/input";
 
 export interface OrderScope {
   domain: OrderDomain;
@@ -61,7 +62,7 @@ export function OrdersSection({ orders, scope, title = "أوامر سارية", 
             <li key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3">
               <Pill tone={o.effect === "restrict" ? "warn" : "info"}>{EFFECT_AR[o.effect]}</Pill>
               <span className="min-w-0 flex-1 text-sm font-semibold leading-6 text-fg">{o.text}</span>
-              <span className="text-xs text-fg-muted">
+              <span className="text-sm text-fg-muted">
                 {DOMAIN_AR[o.domain as OrderDomain] ?? o.domain} · {untilWords(o.endsAt)}
               </span>
               {o.status === "pending" ? <Pill tone="neutral">بانتظار موافقتك</Pill> : null}
@@ -97,7 +98,7 @@ export function OrdersSection({ orders, scope, title = "أوامر سارية", 
                 </Field>
               )}
               <Field label="لحد إيمتى" hint="فاضي = لحد ما تقول «ارجع»">
-                <input type="datetime-local" dir="ltr" value={until} onChange={(e) => setUntil(e.target.value)} className="h-10 max-md:h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-base text-fg" />
+                <Input type="datetime-local" dir="ltr" value={until} onChange={(e) => setUntil(e.target.value)} />
               </Field>
             </div>
             <div className="flex items-center gap-2">

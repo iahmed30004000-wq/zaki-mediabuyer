@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NoAccess } from "@/components/shell/no-access";
 import { Sidebar } from "@/components/shell/sidebar";
@@ -15,8 +15,6 @@ import { MissionProvider } from "@/components/mb/mission";
 import { ROLE_PLACES, ROLE_START, canOpenPath, can, capabilitiesOf, hasHome } from "@/core/roles";
 import { isDemo } from "@/core/readiness";
 import { countWaiting } from "@/lib/inbox-count";
-import { NAV_COOKIE, navMapFor } from "@/lib/nav";
-import { loadPages } from "@/lib/ui-view";
 import { currentCaller } from "@/server/auth";
 import { loadDirectory } from "@/server/directory";
 import { db } from "@/server/db";
@@ -33,25 +31,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const me = await currentCaller();
   // a person who is not signed in goes to the door
   if (!me) redirect("/login");
-  const [pages, inbox, directory, accounts] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => []), loadStopAccounts()]);
+  const [inbox, directory, accounts] = await Promise.all([countWaiting(me), loadDirectory().catch(() => []), loadStopAccounts()]);
   // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
   const path = (await headers()).get("x-pathname") ?? "/";
-  // which map of places this person sees: the cookie `mb_nav` (the owner gets the new one until he asks for the old one back)
-  const navMap = navMapFor((await cookies()).get(NAV_COOKIE)?.value, me.role);
   if (me && path === "/" && !hasHome(me.role)) redirect(ROLE_START[me.role]);
   const body = me && !canOpenPath(me.role, path) ? <NoAccess home={ROLE_START[me.role]} /> : children;
-  // «وضع التعديل» is the owner's, signed in: with sign-in switched off nothing can be saved, so nothing is offered
+  // the boards and fields of the team's tasks are the owner's to change, signed in: with sign-in switched off nothing can be saved, so nothing is offered
   const canEdit = !!me && !me.demo && can(me.role, "owner_only");
   return (
     <MissionProvider>
       <PeopleProvider people={directory.map((d) => ({ key: d.key, label: d.name }))}>
-      <ShellProvider pages={pages} canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} navMap={navMap} caps={me ? capabilitiesOf(me.role) : undefined} stopAccounts={accounts}>
+      <ShellProvider canEdit={canEdit} inbox={inbox} places={me ? ROLE_PLACES[me.role] : undefined} settings={!me || can(me.role, "settings.view")} caps={me ? capabilitiesOf(me.role) : undefined} stopAccounts={accounts}>
         <div className="flex min-h-dvh">
           <Sidebar />
           <div className="min-w-0 flex-1">
             <PageHeader />
             {isDemo(process.env) ? (
-              <p role="status" className="border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-center text-xs font-semibold text-warn">
+              <p role="status" className="border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-center text-sm font-semibold text-warn">
                 وضع تجريبي — الأرقام أمثلة
               </p>
             ) : null}

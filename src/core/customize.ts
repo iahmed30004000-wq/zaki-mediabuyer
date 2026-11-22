@@ -1,12 +1,12 @@
 /**
- * «وضع التعديل» (v3 · K), the pure half. The owner can add, rename, hide and reorder the sidebar's pages, make a board of tasks
- * from a template, add fields (text · number · date · select · person · link) and buttons (each one asks Claude to run a
- * workflow on that card) to the cards, merge two pages, boards or fields, and put away what he does not use. None of it is code:
- * it is ONE document of config (the setting `ui.config`, versioned like every setting, so a mistake can be undone) that the
- * screens read and draw generically — the built-in places and boards are the defaults it starts from.
+ * The boards and the fields of the team's tasks (v3 · K, cut down in v6 · P8 by Q5), the pure half. The owner can make a board of tasks from a template, rename, hide and reorder boards,
+ * add fields (text · number · date · select · person · link) to the cards, merge two boards or two fields, and put away what he does not use. The old «وضع التعديل» also let him make
+ * pages for the side menu and buttons that ask Claude to run a job on a card, and put fields on videos and jobs: all of that was removed (the four places of the map are fixed). What was
+ * saved for them stays in the document (the schema still reads it, so a saved board is never lost) and nothing draws it.
+ * It is ONE document of config (the setting `ui.config`, versioned like every setting, so a mistake can be undone) that the screens read and draw generically — the built-in boards are the
+ * defaults it starts from.
  *
  * Rules that hold here, in one place, tested:
- *   • at most seven pages in the sidebar and four on the phone's bar; «الإعدادات» can never be hidden;
  *   • nothing is deleted — «soft delete» is an archive, and only what is UNUSED can be archived (a board with tasks, a field
  *     with values must be merged or hidden instead), so a merge never loses data: a merged board's tasks move (and the ids are
  *     remembered so they can move back), a merged field's values are copied;
@@ -19,16 +19,15 @@ import { privacyHits } from "@/gateway/privacy";
 import { isKey } from "./dates";
 import { PEOPLE, TASK_BOARDS, assigneeName, normalize } from "./tasks";
 
-export const MAX_SIDEBAR = 7;
-export const MAX_PHONE_BAR = 4;
 export const LIMITS = { pages: 40, boards: 30, fields: 60, buttons: 30, label: 40, button: 30, options: 12, option: 30, text: 300, link: 500, moved: 300 } as const;
 
 /** What the stored document may hold in all (the put-away ones included): far above what a person has active, so history never makes it unreadable. */
 const STORED_MAX = 300;
 
-export const ENTITIES = ["task", "video", "workflow"] as const;
-export type Entity = (typeof ENTITIES)[number];
-export const ENTITY_AR: Record<Entity, string> = { task: "المهام", video: "الفيديوهات", workflow: "الورك فلو" };
+/** The cards that have fields: the team's tasks. (The document may still hold fields saved for videos and jobs before P8 — `STORED_ENTITIES` reads them, nothing draws them.) */
+export const ENTITIES = ["task"] as const;
+const STORED_ENTITIES = ["task", "video", "workflow"] as const;
+export type Entity = (typeof STORED_ENTITIES)[number];
 
 export const FIELD_TYPES = ["text", "number", "date", "select", "person", "link"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
@@ -39,8 +38,6 @@ export type PageKind = (typeof PAGE_KINDS)[number];
 
 /** The board every task falls back to: it can be renamed, never hidden, archived or merged away. */
 export const MAIN_BOARD = "main";
-/** The page that holds the way back (connections, rules, this very switch's explanation): it is always in the sidebar. */
-export const SETTINGS_PAGE = "settings";
 
 // ───────────────────────────── the document ─────────────────────────────
 
@@ -48,6 +45,7 @@ const label = z.string().trim().min(1).max(LIMITS.label);
 const key = z.string().trim().min(1).max(40);
 const when = z.string().max(40);
 
+/** A page of the side menu (removed in P8): kept only so that a document saved with pages still reads. */
 export const PageCfg = z
   .object({
     key,
@@ -85,7 +83,7 @@ export type BoardCfgT = z.infer<typeof BoardCfg>;
 export const FieldCfg = z
   .object({
     id: key,
-    entity: z.enum(ENTITIES),
+    entity: z.enum(STORED_ENTITIES),
     /** tasks only: the boards it shows on (none = every board) */
     boards: z.array(key).max(LIMITS.boards).optional(),
     label,
@@ -99,10 +97,11 @@ export const FieldCfg = z
   .strict();
 export type FieldCfgT = z.infer<typeof FieldCfg>;
 
+/** A button on a card (removed in P8): kept only so that a document saved with buttons still reads. */
 export const ButtonCfg = z
   .object({
     id: key,
-    entity: z.enum(ENTITIES),
+    entity: z.enum(STORED_ENTITIES),
     boards: z.array(key).max(LIMITS.boards).optional(),
     label: z.string().trim().min(1).max(LIMITS.button),
     workflow: z.string().trim().min(1).max(60),
@@ -187,181 +186,6 @@ function swapWithNeighbour<T>(list: T[], at: number, dir: -1 | 1, eligible: (x: 
   const out = [...list];
   [out[at], out[j]] = [out[j]!, out[at]!];
   return out;
-}
-
-// ───────────────────────────── pages ─────────────────────────────
-
-/** A place the code ships with (src/lib/nav.ts, without its icon). */
-export interface BuiltinPage {
-  key: string;
-  href: string;
-  label: string;
-  question: string;
-  mobile: boolean;
-}
-
-export interface EffPage {
-  key: string;
-  href: string;
-  label: string;
-  question: string;
-  builtin: boolean;
-  kind: "builtin" | PageKind;
-  board?: string;
-  external: boolean;
-  hidden: boolean;
-  archived: boolean;
-  mobile: boolean;
-  /** «الإعدادات»: always in the sidebar */
-  locked: boolean;
-  mergedInto?: string;
-}
-
-export const customPageHref = (k: string) => `/p/${k}`;
-
-/** Every page with the owner's changes laid over the built-in ones, in the order the owner left them. */
-export function effectivePages(cfg: UiConfig, builtins: BuiltinPage[]): EffPage[] {
-  const byBuiltin = new Map(builtins.map((b) => [b.key, b]));
-  const byCfg = new Map(cfg.pages.map((p) => [p.key, p]));
-  const order = [...cfg.pages.map((p) => p.key), ...builtins.map((b) => b.key).filter((k) => !byCfg.has(k))];
-  const out: EffPage[] = [];
-  const seen = new Set<string>();
-  for (const k of order) {
-    if (seen.has(k)) continue;
-    seen.add(k);
-    const c = byCfg.get(k);
-    const b = byBuiltin.get(k);
-    if (b) {
-      out.push({ key: k, href: b.href, label: c?.label ?? b.label, question: b.question, builtin: true, kind: "builtin", external: false, hidden: k === SETTINGS_PAGE ? false : !!c?.hidden, archived: false, mobile: c?.mobile ?? b.mobile, locked: k === SETTINGS_PAGE });
-    } else if (c?.custom && c.kind) {
-      const href = c.kind === "board" ? customPageHref(k) : (c.href ?? "/");
-      out.push({
-        key: k,
-        href,
-        label: c.label ?? "صفحة",
-        question: c.kind === "board" ? "لوحة مهام عملتها بنفسك" : "رابط عملته بنفسك",
-        builtin: false,
-        kind: c.kind,
-        board: c.board,
-        external: href.startsWith("https://"),
-        hidden: !!c.hidden,
-        archived: !!c.archivedAt,
-        mobile: !!c.mobile,
-        locked: false,
-        mergedInto: c.mergedInto,
-      });
-    }
-  }
-  return out;
-}
-
-export const visiblePages = (pages: EffPage[]) => pages.filter((p) => !p.hidden && !p.archived);
-
-/** The config with an entry for EVERY built-in page, in order — an edit starts from here so that «move» and «hide» never reshuffle the rest. */
-function withPages(cfg: UiConfig, builtins: BuiltinPage[]): UiConfig {
-  const have = new Set(cfg.pages.map((p) => p.key));
-  const missing = builtins.filter((b) => !have.has(b.key)).map((b) => ({ key: b.key }));
-  return missing.length ? { ...cfg, pages: [...cfg.pages, ...missing] } : cfg;
-}
-
-const patchPage = (cfg: UiConfig, k: string, patch: Partial<PageCfgT>): UiConfig => ({ ...cfg, pages: cfg.pages.map((p) => (p.key === k ? { ...p, ...patch } : p)) });
-
-function findPage(cfg: UiConfig, builtins: BuiltinPage[], k: string): { eff: EffPage; base: UiConfig } | { error: string } {
-  const base = withPages(cfg, builtins);
-  const eff = effectivePages(base, builtins).find((p) => p.key === k);
-  return eff ? { eff, base } : { error: "الصفحة مش موجودة" };
-}
-
-const labelTaken = (pages: EffPage[], text: string, except?: string) => pages.some((p) => !p.archived && p.key !== except && sameName(p.label, text));
-
-export function addPage(cfg: UiConfig, builtins: BuiltinPage[], a: { id: string; kind: PageKind; label: string; board?: string; href?: string }): UiEdit {
-  const l = cleanLabel(a.label);
-  if (!l.ok) return l;
-  const base = withPages(cfg, builtins);
-  const pages = effectivePages(base, builtins);
-  if (base.pages.filter((p) => p.custom && !p.archivedAt).length >= LIMITS.pages) return fail(`وصلت للحد (${LIMITS.pages} صفحة من صنعك)`);
-  if (visiblePages(pages).length >= MAX_SIDEBAR) return fail(`السايدبار أقصى شي ${MAX_SIDEBAR} صفحات — اخفي وحدة أول`);
-  if (labelTaken(pages, l.label)) return fail("في صفحة بنفس الاسم — ادمجهم أو غيّر الاسم");
-  const entry: PageCfgT = { key: a.id, custom: true, kind: a.kind, label: l.label };
-  if (a.kind === "board") {
-    const b = effectiveBoards(base).find((x) => x.key === a.board && !x.archived);
-    if (!b) return fail("اللوحة مش موجودة");
-    entry.board = b.key;
-  } else {
-    const h = cleanHref(a.href ?? "");
-    if (!h.ok) return h;
-    entry.href = h.href;
-  }
-  // before «الإعدادات», which stays last
-  const at = base.pages.findIndex((p) => p.key === SETTINGS_PAGE);
-  const next = at >= 0 ? [...base.pages.slice(0, at), entry, ...base.pages.slice(at)] : [...base.pages, entry];
-  return done({ ...base, pages: next }, `صفحة جديدة «${l.label}»`);
-}
-
-export function renamePage(cfg: UiConfig, builtins: BuiltinPage[], k: string, text: string): UiEdit {
-  const l = cleanLabel(text);
-  if (!l.ok) return l;
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  if (labelTaken(effectivePages(f.base, builtins), l.label, k)) return fail("في صفحة بنفس الاسم");
-  return done(patchPage(f.base, k, { label: l.label }), `صفحة «${f.eff.label}» صارت «${l.label}»`);
-}
-
-export function setPageHidden(cfg: UiConfig, builtins: BuiltinPage[], k: string, hidden: boolean): UiEdit {
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  if (f.eff.locked && hidden) return fail("«الإعدادات» ما بتنخفي — منها بترجع لأي شي");
-  if (f.eff.archived) return fail("الصفحة بالمحذوفات — رجّعها أول");
-  if (!hidden && f.eff.hidden && visiblePages(effectivePages(f.base, builtins)).length >= MAX_SIDEBAR) return fail(`السايدبار أقصى شي ${MAX_SIDEBAR} صفحات — اخفي وحدة أول`);
-  return done(patchPage(f.base, k, { hidden }), hidden ? `صفحة «${f.eff.label}» انخفت` : `صفحة «${f.eff.label}» رجعت`);
-}
-
-export function setPageMobile(cfg: UiConfig, builtins: BuiltinPage[], k: string, mobile: boolean): UiEdit {
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  if (mobile && !f.eff.mobile && visiblePages(effectivePages(f.base, builtins)).filter((p) => p.mobile).length >= MAX_PHONE_BAR) return fail(`شريط الجوال بيسع ${MAX_PHONE_BAR} صفحات — شيل وحدة أول`);
-  return done(patchPage(f.base, k, { mobile }), mobile ? `«${f.eff.label}» على شريط الجوال` : `«${f.eff.label}» نزلت لـ «المزيد»`);
-}
-
-export function movePage(cfg: UiConfig, builtins: BuiltinPage[], k: string, dir: -1 | 1): UiEdit {
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  const eff = effectivePages(f.base, builtins);
-  const shown = new Set(visiblePages(eff).map((p) => p.key));
-  if (!shown.has(k)) return fail("اظهرها أول");
-  const at = f.base.pages.findIndex((p) => p.key === k);
-  const next = swapWithNeighbour(f.base.pages, at, dir, (p) => shown.has(p.key));
-  return next ? done({ ...f.base, pages: next }, `صفحة «${f.eff.label}» اتحرّكت`) : fail(dir < 0 ? "هي أول وحدة" : "هي آخر وحدة");
-}
-
-export function archivePage(cfg: UiConfig, builtins: BuiltinPage[], k: string, at: string): UiEdit {
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  if (f.eff.builtin) return fail("صفحات النظام بتنخفي بس — ما بتنحذف");
-  if (f.eff.archived) return fail("هي بالمحذوفات أصلاً");
-  return done(patchPage(f.base, k, { archivedAt: isoNow(at) }), `صفحة «${f.eff.label}» انحذفت (بتقدر ترجّعها)`);
-}
-
-export function restorePage(cfg: UiConfig, builtins: BuiltinPage[], k: string): UiEdit {
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  if (!f.eff.archived) return fail("الصفحة مش محذوفة");
-  if (visiblePages(effectivePages(f.base, builtins)).length >= MAX_SIDEBAR) return fail(`السايدبار أقصى شي ${MAX_SIDEBAR} صفحات — اخفي وحدة أول`);
-  const { archivedAt: _a, mergedInto: _m, ...rest } = f.base.pages.find((p) => p.key === k)!;
-  void _a;
-  void _m;
-  return done({ ...f.base, pages: f.base.pages.map((p) => (p.key === k ? rest : p)) }, `صفحة «${f.eff.label}» رجعت`);
-}
-
-export function mergePages(cfg: UiConfig, builtins: BuiltinPage[], from: string, into: string, at: string): UiEdit {
-  if (from === into) return fail("اختار صفحتين مختلفتين");
-  const a = findPage(cfg, builtins, from);
-  const b = findPage(cfg, builtins, into);
-  if ("error" in a) return fail(a.error);
-  if ("error" in b) return fail(b.error);
-  if (a.eff.builtin) return fail("صفحات النظام ما بتندمج — ادمج الصفحة اللي عملتها فيها");
-  if (a.eff.archived || b.eff.archived) return fail("وحدة منهم بالمحذوفات");
-  return done(patchPage(a.base, from, { archivedAt: isoNow(at), mergedInto: into }), `«${a.eff.label}» اندمجت بـ «${b.eff.label}»`);
 }
 
 // ───────────────────────────── boards ─────────────────────────────
@@ -517,7 +341,6 @@ export function archiveBoard(cfg: UiConfig, k: string, taskCount: number, at: st
   if (f.eff.locked) return fail("اللوحة الرئيسية ما بتنحذف");
   if (f.eff.archived) return fail("هي بالمحذوفات أصلاً");
   if (taskCount > 0) return fail(`عليها ${taskCount} مهمة — ادمجها بلوحة تانية أول (ما بنخسّر ولا مهمة)`);
-  if (cfg.pages.some((p) => p.custom && !p.archivedAt && p.board === k)) return fail("في صفحة بالسايدبار مربوطة فيها — احذفها أو ادمجها أول");
   return done(patchBoard(f.base, k, { archivedAt: isoNow(at) }), `لوحة «${f.eff.label}» انحذفت (بتقدر ترجّعها)`);
 }
 
@@ -530,7 +353,7 @@ export function restoreBoard(cfg: UiConfig, k: string): UiEdit {
   const { archivedAt: _a, mergedInto: into, movedTaskIds: ids, movedCount: _c, widened, ...rest } = c;
   void _a;
   void _c;
-  // what the merge put on the other board comes off it again, and the sidebar pages that opened this one open it
+  // what the merge put on the other board comes off it again
   const unwiden = <T extends { boards?: string[] }>(item: T): T => {
     if (!into || !item.boards) return item;
     const left = item.boards.filter((x) => x !== into);
@@ -540,16 +363,13 @@ export function restoreBoard(cfg: UiConfig, k: string): UiEdit {
     ...f.base,
     boards: f.base.boards.map((b) => (b.key === k ? rest : b)),
     fields: widened ? f.base.fields.map((x) => (widened.fields.includes(x.id) ? unwiden(x) : x)) : f.base.fields,
-    buttons: widened ? f.base.buttons.map((x) => (widened.buttons.includes(x.id) ? unwiden(x) : x)) : f.base.buttons,
-    pages: widened ? f.base.pages.map((p) => (widened.pages.includes(p.key) ? { ...p, board: k } : p)) : f.base.pages,
   };
   return done(next, `لوحة «${f.eff.label}» رجعت`, into && ids?.length ? { moveBack: { from: k, into, ids } } : {});
 }
 
 /**
  * Merges board `from` into `into`: its tasks move there (the caller moves them, and passes their ids and their count), the board
- * is archived with a pointer, the fields and buttons that were only on it now show on `into` too, and a sidebar page that opened
- * it opens `into`. Nothing is lost: the ids are kept so the merge can be undone.
+ * is archived with a pointer and the fields that were only on it now show on `into` too. Nothing is lost: the ids are kept so the merge can be undone.
  */
 export function mergeBoards(cfg: UiConfig, a: { from: string; into: string; taskIds: string[]; taskCount: number }, at: string): UiEdit {
   if (a.from === a.into) return fail("اختار لوحتين مختلفتين");
@@ -560,16 +380,14 @@ export function mergeBoards(cfg: UiConfig, a: { from: string; into: string; task
   if (x.eff.locked) return fail("اللوحة الرئيسية بتكون الوجهة بس — ادمج غيرها فيها");
   if (x.eff.archived || y.eff.archived) return fail("وحدة منهم بالمحذوفات");
   const base = x.base;
-  // a field or a button that was on this board only is now on the other as well (this board stays in its scope: nothing sits on it any more)
+  // a field that was on this board only is now on the other as well (this board stays in its scope: nothing sits on it any more)
   const widens = (item: { boards?: string[] }) => !!item.boards?.includes(a.from) && !item.boards.includes(a.into);
   const widen = <T extends { boards?: string[] }>(item: T): T => (widens(item) ? { ...item, boards: [...item.boards!, a.into] } : item);
   const keepIds = a.taskCount <= LIMITS.moved ? a.taskIds.slice(0, LIMITS.moved) : undefined;
-  const widened = { fields: base.fields.filter(widens).map((f) => f.id), buttons: base.buttons.filter(widens).map((b) => b.id), pages: base.pages.filter((p) => p.custom && p.board === a.from).map((p) => p.key) };
+  const widened = { fields: base.fields.filter(widens).map((f) => f.id), buttons: [], pages: [] };
   const next: UiConfig = {
     ...patchBoard(base, a.from, { archivedAt: isoNow(at), mergedInto: a.into, movedTaskIds: keepIds, movedCount: a.taskCount, widened }),
-    pages: base.pages.map((p) => (p.custom && p.board === a.from ? { ...p, board: a.into } : p)),
     fields: base.fields.map(widen),
-    buttons: base.buttons.map(widen),
   };
   return done(next, `لوحة «${x.eff.label}» اندمجت بـ «${y.eff.label}» (${a.taskCount} مهمة انتقلت)`);
 }
@@ -584,10 +402,6 @@ export const onBoard = <T extends { boards?: string[] }>(items: T[], board?: str
 /** The fields a card shows: of this kind of card, on this board, not hidden or archived (the panel asks for the hidden ones too). */
 export function fieldsFor(cfg: UiConfig, entity: Entity, board?: string, opts: { hidden?: boolean } = {}): FieldCfgT[] {
   return onBoard(activeFields(cfg, entity).filter((f) => opts.hidden || !f.hidden), board);
-}
-
-export function buttonsFor(cfg: UiConfig, entity: Entity, board?: string, opts: { hidden?: boolean } = {}): ButtonCfgT[] {
-  return onBoard(cfg.buttons.filter((b) => b.entity === entity && !b.archivedAt && (opts.hidden || !b.hidden)), board);
 }
 
 const cleanOptions = (raw: string[] | undefined): { ok: true; options: string[] } | { ok: false; error: string } => {
@@ -610,7 +424,6 @@ function checkScope(cfg: UiConfig, entity: Entity, boards: string[] | undefined)
   return { ok: true, boards: [...new Set(boards)] };
 }
 
-const fieldName = (cfg: UiConfig, id: string) => cfg.fields.find((f) => f.id === id)?.label ?? id;
 
 export function addField(cfg: UiConfig, a: { id: string; entity: Entity; label: string; type: FieldType; options?: string[]; boards?: string[]; onCard?: boolean }): UiEdit {
   const l = cleanLabel(a.label);
@@ -715,69 +528,6 @@ export function mergeFields(cfg: UiConfig, from: string, into: string, at: strin
   return done({ ...cfg, fields: cfg.fields.map((x) => (x.id === into ? merged : x.id === from ? { ...x, archivedAt: isoNow(at), mergedInto: into } : x)) }, `حقل «${a.label}» اندمج بـ «${b.label}»`);
 }
 
-// ───────────────────────────── buttons ─────────────────────────────
-
-export function addButton(cfg: UiConfig, a: { id: string; entity: Entity; label: string; workflow: string; workflowKeys: string[]; boards?: string[]; confirm?: boolean }): UiEdit {
-  const l = cleanLabel(a.label, LIMITS.button);
-  if (!l.ok) return l;
-  if (cfg.buttons.length >= LIMITS.buttons) return fail(`وصلت للحد (${LIMITS.buttons} زر)`);
-  if (!a.workflowKeys.includes(a.workflow)) return fail("الورك فلو مش موجود");
-  if (cfg.buttons.some((b) => b.entity === a.entity && !b.archivedAt && b.workflow === a.workflow && sameName(b.label, l.label))) return fail("في زر بنفس الاسم والورك فلو");
-  const scope = checkScope(withBoards(cfg), a.entity, a.boards);
-  if (!scope.ok) return scope;
-  const b: ButtonCfgT = { id: a.id, entity: a.entity, label: l.label, workflow: a.workflow, ...(scope.boards ? { boards: scope.boards } : {}), confirm: a.confirm ?? true };
-  return done({ ...cfg, buttons: [...cfg.buttons, b] }, `زر جديد «${l.label}»`);
-}
-
-export function updateButton(cfg: UiConfig, id: string, p: { label?: string; workflow?: string; workflowKeys?: string[]; boards?: string[] | null; confirm?: boolean; hidden?: boolean }): UiEdit {
-  const b = cfg.buttons.find((x) => x.id === id);
-  if (!b) return fail("الزر مش موجود");
-  if (b.archivedAt) return fail("الزر بالمحذوفات — رجّعه أول");
-  const next: ButtonCfgT = { ...b };
-  if (p.label !== undefined) {
-    const l = cleanLabel(p.label, LIMITS.button);
-    if (!l.ok) return l;
-    next.label = l.label;
-  }
-  if (p.workflow !== undefined) {
-    if (!(p.workflowKeys ?? []).includes(p.workflow)) return fail("الورك فلو مش موجود");
-    next.workflow = p.workflow;
-  }
-  if (p.boards !== undefined) {
-    const scope = checkScope(withBoards(cfg), b.entity, p.boards ?? undefined);
-    if (!scope.ok) return scope;
-    if (scope.boards) next.boards = scope.boards;
-    else delete next.boards;
-  }
-  if (p.confirm !== undefined) next.confirm = p.confirm;
-  if (p.hidden !== undefined) next.hidden = p.hidden;
-  return done({ ...cfg, buttons: cfg.buttons.map((x) => (x.id === id ? next : x)) }, `زر «${b.label}» اتعدّل`);
-}
-
-export function moveButton(cfg: UiConfig, id: string, dir: -1 | 1): UiEdit {
-  const b = cfg.buttons.find((x) => x.id === id);
-  if (!b) return fail("الزر مش موجود");
-  const at = cfg.buttons.findIndex((x) => x.id === id);
-  const next = swapWithNeighbour(cfg.buttons, at, dir, (x) => x.entity === b.entity && !x.archivedAt);
-  return next ? done({ ...cfg, buttons: next }, `زر «${b.label}» اتحرّك`) : fail(dir < 0 ? "هو أول واحد" : "هو آخر واحد");
-}
-
-export function archiveButton(cfg: UiConfig, id: string, at: string): UiEdit {
-  const b = cfg.buttons.find((x) => x.id === id);
-  if (!b) return fail("الزر مش موجود");
-  if (b.archivedAt) return fail("هو بالمحذوفات أصلاً");
-  return done({ ...cfg, buttons: cfg.buttons.map((x) => (x.id === id ? { ...x, archivedAt: isoNow(at) } : x)) }, `زر «${b.label}» انحذف (بتقدر ترجّعه)`);
-}
-
-export function restoreButton(cfg: UiConfig, id: string): UiEdit {
-  const b = cfg.buttons.find((x) => x.id === id);
-  if (!b) return fail("الزر مش موجود");
-  if (!b.archivedAt) return fail("الزر مش محذوف");
-  const { archivedAt: _a, ...rest } = b;
-  void _a;
-  return done({ ...cfg, buttons: cfg.buttons.map((x) => (x.id === id ? rest : x)) }, `زر «${b.label}» رجع`);
-}
-
 // ───────────────────────────── drag to reorder, and changing a field's type ─────────────────────────────
 
 /** `id` takes the place of `onto` (and the ones between shift by one) — what dropping a row onto another means. Only items `eligible` count. */
@@ -786,15 +536,6 @@ function dropOnto<T>(list: T[], from: number, onto: number, eligible: (x: T) => 
   const out = list.filter((_, i) => i !== from);
   out.splice(onto, 0, list[from]!);
   return out;
-}
-
-export function movePageTo(cfg: UiConfig, builtins: BuiltinPage[], k: string, onto: string): UiEdit {
-  const f = findPage(cfg, builtins, k);
-  if ("error" in f) return fail(f.error);
-  const shown = new Set(visiblePages(effectivePages(f.base, builtins)).map((p) => p.key));
-  if (!shown.has(k) || !shown.has(onto)) return fail("اظهرها أول");
-  const next = dropOnto(f.base.pages, f.base.pages.findIndex((p) => p.key === k), f.base.pages.findIndex((p) => p.key === onto), (p) => shown.has(p.key));
-  return next ? done({ ...f.base, pages: next }, `صفحة «${f.eff.label}» اتحرّكت`) : fail("ما تغيّر ترتيب");
 }
 
 export function moveBoardTo(cfg: UiConfig, k: string, onto: string): UiEdit {
@@ -813,15 +554,6 @@ export function moveFieldTo(cfg: UiConfig, id: string, onto: string): UiEdit {
   if (f.entity !== t.entity) return fail("الحقلين مش على نفس نوع البطاقة");
   const next = dropOnto(cfg.fields, cfg.fields.indexOf(f), cfg.fields.indexOf(t), (x) => x.entity === f.entity && !x.archivedAt);
   return next ? done({ ...cfg, fields: next }, `حقل «${f.label}» اتحرّك`) : fail("ما تغيّر ترتيب");
-}
-
-export function moveButtonTo(cfg: UiConfig, id: string, onto: string): UiEdit {
-  const b = cfg.buttons.find((x) => x.id === id);
-  const t = cfg.buttons.find((x) => x.id === onto);
-  if (!b || !t) return fail("الزر مش موجود");
-  if (b.entity !== t.entity) return fail("الزرّين مش على نفس نوع البطاقة");
-  const next = dropOnto(cfg.buttons, cfg.buttons.indexOf(b), cfg.buttons.indexOf(t), (x) => x.entity === b.entity && !x.archivedAt);
-  return next ? done({ ...cfg, buttons: next }, `زر «${b.label}» اتحرّك`) : fail("ما تغيّر ترتيب");
 }
 
 /**
@@ -924,7 +656,7 @@ export type UiOpShape = { op: string; [k: string]: unknown };
 
 export interface Suggestion {
   id: string;
-  kind: "page" | "board" | "field" | "button" | "tasks" | "workflow";
+  kind: "board" | "field" | "tasks";
   text: string;
   /** what one tap does (an op of the edit API); absent: only a place to look */
   op?: UiOpShape;
@@ -933,13 +665,11 @@ export interface Suggestion {
 
 export interface SuggestInput {
   cfg: UiConfig;
-  builtins: BuiltinPage[];
   /** open tasks per board key, and values per field id */
   boardTasks: Record<string, number>;
   fieldValues: Record<string, number>;
   /** groups of tasks that look like the same job (src/core/tasks.ts `duplicateGroups`) */
   taskGroups: number;
-  workflows: { key: string; name: string }[];
 }
 
 const closeNames = (a: string, b: string) => {
@@ -948,21 +678,9 @@ const closeNames = (a: string, b: string) => {
   return x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x)));
 };
 
-/** Same name, or one inside the other: the pages, boards, fields, buttons and workflows that look like one — and the tasks, which the board already merges. */
+/** Same name, or one inside the other: the boards, fields and jobs that look like one — and the tasks, which the board already merges. */
 export function suggestMerges(i: SuggestInput): Suggestion[] {
   const out: Suggestion[] = [];
-
-  const pages = effectivePages(i.cfg, i.builtins).filter((p) => !p.archived);
-  for (let a = 0; a < pages.length; a++) {
-    for (let b = a + 1; b < pages.length; b++) {
-      const p = pages[a]!;
-      const q = pages[b]!;
-      if (p.builtin && q.builtin) continue;
-      if (!(closeNames(p.label, q.label) || (p.href === q.href && p.href !== "/"))) continue;
-      const [from, into] = p.builtin ? [q, p] : [p, q];
-      out.push({ id: `page:${from.key}:${into.key}`, kind: "page", text: `صفحتين شبه بعض: «${from.label}» و«${into.label}»`, op: { op: "page.merge", from: from.key, into: into.key } });
-    }
-  }
 
   const boards = effectiveBoards(i.cfg).filter((b) => !b.archived);
   for (let a = 0; a < boards.length; a++) {
@@ -986,29 +704,12 @@ export function suggestMerges(i: SuggestInput): Suggestion[] {
         if (p.type !== q.type || !closeNames(p.label, q.label)) continue;
         const keep = (i.fieldValues[p.id] ?? 0) >= (i.fieldValues[q.id] ?? 0) ? p : q;
         const drop = keep === p ? q : p;
-        out.push({ id: `field:${drop.id}:${keep.id}`, kind: "field", text: `حقلين شبه بعض (${ENTITY_AR[entity]}): «${drop.label}» و«${keep.label}»`, op: { op: "field.merge", from: drop.id, into: keep.id } });
+        out.push({ id: `field:${drop.id}:${keep.id}`, kind: "field", text: `حقلين شبه بعض (المهام): «${drop.label}» و«${keep.label}»`, op: { op: "field.merge", from: drop.id, into: keep.id } });
       }
     }
   }
 
-  const buttons = i.cfg.buttons.filter((b) => !b.archivedAt);
-  for (let a = 0; a < buttons.length; a++) {
-    for (let b = a + 1; b < buttons.length; b++) {
-      const p = buttons[a]!;
-      const q = buttons[b]!;
-      if (p.entity === q.entity && p.workflow === q.workflow && sameName(p.label, q.label)) out.push({ id: `button:${q.id}`, kind: "button", text: `زرّين نفس الشي: «${p.label}»`, op: { op: "button.archive", id: q.id } });
-    }
-  }
-
   if (i.taskGroups > 0) out.push({ id: "tasks", kind: "tasks", text: `${i.taskGroups} ${i.taskGroups === 1 ? "مجموعة" : "مجموعات"} مهام شبه بعض — ادمجها من لوحة المهام`, href: "/tasks/team" });
-
-  const seen = new Map<string, { key: string; name: string }>();
-  for (const w of i.workflows) {
-    const k = squash(w.name);
-    const first = seen.get(k);
-    if (first) out.push({ id: `workflow:${w.key}`, kind: "workflow", text: `ورك فلوين بنفس الاسم: «${w.name}» (${first.key} و${w.key})`, href: "/workflow" });
-    else seen.set(k, w);
-  }
   return out;
 }
 
@@ -1020,15 +721,6 @@ const boardsList = z.array(key).max(LIMITS.boards).nullable().optional();
 
 /** Every change the panel can ask for. The server checks the caller, gathers the facts an op needs (task counts, value counts, the workflows), runs the pure function and writes the result. */
 export const UiOpSchema = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("page.add"), kind: z.enum(PAGE_KINDS), label: z.string().max(200), board: key.optional(), href: z.string().max(600).optional() }).strict(),
-  z.object({ op: z.literal("page.rename"), key: id, label: z.string().max(200) }).strict(),
-  z.object({ op: z.literal("page.hide"), key: id, hidden: z.boolean() }).strict(),
-  z.object({ op: z.literal("page.mobile"), key: id, mobile: z.boolean() }).strict(),
-  z.object({ op: z.literal("page.move"), key: id, dir }).strict(),
-  z.object({ op: z.literal("page.drop"), key: id, onto: id }).strict(),
-  z.object({ op: z.literal("page.archive"), key: id }).strict(),
-  z.object({ op: z.literal("page.restore"), key: id }).strict(),
-  z.object({ op: z.literal("page.merge"), from: id, into: id }).strict(),
   z.object({ op: z.literal("board.add"), label: z.string().max(200), template: z.string().max(30).optional() }).strict(),
   z.object({ op: z.literal("board.rename"), key: id, label: z.string().max(200) }).strict(),
   z.object({ op: z.literal("board.hide"), key: id, hidden: z.boolean() }).strict(),
@@ -1045,11 +737,5 @@ export const UiOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("field.archive"), id }).strict(),
   z.object({ op: z.literal("field.restore"), id }).strict(),
   z.object({ op: z.literal("field.merge"), from: id, into: id }).strict(),
-  z.object({ op: z.literal("button.add"), entity: z.enum(ENTITIES), label: z.string().max(200), workflow: z.string().max(60), boards: boardsList, confirm: z.boolean().optional() }).strict(),
-  z.object({ op: z.literal("button.update"), id, label: z.string().max(200).optional(), workflow: z.string().max(60).optional(), boards: boardsList, confirm: z.boolean().optional(), hidden: z.boolean().optional() }).strict(),
-  z.object({ op: z.literal("button.move"), id, dir }).strict(),
-  z.object({ op: z.literal("button.drop"), id, onto: id }).strict(),
-  z.object({ op: z.literal("button.archive"), id }).strict(),
-  z.object({ op: z.literal("button.restore"), id }).strict(),
 ]);
 export type UiOp = z.infer<typeof UiOpSchema>;

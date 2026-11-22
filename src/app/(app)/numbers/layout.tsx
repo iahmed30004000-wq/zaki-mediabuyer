@@ -1,6 +1,6 @@
 import { Tabs } from "@/components/ui/tabs";
 import { canOpenPath } from "@/core/roles";
-import { PLACES_V6 } from "@/lib/nav";
+import { PLACES } from "@/lib/nav";
 import { currentCaller } from "@/server/auth";
 
 /**
@@ -9,8 +9,8 @@ import { currentCaller } from "@/server/auth";
  */
 export default async function NumbersLayout({ children }: { children: React.ReactNode }) {
   const me = await currentCaller();
-  const place = PLACES_V6.find((p) => p.key === "numbers")!;
-  const items = place.tabs.filter((t) => t.ready !== false && (!me || canOpenPath(me.role, t.href))).map((t) => ({ href: t.href, label: t.label }));
+  const place = PLACES.find((p) => p.key === "numbers")!;
+  const items = place.tabs.filter((t) => (!me || canOpenPath(me.role, t.href))).map((t) => ({ href: t.href, label: t.label }));
   return (
     <>
       {items.length > 1 ? <Tabs items={items} label={place.title} className="mb-4" /> : null}

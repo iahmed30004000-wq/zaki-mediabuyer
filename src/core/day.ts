@@ -91,7 +91,7 @@ export function runItem(r: { name: string; status: string; at: string; summary: 
     text: `${r.name} — ${RUN_AR[r.status] ?? r.status}${r.summary ? `: ${r.summary}` : ""}`,
     numbers: metricsText(r.metrics),
     tone: r.status === "failed" ? "danger" : r.status === "waiting" ? "warn" : r.status === "ok" ? "ok" : undefined,
-    href: "/work",
+    href: "/tasks/day",
   };
 }
 
@@ -116,7 +116,7 @@ export function approvalItem(a: { status: string; title: string; at: string; amo
 }
 
 export function taskDoneItem(t: { title: string; at: string; assignee: string | null }): DayItem {
-  return { at: t.at, actor: t.assignee ?? "owner", kind: "task", text: `خلّص: ${t.title}`, tone: "ok", href: "/work/tasks" };
+  return { at: t.at, actor: t.assignee ?? "owner", kind: "task", text: `خلّص: ${t.title}`, tone: "ok", href: "/tasks/team" };
 }
 
 const VIDEO_AR: Record<string, string> = { ready: "جاهز", uploaded: "انرفع لميتا", live: "شغّال", tired: "تعب" };
@@ -127,14 +127,14 @@ export function videoItem(v: { vName: string; job: string; status: string; at: s
 }
 
 export function handoffItem(h: { title: string; assignee: string; at: string; note: string | null }): DayItem {
-  return { at: h.at, actor: h.assignee.startsWith("claude") ? "claude" : h.assignee, kind: "handoff", text: `سلّمت: ${h.title}${h.note ? ` — ${h.note}` : ""}`, tone: "ok", href: "/work" };
+  return { at: h.at, actor: h.assignee.startsWith("claude") ? "claude" : h.assignee, kind: "handoff", text: `سلّمت: ${h.title}${h.note ? ` — ${h.note}` : ""}`, tone: "ok", href: "/tasks/all" };
 }
 
 // ───────────────────────────── what is planned ─────────────────────────────
 
 export function scheduledItem(w: { name: string; executor: string }, at: string): DayItem {
   const actor = w.executor.startsWith("claude") ? "claude" : w.executor === "hermes" ? "hermes" : w.executor === "muse" ? "muse" : w.executor === "n8n" ? "n8n" : w.executor === "person" ? "owner" : "system";
-  return { at, actor, kind: "scheduled", text: `بيشتغل: ${w.name}`, href: "/work" };
+  return { at, actor, kind: "scheduled", text: `بيشتغل: ${w.name}`, href: "/tasks/all" };
 }
 
 /** A job that runs a few times a day is a line per run; one that runs often (hourly…) is one line — how many times, from when to when. */

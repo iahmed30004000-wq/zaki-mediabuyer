@@ -5,7 +5,7 @@ import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/ui — the owner's whole layout for the edit panel: pages, boards (with their tasks), fields (with their values), buttons, the workflows a button may run, and the merges worth doing. */
+/** GET /api/ui — the owner's layout of the team's tasks for the customize panel: boards (with their tasks), fields (with their values), and the merges worth doing. */
 export async function GET() {
   try {
     const caller = await requireCapability("owner_only");
@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 /**
- * POST /api/ui — one change from «وضع التعديل» (an op: src/core/customize.ts `UiOpSchema`). The owner only. A refusal says why in words
+ * POST /api/ui — one change from the customize panel of the team's tasks (an op: src/core/customize.ts `UiOpSchema`). The owner only. A refusal says why in words
  * and changes nothing; an accepted change is a new version of the setting `ui.config`, so it can be put back. The answer carries the
  * panel's fresh data.
  */

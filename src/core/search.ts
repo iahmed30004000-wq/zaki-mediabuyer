@@ -9,7 +9,7 @@ import { can, canOpenPath, type RoleKey } from "./roles";
 export const SEARCH_KINDS =["page", "product", "workflow", "task", "video", "ad", "campaign"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 
-export const KIND_AR: Record<SearchKind, string> = { page: "صفحات", product: "منتجات", workflow: "ورك فلو", task: "مهام", video: "فيديوهات", ad: "إعلانات", campaign: "حملات" };
+export const KIND_AR: Record<SearchKind, string> = { page: "صفحات", product: "منتجات", workflow: "مهام مجدولة", task: "مهام", video: "فيديوهات", ad: "إعلانات", campaign: "حملات" };
 
 export interface SearchItem {
   /** stable within its kind */
@@ -122,7 +122,7 @@ export function searchScopeOf(role: RoleKey | null): SearchScope {
   if (!role) return { products: true, ads: true, campaigns: true, videos: true, tasks: true, workflows: { ads: true, ops: true } };
   const jobs = canOpenPath(role, "/tasks");
   return {
-    products: canOpenPath(role, "/products"),
+    products: canOpenPath(role, "/numbers/products"),
     ads: canOpenPath(role, "/ads"),
     campaigns: canOpenPath(role, "/ads"),
     videos: canOpenPath(role, "/ads/videos"),

@@ -1,14 +1,9 @@
 import { Suspense } from "react";
-import { cookies } from "next/headers";
-import { ModeSwitch } from "@/components/home/mode-switch";
 import { MorningCard } from "@/components/home/morning-card";
 import { NeedsSection, NumbersSection, ResultsSection, SectionSkeleton, UpcomingSection } from "@/components/home/home-sections";
 import { RunningNow, WhoWorks } from "@/components/home/live-sections";
 import { homePlan } from "@/core/home";
-import { isDemo } from "@/core/readiness";
-import { NAV_COOKIE, navMapFor } from "@/lib/nav";
 import { loadMorning } from "@/lib/today-view";
-import { currentMode } from "@/server/mode";
 import { currentCaller, requirePage } from "@/server/auth";
 
 export const metadata = { title: "الرئيسية" };
@@ -24,18 +19,16 @@ export const dynamic = "force-dynamic";
  *   5 الجاي اليوم  the first four moments to come
  *   6 آخر النتائج  the last three results
  * Every section loads behind its own skeleton, so a slow one never holds the others. A role is given only the sections whose screens it may open (`homePlan`). The wide صاحي / نايم
- * switch is no longer here: it lives in the «⋯» of the header (the old map, which has no «⋯», keeps it here).
+ * switch is not here: it lives in the «⋯» of the header.
  */
 export default async function HomePage() {
   await requirePage();
   // requirePage has already sent anybody who is not signed in to the door: the fallback is only for the type
   const role = (await currentCaller())?.role ?? "VIEWER";
   const plan = homePlan(role);
-  const oldMap = navMapFor((await cookies()).get(NAV_COOKIE)?.value, role) === "old";
-  const [mode, morning] = await Promise.all([oldMap ? currentMode() : Promise.resolve(null), loadMorning()]);
+  const morning = await loadMorning();
   return (
     <div className="space-y-6">
-      {mode ? <ModeSwitch initial={{ mode: mode.mode, since: mode.since, schedule: mode.schedule }} demo={isDemo(process.env)} /> : null}
       {morning ? <MorningCard m={morning} /> : null}
       <Suspense fallback={<SectionSkeleton rows={2} />}>
         <NeedsSection plan={plan} />

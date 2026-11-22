@@ -563,8 +563,8 @@ export type StepsRead =
   | { ok: true; steps: DraftStep[]; ids: string[]; /** the steps the owner switched off (their switch stays as it is) */ off: boolean[] }
   | { ok: false; reason: string };
 
-/** The message of a drawing that is not a plain line (the edit screen shows it, with the link to the drawing board). */
-export const OLD_BOARD_NOTE = "هالمهمة معدّلة باللوحة القديمة";
+/** The title the edit screen shows for a drawing that is not a plain line (it lists its steps, read only: the drawing board was removed in v6 · P8). */
+export const OLD_BOARD_NOTE = "رسم هالمهمة مش خطوات فوق بعض";
 
 /**
  * Reads a drawing as a line of steps — or says why it is not one. A line: one trigger; every step has one way out (a condition has two: «نعم» to the next and «لا» to a later

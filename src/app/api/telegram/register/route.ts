@@ -15,7 +15,7 @@ function keys() {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
   const why = missingText("telegramIn");
   if (!tg || !secret || why) throw new HttpError(409, why ?? "تيليجرام مش مربوط");
-  if (!hookUrl().startsWith("https://")) throw new HttpError(409, "تيليجرام بيقبل https بس — حط APP_URL بعنوان الموقع (https) بـ Coolify");
+  if (!hookUrl().startsWith("https://")) throw new HttpError(409, "تيليجرام بيقبل https بس — اضبط عنوان الموقع (https) بإعدادات النشر");
   return { tg, secret };
 }
 

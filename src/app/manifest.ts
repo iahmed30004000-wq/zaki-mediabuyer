@@ -22,7 +22,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       { name: "بانتظاري", url: "/inbox", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "آخر تقرير", url: "/work/reports", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "آخر تقرير", url: "/tasks/results", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

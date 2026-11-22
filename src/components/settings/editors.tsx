@@ -13,6 +13,7 @@ import { ROLES, ROLE_AR, type RoleKey } from "@/core/roles";
 import type { EditView } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
 
 /** One save: POST the body, say what happened, refresh the server numbers. Returns the answer (for one-time codes). */
 function useSave() {
@@ -149,10 +150,10 @@ export function ProductsEditor({ products }: Pick<EditView, "products">) {
         <details key={p.code} className="rounded-card border border-border bg-surface-1 p-3">
           <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
             <span className="font-semibold text-fg">{p.name}</span>
-            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span>
+            <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{p.code}</span>
             <span className="text-sm text-fg-muted">· {MARKET_AR[p.market as keyof typeof MARKET_AR] ?? p.market}</span>
             <span className="ms-auto text-sm text-fg-muted">هدف الطلب {fmt(p.tOrder, "$")} · السقف {fmt(p.ceiling, "$")}{p.source === "actual" ? "" : " (تقدير)"}</span>
-            {p.losing ? <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-xs font-semibold text-warn">خسران بأسعاره</span> : null}
+            {p.losing ? <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-sm font-semibold text-warn">خسران بأسعاره</span> : null}
           </summary>
           <div className="mt-3"><ProductForm p={p} caps={caps} /></div>
         </details>
@@ -179,7 +180,7 @@ export function PagesEditor({ pages }: Pick<EditView, "pages">) {
       <p className="text-sm text-fg-muted">الرمز (حرفين) بينكتب باسم كل مجموعة، فبتنقارن الصفحات بالتقرير. الصفحات بتيجي من ميتا لما ينربط.</p>
       {pages.map((p) => (
         <div key={p.metaId} className="flex items-end gap-2">
-          <div className="min-w-0 flex-1"><p className="truncate text-base text-fg">{p.name}</p><p dir="ltr" className="text-start tabular-nums text-xs text-fg-muted">{p.metaId}</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-base text-fg">{p.name}</p><p dir="ltr" className="text-start tabular-nums text-sm text-fg-muted">{p.metaId}</p></div>
           <Input dir="ltr" className="w-16 text-center tabular-nums" maxLength={2} value={codes[p.metaId]} onChange={(e) => setCodes({ ...codes, [p.metaId]: e.target.value.toUpperCase() })} aria-label={`رمز ${p.name}`} />
           <Button variant="ghost" disabled={busy || codes[p.metaId] === (p.code ?? "")} className="min-h-10 max-md:min-h-[44px]" onClick={() => save("/api/pages", { metaId: p.metaId, name: p.name, code: codes[p.metaId] }, `${p.name}: ${codes[p.metaId]}`)}>احفظ</Button>
         </div>
@@ -204,9 +205,9 @@ export function LandingEditor({ landing, products }: Pick<EditView, "landing" | 
       <p className="text-sm text-fg-muted">رمز الصفحة (LP1 · LP2) بيدخل باسم كل إعلان، ورابطها بيتعبّى لحاله بمعالج الإطلاق.</p>
       {landing.map((l) => (
         <div key={`${l.productCode}-${l.lpCode}`} className="flex items-center gap-2 text-sm">
-          <span dir="ltr" className="w-28 shrink-0 tabular-nums text-xs text-fg">{l.productCode} · {l.lpCode}</span>
+          <span dir="ltr" className="w-28 shrink-0 tabular-nums text-sm text-fg">{l.productCode} · {l.lpCode}</span>
           <span dir="ltr" className="min-w-0 flex-1 truncate text-start text-sm text-fg-muted">{l.url}</span>
-          <button type="button" aria-label="شيل" disabled={busy} onClick={() => put(landing.filter((x) => x !== l), "انشالت")} className="text-fg-muted hover:text-danger"><Trash2 className="size-4" /></button>
+          <Tap type="button" aria-label="شيل" disabled={busy} onClick={() => put(landing.filter((x) => x !== l), "انشالت")} className="text-fg-muted hover:text-danger"><Trash2 className="size-4" /></Tap>
         </div>
       ))}
       <div className="grid grid-cols-[6rem_4rem_1fr_auto] items-end gap-2 border-t border-border pt-2">

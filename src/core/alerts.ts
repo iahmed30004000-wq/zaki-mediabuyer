@@ -65,9 +65,9 @@ export function detect(f: AlertFacts): Signal[] {
   // the replies inbox cannot keep up, or cannot be seen — message campaigns are held, so say it
   if (f.repliesProblem) out.push({ key: "replies", kind: "alert.replies", tone: "warn", text: f.repliesProblem, href: "/settings/connections" });
   // the nightly copy: nothing valid for more than 26 hours means the next disaster has no way back
-  if (f.backupAgeHours != null && f.backupAgeHours > 26) out.push({ key: "backup", kind: "alert.backup", tone: "warn", text: `ما في نسخة احتياطية ناجحة من ${Math.round(f.backupAgeHours)} ساعة — شوف «التشغيل»`, href: "/ops" });
+  if (f.backupAgeHours != null && f.backupAgeHours > 26) out.push({ key: "backup", kind: "alert.backup", tone: "warn", text: `ما في نسخة احتياطية ناجحة من ${Math.round(f.backupAgeHours)} ساعة — شوف «الأرقام»`, href: "/numbers/ops" });
   // the site's own settings: a missing one is said by name, never by value
-  if (f.envProblems?.length) out.push({ key: "env", kind: "alert.env", tone: "warn", text: `إعدادات ناقصة بـ Coolify: ${f.envProblems.join("، ")}`, href: "/settings/connections" });
+  if (f.envProblems?.length) out.push({ key: "env", kind: "alert.env", tone: "warn", text: `إعدادات ناقصة بإعدادات النشر: ${f.envProblems.join("، ")}`, href: "/settings/connections" });
   // weak attribution
   if (f.attributedPct !== null && f.attributedPct < 70) out.push({ key: "attribution", kind: "alert.attribution", tone: "warn", text: `إسناد ضعيف: ${f.attributedPct}% بس من الطلبات واصلة لإعلانها (تحت 70%)`, href: "/ads/health" });
   // conversion events refused by Meta
