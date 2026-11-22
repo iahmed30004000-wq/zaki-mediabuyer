@@ -1,6 +1,6 @@
 import { Num } from "@/components/mb/num";
 import type { Source, TermKey } from "@/lib/glossary";
-import { fmt } from "@/lib/format";
+import { fmt, fmtExact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Delta, type DeltaTone } from "./delta";
 import { Sparkline } from "./sparkline";
@@ -20,6 +20,8 @@ export function WasNow({
   delta,
   series,
   missing,
+  provisional = false,
+  digits,
   className,
 }: {
   label: string;
@@ -33,19 +35,26 @@ export function WasNow({
   series?: readonly (number | null | undefined)[];
   /** why the number is missing, in a sentence («ميتا مش مربوطة») */
   missing?: string | null;
+  /** the last day has orders that can still be confirmed: the number can still move («مبدئي») */
+  provisional?: boolean;
+  /** decimals of a `$` figure (default 2) */
+  digits?: number;
   className?: string;
 }) {
   const absent = now === null || now === undefined || Number.isNaN(now);
   return (
     <div className={cn("flex min-w-0 flex-col gap-1 rounded-xl border border-border bg-surface-1 p-4", className)}>
-      <span className="text-sm font-semibold text-fg-muted">{label}</span>
-      <Num value={now} unit={unit} term={term} source={source} label={label} big />
+      <span className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-fg-muted">
+        {label}
+        {provisional && !absent ? <span className="rounded-full bg-surface-2 px-2 text-sm font-semibold text-fg-muted">مبدئي</span> : null}
+      </span>
+      <Num value={now} unit={unit} term={term} source={source} label={label} big digits={digits} />
       {absent ? (
         missing ? <span className="text-sm text-fg-muted">{missing}</span> : null
       ) : (
         <>
           <span className="text-sm text-fg-muted">
-            كنا <span dir="ltr" className="font-display tabular-nums">{fmt(was, unit)}</span>
+            كنا <span dir="ltr" className="font-display tabular-nums">{digits === undefined ? fmt(was, unit) : fmtExact(was, unit, digits)}</span>
           </span>
           {delta ? <Delta words={delta.words} tone={delta.tone} /> : null}
           {series ? <Sparkline values={series} className="mt-1" /> : null}

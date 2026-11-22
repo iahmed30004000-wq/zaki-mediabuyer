@@ -65,7 +65,7 @@ export function ModeSwitch({ initial, demo }: { initial: ModeLite; demo: boolean
         {opt("awake", "صاحي", Sun)}
         {opt("asleep", "نايم", Moon)}
       </div>
-      <p className="px-1 text-xs text-fg-muted">
+      <p className="px-1 text-sm text-fg-muted">
         {m.mode === "awake" ? "الشغل ماشي، والقرارات المهمة بترنّ." : "ما في رنين — المهم بيستنى للصبح، وبس مهام «صلاحيات الليل» بتشتغل."}
         {since(m.since) ? ` · من ${since(m.since)}` : ""}
         {m.schedule.enabled ? ` · الجدول: صاحي ${m.schedule.awake} ← نايم ${m.schedule.asleep}` : ""}

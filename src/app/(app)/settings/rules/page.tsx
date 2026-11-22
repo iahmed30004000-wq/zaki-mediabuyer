@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { ModeSwitch } from "@/components/home/mode-switch";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Panel } from "@/components/mb/section";
 import { CapsEditor } from "@/components/settings/editors";
@@ -88,6 +89,7 @@ export default async function RulesPage() {
       </RuleCard>
 
       <RuleCard id="mode" title="صاحي ونايم" summary="جدول الليل، وشو بيشتغل وإنت نايم، وشو بيصحّيك">
+        <ModeSwitch initial={{ mode: mode.mode, since: mode.since, schedule: mode.schedule }} demo={demo} />
         <ModeSettings schedule={mode.schedule} night={mode.nightPermissions} wakeKinds={mode.wakeKinds} workflows={wf.cards.map((c) => ({ key: c.key, name: c.name }))} demo={demo} />
       </RuleCard>
 

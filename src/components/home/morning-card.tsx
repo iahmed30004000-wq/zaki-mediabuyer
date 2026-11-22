@@ -6,7 +6,8 @@ import { Coffee, X } from "lucide-react";
 import { Panel } from "@/components/mb/section";
 import type { MorningCard as Morning } from "@/lib/today-view";
 
-const STATUS: Record<string, string> = { ok: "خلص", failed: "فشل", waiting: "متوقف", running: "شغّال", skipped: "تخطّى" };
+/** The ONE word of each state (docs/rebuild-v6/03-look.md §9). */
+const STATUS: Record<string, string> = { ok: "خلصت", failed: "وقفت", waiting: "واقفة — بدها حدا", running: "شغّالة", skipped: "انتخطت", missed: "فاتت", lost: "انقطعت" };
 
 /**
  * «صباح الخير»: one card for the whole night — what ran, what is waiting for him, what was kept quiet. It stays for twelve
@@ -17,7 +18,8 @@ export function MorningCard({ m }: { m: Morning }) {
   const [hidden, setHidden] = useState(true);
   useEffect(() => setHidden(localStorage.getItem(id) === "1"), [id]);
   if (hidden) return null;
-  const quiet = !m.runs.ok && !m.runs.failed && !m.runs.waiting && !m.approvalsQueued && !m.notifications.length && !m.executed;
+  const trouble = m.runs.failed + m.runs.waiting + m.runs.missed + m.runs.lost;
+  const quiet = !m.runs.ok && !trouble && !m.approvalsQueued && !m.notifications.length && !m.executed;
   return (
     <Panel className="relative space-y-3 border-accent/40 bg-accent/5">
       <button type="button" aria-label="سكّر" onClick={() => { localStorage.setItem(id, "1"); setHidden(true); }} className="absolute end-2 top-2 inline-flex size-8 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2">
@@ -29,10 +31,15 @@ export function MorningCard({ m }: { m: Morning }) {
       </h2>
       {quiet ? <p className="text-sm text-fg-muted">ليلة هادية: ما اشتغل شي وما استنى شي.</p> : null}
       <ul className="space-y-1.5 text-sm text-fg">
-        {m.runs.ok + m.runs.failed + m.runs.waiting > 0 ? (
+        {m.runs.ok + trouble > 0 ? (
           <li>
-            <span className="font-semibold">التشغيلات:</span> {m.runs.ok} خلصت{m.runs.failed ? ` · ${m.runs.failed} فشلت` : ""}{m.runs.waiting ? ` · ${m.runs.waiting} متوقفة` : ""}
-            <ul className="mt-1 space-y-0.5 ps-4 text-xs text-fg-muted">
+            <span className="font-semibold">التشغيلات:</span> {m.runs.ok} خلصت{m.runs.failed ? ` · ${m.runs.failed} وقفت` : ""}{m.runs.waiting ? ` · ${m.runs.waiting} واقفة` : ""}{m.runs.missed ? ` · ${m.runs.missed} فاتت` : ""}{m.runs.lost ? ` · ${m.runs.lost} انقطعت` : ""}
+            {trouble > 0 ? (
+              <>
+                {" "}— <Link href="/tasks" className="font-medium text-accent hover:underline">شوفهم</Link>
+              </>
+            ) : null}
+            <ul className="mt-1 space-y-0.5 ps-4 text-sm text-fg-muted">
               {m.runs.list.map((r, i) => (
                 <li key={i}>{r.name} — {STATUS[r.status] ?? r.status}{r.summary ? `: ${r.summary}` : ""}</li>
               ))}

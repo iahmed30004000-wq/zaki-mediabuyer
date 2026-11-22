@@ -3,14 +3,15 @@
  * `loadResults()` · and the pages of one job and one run. A fixed number of queries whatever the number of jobs (W-20); everything that decides a word, a lamp or a lane is
  * in `src/core/tasks-view.ts` (pure) — this file only reads rows and hands them over. A demo site has the seeded jobs and no run.
  */
+import { cache } from "react";
 import { ammanKey } from "@/core/dates";
 import { collapseDayItems, type CollapsedLine } from "@/core/day-collapse";
 import { isDemo, missingGroups, integrationOf } from "@/core/readiness";
 import { assigneeOfExecutor, stepOrder, GraphSchema, SEED_WORKFLOWS, type NodeStates, type WfGraph } from "@/core/workflow";
 import { stepsAreInferred, isLiveRun } from "@/core/run-state";
 import {
-  buildAll, buildDayBoard, buildNow, stateOfRun, stepTimeWords, durationWords, runHref, sentenceOf, stripOf, whoOptions, actionsFor,
-  type AllGroup, type DayBoardData, type NowData, type ViewJob, type ViewRun, type ViewTask, type Names, type AllKind, type CardAction,
+  buildAll, buildDayBoard, buildNow, stuckOf, stateOfRun, stepTimeWords, durationWords, runHref, sentenceOf, stripOf, whoOptions, actionsFor,
+  type AllGroup, type DayBoardData, type NowData, type NowLine, type StuckData, type ViewJob, type ViewRun, type ViewTask, type Names, type AllKind, type CardAction,
 } from "@/core/tasks-view";
 import type { StripStep } from "@/core/light-strip";
 import { workdayBounds, workdayOf } from "@/core/timeline";
@@ -146,6 +147,33 @@ export async function loadNow(opts: { now?: Date; taskKeys?: string[] | null } =
   ]);
   return { ...buildNow({ jobs: jobs.jobs, runs, tasks: tasks.map(asTask), names, now }), demo: false };
 }
+
+/**
+ * What needs somebody (v6 · P5, the home's first section): the runs that wait, that stopped or were lost in the last day and that nothing answered, that nobody took, and the slots
+ * missed today — the first two lanes of «هلق», one card each. `taskKeys` is the scope of the person looking (`taskKeysFor`). It reads what `loadNow` reads (and no more), so the
+ * home and the tasks screen are one rule.
+ */
+export async function loadStuck(opts: { now?: Date; taskKeys?: string[] | null } = {}): Promise<StuckData & { demo: boolean }> {
+  const data = await loadNow(opts);
+  return { ...stuckOf(data), demo: data.demo };
+}
+
+export interface HomeTasks {
+  demo: boolean;
+  /** the first section's runs */
+  stuck: StuckData;
+  /** the moments still to come today: how many in all, and the first ones (the lane's own limit) */
+  upcoming: { total: number; lines: NowLine[] };
+}
+
+const homeTasksOf = cache(async (scope: string): Promise<HomeTasks> => {
+  const data = await loadNow({ taskKeys: scope === "*" ? null : scope === "" ? [] : scope.split(",") });
+  const lane = data.lanes.find((l) => l.key === "upcoming");
+  return { demo: data.demo, stuck: stuckOf(data), upcoming: { total: lane?.total ?? 0, lines: lane?.lines ?? [] } };
+});
+
+/** What the home needs from the tasks place: the stopped runs and what comes today. Read ONCE per request however many sections ask (`cache`). */
+export const loadHomeTasks = (taskKeys: string[] | null): Promise<HomeTasks> => homeTasksOf(taskKeys === null ? "*" : taskKeys.join(","));
 
 const asTask = (t: { id: string; title: string; assignee: string | null; status: string; dueAt: Date | null; priority: string }): ViewTask => ({ id: t.id, title: t.title, assignee: t.assignee, status: t.status, dueAt: iso(t.dueAt), priority: t.priority });
 

@@ -318,6 +318,15 @@ export function inboxFor(items: readonly InboxItem[], role: RoleKey): InboxItem[
   return items.filter((i) => domains.includes(i.domain));
 }
 
+/**
+ * The requests Claude made (`request_approval`) that this role may see — the SAME areas as its inbox (`inboxFor`): a role that does not look at the ads never gets an ads request,
+ * not even through the endpoint the open app polls. A request is filed by what it carries (`domainOfApproval`), not by the `kind` an agent wrote.
+ */
+export function approvalsFor<T extends ApprovalIn>(list: readonly T[], role: RoleKey): T[] {
+  const domains = inboxDomainsOf(role);
+  return list.filter((a) => domains.includes(domainOfApproval(a)));
+}
+
 export const DOMAIN_AR: Record<InboxDomain, string> = { ads: "إعلانات", ops: "تشغيل", work: "الشغل" };
 export const KIND_AR: Record<InboxKind, string> = {
   spend: "صرف",

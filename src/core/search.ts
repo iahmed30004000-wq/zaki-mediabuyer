@@ -4,7 +4,9 @@
  * own words (Arabic written the usual loose ways counts as the same: أ إ آ ا · ى ي · ة ه · tashkeel · «ال»), the best match first.
  */
 
-export const SEARCH_KINDS = ["page", "product", "workflow", "task", "video", "ad", "campaign"] as const;
+import { can, canOpenPath, type RoleKey } from "./roles";
+
+export const SEARCH_KINDS =["page", "product", "workflow", "task", "video", "ad", "campaign"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 
 export const KIND_AR: Record<SearchKind, string> = { page: "صفحات", product: "منتجات", workflow: "ورك فلو", task: "مهام", video: "فيديوهات", ad: "إعلانات", campaign: "حملات" };
@@ -97,6 +99,36 @@ export function groupHits(hits: SearchHit[]): { kind: SearchKind; label: string;
     g.hits.push(h);
   }
   return groups;
+}
+
+/** What a role may find: one flag for each kind of name the search reads (S-18). A role finds a name only on a screen it may open, so a hit is never a dead link. */
+export interface SearchScope {
+  products: boolean;
+  ads: boolean;
+  campaigns: boolean;
+  videos: boolean;
+  /** the people's tasks — and which people's is `taskKeysFor` (null = everybody's) */
+  tasks: boolean;
+  /** the jobs, by area: a job of the ads needs the ads, a job of the operations needs the operations */
+  workflows: { ads: boolean; ops: boolean };
+}
+
+/**
+ * The names the search box may read for a role (v6 · P5, S-18). It follows the SAME rule as the screens the hits lead to (`canOpenPath`: the capability AND the place in the
+ * role's bar) — a role that cannot open «الإعلانات» does not find an ad, a campaign, a video or a product by name, and one that cannot open «مهام الفريق» finds no person's task.
+ * A role of null is a job or a test: it reads everything.
+ */
+export function searchScopeOf(role: RoleKey | null): SearchScope {
+  if (!role) return { products: true, ads: true, campaigns: true, videos: true, tasks: true, workflows: { ads: true, ops: true } };
+  const jobs = canOpenPath(role, "/tasks");
+  return {
+    products: canOpenPath(role, "/products"),
+    ads: canOpenPath(role, "/ads"),
+    campaigns: canOpenPath(role, "/ads"),
+    videos: canOpenPath(role, "/ads/videos"),
+    tasks: canOpenPath(role, "/tasks/team"),
+    workflows: { ads: jobs && can(role, "ads.view"), ops: jobs && can(role, "ops.view") },
+  };
 }
 
 /** A query is worth a search once it has at least one real character (not only punctuation). */
