@@ -8,7 +8,6 @@ import type { ZodTypeAny } from "zod";
 export type JsonSchema = { [key: string]: unknown };
 
 // zod's internals are not typed for this; the shapes below are zod 3's `_def`
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export function toJsonSchema(schema: ZodTypeAny): JsonSchema {
   const def = schema._def as any;
   const describe = (s: JsonSchema): JsonSchema => (schema.description ? { ...s, description: schema.description } : s);

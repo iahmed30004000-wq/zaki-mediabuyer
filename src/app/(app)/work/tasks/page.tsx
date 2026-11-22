@@ -9,8 +9,9 @@ export const metadata = { title: "مهام الفريق" };
 export const dynamic = "force-dynamic";
 
 /** الشغل ← مهام الفريق: who does what and by when, on one line each — any task Claude or Hermes asks for lands here too. Grouped by person (the late ones first), or the five columns. */
-export default async function WorkTasksPage({ searchParams }: { searchParams: { board?: string } }) {
+export default async function WorkTasksPage({ searchParams: searchParamsP }: { searchParams: Promise<{ board?: string }> }) {
   await requirePage(["tasks.own", "tasks.manage"]);
+  const searchParams = await searchParamsP;
   const now = new Date();
   const me = await currentCaller();
   const keys = me ? await taskKeysFor(me) : []; // no caller: no tasks

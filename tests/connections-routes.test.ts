@@ -21,8 +21,8 @@ import { PUT as put, DELETE as del } from "@/app/api/connections/field/[name]/ro
 import { POST as test } from "@/app/api/connections/row/[key]/test/route";
 
 const json = (body: unknown) => new Request("http://localhost/x", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-const NAME = { params: { name: "META_SYSTEM_USER_TOKEN" } };
-const KEY = { params: { key: "oms" } };
+const NAME = { params: Promise.resolve({ name: "META_SYSTEM_USER_TOKEN" }) };
+const KEY = { params: Promise.resolve({ key: "oms" }) };
 
 const attempts = (): [string, () => Promise<Response>][] => [
   ["GET /api/connections", () => list()],

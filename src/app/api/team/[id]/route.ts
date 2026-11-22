@@ -12,7 +12,8 @@ const Body = z.object({ role: z.enum(ROLES).optional(), active: z.boolean().opti
  * PATCH /api/team/:id — change a member's role, switch them off (every session of theirs ends at once), or give them
  * a new one-time code (a forgotten password: the old one stops working). The last owner can never be removed.
  */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     if (caller.demo) throw new HttpError(403, "بلا تسجيل دخول ما بيتغيّر الفريق");

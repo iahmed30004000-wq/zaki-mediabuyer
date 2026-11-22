@@ -17,8 +17,9 @@ const when = (iso: string) => {
 };
 
 /** بانتظارك ← قررتها: the last 30 days — what you answered and what the rules did by themselves («لحاله»), with «رجّع» for a change that ran. */
-export default async function InboxDonePage({ searchParams }: { searchParams: { auto?: string; page?: string } }) {
+export default async function InboxDonePage({ searchParams: searchParamsP }: { searchParams: Promise<{ auto?: string; page?: string }> }) {
   await requirePage("inbox.view");
+  const searchParams = await searchParamsP;
   const caller = await currentCaller();
   const autoOnly = searchParams.auto === "1";
   const all = caller ? await loadInboxDone(caller, { autoOnly }) : [];

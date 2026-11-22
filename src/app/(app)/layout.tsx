@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!me) redirect("/login");
   const [pages, inbox, directory, accounts] = await Promise.all([loadPages(), countWaiting(me), loadDirectory().catch(() => []), loadStopAccounts()]);
   // a role sees only its own places (docs/rebuild/05-permissions.md §3): the bar hides the rest, and an address that is not theirs answers «هالصفحة مش من صلاحياتك»
-  const path = headers().get("x-pathname") ?? "/";
+  const path = (await headers()).get("x-pathname") ?? "/";
   if (me && path === "/" && !hasHome(me.role)) redirect(ROLE_START[me.role]);
   const body = me && !canOpenPath(me.role, path) ? <NoAccess home={ROLE_START[me.role]} /> : children;
   // «وضع التعديل» is the owner's, signed in: with sign-in switched off nothing can be saved, so nothing is offered

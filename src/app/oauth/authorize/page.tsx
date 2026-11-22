@@ -22,7 +22,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default async function AuthorizePage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+export default async function AuthorizePage({ searchParams: searchParamsP }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const searchParams = await searchParamsP;
   const me = await currentCaller();
   const checked = await checkAuthRequest(searchParams);
   if (!checked.ok) {

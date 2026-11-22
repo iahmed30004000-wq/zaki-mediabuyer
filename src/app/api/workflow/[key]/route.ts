@@ -7,7 +7,8 @@ import { isDemo } from "@/core/readiness";
 export const dynamic = "force-dynamic";
 
 /** GET /api/workflow/:key?status=failed — the run history of one workflow. */
-export async function GET(req: Request, { params }: { params: { key: string } }) {
+export async function GET(req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     await requireCapability("work.view");
     const status = new URL(req.url).searchParams.get("status") ?? undefined;
@@ -18,7 +19,8 @@ export async function GET(req: Request, { params }: { params: { key: string } })
 }
 
 /** PATCH /api/workflow/:key — the owner edits a workflow, or switches it off (the kill switch of that job). Nothing is deleted. */
-export async function PATCH(req: Request, { params }: { params: { key: string } }) {
+export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });

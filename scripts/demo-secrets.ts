@@ -33,8 +33,8 @@ const check = (ok: boolean, label: string, extra?: unknown) => {
 const SECRET = `EAAB${randomBytes(18).toString("hex")}Z9y8`;
 const LAST4 = SECRET.slice(-4);
 const body = (value: string) => new Request("http://localhost/x", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ value }) });
-const NAME = (n: string) => ({ params: { name: n } });
-const KEY = (k: string) => ({ params: { key: k } });
+const NAME = (n: string) => ({ params: Promise.resolve({ name: n }) });
+const KEY = (k: string) => ({ params: Promise.resolve({ key: k }) });
 const DEL = new Request("http://localhost/x", { method: "DELETE" });
 const POST = new Request("http://localhost/x", { method: "POST" });
 

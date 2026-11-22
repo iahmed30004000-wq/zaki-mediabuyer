@@ -5,7 +5,8 @@ import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { storageDir } from "@/jobs/creative-intake";
 
 /** GET /api/creatives/:code/thumb/:n — a candidate thumbnail (signed-in only; files live in the private storage). */
-export async function GET(_req: Request, { params }: { params: { code: string; n: string } }) {
+export async function GET(_req: Request, { params: paramsP }: { params: Promise<{ code: string; n: string }> }) {
+  const params = await paramsP;
   try {
     await requireCapability("ads.view");
     const asset = await db.creativeAsset.findUnique({ where: { crCode: params.code }, include: { thumbnails: true } });

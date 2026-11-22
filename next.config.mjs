@@ -45,13 +45,10 @@ export const SECURITY_HEADERS = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  eslint: { ignoreDuringBuilds: true },
   // the site has no pictures that need Next's image optimizer (the code never uses next/image), so the optimizer endpoint is switched off
   images: { unoptimized: true },
-  experimental: {
-    instrumentationHook: true,
-    serverComponentsExternalPackages: ["bcryptjs", "@prisma/client", "exceljs"],
-  },
+  // Next 15+: the stable name (`instrumentation.ts` needs no flag any more); these packages are left out of the bundle
+  serverExternalPackages: ["bcryptjs", "@prisma/client", "exceljs"],
   async redirects() {
     return LEGACY_REDIRECTS;
   },

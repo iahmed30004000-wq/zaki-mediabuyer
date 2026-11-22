@@ -7,7 +7,8 @@ import { db } from "@/server/db";
 const Body = z.object({ action: z.enum(["approve", "reject", "rollback"]) });
 
 /** POST /api/changes/:id {action} — the three buttons of a change card. Approvals happen here, never on Telegram. */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");

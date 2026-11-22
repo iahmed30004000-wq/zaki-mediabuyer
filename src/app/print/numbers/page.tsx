@@ -35,8 +35,9 @@ function Table({ title, set, extra }: { title: string; set: NumbersSet; extra?: 
 }
 
 /** The day, laid out for paper and for «حفظ كـ PDF» on a phone: light, plain, one product after another. A session is required. */
-export default async function PrintNumbersPage({ searchParams }: { searchParams: { d?: string; from?: string; to?: string } }) {
+export default async function PrintNumbersPage({ searchParams: searchParamsP }: { searchParams: Promise<{ d?: string; from?: string; to?: string }> }) {
   await requirePage("money.view");
+  const searchParams = await searchParamsP;
   const data = await loadNumbers(searchParams);
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "medium", timeStyle: "short" }).format(new Date());
   return (

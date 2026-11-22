@@ -104,27 +104,27 @@ function multipart(video: Buffer | null, meta: unknown): Buffer {
 
     // 6. the worker runs the intake; the status is derived
     const stats = await processPendingRequests();
-    const status = await json(await readRequest(new Request("http://x", { headers: auth(read) }), { params: { id } }));
+    const status = await json(await readRequest(new Request("http://x", { headers: auth(read) }), { params: Promise.resolve({ id }) }));
     check(["preparing", "awaiting_approval"].includes(String(status.status)), `6. worker ran (${JSON.stringify(stats)}) → ${status.status} — in dry-run the Meta upload is not sent, so the creative stays «ready» without a video id → «preparing» is the right answer`);
     const row = await db.launchRequest.findUniqueOrThrow({ where: { id } });
     const asset = await db.creativeAsset.findUnique({ where: { crCode: row.crCode ?? "" } });
     check(!!asset && asset.sourceRef === vpId && asset.productCode === "TRF01" && row.filePath === null, `   …registered as ${row.crCode} (${asset?.status}, policy ${asset?.policyFlag}), product TRF01, the stored file removed`);
-    const noRead = await readRequest(new Request("http://x"), { params: { id } });
+    const noRead = await readRequest(new Request("http://x"), { params: Promise.resolve({ id }) });
     check(noRead.status === 401, "   …reading without a token → 401");
-    const missing = await readRequest(new Request("http://x", { headers: auth(read) }), { params: { id: "nope" } });
+    const missing = await readRequest(new Request("http://x", { headers: auth(read) }), { params: Promise.resolve({ id: "nope" }) });
     check(missing.status === 404, "   …an unknown request → 404 not_found");
     // the studio sends nothing but its own fields, and the body has only the contract's keys
     check(JSON.stringify(Object.keys(status).sort()) === JSON.stringify(["ad_id", "adset_id", "campaign_id", "error_code", "landing_page_id", "ops_url", "reason", "request_id", "status"]), "   …the body has exactly the contract's keys");
 
     // 7. cancel: a read token cannot; once yes, twice → 409
-    const c0 = await cancel(new Request("http://x", { method: "POST", headers: auth(read) }), { params: { id } });
+    const c0 = await cancel(new Request("http://x", { method: "POST", headers: auth(read) }), { params: Promise.resolve({ id }) });
     check(c0.status === 403, "7. cancel with a read token → 403");
-    const c1 = await cancel(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: { id } });
+    const c1 = await cancel(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: Promise.resolve({ id }) });
     const c1b = await json(c1);
     check(c1.status === 200 && c1b.status === "cancelled", "   …cancel → 200 cancelled");
-    const c2 = await cancel(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: { id } });
+    const c2 = await cancel(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: Promise.resolve({ id }) });
     check(c2.status === 409 && (await json(c2)).code === "cannot_cancel", "   …cancel again → 409 cannot_cancel");
-    const after = await json(await readRequest(new Request("http://x", { headers: auth(read) }), { params: { id } }));
+    const after = await json(await readRequest(new Request("http://x", { headers: auth(read) }), { params: Promise.resolve({ id }) }));
     check(after.status === "cancelled", "   …and the status now reads cancelled");
     // an ended request may be sent again: it is a new request
     const resend = await json(await post(launch, multipart(video, meta)));
@@ -134,7 +134,7 @@ function multipart(video: Buffer | null, meta: unknown): Buffer {
     const pm = await productMarket(new Request("http://x/api/vidpattern/product-market?product=TRF01&country=SY", { headers: auth(read) }));
     const facts = await json(pm);
     check(pm.status === 200 && facts.cod === true && "price" in facts && !("offer_tiers" in facts) && !("guarantee" in facts), `8. product-market TRF01/SY → ${JSON.stringify(facts)} (no offer_tiers, no guarantee)`);
-    const alt = await productFacts(new Request("http://x/api/v1/vp/products/TRF01/facts?country=SY", { headers: auth(read) }), { params: { id: "TRF01" } });
+    const alt = await productFacts(new Request("http://x/api/v1/vp/products/TRF01/facts?country=SY", { headers: auth(read) }), { params: Promise.resolve({ id: "TRF01" }) });
     check(alt.status === 200 && JSON.stringify(await json(alt)) === JSON.stringify(facts), "   …the alias path answers the same body");
     const none = await productMarket(new Request("http://x/api/vidpattern/product-market?product=ZZZ99&country=SY", { headers: auth(read) }));
     check(none.status === 404, "   …an unknown product → 404 not_found");

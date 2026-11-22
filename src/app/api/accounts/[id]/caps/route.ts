@@ -13,7 +13,8 @@ const Body = z
  * POST /api/accounts/:metaId/caps — the account's daily and monthly caps (spec 5.5 / 10.1). No raise passes above the
  * daily cap; at the cap the safety rule pauses the unprotected spend for the rest of the day. Owner only, audited.
  */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     const parsed = Body.safeParse(await req.json().catch(() => null));

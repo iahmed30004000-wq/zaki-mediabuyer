@@ -4,7 +4,8 @@ import { safeNext } from "@/core/auth-guards";
 
 export const metadata = { title: "الدخول" };
 
-export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+export default async function LoginPage({ searchParams: searchParamsP }: { searchParams: Promise<{ next?: string }> }) {
+  const searchParams = await searchParamsP;
   const next = safeNext(searchParams.next);
   return (
     <DoorCard>

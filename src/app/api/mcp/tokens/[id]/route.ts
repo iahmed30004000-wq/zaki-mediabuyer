@@ -7,7 +7,8 @@ import { db } from "@/server/db";
 export const dynamic = "force-dynamic";
 
 /** DELETE /api/mcp/tokens/:id — stops a Claude token at once. The row stays (who made it, when), marked revoked. */
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("owner_only");
     const row = await db.apiToken.findUnique({ where: { id: params.id } });

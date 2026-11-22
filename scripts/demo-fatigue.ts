@@ -69,12 +69,12 @@ const check = (ok: boolean, label: string) => {
     const q = await (await readQueue(new Request("http://x/api/vidpattern/queue?status=pending", { headers: auth(read) }))).json();
     const mine = q.items.find((i: { id: string }) => i.id === req!.id);
     check(!!mine && Array.isArray(mine.brief.forbidden), `3. the studio reads it (vp:read): ${mine?.kind} · ${mine?.brief.why}`);
-    const noScope = await claim(new Request("http://x", { method: "POST", headers: auth(read) }), { params: { id: req!.id } });
+    const noScope = await claim(new Request("http://x", { method: "POST", headers: auth(read) }), { params: Promise.resolve({ id: req!.id }) });
     check(noScope.status === 403, "   …a read token cannot claim (403)");
-    const c1 = await claim(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: { id: req!.id } });
-    const c2 = await claim(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: { id: req!.id } });
+    const c1 = await claim(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: Promise.resolve({ id: req!.id }) });
+    const c2 = await claim(new Request("http://x", { method: "POST", headers: auth(launch) }), { params: Promise.resolve({ id: req!.id }) });
     check(c1.status === 200 && c2.status === 409, `4. claimed for 2 hours (${c1.status}); a second claim is refused (${c2.status})`);
-    const r = await result(new Request("http://x", { method: "POST", headers: { ...auth(launch), "content-type": "application/json" }, body: JSON.stringify({ result: { vp_ids: ["VP-TRF01-0050-v1-h2", "VP-TRF01-0050-v1-h3"] } }) }), { params: { id: req!.id } });
+    const r = await result(new Request("http://x", { method: "POST", headers: { ...auth(launch), "content-type": "application/json" }, body: JSON.stringify({ result: { vp_ids: ["VP-TRF01-0050-v1-h2", "VP-TRF01-0050-v1-h3"] } }) }), { params: Promise.resolve({ id: req!.id }) });
     check(r.status === 200 && (await db.creativeRequest.findUniqueOrThrow({ where: { id: req!.id } })).status === "done", "5. the result handed back → done, and the owner is told");
   } finally {
     await db.apiToken.deleteMany({ where: { id: { in: [tRead.id, tLaunch.id] } } });

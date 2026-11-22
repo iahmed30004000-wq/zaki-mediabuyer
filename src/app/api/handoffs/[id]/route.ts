@@ -16,7 +16,8 @@ const Body = z.discriminatedUnion("action", [
  * PATCH /api/handoffs/:id — the owner decides what happens to a handoff from the site:
  * give it to someone else (reassign), drop it (cancel — the run it held up is marked skipped), or mark it done by hand.
  */
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const caller = await requireCapability("work.control");
     if (isDemo(process.env) || caller.demo) return NextResponse.json({ ok: true, demo: true });

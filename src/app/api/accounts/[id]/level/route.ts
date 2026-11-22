@@ -13,7 +13,8 @@ const Body = z.object({ level: z.number().int() });
  * POST /api/accounts/:metaId/level — the owner chooses how much the system does on its own for one ad account
  * (spec 10.1, T5.2). Up to 2 only after two weeks of decisions on that account; 3 is off; down is always allowed.
  */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");

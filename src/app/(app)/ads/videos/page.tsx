@@ -16,8 +16,9 @@ export const dynamic = "force-dynamic";
  * الإعلانات ← الفيديوهات: two ways to look at the same videos — the board per product (the bank against 50, the winners, the tired)
  * and the road each video walks from Drive to live to tired. `?view=flow` is the road; the board is the first.
  */
-export default async function VideosPage({ searchParams }: { searchParams: { view?: string } }) {
+export default async function VideosPage({ searchParams: searchParamsP }: { searchParams: Promise<{ view?: string }> }) {
   await requirePage("ads.view");
+  const searchParams = await searchParamsP;
   const flow = searchParams.view === "flow";
   const switcher = (
     <div className="flex gap-2" data-tour="tabs">

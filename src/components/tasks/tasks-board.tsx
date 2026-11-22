@@ -307,7 +307,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
     return [...by.entries()]
       .map(([key, list]) => ({ key, label: key ? personName(key) ?? key : "بلا مسؤول", list: [...list].sort((a, b) => rank(a) - rank(b) || (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9")) }))
       .sort((a, b) => (a.key === "" ? 1 : b.key === "" ? -1 : a.label.localeCompare(b.label)));
-  }, [shown, now]);
+  }, [shown, now, personName]);
   const countOf = (b: string) => tasks.filter((t) => t.status !== "done" && (b === "all" || t.board === b)).length;
 
   async function quickAdd(e: React.FormEvent) {

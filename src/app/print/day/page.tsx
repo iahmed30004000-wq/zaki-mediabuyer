@@ -33,8 +33,9 @@ function Section({ title, groups }: { title: string; groups: DayGroup[] }) {
 }
 
 /** The day laid out for paper and for «حفظ كـ PDF» on a phone: light, plain, one person after another. A session is required. */
-export default async function PrintDayPage({ searchParams }: { searchParams: { day?: string } }) {
+export default async function PrintDayPage({ searchParams: searchParamsP }: { searchParams: Promise<{ day?: string }> }) {
   await requirePage("work.view");
+  const searchParams = await searchParamsP;
   const data = await loadDay(readDay(searchParams.day));
   const at = new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "medium", timeStyle: "short" }).format(new Date());
   return (

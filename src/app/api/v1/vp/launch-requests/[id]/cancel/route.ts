@@ -5,7 +5,8 @@ import { cancelRequest } from "@/server/studio-launch";
 export const dynamic = "force-dynamic";
 
 /** POST /api/v1/vp/launch-requests/{id}/cancel — only before the owner approves (contract §4.2 #4). */
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ id: string }> }) {
+  const params = await paramsP;
   try {
     await requireToken(req, "vp:launch");
     return NextResponse.json(await cancelRequest(params.id));

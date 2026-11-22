@@ -16,8 +16,9 @@ export const dynamic = "force-dynamic";
  * الشغل ← اليوم: the whole working day on a line (06:00 → 06:00 — a night round after midnight stays on its own day), then what got done
  * and what is planned. The day is in the address (`?day=`): yesterday, today, tomorrow, or any date.
  */
-export default async function WorkTodayPage({ searchParams }: { searchParams: { day?: string } }) {
+export default async function WorkTodayPage({ searchParams: searchParamsP }: { searchParams: Promise<{ day?: string }> }) {
   await requirePage("work.view");
+  const searchParams = await searchParamsP;
   const now = new Date();
   const today = workdayBounds(now).key;
   const day = isKey(searchParams.day) ? searchParams.day : today;

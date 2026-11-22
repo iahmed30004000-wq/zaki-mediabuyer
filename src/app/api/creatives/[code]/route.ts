@@ -13,7 +13,8 @@ const Body = z.object({ action: z.enum(["approve", "exclude"]) });
  * failed file check). Approve → `ready` (moved to 02_ready on Drive); exclude → `excluded` (moved to excluded, never
  * deleted). A red (forbidden) video cannot be approved here: it needs an edited version.
  */
-export async function POST(req: Request, { params }: { params: { code: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ code: string }> }) {
+  const params = await paramsP;
   try {
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "طلب غير مفهوم");

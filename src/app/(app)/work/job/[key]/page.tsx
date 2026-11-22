@@ -25,8 +25,9 @@ const STATUS: Record<string, { label: string; tone: "ok" | "danger" | "info" | "
  * touches, who it talks to — an empty one is not shown) → what it is → its branches with their switches → the rules it reads → its last
  * ten runs → the agent's note and advice → «شغّلها هلأ» and «متقدّم». The standing orders that touch it are under its description.
  */
-export default async function JobPage({ params }: { params: { key: string } }) {
+export default async function JobPage({ params: paramsP }: { params: Promise<{ key: string }> }) {
   await requirePage("work.view");
+  const params = await paramsP;
   const key = decodeURIComponent(params.key);
   const [{ jobs }, me, runs] = await Promise.all([loadJobs(), currentCaller(), runsOf(key, { limit: 10 })]);
   const job = jobs.find((j) => j.key === key);

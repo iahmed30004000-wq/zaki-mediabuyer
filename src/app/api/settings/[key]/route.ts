@@ -23,7 +23,8 @@ const EDITABLE: Partial<Record<SettingKey, ZodType>> = {
 };
 
 /** POST /api/settings/:key {value} — the owner changes one setting; the old one stays as a version to go back to. */
-export async function POST(req: Request, { params }: { params: { key: string } }) {
+export async function POST(req: Request, { params: paramsP }: { params: Promise<{ key: string }> }) {
+  const params = await paramsP;
   try {
     const key = decodeURIComponent(params.key) as SettingKey;
     const schema = EDITABLE[key];
