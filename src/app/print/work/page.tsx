@@ -2,6 +2,7 @@ import { PrintButton } from "@/components/numbers/print-button";
 import { DOMAIN_AR } from "@/core/jobs";
 import { loadJobs } from "@/lib/jobs-view";
 import { requirePage } from "@/server/auth";
+import { Table } from "@/components/ui/table";
 
 export const metadata = { title: "خريطة المهام — للطباعة" };
 export const dynamic = "force-dynamic";
@@ -34,9 +35,9 @@ export default async function PrintWorkPage() {
             <h2 className="text-base font-bold">
               {DOMAIN_AR[d]} ({list.length})
             </h2>
-            <table className="w-full text-sm">
+            <Table aria-label="المهام" className="w-full text-sm">
               <thead>
-                <tr className="border-b border-neutral-400 text-start text-xs text-neutral-600">
+                <tr className="border-b border-neutral-400 text-start text-sm text-neutral-600">
                   <th className="w-8 py-1 text-start">#</th>
                   <th className="py-1 text-start">المهمة</th>
                   <th className="py-1 text-start">الموعد</th>
@@ -52,23 +53,23 @@ export default async function PrintWorkPage() {
                     <td className="py-1.5">
                       <span className="font-semibold">{j.name}</span>
                       {j.branches.length ? (
-                        <span className="mt-0.5 block text-xs text-neutral-600">
+                        <span className="mt-0.5 block text-sm text-neutral-600">
                           {j.branches.map((b) => `${b.number ?? ""} ${b.label}${b.disabled ? " (مطفي)" : ""}`.trim()).join(" · ")}
                         </span>
                       ) : null}
                     </td>
-                    <td className="py-1.5 text-xs">
+                    <td className="py-1.5 text-sm">
                       {j.words} · {j.runner}
                     </td>
-                    <td className="py-1.5 text-xs font-semibold">{j.badge.label}</td>
+                    <td className="py-1.5 text-sm font-semibold">{j.badge.label}</td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </section>
         );
       })}
-      <p className="border-t border-neutral-300 pt-3 text-xs text-neutral-500">الأوقات بتوقيت عمّان. الأرقام ثابتة: بيها بتحكي مع Claude («ألغي 7 و11.3»).</p>
+      <p className="border-t border-neutral-300 pt-3 text-sm text-neutral-500">الأوقات بتوقيت عمّان. الأرقام ثابتة: بيها بتحكي مع Claude («ألغي 7 و11.3»).</p>
     </main>
   );
 }

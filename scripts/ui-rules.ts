@@ -14,7 +14,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 /** Bumped when a metric is added or redefined: the baseline is then written fresh, once, instead of being refused for «going up». */
-export const RULES_VERSION = 2;
+export const RULES_VERSION = 3;
 
 export const METRICS = [
   "rawButtons",
@@ -35,15 +35,15 @@ export const METRICS = [
 export type Metric = (typeof METRICS)[number];
 export type Counts = Record<Metric, number>;
 
-/** What each number means, in one line (printed by `npm run ui:baseline`). Target «0» = by which phase it must reach zero. */
+/** What each number means, in one line (printed by `npm run ui:baseline`). Every one is 0 since v6 · P8. */
 export const METRIC_NOTE: Record<Metric, string> = {
-  rawButtons: "<button> written by hand outside the kit — use <Button> / <IconButton> / <ChoiceTile> (no exception list) · 0 by P8",
-  rawControls: "<select> <input> <textarea> <table> outside the kit — use Input / Select / Textarea / DataTable · 0 by P8",
-  jargon: "words the owner does not use (03-look §9) in Arabic UI text, JSX text included, and in the files that hand text to the screen · 0 by P8",
-  smallText: "text-xs — 12px is a badge and a time, never a sentence · goes down every phase",
-  mockInUi: "screens and components that import the demo data (@/lib/mock/data) — a screen shows real rows or «—», never an example · 0 by P8",
-  oldRoutes: "an href / push / redirect to an address of the redirect table (/work · /ops · /products · /ads/campaigns) · 0 by P8",
-  bareFetch: "`await fetch(` in a screen without call() (a dropped network must not freeze a button) · 0 by P3",
+  rawButtons: "<button> written by hand outside the kit — use <Button> / <IconButton> / <ChoiceTile> (no exception list) · 0 since P8",
+  rawControls: "<select> <input> <textarea> <table> outside the kit — use Input / Select / Textarea / DataTable · 0 since P8",
+  jargon: "words the owner does not use (03-look §9) in Arabic UI text, JSX text included, and in the files that hand text to the screen · 0 since P8",
+  smallText: "text-xs — 12px is a badge and a time, never a sentence · 0 since P8",
+  mockInUi: "screens and components that import the demo data (@/lib/mock/data) — a screen shows real rows or «—», never an example · 0 since P8",
+  oldRoutes: "an href / push / redirect to an address of the redirect table (/work · /ops · /products · /ads/campaigns) · 0 since P8",
+  bareFetch: "`await fetch(` in a screen without call() (a dropped network must not freeze a button) · 0 since P3",
   arbitraryText: "text-[NNpx] — only the six sizes of the scale · stays 0",
   offScaleText: "text-2xl / 4xl and bigger — only xs · sm · base · lg · xl · 3xl · stays 0",
   offScaleHeights: "min-h-8/9/14 and h-9 — only the heights of the kit (40 · 44 · 48 · 52) · stays 0",
@@ -96,8 +96,22 @@ const JARGON = new RegExp(
   "i",
 );
 
-/** Pages where a technical word is allowed (03-look §9): the connections page and the advanced settings, and the panels that only live on the connections page. */
-const JARGON_ALLOWED = ["settings/advanced", "settings/connections", "components/settings/connections-panel", "components/settings/claude-link", "components/settings/anthropic-link", "components/settings/studio-link"];
+/**
+ * Pages where a technical word is allowed (03-look §9): the connections page and the advanced settings, the panels that only live on the connections page — and the four files that only
+ * write ITS sentences («مش مربوط — ناقص …»: the name of the missing setting is the whole point of the line, and the tests hold it).
+ */
+export const JARGON_ALLOWED = [
+  "settings/advanced",
+  "settings/connections",
+  "components/settings/connections-panel",
+  "components/settings/claude-link",
+  "components/settings/anthropic-link",
+  "components/settings/studio-link",
+  "src/core/readiness.ts",
+  "src/core/connections.ts",
+  "src/lib/readiness-view.ts",
+  "src/lib/settings-view.ts",
+];
 
 /**
  * Files in `src/lib` and `src/core` that speak to an AGENT (the tool descriptions and the answers an agent reads, the connection contracts, the starter workflows for n8n)
@@ -118,6 +132,10 @@ export const AGENT_FACING = [
   "src/core/env-check.ts",
   "src/core/oms-event.ts",
   "src/core/model-key.ts",
+  // the instructions the site's assistant (a model) reads
+  "src/core/assistant.ts",
+  // the schemas of the jobs' graph that the tools hand to a model (their descriptions are frozen with the tool specs) and the seed graphs
+  "src/core/workflow.ts",
 ];
 
 /** Where the scan of a file takes text from. */
@@ -125,7 +143,7 @@ const textOnly = (file: string): boolean => /^src\/(?:lib\/[^/]+|core\/[^/]+)\.t
 const isScreen = (file: string): boolean => /^src\/(?:app|components)\//.test(file) && !file.startsWith("src/components/ui/");
 
 /** Comments out of the way: a word in a comment is not UI text. */
-function withoutComments(source: string): string {
+export function withoutComments(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
     .replace(/^[ \t]*\/\/.*$/gm, "")
@@ -156,7 +174,7 @@ export function countJargon(source: string, opts: { jsx: boolean }): number {
 }
 
 /** Addresses of the redirect table (02-screens §8) that nothing should link to any more. */
-const OLD_ROUTE = /(?:href\s*[=:]\s*\{?\s*|\.push\(\s*|\.replace\(\s*|redirect\(\s*)[`"']\/(?:work|ops|products|ads\/campaigns)(?=[/"'`?#$]|\b)/g;
+const OLD_ROUTE = /(?:href\s*[=:]\s*\{?\s*|\.push\(\s*|\.replace\(\s*|redirect\(\s*)[`"']\/(?:work|ops|products|ads\/campaigns|p)(?=[/"'`?#$]|\b)/g;
 
 /** The counts for ONE file's source. `file` is its repo-relative path with forward slashes. */
 export function countSource(source: string, file: string): Counts {
@@ -176,9 +194,10 @@ export function countSource(source: string, file: string): Counts {
     c.mockInUi = (source.match(/from\s+["']@\/lib\/mock\/data["']/g) ?? []).length;
     c.fontMono = (source.match(/(?<![\w-])font-mono(?![\w-])/g) ?? []).length;
     if (!/from\s+["']@\/lib\/call["']/.test(source)) c.bareFetch = (source.match(/\bawait\s+fetch\(/g) ?? []).length;
-    if (!JARGON_ALLOWED.some((p) => file.includes(p))) c.jargon = countJargon(source, { jsx: true });
+    // JSX text exists only in a .tsx file: in a route (.ts) a stretch of code between `>` and `{` is not text
+    if (!JARGON_ALLOWED.some((p) => file.includes(p))) c.jargon = countJargon(source, { jsx: file.endsWith(".tsx") });
   } else if (words) {
-    c.jargon = countJargon(source, { jsx: false });
+    if (!JARGON_ALLOWED.some((p) => file.includes(p))) c.jargon = countJargon(source, { jsx: false });
   }
   if (screen || words) c.oldRoutes = (withoutComments(source).match(OLD_ROUTE) ?? []).length;
   return c;

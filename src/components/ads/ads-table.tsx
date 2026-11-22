@@ -2,10 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Info, RotateCcw, SlidersHorizontal } from "lucide-react";
-import { Delta } from "@/components/home/number-card";
+import { ChangeDelta } from "@/components/ads/change-delta";
 import { SourceBadge } from "@/components/mb/num";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { IconButton } from "@/components/ui/icon-button";
+import { Select } from "@/components/ui/input";
+import { Table } from "@/components/ui/table";
+import { Tap } from "@/components/ui/tap";
 import { EmptyState } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { COLUMNS, DEFAULT_COLUMNS, filterTree, filtersActive, type ColumnDef, type ColumnKey, type Filters } from "@/core/ads-table";
@@ -46,7 +51,7 @@ function Cell({ def, row, compare, target }: { def: ColumnDef; row: TableRow; co
     return (
       <div className="flex flex-col gap-0.5">
         <span dir="ltr" className={cn("tabular-nums font-semibold", tone ? TONE[tone] : "text-fg")}>{v === null ? "—" : fmt(v, def.unit)}</span>
-        {compare ? <Delta now={v} base={row.prev[def.metric]} good={def.good} /> : null}
+        {compare ? <ChangeDelta now={v} base={row.prev[def.metric]} good={def.good} /> : null}
       </div>
     );
   }
@@ -73,7 +78,7 @@ function Cell({ def, row, compare, target }: { def: ColumnDef; row: TableRow; co
             <span className="font-semibold">{row.spendToday === null ? "—" : fmt(row.spendToday, "$")}</span>
             <span className="text-fg-muted"> / {row.spendYesterday === null ? "—" : fmt(row.spendYesterday, "$")}</span>
           </span>
-          {compare ? <Delta now={row.spendToday} base={row.spendYesterday} good="none" /> : null}
+          {compare ? <ChangeDelta now={row.spendToday} base={row.spendYesterday} good="none" /> : null}
         </div>
       );
     case "adsCount":
@@ -88,22 +93,22 @@ function NameCell({ row, depth, hasKids, open, onToggle, onOpen }: { row: TableR
   return (
     <div className="flex items-start gap-1.5">
       {hasKids ? (
-        <button type="button" onClick={onToggle} aria-expanded={open} aria-label={open ? "سكّر" : "افتح"} className="relative mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted after:absolute after:-inset-2 after:content-[''] hover:bg-surface-2">
+        <Tap grow onClick={onToggle} aria-expanded={open} aria-label={open ? "سكّر" : "افتح"} className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2">
           <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90 rtl:rotate-90")} />
-        </button>
+        </Tap>
       ) : (
         <span className="w-7 shrink-0" />
       )}
       {depth === 2 && row.creativeCode ? <Thumb code={row.creativeCode} /> : null}
-      <button type="button" onClick={() => onOpen(row)} className="min-w-0 flex-1 text-start">
+      <Tap onClick={() => onOpen(row)} className="min-w-0 flex-1 text-start">
         <span className="flex items-center gap-1.5">
-          {row.needsNaming ? <span className="shrink-0 rounded-md bg-warn/10 px-1 py-0.5 text-xs font-semibold text-warn">بدها تسمية</span> : null}
+          {row.needsNaming ? <span className="shrink-0 rounded-md bg-warn/10 px-1 py-0.5 text-sm font-semibold text-warn">بدها تسمية</span> : null}
           <span dir="ltr" className={cn("block truncate tabular-nums text-fg hover:text-accent", depth === 0 ? "text-sm font-semibold" : "text-sm")}>{row.name}</span>
         </span>
         {row.decoded ? <span className="block truncate text-sm text-fg-muted">{row.decoded.join(" · ")}</span> : null}
-        {depth === 2 && row.codes ? <span dir="ltr" className="block truncate tabular-nums text-xs text-fg-muted">{row.codes}</span> : null}
+        {depth === 2 && row.codes ? <span dir="ltr" className="block truncate tabular-nums text-sm text-fg-muted">{row.codes}</span> : null}
         {row.note ? <span className="block truncate text-sm text-warn">{row.note}</span> : null}
-      </button>
+      </Tap>
     </div>
   );
 }
@@ -158,16 +163,16 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
               const d = DEF.get(k)!;
               return (
                 <li key={k} className="flex items-center gap-2 rounded-lg bg-surface-2/60 px-2 py-1.5">
-                  <input type="checkbox" checked disabled={k === "name"} onChange={() => onChange(cols.filter((x) => x !== k))} aria-label={d.label} className="size-4 accent-accent" />
+                  <Checkbox checked disabled={k === "name"} onChange={() => onChange(cols.filter((x) => x !== k))} aria-label={d.label} />
                   <span className="flex-1 text-sm text-fg">{d.label}</span>
                   {k !== "name" ? (
                     <>
-                      <button type="button" onClick={() => move(i, -1)} disabled={i < 2} aria-label="فوق" className="inline-flex size-8 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2 disabled:opacity-30">
+                      <IconButton onClick={() => move(i, -1)} disabled={i < 2} aria-label="فوق">
                         <ArrowUp className="size-4" />
-                      </button>
-                      <button type="button" onClick={() => move(i, 1)} disabled={i >= cols.length - 1} aria-label="تحت" className="inline-flex size-8 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2 disabled:opacity-30">
+                      </IconButton>
+                      <IconButton onClick={() => move(i, 1)} disabled={i >= cols.length - 1} aria-label="تحت">
                         <ArrowDown className="size-4" />
-                      </button>
+                      </IconButton>
                     </>
                   ) : null}
                 </li>
@@ -180,7 +185,7 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
               <ul className="space-y-1">
                 {off.map((d) => (
                   <li key={d.key} className="flex items-center gap-2 px-2 py-1">
-                    <input type="checkbox" checked={false} onChange={() => onChange([...cols, d.key])} aria-label={d.label} className="size-4 accent-accent" />
+                    <Checkbox checked={false} onChange={() => onChange([...cols, d.key])} aria-label={d.label} />
                     <span className="text-sm text-fg">{d.label}</span>
                   </li>
                 ))}
@@ -199,14 +204,14 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
   );
 }
 
-const select = "min-h-10 max-md:min-h-[44px] shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg";
+const select = "w-auto min-w-[9rem] shrink-0";
 
 /** The test-share gauge: how much of the spend went into tests, against the limit. */
 function Gauge({ share }: { share: AdsTableData["share"] }) {
   const pct = share.share === null ? null : Math.round(share.share * 100);
   const limit = Math.round(share.limit * 100);
   return (
-    <div data-tour="share" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs">
+    <div data-tour="share" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm">
       <span className="font-semibold text-fg">حصة الاختبارات</span>
       <span className="relative h-2 w-32 shrink-0 rounded-full bg-surface-2" role="img" aria-label={pct === null ? "ما في صرف" : `${pct}% من الصرف، الحد ${limit}%`}>
         <span className={cn("absolute inset-y-0 start-0 rounded-full", share.over ? "bg-danger" : "bg-accent")} style={{ width: `${Math.min(100, (share.share ?? 0) * 100)}%` }} />
@@ -273,47 +278,44 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
 
       {/* one scrollable row on a phone (the table must stay near the top), wrapped from sm up */}
       <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0" data-tour="filters">
-        <select aria-label="المنتج" value={filters.product ?? ""} onChange={(e) => setF({ product: e.target.value || null })} className={select}>
+        <Select aria-label="المنتج" value={filters.product ?? ""} onChange={(e) => setF({ product: e.target.value || null })} className={select}>
           <option value="">كل المنتجات</option>
           {data.products.map((p) => (
             <option key={p.code} value={p.code}>{p.name}</option>
           ))}
-        </select>
-        <select aria-label="الصفحة" value={filters.page ?? ""} onChange={(e) => setF({ page: e.target.value || null })} className={select}>
+        </Select>
+        <Select aria-label="الصفحة" value={filters.page ?? ""} onChange={(e) => setF({ page: e.target.value || null })} className={select}>
           <option value="">كل الصفحات</option>
           {data.pages.map((p) => (
             <option key={p} value={p}>{p}</option>
           ))}
-        </select>
-        <select aria-label="اختبار أو تكبير" value={filters.kind ?? "all"} onChange={(e) => setF({ kind: e.target.value as Filters["kind"] })} className={select}>
+        </Select>
+        <Select aria-label="اختبار أو تكبير" value={filters.kind ?? "all"} onChange={(e) => setF({ kind: e.target.value as Filters["kind"] })} className={select}>
           <option value="all">اختبار وتكبير</option>
           <option value="test">اختبارات</option>
           <option value="scale">تكبير</option>
-        </select>
-        <select aria-label="السوق" value={filters.market ?? ""} onChange={(e) => setF({ market: e.target.value || null })} className={select}>
+        </Select>
+        <Select aria-label="السوق" value={filters.market ?? ""} onChange={(e) => setF({ market: e.target.value || null })} className={select}>
           <option value="">كل الأسواق</option>
           <option value="SY">سوريا</option>
           <option value="JO">الأردن</option>
-        </select>
-        <select aria-label="الحالة" value={filters.status ?? ""} onChange={(e) => setF({ status: e.target.value || null })} className={select}>
+        </Select>
+        <Select aria-label="الحالة" value={filters.status ?? ""} onChange={(e) => setF({ status: e.target.value || null })} className={select}>
           <option value="">كل الحالات</option>
           {(Object.keys(STATUS_LABEL) as (keyof typeof STATUS_LABEL)[]).map((s) => (
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
           {namingCount ? <option value="naming">بدها تسمية ({namingCount})</option> : null}
-        </select>
+        </Select>
         {active ? (
-          <button type="button" onClick={() => setF({ product: null, page: null, kind: "all", status: null, market: null })} className="min-h-10 max-md:min-h-[44px] shrink-0 whitespace-nowrap rounded-lg px-2 text-sm text-accent hover:underline">
+          <Button variant="ghost" size="sm" onClick={() => setF({ product: null, page: null, kind: "all", status: null, market: null })}>
             شيل الفلاتر
-          </button>
+          </Button>
         ) : null}
       </div>
       <div className="flex items-center gap-3">
-        <label className="inline-flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center gap-2 text-sm text-fg">
-          <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="size-4 accent-accent" />
-          قارن
-        </label>
-        <Button variant="secondary" size="sm" onClick={() => setPicker(true)} className="ms-auto min-h-10 max-md:min-h-[44px]">
+        <Checkbox label="قارن" checked={compare} onChange={(e) => setCompare(e.target.checked)} />
+        <Button variant="secondary" size="sm" onClick={() => setPicker(true)} className="ms-auto">
           <SlidersHorizontal className="size-3.5" />
           الأعمدة
         </Button>
@@ -322,7 +324,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
 
       {lines.length ? (
         <div data-tour="tree" className="overflow-x-auto rounded-card border border-border bg-surface-1">
-          <table className="w-full min-w-max border-collapse text-sm">
+          <Table aria-label="الحملات" className="min-w-max text-sm">
             <thead>
               <tr className="border-b border-border text-fg-muted">
                 {defs.map((d) => (
@@ -330,9 +332,9 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
                     <span className="inline-flex items-center gap-1">
                       {d.label}
                       {d.term ? (
-                        <button type="button" onClick={() => setHelp(d)} aria-label={`قاعدة احتساب ${d.label}`} className="relative inline-flex size-5 items-center justify-center rounded text-fg-muted/70 after:absolute after:-inset-3 after:content-[''] hover:text-accent">
+                        <Tap grow onClick={() => setHelp(d)} aria-label={`قاعدة احتساب ${d.label}`} className="inline-flex size-5 items-center justify-center rounded text-fg-muted/70 hover:text-accent">
                           <Info className="size-3.5" />
-                        </button>
+                        </Tap>
                       ) : null}
                     </span>
                   </th>
@@ -359,7 +361,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
                 );
               })}
             </tbody>
-          </table>
+          </Table>
         </div>
       ) : (
         <EmptyState title={active ? "ما في شي بهالفلاتر" : "ما في حملات لسا"} hint={active ? "غيّر الفلاتر أو شيلها." : "أول ما يبعت Claude أرقامك (أو ينربط ميتا) بتطلع هون."} art="empty-ads" />

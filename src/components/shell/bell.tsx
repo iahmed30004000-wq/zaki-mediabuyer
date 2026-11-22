@@ -51,7 +51,7 @@ export function BellButton() {
       <IconButton aria-label={unread ? `الإشعارات — ${unread} ما انقرت` : "الإشعارات"} title="الإشعارات" onClick={() => setOpen(true)} className="relative">
         <Bell className="size-5" aria-hidden />
         {unread ? (
-          <span aria-hidden className="absolute end-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-xs font-bold tabular-nums text-danger-fg">
+          <span aria-hidden className="absolute end-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-sm font-bold tabular-nums text-danger-fg">
             {unread > 99 ? "99+" : unread}
           </span>
         ) : null}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { safeNext } from "@/core/auth-guards";
 import { safeFetch } from "@/lib/call";
+import { Input } from "@/components/ui/input";
 
 /** The sign-in card. On a brand-new system it says so, and the first sign-in creates the owner. */
 export function LoginForm({ next }: { next: string }) {
@@ -34,30 +35,30 @@ export function LoginForm({ next }: { next: string }) {
     >
       <div>
         <h1 className="text-base font-bold text-fg">{first ? "اعمل حساب المالك" : invite !== null ? "أول دخول بدعوة" : "أهلين"}</h1>
-        <p className="text-xs text-fg-muted">{first ? "أول مرة: الإيميل وكلمة السر اللي بتكتبهم هلأ بيصيروا حساب المالك." : invite !== null ? "اكتب الرمز اللي أعطاك ياه المالك، واختار كلمة سرك (8 أحرف على الأقل). الرمز بينفع مرة وحدة." : "سجّل دخول لتكمّل."}</p>
+        <p className="text-sm text-fg-muted">{first ? "أول مرة: الإيميل وكلمة السر اللي بتكتبهم هلأ بيصيروا حساب المالك." : invite !== null ? "اكتب الرمز اللي أعطاك ياه المالك، واختار كلمة سرك (8 أحرف على الأقل). الرمز بينفع مرة وحدة." : "سجّل دخول لتكمّل."}</p>
       </div>
       <label className="block space-y-1">
-        <span className="text-xs font-medium text-fg-muted">الإيميل</span>
-        <input type="email" dir="ltr" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+        <span className="text-sm font-medium text-fg-muted">الإيميل</span>
+        <Input type="email" dir="ltr" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
       <label className="block space-y-1">
-        <span className="text-xs font-medium text-fg-muted">{invite !== null ? "كلمة سرك الجديدة" : "كلمة السر"} {first || invite !== null ? "(8 أحرف على الأقل)" : ""}</span>
-        <input type="password" dir="ltr" autoComplete={first || invite !== null ? "new-password" : "current-password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-fg" />
+        <span className="text-sm font-medium text-fg-muted">{invite !== null ? "كلمة سرك الجديدة" : "كلمة السر"} {first || invite !== null ? "(8 أحرف على الأقل)" : ""}</span>
+        <Input type="password" dir="ltr" autoComplete={first || invite !== null ? "new-password" : "current-password"} required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
       {invite !== null ? (
         <label className="block space-y-1">
-          <span className="text-xs font-medium text-fg-muted">رمز الدعوة</span>
-          <input dir="ltr" autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 tabular-nums tracking-wider text-fg" />
+          <span className="text-sm font-medium text-fg-muted">رمز الدعوة</span>
+          <Input dir="ltr" autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} className="tabular-nums tracking-wider" />
         </label>
       ) : null}
       {error ? <p className="rounded-lg bg-danger/10 p-2 text-sm text-danger">{error}</p> : null}
-      <Button type="submit" disabled={busy} className="h-10 max-md:h-[44px] w-full">
+      <Button type="submit" disabled={busy} block>
         {first ? "اعمل الحساب وادخل" : invite !== null ? "ثبّت كلمة السر وادخل" : "ادخل"}
       </Button>
       {!first ? (
-        <button type="button" onClick={() => setInvite(invite === null ? "" : null)} className="w-full text-center text-xs text-accent hover:underline">
+        <Button variant="ghost" size="sm" block onClick={() => setInvite(invite === null ? "" : null)}>
           {invite === null ? "عندي رمز دعوة من المالك" : "عندي كلمة سر — رجّعني"}
-        </button>
+        </Button>
       ) : null}
     </form>
   );

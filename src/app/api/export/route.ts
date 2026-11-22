@@ -2,7 +2,7 @@ import { buildWorkbook, type ExportRow } from "@/io/export";
 import { errorResponse, requireCapability } from "@/server/auth";
 import { audit } from "@/server/audit";
 import { db } from "@/server/db";
-import { ACCOUNTS, CAMPAIGNS, PRODUCTS, campaignCounts, productView, allAds } from "@/lib/mock/data";
+import { demoExport } from "@/lib/export-demo";
 import { isDemo } from "@/core/readiness";
 import { stampOf } from "@/core/freshness";
 import { nameOf, productLabels } from "@/core/product-name";
@@ -28,10 +28,7 @@ export async function GET() {
       // R-23: the file says whether its figures are «حقيقي» or «تقدير» (the OMS silent for three hours turns them into an estimate)
       title = `الحقيقة — ${latest.date.toISOString().slice(0, 10)} — ${stampOf(await loadSourceFacts())}`;
     } else {
-      const products = PRODUCTS.map((p) => productView(p.code)).map(({ product, counts, view }) => ({ level: "منتج", name: product.name, spend: view.spend, orders: counts.orders, confirmed: counts.confirmed, delivered: counts.delivered, costPerConfirmed: view.costPerConfirmed, ceiling: view.ceiling, confirmRate: view.confirmRate === null ? null : view.confirmRate / 100, deliveryRate: view.deliveryRate === null ? null : view.deliveryRate / 100, profit: view.profit, roas: view.roas }));
-      const ads = allAds().map(({ ad, view }) => ({ level: "إعلان", name: ad.name, spend: view.spend, orders: ad.counts.orders, confirmed: ad.counts.confirmed, delivered: ad.counts.delivered, costPerConfirmed: view.costPerConfirmed, ceiling: view.ceiling, confirmRate: view.confirmRate === null ? null : view.confirmRate / 100, deliveryRate: view.deliveryRate === null ? null : view.deliveryRate / 100, profit: view.profit, roas: view.roas }));
-      rows = [...products, ...ads];
-      title = `الحقيقة — بيانات تجريبية (${ACCOUNTS.length} حسابات · ${CAMPAIGNS.length} حملات · ${campaignCounts(CAMPAIGNS[0]!).orders}+ طلب)`;
+      ({ rows, title } = demoExport());
     }
     const file = await buildWorkbook(rows, title);
     if (!caller.demo) await audit({ type: "user", id: caller.id }, "export.truth_xlsx");

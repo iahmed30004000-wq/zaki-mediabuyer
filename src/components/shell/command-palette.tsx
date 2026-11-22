@@ -7,7 +7,9 @@ import { SETTINGS } from "@/lib/nav";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { groupHits, rank, searchable, type SearchHit, type SearchItem } from "@/core/search";
 import { cn } from "@/lib/utils";
-import { useMyPlaces, useShell } from "./shell-context";
+import { useMyPlaces } from "./shell-context";
+import { Tap } from "@/components/ui/tap";
+import { Input } from "@/components/ui/input";
 
 /** Opens the search box from anywhere (the header's button sends it). */
 export const SEARCH_EVENT = "mb:search";
@@ -19,7 +21,6 @@ export const SEARCH_EVENT = "mb:search";
  */
 export function CommandPalette() {
   const router = useRouter();
-  const { pages } = useShell();
   const mine = useMyPlaces();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -80,18 +81,16 @@ export function CommandPalette() {
     };
   }, [q, open]);
 
-  // the five places and their tabs, the products and the settings — then the pages the owner made himself
+  // the four places and their tabs, and the settings
   const pageItems = useMemo<SearchItem[]>(
     () => [
       ...mine.places.flatMap((pl) => [
         { kind: "page" as const, id: pl.key, title: pl.label, sub: pl.question, href: pl.href },
-        ...pl.tabs.filter((t) => t.ready !== false && t.href !== pl.href).map((t) => ({ kind: "page" as const, id: `${pl.key}:${t.href}`, title: `${pl.label} · ${t.label}`, sub: pl.question, href: t.href })),
+        ...pl.tabs.filter((t) => t.href !== pl.href).map((t) => ({ kind: "page" as const, id: `${pl.key}:${t.href}`, title: `${pl.label} · ${t.label}`, sub: pl.question, href: t.href })),
       ]),
-      ...(mine.places.some((p) => p.key === "ads") ? [{ kind: "page" as const, id: "products", title: "المنتجات", sub: "أرقام كل منتج", href: "/products" }] : []),
       ...(mine.settings ? [{ kind: "page" as const, id: "settings", title: SETTINGS.label, sub: SETTINGS.question, href: SETTINGS.href }] : []),
-      ...pages.filter((p) => !p.archived && !p.builtin && !p.hidden).map((p) => ({ kind: "page" as const, id: p.key, title: p.label, sub: p.question, href: p.href })),
     ],
-    [pages, mine],
+    [mine],
   );
   const hits = useMemo(() => (searchable(q) ? rank(q, [...pageItems, ...data], 24) : pageItems.map((p) => ({ ...p, score: 1 }))), [q, pageItems, data]);
   const groups = useMemo(() => groupHits(hits), [hits]);
@@ -117,7 +116,7 @@ export function CommandPalette() {
         <DialogDescription className="sr-only">دوّر على صفحة أو منتج أو إعلان أو فيديو أو مهمة أو مهمة</DialogDescription>
         <div className="flex items-center gap-2 border-b border-border px-4 py-3 pe-14">
           <Search className="size-4 shrink-0 text-fg-muted" aria-hidden />
-          <input
+          <Input
             ref={input}
             value={q}
             dir="auto"
@@ -142,16 +141,16 @@ export function CommandPalette() {
             placeholder="دوّر: صفحة، منتج، إعلان، فيديو، مهمة…"
             className="min-h-10 max-md:min-h-[44px] w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted/70"
           />
-          {busy ? <span className="shrink-0 text-xs text-fg-muted">…</span> : null}
+          {busy ? <span className="shrink-0 text-sm text-fg-muted">…</span> : null}
         </div>
         <div id="mb-search-list" role="listbox" className="max-h-[60vh] overflow-y-auto overscroll-contain p-2">
           {groups.map((g) => (
             <div key={g.kind} role="group" aria-label={g.label} className="mb-2 last:mb-0">
-              <p className="px-2 pb-1 pt-1 text-xs font-semibold text-fg-muted">{g.label}</p>
+              <p className="px-2 pb-1 pt-1 text-sm font-semibold text-fg-muted">{g.label}</p>
               {g.hits.map((h) => {
                 const i = ++n;
                 return (
-                  <button
+                  <Tap
                     key={`${h.kind}:${h.id}`}
                     id={`mb-hit-${i}`}
                     data-hit={i}
@@ -163,15 +162,15 @@ export function CommandPalette() {
                     className={cn("flex min-h-10 max-md:min-h-[44px] w-full flex-col items-start justify-center rounded-lg px-3 py-1.5 text-start", i === active ? "bg-accent/10 text-fg" : "text-fg hover:bg-surface-2")}
                   >
                     <span dir="auto" className="w-full truncate text-sm font-medium">{h.title}</span>
-                    {h.sub ? <span dir="auto" className="w-full truncate text-xs text-fg-muted">{h.sub}</span> : null}
-                  </button>
+                    {h.sub ? <span dir="auto" className="w-full truncate text-sm text-fg-muted">{h.sub}</span> : null}
+                  </Tap>
                 );
               })}
             </div>
           ))}
           {!flat.length ? <p className="px-3 py-6 text-center text-sm text-fg-muted">{searchable(q) ? (busy ? "عم أدوّر…" : "ما لقيت شي بهالاسم") : "اكتب اسم صفحة أو منتج أو إعلان أو فيديو أو مهمة"}</p> : null}
         </div>
-        <p className="hidden border-t border-border px-4 py-2 text-xs text-fg-muted md:block">↑ ↓ للتنقل · Enter للفتح · Esc للإغلاق · Ctrl K بأي صفحة</p>
+        <p className="hidden border-t border-border px-4 py-2 text-sm text-fg-muted md:block">↑ ↓ للتنقل · Enter للفتح · Esc للإغلاق · Ctrl K بأي صفحة</p>
       </DialogContent>
     </Dialog>
   );

@@ -82,14 +82,14 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
         <li>
           <span className="font-semibold">2.</span> بـ Claude: <span className="text-fg-muted">الإعدادات ← الموصّلات (Customize ← Connectors) ← «إضافة» ← موصّل مخصّص</span>، واكتب العنوان:
           <span className="mt-1 flex items-center gap-2">
-            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-xs text-fg">{url || "…/mcp"}</code>
+            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-sm text-fg">{url || "…/mcp"}</code>
             <Button size="sm" variant="secondary" disabled={!url} onClick={() => copy(url, "انسخ العنوان ✓")}>
               <Copy className="size-3.5" /> انسخ
             </Button>
           </span>
         </li>
         <li>
-          <span className="font-semibold">3.</span> بقسم <span className="text-fg-muted">«ترويسات الطلب» (Request headers)</span> أضف: <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-xs">Authorization</code> = <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-xs">Bearer التوكن</code> — واختار «بلا تسجيل دخول». بعدين اطلب من Claude: «شغّل get_mode».
+          <span className="font-semibold">3.</span> بقسم <span className="text-fg-muted">«ترويسات الطلب» (Request headers)</span> أضف: <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-sm">Authorization</code> = <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-sm">Bearer التوكن</code> — واختار «بلا تسجيل دخول». بعدين اطلب من Claude: «شغّل get_mode».
         </li>
       </ol>
 
@@ -98,8 +98,8 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
           <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
             <KeyRound className="size-4 text-fg-muted" />
             <span className="text-fg">{t.name}</span>
-            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{t.prefix}…</span>
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg-muted">{t.scopes.includes("mcp") ? "Claude (MCP)" : "طابور المتوقفة بس"}</span>
+            <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{t.prefix}…</span>
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-sm font-medium text-fg-muted">{t.scopes.includes("mcp") ? "Claude (MCP)" : "طابور المتوقفة بس"}</span>
             <span className="ms-auto text-sm text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
             <Button size="sm" variant="ghost" onClick={async () => (await call(`/api/mcp/tokens/${t.id}`, { method: "DELETE" })) && load()}>
               وقّفه
@@ -117,7 +117,7 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
         <div className="space-y-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
           <p className="text-sm text-fg">هاد التوكن بيظهر هلأ بس. انسخه وحطه بإعدادات الموصّل بـ Claude، وما تبعته بأي محادثة.</p>
           <div className="flex items-center gap-2">
-            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-xs text-fg">{fresh}</code>
+            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-sm text-fg">{fresh}</code>
             <Button size="sm" variant="secondary" onClick={() => copy(fresh, "انسخ ✓ — حطه بـ Claude هلأ")}>
               <Copy className="size-3.5" /> انسخ
             </Button>

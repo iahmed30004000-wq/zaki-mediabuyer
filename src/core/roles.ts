@@ -67,7 +67,7 @@ export const CAPABILITY_AR: Record<Capability, string> = {
   "ops.send": "يوافق على رسالة أو نصيحة للفريق",
   "money.view": "يشوف الأرباح والهوامش والتكاليف ونقط التعادل",
   "work.view": "يشوف خريطة المهام والتقارير (لمجالاته بس)",
-  "work.control": "يشغّل أو يطفي مهمة أو فرع، ويقرّر على ورقة القرار",
+  "work.control": "يشغّل أو يطفي مهمة أو خطوة منها، ويقرّر على ورقة القرار",
   "work.create": "ينشئ مهمة جديدة (يركّبها أو من قالب) وبيحفظها بالخريطة",
   "orders.restrict": "يسجّل أمر ساري بيشدّد",
   "tasks.manage": "ينشئ ويوزّع وينقل مهام أي حدا",
@@ -132,8 +132,8 @@ export const ROLE_START: Record<RoleKey, string> = {
   MANAGER: "/",
   ADS_MANAGER: "/",
   OPS_MANAGER: "/",
-  TEAM_LEAD: "/ops/confirm",
-  MEMBER: "/work/tasks",
+  TEAM_LEAD: "/numbers/ops",
+  MEMBER: "/tasks/team",
   ANALYST: "/",
   VIEWER: "/",
 };
@@ -144,13 +144,12 @@ export const ROLE_START: Record<RoleKey, string> = {
  */
 const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: PlaceId; /** any ONE of these places in the role's bar opens it */ places?: readonly PlaceId[] }[] = [
   { test: /^\/inbox(\/|$)/, any: ["inbox.view"], place: "inbox" },
-  { test: /^\/work\/tasks(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
-  // the new place «المهام» (v6 · P3): the people's board is the same screen as the old «مهام الفريق»; the rest of it is the work place
+  // «المهام» (v6 · P3): the people's board is for the roles that own or manage tasks; the rest of the place is the work place. The old addresses (`/work…`, `/ops…`, `/products…`, `/p/…`) are
+  // redirected before any page is asked for (next.config.mjs), so they need no rule here.
   { test: /^\/tasks\/team(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
   // making a job (v6 · P4-1): the owner and the manager — the rest never see the screen, even though they may read the jobs
   { test: /^\/tasks\/new(\/|$)/, any: ["work.create"], place: "work" },
   { test: /^\/tasks(\/|$)/, any: ["work.view"], place: "work" },
-  { test: /^\/work(\/|$)/, any: ["work.view"], place: "work" },
   { test: /^\/print\/(work|report|day)(\/|$)/, any: ["work.view"] },
   { test: /^\/print\/numbers(\/|$)/, any: ["money.view"] }, // every product's spend and revenue
   { test: /^\/ring\//, any: ["inbox.view"] }, // the full-screen approval a push opens
@@ -158,11 +157,9 @@ const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: P
   { test: /^\/numbers\/(ops|stock)(\/|$)/, any: ["ops.view"], place: "ops" },
   { test: /^\/numbers\/products(\/|$)/, any: ["ads.view"], place: "ads" },
   { test: /^\/numbers$/, any: ["ads.view", "ops.view"], places: ["ads", "ops"] },
-  { test: /^\/(ads|products)(\/|$)/, any: ["ads.view"], place: "ads" },
-  { test: /^\/ops(\/|$)/, any: ["ops.view"], place: "ops" },
+  { test: /^\/ads(\/|$)/, any: ["ads.view"], place: "ads" },
   { test: /^\/settings\/connections(\/|$)/, any: ["owner_only"] }, // the keys and links (D62): the owner alone, like the API behind it
   { test: /^\/settings(\/|$)/, any: ["settings.view"] },
-  { test: /^\/p\//, any: ["tasks.own", "tasks.manage"] },
 ];
 
 /**

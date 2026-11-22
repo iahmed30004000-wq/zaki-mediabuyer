@@ -13,6 +13,7 @@ import { nextFreeCampaignName, yymmdd, type Market } from "@/core/naming";
 import type { LaunchOptions } from "@/lib/launch-view";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
 
 /** The templates of spec 5.3, in the owner's words. Every setting is explicit in code; everything is created PAUSED. */
 const TEMPLATES = [
@@ -164,7 +165,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
           <DialogDescription>
             <ol className="mt-2 flex gap-1.5">
               {STEPS.map((s, i) => (
-                <li key={s} className={cn("flex-1 rounded-full py-1 text-center text-xs font-medium", i === step ? "bg-accent text-accent-fg" : i < step ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-muted")}>
+                <li key={s} className={cn("flex-1 rounded-full py-1 text-center text-sm font-medium", i === step ? "bg-accent text-accent-fg" : i < step ? "bg-accent/15 text-accent" : "bg-surface-2 text-fg-muted")}>
                   {i + 1}. {s}
                 </li>
               ))}
@@ -175,37 +176,37 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
           {step === 0 &&
             (options.products.length ? (
               options.products.map((x) => (
-                <button key={x.code} onClick={() => { setProduct(x.code); setPicked([]); }} className={choice(product === x.code)}>
+                <Tap key={x.code} onClick={() => { setProduct(x.code); setPicked([]); }} className={choice(product === x.code)}>
                   <span className="flex items-center gap-2 text-sm font-semibold text-fg">
                     {x.name}
-                    <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{x.code}</span>
+                    <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{x.code}</span>
                     {x.stockDays !== null && x.stockDays < 5 ? <span className="ms-auto text-sm text-warn">المخزون {x.stockDays} أيام</span> : null}
                   </span>
                   <span className="text-sm text-fg-muted">هدف الطلب {fmt(x.tOrder, "$")} {x.estimated ? "(تقدير)" : ""}</span>
-                </button>
+                </Tap>
               ))
             ) : (
               <p className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted">ما في منتجات لسا — بتيجي من الـ OMS لما ينربط، أو ضيفها من «الإعدادات».</p>
             ))}
           {step === 1 &&
             TEMPLATES.map((t) => (
-              <button key={t.key} onClick={() => setTemplate(t.key)} className={choice(template === t.key)}>
+              <Tap key={t.key} onClick={() => setTemplate(t.key)} className={choice(template === t.key)}>
                 <span className="block text-sm font-semibold text-fg">{t.title}</span>
                 <span className="text-sm text-fg-muted">{t.text}</span>
-              </button>
+              </Tap>
             ))}
           {step === 2 &&
             (ready.length ? (
               ready.map((c) => {
                 const on = picked.includes(c.code);
                 return (
-                  <button key={c.code} onClick={() => setPicked((l) => (on ? l.filter((x) => x !== c.code) : [...l, c.code]))} className={choice(on)}>
+                  <Tap key={c.code} onClick={() => setPicked((l) => (on ? l.filter((x) => x !== c.code) : [...l, c.code]))} className={choice(on)}>
                     <span className="flex items-center gap-2 text-sm">
                       <span className={cn("inline-flex size-5 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-fg" : "border-border")}>{on ? <Check className="size-3.5" /> : null}</span>
                       <span dir="ltr" className="tabular-nums text-fg">{c.code}</span>
                       <span className="text-sm text-fg-muted">{c.label}</span>
                     </span>
-                  </button>
+                  </Tap>
                 );
               })
             ) : (
@@ -245,12 +246,12 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                   {variants?.length ? (
                     <div className="mt-1 space-y-1">
                       {variants.map((v) => (
-                        <button key={v.body} type="button" onClick={() => { setMessage(`${v.hook}
+                        <Tap key={v.body} type="button" onClick={() => { setMessage(`${v.hook}
 ${v.body}`); setTitle(v.headline); setVariants(null); }} className={choice(false)}>
                           <span className="block text-sm text-fg">{v.hook}</span>
                           <span className="block text-sm text-fg-muted">{v.body}</span>
                           {v.flag === "yellow" ? <span className="mt-1 block text-sm text-warn">بدها موافقتك: {v.note}</span> : null}
-                        </button>
+                        </Tap>
                       ))}
                     </div>
                   ) : null}

@@ -3,9 +3,8 @@ import { BoardView } from "@/components/videos/board-view";
 import { ButtonLink } from "@/components/ui/button-link";
 import { can } from "@/core/roles";
 import { loadCreatives, loadDuplicates } from "@/lib/creatives-view";
-import { STAGE_FLOW } from "@/lib/mock/data";
+import { STAGE_FLOW } from "@/core/ads-model";
 import { loadDataset } from "@/lib/source";
-import { loadEntityCustom } from "@/lib/ui-view";
 import { loadBoard } from "@/lib/videos-board";
 import { currentCaller, requirePage } from "@/server/auth";
 
@@ -32,12 +31,10 @@ export default async function VideosPage({ searchParams: searchParamsP }: { sear
   );
   if (!flow) {
     const [board, me] = await Promise.all([loadBoard(), currentCaller()]);
-    const keys = board.products.flatMap((p) => [...p.winners, ...p.learning, ...p.rest].map((v) => v.key));
-    const custom = await loadEntityCustom("video", keys);
     return (
       <div className="space-y-4">
         {switcher}
-        <BoardView data={board} custom={custom} canEdit={!!me && !me.demo && can(me.role, "ads.propose")} />
+        <BoardView data={board} canEdit={!!me && !me.demo && can(me.role, "ads.propose")} />
       </div>
     );
   }

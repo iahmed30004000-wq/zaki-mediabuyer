@@ -4,7 +4,6 @@ import { db } from "@/server/db";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { writeVariants } from "@/agents/writer";
 import { AgentUnavailable } from "@/gateway";
-import { PRODUCTS } from "@/lib/mock/data";
 import { isDemo } from "@/core/readiness";
 
 const Body = z.object({ productCode: z.string().regex(/^[A-Z]{3}\d{2}$/), angle: z.string().max(60).optional() });
@@ -16,13 +15,13 @@ export async function POST(req: Request) {
     if (!parsed.success) throw new HttpError(400, "اختار منتج");
     await requireCapability("ads.propose");
     if (isDemo(process.env)) {
-      const p = PRODUCTS.find((x) => x.code === parsed.data.productCode);
+      // the demo has no product list to read a name from: the example copy says «المنتج»
       return NextResponse.json({
         demo: true,
         dropped: 1,
         variants: [
-          { hook: "سرّ من زمان بالبيت السوري", body: `${p?.name ?? "المنتج"} — مكوّن تراثي معروف، بيوصلك لباب البيت والدفع عند الاستلام.`, headline: "اطلب هلأ", cta: "اطلب الآن", angle: "التراث", flag: "green", note: null },
-          { hook: "روتين بسيط كل يوم", body: `جرّب ${p?.name ?? "المنتج"} ضمن روتينك اليومي. توصيل سريع والدفع لما يوصلك.`, headline: "الدفع عند الاستلام", cta: "اطلب الآن", angle: "السهولة", flag: "green", note: null },
+          { hook: "سرّ من زمان بالبيت السوري", body: `المنتج — مكوّن تراثي معروف، بيوصلك لباب البيت والدفع عند الاستلام.`, headline: "اطلب هلأ", cta: "اطلب الآن", angle: "التراث", flag: "green", note: null },
+          { hook: "روتين بسيط كل يوم", body: `جرّب المنتج ضمن روتينك اليومي. توصيل سريع والدفع لما يوصلك.`, headline: "الدفع عند الاستلام", cta: "اطلب الآن", angle: "السهولة", flag: "green", note: null },
         ],
       });
     }

@@ -161,7 +161,7 @@ describe("the day, the tasks, the workflows", () => {
     const o = dayOutput(d);
     expect((o.data as any).summary).toContain("شغّل فحص الصباح");
     expect(o.facts.map((f) => [f.label, f.value])).toEqual([["اللي انعمل · السبت 14 نوفمبر", "1"], ["المخطّط · السبت 14 نوفمبر", "0"]]);
-    expect(o.sources[0]).toMatchObject({ href: "/done?tab=day&day=2026-11-14" });
+    expect(o.sources[0]).toMatchObject({ href: "/tasks/day?day=2026-11-14" });
   });
 
   it("the tasks: counted by column in the owner's words, with the ids, and the person's name instead of a key", () => {
@@ -193,7 +193,15 @@ describe("explain", () => {
     const o = explainOutput({ place: "ads" }, null);
     expect((o.data as any).screen).toMatchObject({ key: "ads", name: "الإعلانات" });
     expect((o.data as any).screen.what).toContain("الحملات");
-    expect((explainOutput({}, "videos").data as any).screen.key).toBe("videos");
+    // the place the owner is on (the key the page header knows), the old names of the places a model may still use, and the two screens that are no place
+    expect((explainOutput({}, "tasks").data as any).screen.key).toBe("tasks");
+    expect((explainOutput({ place: "work" }, null).data as any).screen).toMatchObject({ key: "tasks", name: "المهام" });
+    expect((explainOutput({ place: "ops" }, null).data as any).screen.key).toBe("numbers");
+    expect((explainOutput({}, "inbox").data as any).screen).toMatchObject({ key: "inbox", name: "بانتظارك" });
+    expect((explainOutput({}, "settings").data as any).screen.key).toBe("settings");
+    expect(explainOutput({ place: "nowhere" }, null).isError).toBe(true);
+    // a page that is none of them (a stale address) has no screen text, and that is no error
+    expect((explainOutput({}, "videos").data as any).screen).toBeUndefined();
     expect((explainOutput({}, null).data as any).screen).toBeUndefined();
   });
 

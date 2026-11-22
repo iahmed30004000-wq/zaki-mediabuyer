@@ -82,13 +82,6 @@ export default async function RulesPage() {
         <RulesEditor initial={rulesView.rules} version={rulesView.version} products={productRows.map((p) => p.productCode)} demo={demo} />
       </RuleCard>
 
-      <RuleCard id="mode" title="صاحي ونايم" summary="انتقلت لـ «الإعدادات ← الإشعارات»">
-        <p className="text-base text-fg">جدول الليل، وشو بيشتغل وإنت نايم، وشو بيصحّيك: صاروا مع الإشعارات لأنهم هني اللي بيقرروا شو يرنّ.</p>
-        <Link href="/settings/notifications#mode" className="inline-flex min-h-11 items-center font-semibold text-info hover:underline">
-          افتحهم من الإشعارات ←
-        </Link>
-      </RuleCard>
-
       <RuleCard id="orders" title="الأوامر السارية" summary={`${active.filter((o) => o.status === "active").length} فعّال · ${ended.length} بالأرشيف`}>
         <OrdersSection orders={active} scope={{ domain: "all" }} title="الفعّالة" canCreate={!!me && !me.demo && can(me.role, "orders.restrict")} canEnd={owner} />
         <div className="space-y-2">

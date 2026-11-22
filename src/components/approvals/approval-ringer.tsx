@@ -7,6 +7,7 @@ import { PhoneMissed } from "lucide-react";
 import type { ApprovalView } from "@/server/approvals";
 import { RingScreen } from "./ring-screen";
 import { safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
 
 const POLL_MS = 60_000; // never faster: the phone's battery. The native app is pushed (FCM), not polled.
 const KEY = "mb:rang";
@@ -91,10 +92,10 @@ export function ApprovalRinger() {
   return (
     <div className="fixed inset-x-3 top-[4.75rem] z-40 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-warn/40 bg-surface-1 px-3 py-2 shadow-card md:top-[4.75rem]">
       <PhoneMissed className="size-5 shrink-0 text-warn" />
-      <button type="button" onClick={() => setRing({ approval: first, ringing: false })} className="min-w-0 flex-1 text-start text-sm">
+      <Tap type="button" onClick={() => setRing({ approval: first, ringing: false })} className="min-w-0 flex-1 text-start text-sm">
         <span className="block truncate font-medium text-fg">{waiting.length > 1 ? `${waiting.length} موافقات بانتظارك` : `بانتظارك: ${first.title}`}</span>
         <span className="block truncate text-sm text-fg-muted">{first.why}</span>
-      </button>
+      </Tap>
       <Link href="/inbox" className="shrink-0 text-sm font-medium text-accent">
         افتح
       </Link>

@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, CalendarClock, Combine, Flame, Link2, Pencil, Plus } from "lucide-react";
+import { Archive, CalendarClock, Combine, Flame, Link2, Plus, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
-import { FieldChips, FieldInput, RunButton, type CardValues } from "@/components/customize/card-fields";
+import { FieldChips, FieldInput, type CardValues } from "@/components/customize/card-fields";
 import { useShell } from "@/components/shell/shell-context";
-import { onBoard, type ButtonCfgT, type FieldCfgT } from "@/core/customize";
+import { onBoard, type FieldCfgT } from "@/core/customize";
 import { usePeople, usePersonName } from "@/components/shell/people-context";
 import { PRIORITIES, TASK_BOARDS, TASK_COLUMNS, dueState, duplicateGroups, groupByStatus, type TaskColumn } from "@/core/tasks";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,6 @@ import type { TaskView } from "@/server/tasks";
 
 const DUE_STYLE = { late: "bg-danger/10 text-danger", today: "bg-warn/10 text-warn", soon: "bg-surface-2 text-fg" } as const;
 const DUE_LABEL = { late: "متأخرة", today: "اليوم", soon: "قريب" } as const;
-const field = "min-h-10 max-md:min-h-[44px] w-full rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg disabled:opacity-60";
 
 /** Where a task's link leads: the page the thing lives on. */
 function linkOf(t: TaskView): { href: string; label: string } | null {
@@ -28,7 +28,7 @@ function linkOf(t: TaskView): { href: string; label: string } | null {
   const id = t.linkId ?? "";
   const label = { workflow: "مهمة مجدولة", approval: "قرار", video: "فيديو", campaign: "حملة", product: "منتج" }[t.linkType] ?? t.linkType;
   const href =
-    t.linkType === "workflow" ? "/work" : t.linkType === "approval" ? "/inbox" : t.linkType === "video" ? "/ads/videos" : t.linkType === "campaign" ? `/ads/campaigns?open=${encodeURIComponent(id)}` : t.linkType === "product" ? `/products/${encodeURIComponent(id)}` : "";
+    t.linkType === "workflow" ? (id ? `/tasks/${encodeURIComponent(id)}` : "/tasks/all") : t.linkType === "approval" ? "/inbox" : t.linkType === "video" ? "/ads/videos" : t.linkType === "campaign" ? `/ads?open=${encodeURIComponent(id)}` : t.linkType === "product" ? `/numbers/products/${encodeURIComponent(id)}` : "";
   // a request about a video links by its own long id, which is no name for anyone: say «فيديو» and open the board
   const shown = t.linkType === "video" && id.length > 16 ? "" : id;
   return href ? { href, label: shown ? `${label} ${shown}` : label } : null;
@@ -41,7 +41,6 @@ const dayText = (iso: string) => {
 
 interface CardCustom {
   fields: FieldCfgT[];
-  buttons: ButtonCfgT[];
   values?: CardValues;
 }
 
@@ -56,16 +55,12 @@ function Card({ t, canEdit, selected, now, boardLabel, custom, onToggle, onOpen 
       className={cn("rounded-lg border bg-surface-2/50 p-2.5", selected ? "border-accent" : "border-border", canEdit && "cursor-grab active:cursor-grabbing")}
     >
       <div className="flex items-start gap-2">
-        {canEdit ? (
-          <label className="-m-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center">
-            <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`حدّد: ${t.title}`} className="size-4 accent-accent" />
-          </label>
-        ) : null}
-        <button type="button" onClick={onOpen} className="min-h-10 min-w-0 flex-1 text-start text-sm leading-5 text-fg hover:text-accent max-md:min-h-[44px]">
+        {canEdit ? <Checkbox checked={selected} onChange={onToggle} aria-label={`حدّد: ${t.title}`} className="shrink-0" /> : null}
+        <Button variant="ghost" onClick={onOpen} className="h-auto min-h-10 min-w-0 flex-1 justify-start whitespace-normal py-1 text-start text-base font-semibold leading-6 no-underline max-md:min-h-11">
           {t.title}
-        </button>
+        </Button>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
         {t.priority === "urgent" || t.priority === "high" ? (
           <span className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-semibold", t.priority === "urgent" ? "bg-danger/10 text-danger" : "bg-warn/10 text-warn")}>
             <Flame className="size-3" />
@@ -89,13 +84,6 @@ function Card({ t, canEdit, selected, now, boardLabel, custom, onToggle, onOpen 
         {t.board !== "main" ? <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-fg-muted">{boardLabel(t.board)}</span> : null}
         <FieldChips fields={custom.fields} values={custom.values} />
       </div>
-      {custom.buttons.length && canEdit ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {custom.buttons.map((b) => (
-            <RunButton key={b.id} button={b} entityId={t.id} />
-          ))}
-        </div>
-      ) : null}
     </article>
   );
 }
@@ -149,60 +137,50 @@ function Editor({
               </SheetDescription>
             </SheetHeader>
             <SheetBody className="space-y-3">
-              <label className="block space-y-1 text-xs text-fg-muted">
+              <label className="block space-y-1 text-sm text-fg-muted">
                 الحالة
-                <select value={status} disabled={!canEdit} onChange={(e) => setStatus(e.target.value)} className={field}>
+                <Select value={status} disabled={!canEdit} onChange={(e) => setStatus(e.target.value)}>
                   {TASK_COLUMNS.map((c) => (
                     <option key={c.key} value={c.key}>{c.label}</option>
                   ))}
-                </select>
+                </Select>
               </label>
-              <label className="block space-y-1 text-xs text-fg-muted">
+              <label className="block space-y-1 text-sm text-fg-muted">
                 المسؤول
-                <select value={assignee} disabled={!canEdit} onChange={(e) => setAssignee(e.target.value)} className={field}>
+                <Select value={assignee} disabled={!canEdit} onChange={(e) => setAssignee(e.target.value)}>
                   <option value="">بلا مسؤول</option>
                   {people.map((p) => (
                     <option key={p.key} value={p.key}>{p.label}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               <div className="grid grid-cols-2 gap-3">
-                <label className="block space-y-1 text-xs text-fg-muted">
+                <label className="block space-y-1 text-sm text-fg-muted">
                   الأولوية
-                  <select value={priority} disabled={!canEdit} onChange={(e) => setPriority(e.target.value)} className={field}>
+                  <Select value={priority} disabled={!canEdit} onChange={(e) => setPriority(e.target.value)}>
                     {PRIORITIES.map((p) => (
                       <option key={p.key} value={p.key}>{p.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
-                <label className="block space-y-1 text-xs text-fg-muted">
+                <label className="block space-y-1 text-sm text-fg-muted">
                   الموعد
                   <Input type="date" dir="ltr" value={due} disabled={!canEdit} onChange={(e) => setDue(e.target.value)} />
                 </label>
               </div>
-              <label className="block space-y-1 text-xs text-fg-muted">
+              <label className="block space-y-1 text-sm text-fg-muted">
                 ملاحظة
-                <textarea value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} rows={4} maxLength={1000} className={cn(field, "py-2 leading-6")} />
+                <Textarea value={note} disabled={!canEdit} onChange={(e) => setNote(e.target.value)} rows={4} maxLength={1000} />
               </label>
               {custom.fields.length ? (
                 <div className="space-y-3 border-t border-border pt-3" data-tour="fields">
-                  <p className="text-xs font-semibold text-fg-muted">حقول إضافية</p>
+                  <p className="text-sm font-semibold text-fg-muted">حقول إضافية</p>
                   {custom.fields.map((f) => (
-                    <label key={f.id} className="block space-y-1 text-xs text-fg-muted">
+                    <label key={f.id} className="block space-y-1 text-sm text-fg-muted">
                       {f.label}
                       <FieldInput field={f} value={fv[f.id] ?? ""} disabled={!canEdit} onChange={(v) => setFv((m) => ({ ...m, [f.id]: v }))} />
                     </label>
                   ))}
-                </div>
-              ) : null}
-              {custom.buttons.length && canEdit ? (
-                <div className="space-y-2 border-t border-border pt-3">
-                  <p className="text-xs font-semibold text-fg-muted">شغّل على هالبطاقة</p>
-                  <div className="flex flex-wrap gap-2">
-                    {custom.buttons.map((b) => (
-                      <RunButton key={b.id} button={b} entityId={task.id} large />
-                    ))}
-                  </div>
                 </div>
               ) : null}
             </SheetBody>
@@ -242,17 +220,16 @@ function Editor({
 }
 
 /**
- * المهام: the team's board — جديد · شغّال · بانتظار موافقة · متوقف · خلص — with the boards as tabs (the owner's own too, from «وضع
- * التعديل»), a one-line quick add («بكرا لميوز: …»), selection for bulk moves, the duplicates worth merging, and drag between columns
- * on a big screen (a phone shows one column at a time). The fields and buttons the owner added show on the cards and in the sheet.
- * Nothing is deleted: «أرشف» hides a card, and a merge keeps what the others said. `lockedBoard`: a page of the owner's that is one board.
+ * مهام الفريق: the team's board — جديد · شغّال · بانتظار موافقة · متوقف · خلص — with the boards as tabs (the owner's own too, from «تخصيص»), a one-line quick add («بكرا لميوز: …»),
+ * selection for bulk moves, the duplicates worth merging, and drag between columns on a big screen (a phone shows one column at a time). The fields the owner added show on the cards
+ * and in the sheet. Nothing is deleted: «أرشف» hides a card, and a merge keeps what the others said. `lockedBoard`: a screen that is one board only.
  */
 /** «حسب الشخص» groups the open tasks of the team by who does them (the late ones first); «كانبان» is the five columns. */
 export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defaultView, initialBoard }: { initial: TaskView[]; canEdit: boolean; nowIso: string; custom: TasksCustom; lockedBoard?: string; defaultView?: "person" | "board"; initialBoard?: string }) {
   const team = usePeople();
   const personName = usePersonName();
   const { toast } = useToast();
-  const { editing, openPanel } = useShell();
+  const { canEdit: isOwner, openPanel } = useShell();
   const now = useMemo(() => new Date(nowIso), [nowIso]);
   const [tasks, setTasks] = useState(initial);
   const [values, setValues] = useState(custom.values);
@@ -271,7 +248,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
 
   const boardLabel = useCallback((key: string) => custom.boards.find((b) => b.key === key)?.label ?? TASK_BOARDS.find((b) => b.key === key)?.label ?? key, [custom.boards]);
   const tabs = useMemo(() => [{ key: "all", label: "الكل" }, ...custom.boards.filter((b) => !b.hidden).map((b) => ({ key: b.key, label: b.label }))], [custom.boards]);
-  const customOf = (t: TaskView): CardCustom => ({ fields: onBoard(custom.fields, t.board), buttons: onBoard(custom.buttons, t.board), values: values[t.id] });
+  const customOf = (t: TaskView): CardCustom => ({ fields: onBoard(custom.fields, t.board), values: values[t.id] });
 
   const reload = useCallback(async () => {
     const r = await safeFetch("/api/tasks", { cache: "no-store" }).catch(() => null);
@@ -384,18 +361,11 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
 
   return (
     <div className="space-y-3" data-tour="board">
-      {editing && canEdit ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-accent/50 bg-accent/5 p-2 text-xs">
-          <Pencil className="size-3.5 text-accent" />
-          <span className="font-medium text-fg">وضع التعديل:</span>
+      {isOwner ? (
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" onClick={() => openPanel("boards")}>
-            ＋ لوحة
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => openPanel("fields")}>
-            الحقول
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => openPanel("buttons")}>
-            الأزرار
+            <SlidersHorizontal className="size-4" aria-hidden />
+            تخصيص اللوحات والحقول
           </Button>
         </div>
       ) : null}
@@ -410,7 +380,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
             className="min-w-0 flex-1"
             maxLength={300}
           />
-          <Button type="submit" disabled={busy || !text.trim()} className="min-h-10 max-md:min-h-[44px]">
+          <Button type="submit" disabled={busy || !text.trim()}>
             <Plus className="size-4" />
             أضف
           </Button>
@@ -419,30 +389,25 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
 
       <div className="flex flex-wrap items-center gap-2">
         {lockedBoard ? null : (
-          <div role="tablist" aria-label="اللوحات" className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border bg-surface-1 p-1">
-            {tabs.map((b) => (
-              <button key={b.key} role="tab" aria-selected={board === b.key} onClick={() => setBoard(b.key)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", board === b.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
-                {b.label}
-                <span className="ms-1.5 text-xs opacity-80">{countOf(b.key)}</span>
-              </button>
-            ))}
+          <div className="max-w-full overflow-x-auto">
+            <Segmented label="اللوحات" value={board} onChange={setBoard} options={tabs.map((b) => ({ value: b.key, label: `${b.label} ${countOf(b.key)}` }))} />
           </div>
         )}
-        <select aria-label="المسؤول" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-10 max-md:min-h-[44px] shrink-0 rounded-lg border border-border bg-surface-1 px-2 text-sm text-fg">
+        <Select aria-label="المسؤول" value={who} onChange={(e) => setWho(e.target.value)} className="w-auto shrink-0">
           <option value="">كل الفريق</option>
           {team.map((p) => (
             <option key={p.key} value={p.key}>{p.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {dups.length && canEdit ? (
-        <details className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-sm">
-          <summary className="cursor-pointer font-medium text-fg">في {dups.length} {dups.length === 1 ? "مجموعة" : "مجموعات"} مهام شبه بعض — بتدمجها؟</summary>
+        <details className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-base">
+          <summary className="cursor-pointer text-base font-medium text-fg">في {dups.length} {dups.length === 1 ? "مجموعة" : "مجموعات"} مهام شبه بعض — بتدمجها؟</summary>
           <ul className="mt-2 space-y-2">
             {dups.map((g) => (
               <li key={g[0]!.id} className="flex flex-wrap items-center gap-2">
-                <span className="min-w-0 flex-1 text-xs leading-5 text-fg-muted">{g.map((t) => `«${t.title}»`).join(" · ")}</span>
+                <span className="min-w-0 flex-1 text-sm leading-6 text-fg-muted">{g.map((t) => `«${t.title}»`).join(" · ")}</span>
                 <Button size="sm" variant="secondary" onClick={() => void merge(g[0]!.id, g.slice(1).map((t) => t.id))}>
                   <Combine className="size-3.5" />
                   ادمجها
@@ -456,18 +421,18 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
       {sel.size ? (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-surface-1 p-2 shadow-card" role="toolbar" aria-label="تعديل جماعي">
           <span className="text-sm font-semibold text-fg">{sel.size} محدّدة</span>
-          <select aria-label="انقلها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ status: e.target.value }, "انتقلت")} className="min-h-10 max-md:min-h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-sm">
+          <Select aria-label="انقلها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ status: e.target.value }, "انتقلت")} className="w-auto">
             <option value="">انقلها لـ…</option>
             {TASK_COLUMNS.map((c) => (
               <option key={c.key} value={c.key}>{c.label}</option>
             ))}
-          </select>
-          <select aria-label="سلّمها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ assignee: e.target.value }, "انسلّمت")} className="min-h-10 max-md:min-h-[44px] rounded-lg border border-border bg-surface-1 px-2 text-sm">
+          </Select>
+          <Select aria-label="سلّمها لـ" defaultValue="" onChange={(e) => e.target.value && void bulk({ assignee: e.target.value }, "انسلّمت")} className="w-auto">
             <option value="">سلّمها لـ…</option>
             {team.map((p) => (
               <option key={p.key} value={p.key}>{p.label}</option>
             ))}
-          </select>
+          </Select>
           {sel.size > 1 ? (
             <Button size="sm" variant="secondary" onClick={() => void merge([...sel][0]!, [...sel].slice(1))}>
               <Combine className="size-3.5" />
@@ -492,7 +457,7 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
             <section key={g.key || "none"} aria-label={g.label} className="space-y-2">
               <h3 className="flex items-center gap-2 text-base font-extrabold text-fg">
                 {g.label}
-                <span className="rounded-full bg-surface-2 px-2 text-xs font-bold text-fg-muted">{g.list.length}</span>
+                <span className="rounded-full bg-surface-2 px-2 text-sm font-bold text-fg-muted">{g.list.length}</span>
               </h3>
               <div className="grid gap-2 md:grid-cols-2">
                 {g.list.map((t) => (
@@ -501,17 +466,12 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
               </div>
             </section>
           ))}
-          {!people.length ? <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-fg-muted">ما في مهام مفتوحة.</p> : null}
+          {!people.length ? <p className="rounded-lg border border-dashed border-border p-4 text-center text-base text-fg-muted">ما في مهام مفتوحة.</p> : null}
         </div>
       ) : (
         <>
-      <div role="tablist" aria-label="الأعمدة" className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface-1 p-1 lg:hidden">
-        {TASK_COLUMNS.map((c) => (
-          <button key={c.key} role="tab" aria-selected={col === c.key} onClick={() => setCol(c.key)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", col === c.key ? "bg-accent text-accent-fg" : "text-fg-muted")}>
-            {c.label}
-            <span className="ms-1.5 text-xs opacity-80">{grouped[c.key].length}</span>
-          </button>
-        ))}
+      <div className="max-w-full overflow-x-auto lg:hidden">
+        <Segmented label="الأعمدة" value={col} onChange={setCol} options={TASK_COLUMNS.map((c) => ({ value: c.key, label: `${c.label} ${grouped[c.key].length}` }))} />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-5">
@@ -531,26 +491,26 @@ export function TasksBoard({ initial, canEdit, nowIso, custom, lockedBoard, defa
           >
             <h3 className="flex items-center gap-2 px-1 text-sm font-semibold text-fg">
               {c.label}
-              <span className="rounded-full bg-surface-2 px-2 text-xs text-fg-muted">{grouped[c.key].length}</span>
+              <span className="rounded-full bg-surface-2 px-2 text-sm text-fg-muted">{grouped[c.key].length}</span>
             </h3>
             {c.key === "waiting_approval" ? (
-              <p className="px-1 text-xs leading-4 text-fg-muted">
+              <p className="px-1 text-sm leading-5 text-fg-muted">
                 قرارات الإعلانات والصرف فوق، بـ «بانتظار موافقتك» — هون المهام اللي بتستنى موافقة غير هيك.
               </p>
             ) : null}
             {grouped[c.key].map((t) => (
               <Card key={t.id} t={t} canEdit={canEdit} selected={sel.has(t.id)} now={now} boardLabel={boardLabel} custom={customOf(t)} onToggle={() => toggle(t.id)} onOpen={() => setOpen(t)} />
             ))}
-            {!grouped[c.key].length ? <p className="px-1 py-6 text-center text-xs text-fg-muted">فاضي</p> : null}
+            {!grouped[c.key].length ? <p className="px-1 py-6 text-center text-sm text-fg-muted">فاضي</p> : null}
           </section>
         ))}
       </div>
         </>
       )}
 
-      {!tasks.length ? <p className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في مهام لسا. اكتب أول وحدة فوق بسطر وحد: مين وإمتى وشو — «بكرا لميوز: اعمل 4 هوكات». أي مهمة بيطلبها Claude (أو هيرمز) بتنزل هون كمان.</p> : null}
+      {!tasks.length ? <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-6 text-fg-muted">ما في مهام لسا. اكتب أول وحدة فوق بسطر وحد: مين وإمتى وشو — «بكرا لميوز: اعمل 4 هوكات». أي مهمة بيطلبها Claude (أو هيرمز) بتنزل هون كمان.</p> : null}
 
-      <Editor key={open?.id ?? "none"} task={open} canEdit={canEdit} boardLabel={boardLabel} custom={open ? customOf(open) : { fields: [], buttons: [] }} onClose={() => setOpen(null)} onSave={(p, f) => save(open!.id, p, f)} onArchive={() => archive(open!.id)} />
+      <Editor key={open?.id ?? "none"} task={open} canEdit={canEdit} boardLabel={boardLabel} custom={open ? customOf(open) : { fields: [] }} onClose={() => setOpen(null)} onSave={(p, f) => save(open!.id, p, f)} onArchive={() => archive(open!.id)} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { themeLabelKey, themeMoodKey, type ThemeKey } from "@/lib/themes/registry";
 import { useTheme } from "./theme-provider";
+import { Radio } from "@/components/ui/radio";
 
 /**
  * The theme picker: two cards (فاتح · داكن), each a native radio (so arrows move the choice, Tab enters and leaves the group, and a
@@ -20,7 +21,7 @@ export function ThemePicker({ className }: { className?: string }) {
   return (
     <fieldset data-tour="theme" className={cn(className)}>
       <legend className="text-sm font-semibold text-fg">{t("theme.picker")}</legend>
-      <p className="mt-0.5 text-xs text-fg-muted">{t("theme.picker_hint")}</p>
+      <p className="mt-0.5 text-sm text-fg-muted">{t("theme.picker_hint")}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         {themes.map((info) => {
           const selected = info.key === theme;
@@ -34,8 +35,8 @@ export function ThemePicker({ className }: { className?: string }) {
                 selected ? "border-accent" : "border-border hover:border-fg-muted",
               )}
             >
-              <input
-                type="radio"
+              <Radio
+                bare
                 name="zk-theme"
                 className="sr-only"
                 aria-label={t(themeLabelKey(info.key))}
@@ -46,7 +47,7 @@ export function ThemePicker({ className }: { className?: string }) {
               />
               <ThemePreview theme={info.key} />
               <span className="text-sm font-semibold text-fg">{t(themeLabelKey(info.key))}</span>
-              <span id={moodId} className="text-xs text-fg-muted">
+              <span id={moodId} className="text-sm text-fg-muted">
                 {t(themeMoodKey(info.key))}
               </span>
               {selected ? (

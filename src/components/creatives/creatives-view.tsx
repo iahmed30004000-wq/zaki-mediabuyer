@@ -8,10 +8,11 @@ import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
-import type { CreativeStage } from "@/lib/mock/data";
+import type { CreativeStage } from "@/core/ads-model";
 import type { CreativeView } from "@/lib/creatives-view";
 import { cn } from "@/lib/utils";
 import { callJson, safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
 
 const POLICY = {
   green: { icon: ShieldCheck, label: "سليم", cls: "text-ok" },
@@ -57,11 +58,11 @@ export function CreativesView({ creatives, duplicates = [], flow, products }: { 
           const active = stage === f.key;
           return (
             <li key={f.key}>
-              <button onClick={() => setStage(f.key)} aria-pressed={active} className={cn("relative flex w-full flex-col items-center gap-0.5 rounded-xl border px-1 py-2.5 transition-colors sm:py-3", active ? "border-accent bg-accent text-accent-fg" : "border-border bg-surface-1 text-fg hover:border-accent/50")}>
+              <Tap onClick={() => setStage(f.key)} aria-pressed={active} className={cn("relative flex w-full flex-col items-center gap-0.5 rounded-xl border px-1 py-2.5 transition-colors sm:py-3", active ? "border-accent bg-accent text-accent-fg" : "border-border bg-surface-1 text-fg hover:border-accent/50")}>
                 <span className="font-display text-base font-bold tabular-nums sm:text-lg">{n}</span>
                 <span className="text-sm font-medium sm:text-sm">{f.label}</span>
                 {f.key === "review" && n > 0 && !active ? <span className="absolute -top-1 end-1 size-2.5 rounded-full bg-warn" /> : null}
-              </button>
+              </Tap>
               {i < flow.length - 1 ? null : null}
             </li>
           );

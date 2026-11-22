@@ -80,7 +80,7 @@ function FieldEditor({ f, locked, onChanged }: { f: FieldView; locked: boolean; 
       <Field label={f.label} hint={f.hint}>
         {f.kind === "file" ? (
           <div>
-            <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" disabled={busy || locked} onChange={(e) => e.target.files?.[0] && void pick(e.target.files[0])} />
+            <Input ref={fileRef} type="file" accept=".json,application/json" className="hidden" disabled={busy || locked} onChange={(e) => e.target.files?.[0] && void pick(e.target.files[0])} />
             <Button variant="secondary" size="md" loading={busy} disabled={locked} onClick={() => fileRef.current?.click()}>
               {f.source === "app" ? "ارفع ملف جديد" : "ارفع الملف"}
             </Button>

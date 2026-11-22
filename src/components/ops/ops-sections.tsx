@@ -51,9 +51,9 @@ export async function LeakSection() {
           <ul className="flex items-end gap-2" aria-label="التسريب آخر 7 أيام">
             {series.map((p) => (
               <li key={p.day} className="flex flex-1 flex-col items-center gap-1">
-                <span dir="ltr" className="text-xs font-bold tabular-nums text-fg">{p.value === null ? "—" : p.value}</span>
+                <span dir="ltr" className="text-sm font-bold tabular-nums text-fg">{p.value === null ? "—" : p.value}</span>
                 <span aria-hidden className="block w-full rounded-t-md bg-warn/60" style={{ height: `${p.value === null ? 2 : Math.max(4, (p.value / max) * 64)}px` }} />
-                <span dir="ltr" className="text-xs text-fg-muted">{p.day.slice(5)}</span>
+                <span dir="ltr" className="text-sm text-fg-muted">{p.day.slice(5)}</span>
               </li>
             ))}
           </ul>
@@ -88,23 +88,6 @@ async function mayNames(): Promise<boolean> {
 const wholeTeam = (t: TeamData): TeamRow[] =>
   t.total.claims === null && t.total.confirmed === null ? [] : [{ key: "all", name: "كل الفريق", claims: t.total.claims, confirmed: t.total.confirmed, rejected: t.total.rejected, noAnswer: t.total.noAnswer, noAnswerRate: t.medianNoAnswer, firstClaimSec: null, stuck48h: t.total.stuck48h, reactivated: null, daysOfData: 0, flag: null }];
 
-/** The confirmation team on the dashboard: the totals and a row each. */
-export async function TeamSummary() {
-  const people = await mayNames();
-  const team = await loadTeam(7, new Date(), { people });
-  return (
-    <section className="space-y-3">
-      <SectionTitle href="/ops/confirm" linkLabel="تفاصيل الفريق" hint="آخر 7 أيام">
-        فريق التأكيد
-      </SectionTitle>
-      {(people ? team.rows : wholeTeam(team)).length ? (
-        <TeamTable rows={people ? team.rows : wholeTeam(team)} />
-      ) : (
-        <p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">Claude لسا ما بعت أرقام الفريق. لما يبعتها بتظهر هون.</p>
-      )}
-    </section>
-  );
-}
 
 interface StockRow {
   code: string;
@@ -135,17 +118,6 @@ export function StockTable({ rows }: { rows: StockRow[] }) {
   return <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="المخزون" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في مخزون مسجّل. Claude لسا ما بعته، ولما يبعته بيظهر هون.</p>} />;
 }
 
-export async function StockSummary() {
-  const rows = await stockRows();
-  return (
-    <section className="space-y-3">
-      <SectionTitle href="/ops/stock" linkLabel="كل المخزون">
-        تغطية المخزون
-      </SectionTitle>
-      <StockTable rows={rows.sort((a, b) => (a.cover ?? 9e9) - (b.cover ?? 9e9)).slice(0, 5)} />
-    </section>
-  );
-}
 
 export async function StockPage() {
   const [rows, alert, facts] = await Promise.all([stockRows(), lastStockAlert(), loadSourceFacts()]);
@@ -164,7 +136,7 @@ export async function OpsJobs() {
   const mine = jobs.filter((j) => j.domain === "ops");
   return (
     <section className="space-y-3">
-      <SectionTitle href="/work" linkLabel="الخريطة">
+      <SectionTitle href="/tasks/all" linkLabel="كل المهام">
         مهام التشغيل
       </SectionTitle>
       {mine.length ? (

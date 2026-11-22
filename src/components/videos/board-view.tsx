@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BatteryWarning, ChevronDown, ExternalLink, FileText, FlaskConical, Play, Sparkles } from "lucide-react";
@@ -10,16 +10,13 @@ import { EmptyState } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
-import { CardCustom, type EntityCustom } from "@/components/customize/card-custom";
 import { Num } from "@/components/mb/num";
 import { Panel, Section } from "@/components/mb/section";
 import { REQUEST_KINDS, REQUEST_KIND_AR, REQUEST_STATUS_AR, REQUEST_STEPS, canMoveRequest, type RequestKind, type RequestStatus } from "@/core/video-board";
 import type { BoardData, BoardProduct, BoardRequest, BoardVideo } from "@/lib/videos-board";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/call";
-
-/** The owner's fields and buttons for video cards (set in «وضع التعديل»), shared with every card of the board. */
-const CustomCtx = createContext<{ custom?: EntityCustom; canEdit: boolean }>({ canEdit: false });
+import { Tap } from "@/components/ui/tap";
 
 const ICON: Record<RequestKind, typeof Sparkles> = { new_hooks: Sparkles, new_script: FileText, to_test: FlaskConical, tired: BatteryWarning };
 const TONE = { ok: "text-ok", warn: "text-warn", danger: "text-danger" } as const;
@@ -78,11 +75,11 @@ function RequestRow({ r, move }: { r: BoardRequest; move: (r: BoardRequest, to: 
           <span dir="ltr" className="me-1 tabular-nums">{r.label}</span>
           <span className="text-fg-muted">— {r.kindLabel}</span>
         </p>
-        <Link href="/work/tasks" className="text-sm font-medium text-accent hover:underline">شوفه بالمهام</Link>
+        <Link href="/tasks/team" className="text-sm font-medium text-accent hover:underline">شوفه بالمهام</Link>
       </div>
       <Steps status={r.status} />
       {r.via === "none" && r.status === "asked" ? (
-        <p className="text-sm leading-5 text-fg-muted">{r.deliveryError ? `ما وصل لهيرمز (${r.deliveryError}). ` : ""}محفوظ بالمهام، وهيرمز بيسحبه من الطابور (GET /api/v1/video-requests).</p>
+        <p className="text-sm leading-5 text-fg-muted">{r.deliveryError ? `ما وصل لهيرمز (${r.deliveryError}). ` : ""}محفوظ بالمهام، وهيرمز بيسحبه لما يتصل.</p>
       ) : r.via !== "none" ? (
         <p className="text-sm text-fg-muted">وصل لهيرمز {r.via === "api" ? "بالربط المباشر" : "بتيليجرام"}.</p>
       ) : null}
@@ -112,16 +109,15 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
 
 function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy: string | null; ask: (v: BoardVideo, kind: RequestKind) => void }) {
   const [peek, setPeek] = useState(false);
-  const { custom, canEdit } = useContext(CustomCtx);
   const tired = v.fatigue.state === "tired";
   return (
     <li className="space-y-3 rounded-xl border border-border bg-surface-1 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2">
-            {rank ? <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-bold text-accent">{rank}</span> : null}
+            {rank ? <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-bold text-accent">{rank}</span> : null}
             <span dir="ltr" className="truncate tabular-nums text-sm font-semibold text-fg">{v.label}</span>
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted">{v.statusLabel}</span>
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-sm text-fg-muted">{v.statusLabel}</span>
           </p>
           {v.request ? (
             <p className="mt-1 text-sm text-fg-muted">
@@ -130,7 +126,7 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
           ) : null}
         </div>
         {tired ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-xs font-medium text-warn">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn/10 px-2 py-0.5 text-sm font-medium text-warn">
             <BatteryWarning className="size-3.5" /> تعبان
           </span>
         ) : null}
@@ -152,13 +148,11 @@ function VideoCard({ v, rank, busy, ask }: { v: BoardVideo; rank?: number; busy:
 
       {tired ? <p className="rounded-lg bg-warn/5 p-2 text-sm leading-5 text-fg">{v.fatigue.text}</p> : null}
 
-      <CardCustom entity="video" entityId={v.key} custom={custom} canEdit={canEdit} />
-
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         {v.previewUrl ? (
-          <button type="button" onClick={() => setPeek((o) => !o)} aria-expanded={peek} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 font-medium text-accent hover:underline">
+          <Tap type="button" onClick={() => setPeek((o) => !o)} aria-expanded={peek} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1 font-medium text-accent hover:underline">
             <Play className="size-3.5" /> {peek ? "سكّر المعاينة" : "شوف الفيديو"}
-          </button>
+          </Tap>
         ) : (
           <span className="text-fg-muted">ما في ملف درايف مربوط</span>
         )}
@@ -259,7 +253,7 @@ function ProductBoard({ p, busy, ask, move }: { p: BoardProduct; busy: string | 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-0.5">
           <h2 className="text-base font-bold text-fg">{p.name}</h2>
-          <p dir="ltr" className="text-start tabular-nums text-xs text-fg-muted">{p.code}</p>
+          <p dir="ltr" className="text-start tabular-nums text-sm text-fg-muted">{p.code}</p>
         </div>
         <div className="w-full sm:w-72">
           <Gauge p={p} />
@@ -370,7 +364,7 @@ function MinSpend({ typed }: { typed: number | null }) {
  * الفيديوهات, the board per product (v3 · D): the bank against 50, the winners ranked by the cost of a real order, the tired
  * ones, and four buttons on every card — each one a request to Hermes, shown as a card on المهام. Never edits a video.
  */
-export function BoardView({ data, custom, canEdit = false }: { data: BoardData; custom?: EntityCustom; canEdit?: boolean }) {
+export function BoardView({ data }: { data: BoardData; canEdit?: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const mission = useMission();
@@ -385,7 +379,7 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
       if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
       if (d.demo) return toast("بالوضع التجريبي ما انبعت شي لحدا", "info");
       if (d.created === false) toast("في طلب مفتوح من هالنوع على هالفيديو", "info");
-      else if (d.request?.via === "none") toast("انحفظ بالمهام. لسا ما في قناة لهيرمز، وهو بيسحبه من الطابور.", "info");
+      else if (d.request?.via === "none") toast("انحفظ بالمهام. لسا ما في قناة لهيرمز، وهو بيسحبه لما يتصل.", "info");
       else mission({ title: "انطلب ✓", detail: `${REQUEST_KIND_AR[kind]} — صار عند هيرمز` });
       router.refresh();
     } finally {
@@ -424,18 +418,16 @@ export function BoardView({ data, custom, canEdit = false }: { data: BoardData; 
         <p className="text-sm leading-5 text-fg-muted">
           {direct || data.hermes.chat
             ? `الطلبات بتوصل لهيرمز ${direct ? "بالربط المباشر" : "بتيليجرام"}، وبتنزل كبطاقة بالمهام.`
-            : "لسا ما في قناة لهيرمز (HERMES_BASE_URL + HERMES_TOKEN، أو TELEGRAM_HERMES_CHAT_ID). الطلب بينحفظ بالمهام، وهيرمز بيسحبه من الطابور."}
+            : "لسا ما في قناة لهيرمز (بتنضبط من «الإعدادات ← الربط»). الطلب بينحفظ بالمهام، وهيرمز بيسحبه لما يتصل."}
         </p>
       </div>
 
       {data.products.length ? (
-        <CustomCtx.Provider value={{ custom, canEdit }}>
-          <div className="space-y-4">
-            {data.products.map((p) => (
-              <ProductBoard key={p.code} p={p} busy={busy} ask={ask} move={move} />
-            ))}
-          </div>
-        </CustomCtx.Provider>
+        <div className="space-y-4">
+          {data.products.map((p) => (
+            <ProductBoard key={p.code} p={p} busy={busy} ask={ask} move={move} />
+          ))}
+        </div>
       ) : (
         <EmptyState title="لسا ما في فيديوهات" hint="لما يبعت Claude بنك الفيديوهات (push_videos) أو يستلم النظام من درايف، بتطلع هون لكل منتج." art="empty-creatives" />
       )}

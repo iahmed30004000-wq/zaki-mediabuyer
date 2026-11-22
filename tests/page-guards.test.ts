@@ -74,7 +74,7 @@ describe("requirePage", () => {
 
   it("a member on a settings page → the page they start on, not the settings", async () => {
     signIn("MEMBER");
-    await expect(requirePage("settings.view")).rejects.toThrow("REDIRECT:/work/tasks");
+    await expect(requirePage("settings.view")).rejects.toThrow("REDIRECT:/tasks/team");
   });
 
   it("the capability decides even when the path header is missing", async () => {
@@ -84,14 +84,14 @@ describe("requirePage", () => {
 
   it("the table of places decides too (an analyst holds ops.view but has no operations place)", async () => {
     signIn("ANALYST");
-    pathname = "/ops/stock";
+    pathname = "/numbers/stock";
     await expect(requirePage("ops.view")).rejects.toThrow("REDIRECT:/");
   });
 
   it("a role without a home is sent to where it starts", async () => {
     signIn("MEMBER");
     pathname = "/";
-    await expect(requirePage()).rejects.toThrow("REDIRECT:/work/tasks");
+    await expect(requirePage()).rejects.toThrow("REDIRECT:/tasks/team");
   });
 
   it("the right role gets the caller back", async () => {
@@ -99,13 +99,13 @@ describe("requirePage", () => {
     pathname = "/settings/connections";
     await expect(requirePage("owner_only")).resolves.toMatchObject({ id: "u1", role: "OWNER" });
     signIn("MEMBER");
-    pathname = "/work/tasks";
+    pathname = "/tasks/team";
     await expect(requirePage(["tasks.own", "tasks.manage"])).resolves.toMatchObject({ role: "MEMBER" });
   });
 
   it("a member may not open the print pages of the numbers", async () => {
     signIn("MEMBER");
     pathname = "/print/numbers";
-    await expect(requirePage("money.view")).rejects.toThrow("REDIRECT:/work/tasks");
+    await expect(requirePage("money.view")).rejects.toThrow("REDIRECT:/tasks/team");
   });
 });

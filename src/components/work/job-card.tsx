@@ -17,7 +17,7 @@ export function JobCard({ job }: { job: JobView }) {
   const shown = job.branches.slice(0, MAX_CHIPS);
   const more = job.branches.length - shown.length;
   return (
-    <Link href={`/work/job/${encodeURIComponent(job.key)}`} className={cn("block space-y-2.5 rounded-card border border-border bg-surface-1 p-4 transition-colors hover:border-fg-muted", !job.enabled && "opacity-70")} data-job={job.key}>
+    <Link href={`/tasks/${encodeURIComponent(job.key)}`} className={cn("block space-y-2.5 rounded-card border border-border bg-surface-1 p-4 transition-colors hover:border-fg-muted", !job.enabled && "opacity-70")} data-job={job.key}>
       <div className="flex items-center gap-3">
         <JobNumber n={job.number} />
         <h3 className="min-w-0 flex-1 text-base font-extrabold leading-6 text-fg">{job.name}</h3>
@@ -43,7 +43,7 @@ export function JobCard({ job }: { job: JobView }) {
         ) : job.last ? (
           <>
             {job.last.ok === true ? <Check aria-label="خلصت" className="size-4 text-ok" /> : job.last.ok === false ? <X aria-label="فشلت" className="size-4 text-danger" /> : null}
-            <span className="text-xs text-fg-muted">{when(job.last.at)}</span>
+            <span className="text-sm text-fg-muted">{when(job.last.at)}</span>
             {job.last.summary ? <span className="min-w-0 truncate text-fg">{job.last.summary}</span> : null}
           </>
         ) : job.next ? (

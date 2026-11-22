@@ -323,7 +323,7 @@ export function ConnectedApps({ clients, url }: { clients: ConnectedRow[]; url: 
           {clients.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
               <span className="min-w-0 flex-1">
-                <span className="block font-bold text-fg">{c.name} <span dir="ltr" className="tabular-nums text-xs font-normal text-fg-muted">{c.host}</span></span>
+                <span className="block font-bold text-fg">{c.name} <span dir="ltr" className="tabular-nums text-sm font-normal text-fg-muted">{c.host}</span></span>
                 <span className="block text-sm text-fg-muted">
                   {c.scopes.map((s) => (SCOPE_AR as Record<string, string>)[s] ?? s).join(" · ") || "ما إله صلاحيات"} · {c.lastUsedAt ? `آخر نداء ${new Date(c.lastUsedAt).toLocaleString("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "short", timeStyle: "short" })}` : "ما نادى لسا"}
                 </span>

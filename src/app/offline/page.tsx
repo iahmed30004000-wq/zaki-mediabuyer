@@ -11,7 +11,7 @@ export default function OfflinePage() {
       <p className="text-sm text-fg-muted">الصفحات اللي فتحتها قبل بتنفتح من آخر نسخة، وآخر تقرير موجود بـ «الإنجاز ← التقارير». الموافقات والإيقاف بدهم نت — ولا شي بينبعت وإنت مقطوع.</p>
       {/* a plain link on purpose: the service worker shows this page offline, and a client-side navigation would not work there */}
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a href="/work/reports" className="mt-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg">افتح آخر تقرير</a>
+      <a href="/tasks/results" className="mt-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-fg">افتح آخر تقرير</a>
     </main>
   );
 }

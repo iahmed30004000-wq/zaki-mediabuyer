@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PAGE_GUIDE, guideOf } from "@/lib/guide";
 import { ROLE_PLACES } from "@/core/roles";
-import { BUILTIN_PAGES, LEGACY_PAGES, NAV_COOKIE, PLACES, PLACES_V6, READY_PLACES, SETTINGS, hrefOfPlace, navMapFor, placeOf, placesFor, tabOf } from "@/lib/nav";
+import { INBOX_TABS, PLACES, SETTINGS, placeOf, placesFor, tabOf } from "@/lib/nav";
 import { tabIsActive } from "@/components/ui/tabs";
 
 type Redirect = { source: string; destination: string; permanent: boolean; has?: { type: string; key: string; value: string }[] };
@@ -16,27 +16,44 @@ async function redirects(): Promise<Redirect[]> {
 }
 
 const APP = path.resolve(__dirname, "../src/app/(app)");
-/** True when an address is a page of the app: `/work/job/:key/draw` ↔ `work/job/[key]/draw/page.tsx`. */
+/** True when an address is a page of the app: `/tasks/:key/edit` ↔ `tasks/[key]/edit/page.tsx`. */
 const pageExists = (address: string) => existsSync(path.join(APP, ...address.split("/").filter(Boolean).map((seg) => (seg.startsWith(":") ? `[${seg.slice(1)}]` : seg)), "page.tsx"));
 
-describe("the map (v5 · P2)", () => {
-  it("has five places and the settings, in this order", () => {
-    expect(PLACES.map((p) => p.label)).toEqual(["الرئيسية", "بانتظارك", "الشغل", "الإعلانات", "التشغيل"]);
+/** What an old address becomes: the same table the site uses, applied to a real address (`:key` fills in; the query is carried over). */
+function target(list: Redirect[], from: string): string | null {
+  const [pathname, query] = from.split("?");
+  for (const r of list) {
+    if (r.has) continue;
+    const names: string[] = [];
+    const re = new RegExp("^" + r.source.replace(/:(\w+)/g, (_, n: string) => (names.push(n), "([^/]+)")) + "$");
+    const m = re.exec(pathname!);
+    if (!m) continue;
+    let dest = r.destination;
+    names.forEach((n, i) => (dest = dest.replace(`:${n}`, m[i + 1]!)));
+    return query ? `${dest}${dest.includes("?") ? "&" : "?"}${query}` : dest;
+  }
+  return null;
+}
+
+describe("the map (v6 · P8, docs/rebuild-v6/02-screens.md §1): four places and the settings, the only map", () => {
+  it("has four places in this order, and the settings apart", () => {
+    expect(PLACES.map((p) => p.label)).toEqual(["الرئيسية", "المهام", "الأرقام", "الإعلانات"]);
+    expect(PLACES.map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
     expect(SETTINGS.href).toBe("/settings");
   });
 
   it("gives each place its own key and address, a question and a guide", () => {
-    expect(new Set(PLACES.map((p) => p.key)).size).toBe(PLACES.length);
-    expect(new Set(PLACES.map((p) => p.href)).size).toBe(PLACES.length);
+    expect(new Set(PLACES.map((p) => p.key)).size).toBe(4);
+    expect(new Set(PLACES.map((p) => p.href)).size).toBe(4);
     for (const p of PLACES) {
       expect(p.question.length).toBeGreaterThan(5);
       expect(PAGE_GUIDE[p.key].what.length).toBeGreaterThan(10);
+      expect(PAGE_GUIDE[p.key].next.length).toBeGreaterThan(10);
     }
-  });
-
-  it("all five places are in the menu (التشغيل came with P9)", () => {
-    expect(PLACES.every((p) => p.ready)).toBe(true);
-    expect(READY_PLACES.map((p) => p.key)).toEqual(["home", "inbox", "work", "ads", "ops"]);
+    // the decisions list and the settings have a guide too; the places of v5 («الشغل» · «التشغيل» · «المنتجات») do not any more
+    expect(PAGE_GUIDE.inbox.what.length).toBeGreaterThan(10);
+    expect(PAGE_GUIDE.settings.what.length).toBeGreaterThan(10);
+    expect(Object.keys(PAGE_GUIDE).sort()).toEqual(["ads", "home", "inbox", "numbers", "settings", "tasks"]);
   });
 
   it("every place has at most four tabs and its first tab IS the place", () => {
@@ -44,162 +61,148 @@ describe("the map (v5 · P2)", () => {
       expect(p.tabs.length).toBeLessThanOrEqual(4);
       if (p.tabs.length) expect(p.tabs[0]!.href).toBe(p.href);
     }
+    expect(INBOX_TABS.map((t) => t.href)).toEqual(["/inbox", "/inbox/later", "/inbox/done"]);
   });
 
-  it("every tab that is shown is a page that exists (no «قريباً» screens)", () => {
-    for (const p of READY_PLACES) {
-      expect(pageExists(p.href), p.href).toBe(true);
-      for (const t of p.tabs.filter((x) => x.ready !== false)) expect(pageExists(t.href.split("?")[0]!), t.href).toBe(true);
+  it("the tabs are the ones of the plan, and every place and tab is a page that exists (no «قريباً» screens)", () => {
+    const labels = (k: string) => PLACES.find((p) => p.key === k)!.tabs.map((t) => t.label);
+    expect(labels("tasks")).toEqual(["هلق", "جدول اليوم", "كل المهام", "النتائج"]);
+    expect(labels("numbers")).toEqual(["الخلاصة", "المنتجات", "التأكيد والشحن", "المخزون"]);
+    expect(labels("ads")).toEqual(["الحملات", "الفيديوهات", "الاختبارات"]);
+    for (const p of PLACES) {
+      expect(pageExists(p.href === "/" ? "" : p.href) || p.href === "/", p.href).toBe(true);
+      for (const t of p.tabs) expect(pageExists(t.href.split("?")[0]!), t.href).toBe(true);
     }
-    for (const a of ["/products", "/settings", "/ads/health", "/ads/scale", "/work/job/:key", "/work/job/:key/draw"]) expect(pageExists(a), a).toBe(true);
+    for (const t of INBOX_TABS) expect(pageExists(t.href), t.href).toBe(true);
+    for (const a of ["/settings", "/ads/health", "/ads/scale", "/tasks/new", "/tasks/team", "/tasks/:key", "/tasks/:key/edit", "/tasks/:key/runs/:id", "/tasks/results/:id", "/numbers/products/:code"]) expect(pageExists(a), a).toBe(true);
   });
 
-  it("finds the place of a path and of its children; the products and the settings are not places; anything unknown is the home", () => {
+  it("the screens of v5 are gone: no page is left under the old addresses", () => {
+    for (const a of ["/work", "/work/today", "/work/tasks", "/work/reports", "/work/reports/:id", "/work/job/:key", "/work/job/:key/draw", "/ops", "/ops/confirm", "/ops/shipping", "/ops/stock", "/products", "/products/:code", "/ads/campaigns", "/p/:key"]) expect(pageExists(a), a).toBe(false);
+  });
+
+  it("finds the place of a path and of its children; the decisions list and the settings are no places; anything unknown is the home", () => {
     expect(placeOf("/").key).toBe("home");
     expect(placeOf("/ads").key).toBe("ads");
-    expect(placeOf("/ads/campaigns").key).toBe("ads");
-    expect(placeOf("/work/job/night-round/draw").key).toBe("work");
-    expect(placeOf("/inbox/later").key).toBe("inbox");
-    expect(placeOf("/products").key).toBe("products");
+    expect(placeOf("/ads/health").key).toBe("ads");
+    expect(placeOf("/tasks/day").key).toBe("tasks");
+    expect(placeOf("/tasks/night/runs/r1").key).toBe("tasks");
+    expect(placeOf("/numbers/products/TRF01").key).toBe("numbers");
+    expect(placeOf("/numbers/stock").key).toBe("numbers");
+    expect(placeOf("/inbox/later")).toMatchObject({ key: "inbox", title: "بانتظارك" });
     expect(placeOf("/settings/team").key).toBe("settings");
     expect(placeOf("/adsense").key).toBe("home");
     expect(placeOf("/nowhere").key).toBe("home");
+    // an old address is no place: it is redirected before any page asks (the home is the fallback only)
+    expect(placeOf("/work/job/x").key).toBe("home");
   });
 
   it("finds the tab of a path (the longest matching address), or none for a place without tabs", () => {
-    expect(tabOf("/work")?.href).toBe("/work");
-    expect(tabOf("/work/tasks")?.href).toBe("/work/tasks");
-    expect(tabOf("/work/job/x/draw")?.href).toBe("/work");
-    // the campaigns table IS `/ads` since P6: the old address of it lights the same tab
-    expect(tabOf("/ads/campaigns")?.href).toBe("/ads");
+    expect(tabOf("/tasks")?.href).toBe("/tasks");
+    expect(tabOf("/tasks/results/run%3Ax")?.href).toBe("/tasks/results");
+    expect(tabOf("/tasks/night")?.href).toBe("/tasks");
+    expect(tabOf("/tasks/team")?.href).toBe("/tasks");
+    expect(tabOf("/numbers")?.href).toBe("/numbers");
+    expect(tabOf("/numbers/products/TRF01")?.href).toBe("/numbers/products");
+    expect(tabOf("/numbers/ops")?.href).toBe("/numbers/ops");
+    expect(tabOf("/numbers/stock")?.href).toBe("/numbers/stock");
     expect(tabOf("/ads/videos")?.href).toBe("/ads/videos");
+    expect(tabOf("/ads/health")?.href).toBe("/ads");
     expect(tabOf("/")).toBeNull();
     expect(tabOf("/settings")).toBeNull();
+  });
+
+  it("the places of a role's bar: «المهام» is the work place, «الأرقام» is the ads' numbers and the operations' together (a role that has either is given it)", () => {
+    expect(placesFor(ROLE_PLACES.OWNER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
+    expect(placesFor(ROLE_PLACES.MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
+    expect(placesFor(ROLE_PLACES.ADS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
+    expect(placesFor(ROLE_PLACES.OPS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers"]);
+    expect(placesFor(ROLE_PLACES.TEAM_LEAD).map((p) => p.key)).toEqual(["tasks", "numbers"]);
+    expect(placesFor(ROLE_PLACES.MEMBER).map((p) => p.key)).toEqual(["tasks"]);
+    expect(placesFor(ROLE_PLACES.ANALYST).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
+    expect(placesFor(ROLE_PLACES.VIEWER).map((p) => p.key)).toEqual(["home", "numbers", "ads"]);
   });
 
   it("a tab is active on its own address only when it is the first of its place; the others also on their children; a ?view tab needs its query", () => {
     const q = (s: string) => new URLSearchParams(s);
     expect(tabIsActive("/ads", "/ads", q(""), true)).toBe(true);
-    expect(tabIsActive("/ads", "/ads/campaigns", q(""), true)).toBe(false);
-    expect(tabIsActive("/ads/campaigns", "/ads/campaigns", q(""))).toBe(true);
+    expect(tabIsActive("/ads", "/ads/videos", q(""), true)).toBe(false);
+    expect(tabIsActive("/ads/videos", "/ads/videos", q(""))).toBe(true);
     expect(tabIsActive("/ads/videos?view=flow", "/ads/videos", q("view=flow"))).toBe(true);
     expect(tabIsActive("/ads/videos?view=flow", "/ads/videos", q(""))).toBe(false);
   });
 });
 
-describe("the new map (v6 · P3, docs/rebuild-v6/02-screens.md §1) — a trial next to the old one", () => {
-  it("has four places in this order, each with its own key, address, question and guide", () => {
-    expect(PLACES_V6.map((p) => p.label)).toEqual(["الرئيسية", "المهام", "الأرقام", "الإعلانات"]);
-    expect(new Set(PLACES_V6.map((p) => p.key)).size).toBe(4);
-    for (const p of PLACES_V6) {
-      expect(p.question.length).toBeGreaterThan(5);
-      expect(PAGE_GUIDE[p.key].what.length).toBeGreaterThan(10);
-    }
-  });
-
-  it("«المهام» has four tabs and the first is the place; every tab is a page that exists", () => {
-    const tasks = PLACES_V6.find((p) => p.key === "tasks")!;
-    expect(tasks.tabs.map((t) => t.label)).toEqual(["هلق", "جدول اليوم", "كل المهام", "النتائج"]);
-    expect(tasks.tabs[0]!.href).toBe(tasks.href);
-    for (const t of tasks.tabs) expect(pageExists(t.href), t.href).toBe(true);
-  });
-
-  it("«الأرقام» is built (v6 · P6): it leads to its own summary, and the old operations and products addresses still open", () => {
-    const numbers = PLACES_V6.find((p) => p.key === "numbers")!;
-    expect(numbers.ready).toBe(true);
-    expect(hrefOfPlace(numbers)).toBe("/numbers");
-    expect(pageExists("/numbers")).toBe(true);
-    for (const a of ["/ops", "/ops/stock", "/products", "/products/:code"]) expect(pageExists(a), a).toBe(true);
-    expect(hrefOfPlace(PLACES_V6[1]!)).toBe("/tasks");
-  });
-
-  it("the owner and the manager get the new map by default; everybody else keeps the old one until P8; the cookie decides when it is there; anything else in it is ignored", () => {
-    expect(navMapFor(undefined, "OWNER")).toBe("v6");
-    expect(navMapFor(null, "MANAGER")).toBe("v6");
-    expect(navMapFor(undefined, "TEAM_LEAD")).toBe("old");
-    expect(navMapFor(undefined, "MEMBER")).toBe("old");
-    expect(navMapFor("old", "OWNER")).toBe("old");
-    expect(navMapFor("v6", "MEMBER")).toBe("v6");
-    expect(navMapFor("garbage", "OWNER")).toBe("v6");
-    expect(navMapFor("garbage", "VIEWER")).toBe("old");
-    expect(NAV_COOKIE).toBe("mb_nav");
-  });
-
-  it("the places of a role's bar, in the new map: «المهام» is the work place, «الأرقام» is the ads' numbers and the operations' together (a role that has either is given it)", () => {
-    expect(placesFor("v6", ROLE_PLACES.OWNER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
-    expect(placesFor("v6", ROLE_PLACES.ADS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers", "ads"]);
-    expect(placesFor("v6", ROLE_PLACES.OPS_MANAGER).map((p) => p.key)).toEqual(["home", "tasks", "numbers"]);
-    expect(placesFor("v6", ROLE_PLACES.TEAM_LEAD).map((p) => p.key)).toEqual(["tasks", "numbers"]);
-    expect(placesFor("v6", ROLE_PLACES.MEMBER).map((p) => p.key)).toEqual(["tasks"]);
-    expect(placesFor("old", ROLE_PLACES.OWNER).map((p) => p.key)).toEqual(["home", "inbox", "work", "ads", "ops"]);
-  });
-
-  it("each map finds the place of an address: the new one keeps the old work and operations addresses inside «المهام» and «الأرقام»; the old one keeps «/tasks» inside «الشغل»", () => {
-    expect(placeOf("/tasks/day", "v6").key).toBe("tasks");
-    expect(placeOf("/tasks/night/runs/r1", "v6").key).toBe("tasks");
-    expect(placeOf("/work/job/x", "v6").key).toBe("tasks");
-    expect(placeOf("/ops/stock", "v6").key).toBe("numbers");
-    expect(placeOf("/products/X", "v6").key).toBe("numbers");
-    expect(placeOf("/ads/campaigns", "v6").key).toBe("ads");
-    expect(placeOf("/inbox/later", "v6")).toMatchObject({ key: "inbox", title: "بانتظارك" });
-    expect(placeOf("/settings/team", "v6").key).toBe("settings");
-    expect(placeOf("/", "v6").key).toBe("home");
-    expect(placeOf("/tasks/day", "old").key).toBe("work");
-    expect(placeOf("/tasks", "old").key).toBe("work");
-    expect(placeOf("/ops", "old").key).toBe("ops");
-    expect(tabOf("/tasks/results/run%3Ax", "v6")?.href).toBe("/tasks/results");
-    expect(tabOf("/tasks/night", "v6")?.href).toBe("/tasks");
-  });
-
-  it("«الأرقام» has four tabs and the first is the place; every tab is a page that exists; the old addresses light the tab they became", () => {
-    const numbers = PLACES_V6.find((p) => p.key === "numbers")!;
-    expect(numbers.tabs.map((t) => t.label)).toEqual(["الخلاصة", "المنتجات", "التأكيد والشحن", "المخزون"]);
-    expect(numbers.tabs[0]!.href).toBe(numbers.href);
-    for (const t of numbers.tabs) expect(pageExists(t.href), t.href).toBe(true);
-    expect(tabOf("/numbers", "v6")?.href).toBe("/numbers");
-    expect(tabOf("/numbers/products/TRF01", "v6")?.href).toBe("/numbers/products");
-    expect(tabOf("/products/TRF01", "v6")?.href).toBe("/numbers/products");
-    expect(tabOf("/ops", "v6")?.href).toBe("/numbers/ops");
-    expect(tabOf("/ops/confirm", "v6")?.href).toBe("/numbers/ops");
-    expect(tabOf("/ops/stock", "v6")?.href).toBe("/numbers/stock");
-    expect(placeOf("/numbers/stock", "v6").key).toBe("numbers");
-    expect(PLACES.map((p) => p.key)).toEqual(["home", "inbox", "work", "ads", "ops"]);
-  });
-
-  it("the campaigns table is `/ads` (the dashboard was distributed): the old map's ads place has three tabs and the first is the place", () => {
-    const ads = PLACES.find((p) => p.key === "ads")!;
-    expect(ads.tabs.map((t) => t.label)).toEqual(["الحملات", "الفيديوهات", "الاختبارات"]);
-    expect(ads.tabs[0]!.href).toBe("/ads");
-  });
-});
-
-describe("the old addresses (v5 · P2)", () => {
-  const OLD = ["/workflow", "/workflow/:key", "/done", "/videos", "/decisions", "/creatives", "/reports", "/guide", "/setup"];
-
-  it("every old address still opens somewhere", async () => {
+describe("the old addresses: the table of docs/rebuild-v6/02-screens.md §8 (v6 · P8), all of them still open", () => {
+  it("sends every old address of v5 to where its screen went", async () => {
     const list = await redirects();
-    for (const from of OLD) expect(list.some((r) => r.source === from), from).toBe(true);
-    expect(list.some((r) => r.source === "/" && r.has?.[0]?.value === "numbers")).toBe(true);
+    const table: [string, string][] = [
+      ["/work", "/tasks/all"],
+      ["/work/today", "/tasks/day"],
+      ["/work/tasks", "/tasks/team"],
+      ["/work/reports", "/tasks/results"],
+      ["/work/reports/report%3A42", "/tasks/results/report%3A42"],
+      ["/work/job/night-round", "/tasks/night-round"],
+      ["/work/job/night-round/draw", "/tasks/night-round/edit"],
+      ["/ops", "/numbers/ops"],
+      ["/ops/confirm", "/numbers/ops"],
+      ["/ops/shipping", "/numbers/ops"],
+      ["/ops/stock", "/numbers/stock"],
+      ["/products", "/numbers/products"],
+      ["/products/TRF01", "/numbers/products/TRF01"],
+      ["/ads/campaigns", "/ads"],
+      ["/p/pg-1a2b3c", "/tasks/team"],
+    ];
+    for (const [from, to] of table) expect(target(list, from), from).toBe(to);
   });
 
-  it("«/tasks» is a real place now (v6 · P3): it is no longer an old address that leads to «/inbox», and its pages exist", async () => {
+  it("carries the query over (a day, a filter, a board, an old choice of period)", async () => {
+    const list = await redirects();
+    expect(target(list, "/work/today?day=2026-11-20")).toBe("/tasks/day?day=2026-11-20");
+    expect(target(list, "/work/reports?domain=ops&day=2026-11-20")).toBe("/tasks/results?domain=ops&day=2026-11-20");
+    expect(target(list, "/work/tasks?board=leak")).toBe("/tasks/team?board=leak");
+    expect(target(list, "/products?d=yesterday")).toBe("/numbers/products?d=yesterday");
+    expect(target(list, "/ads/campaigns?open=123")).toBe("/ads?open=123");
+  });
+
+  it("the longer address comes before the shorter one that would swallow it (`/draw` before the job)", async () => {
+    const list = await redirects();
+    const at = (s: string) => list.findIndex((r) => r.source === s);
+    expect(at("/work/job/:key/draw")).toBeLessThan(at("/work/job/:key"));
+    expect(at("/work/reports")).toBeGreaterThanOrEqual(0);
+  });
+
+  it("still sends the addresses of v3 and v4 to their new homes", async () => {
+    const list = await redirects();
+    const OLD = ["/workflow", "/workflow/:key", "/done", "/videos", "/decisions", "/creatives", "/reports", "/guide", "/setup"];
+    for (const from of OLD) expect(list.some((r) => r.source === from), from).toBe(true);
+    expect(list.find((r) => r.source === "/" && r.has?.[0]?.value === "numbers")?.destination).toBe("/numbers/products");
+    expect(target(list, "/workflow/daily-check")).toBe("/tasks/daily-check");
+    expect(list.find((r) => r.source === "/workflow")?.destination).toBe("/tasks/all");
+    expect(list.find((r) => r.source === "/done" && !r.has)?.destination).toBe("/tasks/day");
+    expect(list.find((r) => r.source === "/done" && r.has)?.destination).toBe("/tasks/results");
+    expect(list.find((r) => r.source === "/reports" && !r.has)?.destination).toBe("/tasks/results");
+    expect(list.find((r) => r.source === "/reports" && r.has?.length)?.destination).toBe("/ads/health");
+  });
+
+  it("«/tasks» is a real place (v6 · P3): it is no longer an old address that leads to «/inbox»", async () => {
     const list = await redirects();
     expect(list.some((r) => r.source === "/tasks" || r.source.startsWith("/tasks/"))).toBe(false);
     for (const a of ["/tasks", "/tasks/day", "/tasks/all", "/tasks/results", "/tasks/results/:id", "/tasks/team", "/tasks/:key", "/tasks/:key/runs/:id", "/tasks/:key/edit"]) expect(pageExists(a), a).toBe(true);
   });
 
-  it("«/ads» is the campaigns table (v6 · P6): no rule sends `/ads?product=…` to a product page — `product` is the table's own filter", async () => {
+  it("«/ads» is the campaigns table (v6 · P6): no rule sends it to a product page or to itself; the old tabs of the dashboard still lead somewhere", async () => {
     const list = await redirects();
     expect(list.some((r) => r.source === "/ads" && r.has?.some((h) => h.key === "product"))).toBe(false);
-    // the old tabs of the dashboard still lead somewhere that exists
-    expect(list.filter((r) => r.source === "/ads").map((r) => r.destination).sort()).toEqual(["/ads/campaigns", "/ads/health", "/ads/scale", "/ads/tests"]);
+    expect(list.filter((r) => r.source === "/ads").map((r) => r.destination).sort()).toEqual(["/ads/health", "/ads/scale", "/ads/tests"]);
   });
 
-  it("every destination is a page that exists", async () => {
+  it("every destination is a page that exists, and no source is a page that exists (nothing is shadowed or forgotten)", async () => {
     for (const r of await redirects()) {
       const dest = r.destination.split(/[?#]/)[0]!;
       if (dest === "/settings") continue; // the settings page itself (its hash is read in the browser)
-      expect(pageExists(dest), `${r.source} → ${r.destination}`).toBe(true);
+      expect(pageExists(dest) || dest === "/", `${r.source} → ${r.destination}`).toBe(true);
+      if (!r.has) expect(pageExists(r.source), `${r.source} is still a page`).toBe(false);
     }
   });
 
@@ -223,24 +226,12 @@ describe("the old addresses (v5 · P2)", () => {
       if (firstPlain >= 0) expect(same.slice(firstPlain + 1).every((r) => !r.has), src).toBe(true);
     }
   });
-
-  it("sends the old data / safety tabs of the reports to «صحة البيانات», and the rest to the work reports", async () => {
-    const list = await redirects();
-    expect(list.find((r) => r.source === "/reports" && r.has?.length)?.destination).toBe("/ads/health");
-    expect(list.find((r) => r.source === "/reports" && !r.has)?.destination).toBe("/work/reports");
-  });
 });
 
-describe("the pages of v3 as the customization layer reads them (retired in P11)", () => {
-  it("BUILTIN_PAGES is the seven old pages as plain data, in order", () => {
-    expect(BUILTIN_PAGES.map((p) => p.key)).toEqual(LEGACY_PAGES.map((p) => p.key));
-    expect(BUILTIN_PAGES.map((p) => p.key)).toEqual(["today", "ads", "videos", "tasks", "workflow", "done", "settings"]);
-    expect(BUILTIN_PAGES.filter((p) => p.mobile).map((p) => p.key)).toEqual(["today", "ads", "tasks", "workflow"]);
-    expect(JSON.parse(JSON.stringify(BUILTIN_PAGES))).toEqual(BUILTIN_PAGES);
-  });
-  it("a page of the owner's has a guide too, and the built-in ones keep theirs", () => {
-    expect(guideOf("pg-1a2b3c").what.length).toBeGreaterThan(10);
-    expect(guideOf("pg-1a2b3c").tour).toEqual([]);
+describe("the guide of a page", () => {
+  it("a key that is no place says the home's guide, and the places keep theirs", () => {
+    expect(guideOf("pg-1a2b3c")).toBe(PAGE_GUIDE.home);
     expect(guideOf("ads")).toBe(PAGE_GUIDE.ads);
+    expect(guideOf("tasks")).toBe(PAGE_GUIDE.tasks);
   });
 });

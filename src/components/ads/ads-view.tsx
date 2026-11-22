@@ -13,13 +13,14 @@ import { useMission } from "@/components/mb/mission";
 import { DateSwitcher } from "@/components/shell/date-switcher";
 import type { ColumnKey, Filters } from "@/core/ads-table";
 import type { AdsTableData, TreeRow } from "@/lib/ads-table";
-import type { RowView } from "@/lib/mock/data";
+import type { RowView } from "@/core/ads-model";
 import { cn } from "@/lib/utils";
 import { AdsTable } from "./ads-table";
 import { LaunchWizard } from "./launch-wizard";
 import { StatusChip } from "./status-chip";
 import type { ExperimentView, LaunchOptions } from "@/lib/launch-view";
 import { safeFetch } from "@/lib/call";
+import { Table } from "@/components/ui/table";
 
 const EXP_STATUS: Record<ExperimentView["status"], { l: string; c: string }> = {
   planned: { l: "بانتظار موافقتك", c: "text-warn" },
@@ -36,7 +37,7 @@ function Experiments({ list }: { list: ExperimentView[] }) {
         <Panel key={e.id} className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-semibold text-fg">{e.title}</span>
-            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{e.campaign}</span>
+            <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{e.campaign}</span>
             <span className={cn("ms-auto text-sm font-medium", EXP_STATUS[e.status].c)}>
               {EXP_STATUS[e.status].l}
               {e.status === "running" ? ` · يوم ${e.day} من ${e.days}` : ""}
@@ -45,7 +46,7 @@ function Experiments({ list }: { list: ExperimentView[] }) {
           <p className="text-sm text-fg-muted">الفرضية: {e.hypothesis}</p>
           {e.arms.length ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <Table aria-label="قرارات الأرقام" className="w-full text-sm">
                 <thead className="text-fg-muted">
                   <tr>
                     <th className="py-1 text-start font-medium">المفهوم</th>
@@ -66,7 +67,7 @@ function Experiments({ list }: { list: ExperimentView[] }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           ) : null}
           <p className="text-base text-fg">{e.verdict}</p>
@@ -157,9 +158,9 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
           <Panel key={p.code} className="space-y-3">
             <div className="flex items-center gap-2">
               <p className="font-semibold text-fg">{p.name}</p>
-              <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span>
+              <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{p.code}</span>
               <span className="text-sm text-fg-muted">· {p.market === "SY" ? "سوريا" : "الأردن"}</span>
-              <span className={cn("ms-auto rounded-md px-1.5 py-0.5 text-xs font-semibold", winner ? "bg-ok/10 text-ok" : p.view.delivered ? "bg-warn/10 text-warn" : "bg-surface-2 text-fg-muted")}>
+              <span className={cn("ms-auto rounded-md px-1.5 py-0.5 text-sm font-semibold", winner ? "bg-ok/10 text-ok" : p.view.delivered ? "bg-warn/10 text-warn" : "bg-surface-2 text-fg-muted")}>
                 {winner ? "رابح" : p.view.delivered ? "خاسر لهلأ" : "بيانات غير كافية"}
               </span>
             </div>
@@ -221,7 +222,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
               <div className="flex flex-wrap items-center gap-2">
                 <StatusChip status={row.status} />
                 {row.learning ? (
-                  <span className="rounded-md bg-info/10 px-1.5 py-0.5 text-xs font-semibold text-info">
+                  <span className="rounded-md bg-info/10 px-1.5 py-0.5 text-sm font-semibold text-info">
                     تعلّم {row.learning.events} من {row.learning.of}
                   </span>
                 ) : null}

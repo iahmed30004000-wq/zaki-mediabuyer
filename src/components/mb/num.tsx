@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { GLOSSARY, SOURCE_AR, SOURCE_HINT, type Source, type TermKey } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
 import { fmt, fmtExact } from "@/lib/format";
+import { Tap } from "@/components/ui/tap";
 
 export { fmt };
 
@@ -18,7 +19,7 @@ const SOURCE_STYLE: Record<Source, string> = {
 
 /** The badge beside a number: ميتا · حقيقي · تقدير (spec 3.9). */
 export function SourceBadge({ source, className }: { source: Source; className?: string }) {
-  return <span className={cn("inline-flex items-center rounded-md border px-1 text-xs font-semibold", SOURCE_STYLE[source], className)}>{SOURCE_AR[source]}</span>;
+  return <span className={cn("inline-flex items-center rounded-md border px-1 text-sm font-semibold", SOURCE_STYLE[source], className)}>{SOURCE_AR[source]}</span>;
 }
 
 /**
@@ -80,7 +81,7 @@ export function Num({
 
   return (
     <span ref={box} className={cn("relative inline-flex max-w-full", className)}>
-      <button
+      <Tap
         type="button"
         aria-expanded={open}
         aria-controls={id}
@@ -89,7 +90,7 @@ export function Num({
         className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 rounded-md px-0.5 underline decoration-dotted max-md:min-h-[44px] decoration-fg-muted/40 underline-offset-4 hover:decoration-fg"
       >
         {body}
-      </button>
+      </Tap>
       {open ? (
         <span id={id} role="dialog" className="absolute start-0 top-full z-40 mt-2 w-64 animate-fade-in rounded-xl border border-border bg-surface-1 p-3 text-start shadow-card">
           <span className="block text-sm font-semibold text-fg">{t.name}</span>

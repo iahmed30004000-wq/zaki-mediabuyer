@@ -70,10 +70,9 @@ import { realDoorDeps, syncWorkspace } from "../src/server/workspace";
 import { loadToday } from "../src/lib/today-view";
 import { dayBounds } from "../src/core/day";
 import { STATS, formatStat } from "../src/core/numbers";
-import { applyOp, getValues, panelData, runButton, setValues } from "../src/server/customize";
+import { applyOp, getValues, panelData, setValues } from "../src/server/customize";
 import { getUiConfig } from "../src/server/ui-config";
-import { buttonsFor, effectiveBoards, effectivePages, fieldsFor, type UiOp } from "../src/core/customize";
-import { BUILTIN_PAGES } from "../src/lib/nav";
+import { UiOpSchema, effectiveBoards, fieldsFor, type UiOp } from "../src/core/customize";
 import { GET as uiGet_, POST as uiPost } from "../src/app/api/ui/route";
 import { directoryKeys, loadDirectory, taskKeysFor } from "../src/server/directory";
 import { stripMoney } from "../src/core/redact-money";
@@ -1226,7 +1225,7 @@ async function clean() {
     const refused = (o: UiOp) => op(o).then(() => "", (e: Error) => e.message);
     const find = <T,>(list: T[], f: (x: T) => boolean) => list.find(f)!;
 
-    // a board from a template brings its fields; a field for every board; a button that runs a workflow
+    // a board from a template brings its fields; a field for every board
     const mk = await op({ op: "board.add", label: "DEMO شحنات", template: "shipments" });
     const ship = find(mk.config.boards, (b) => b.label === "DEMO شحنات").key;
     const shipFields = mk.config.fields.filter((f) => f.boards?.includes(ship));
@@ -1237,9 +1236,6 @@ async function clean() {
     const fDate = shipFields[2]!.id;
     const everywhere = await op({ op: "field.add", entity: "task", label: "DEMO ملاحظة", type: "text" });
     const fNote = find(everywhere.config.fields, (f) => f.label === "DEMO ملاحظة").id;
-    const btn = await op({ op: "button.add", entity: "task", label: "DEMO ابعت للتأكيد", workflow: "daily-check" });
-    const btnId = btn.config.buttons[0]!.id;
-    check(btn.config.buttons[0]!.confirm === true && (await refused({ op: "button.add", entity: "task", label: "DEMO س", workflow: "no-such-flow" })).includes("الورك فلو"), "a button runs a workflow that exists (and asks «متأكد؟» by default); one for a workflow that does not is refused");
 
     // cards on the boards, and what is typed into their fields
     const t = [await createTask({ title: "DEMO شحنة 1", board: ship }, actor, "ui"), await createTask({ title: "DEMO شحنة 2", board: ship }, actor, "ui"), await createTask({ title: "DEMO شحنة 3", board: ship }, actor, "ui"), await createTask({ title: "DEMO توصيل 1", board: deliv }, actor, "ui"), await createTask({ title: "DEMO توصيل 2", board: deliv }, actor, "ui")];
@@ -1253,8 +1249,8 @@ async function clean() {
     // reload: it was all written to the database, not kept in a page
     const fresh = await getUiConfig();
     const vals = await getValues("task", t.map((x) => x.id));
-    check(fresh.fields.some((f) => f.id === fNote) && fresh.buttons.some((b) => b.id === btnId) && vals[t[0]!.id]![fNo] === "AB-123" && vals[t[0]!.id]![fDate] === "2026-11-20" && vals[t[1]!.id]![fNo] === "AB-124", "reload: the field, the button and the values are all still there (read back from the database)");
-    check(fieldsFor(fresh, "task", ship).map((f) => f.id).includes(fNote) && !fieldsFor(fresh, "task", deliv).map((f) => f.id).includes(fNo) && buttonsFor(fresh, "task", deliv).length === 1, "…a template field shows on its own board only, a field for every board on all of them, a button everywhere");
+    check(fresh.fields.some((f) => f.id === fNote) && vals[t[0]!.id]![fNo] === "AB-123" && vals[t[0]!.id]![fDate] === "2026-11-20" && vals[t[1]!.id]![fNo] === "AB-124", "reload: the field, the button and the values are all still there (read back from the database)");
+    check(fieldsFor(fresh, "task", ship).map((f) => f.id).includes(fNote) && !fieldsFor(fresh, "task", deliv).map((f) => f.id).includes(fNo), "…a template field shows on its own board only, a field for every board on all of them, a button everywhere");
 
     // what is used cannot be put away — it is merged or hidden
     const a1 = await refused({ op: "board.archive", key: ship });
@@ -1288,29 +1284,17 @@ async function clean() {
     check(fm.copied === 1 && fm.conflicts === 1 && mv[t[0]!.id]![fb] === "B0" && mv[t[1]!.id]![fb] === "A1" && mv[t[0]!.id]![fa] === "A0", "merging two fields: the value only the first had is copied (A1), where both had one the second wins (B0) and the first's stays in the put-away field — nothing lost", { copied: fm.copied, conflicts: fm.conflicts });
     check((await refused({ op: "field.merge", from: fNo, into: fDate })).includes("النوعين مختلفين"), "two fields of different types are not merged");
 
-    // a button is one hand-over per card, with the card's own words
-    const run1 = await runButton(btnId, "task", t[0]!.id, owner);
-    const run1b = await runButton(btnId, "task", t[0]!.id, owner);
-    const run2 = await runButton(btnId, "task", t[1]!.id, owner);
-    const inp = run1.handoff.context.inputs ?? {};
-    check(run1.created && !run1b.created && run1b.handoff.id === run1.handoff.id && run2.created && run2.handoff.id !== run1.handoff.id, "a button asks Claude to run the workflow on THAT card: pressing again returns the open request, another card gets its own");
-    check(inp.card_title === "DEMO شحنة 1" && inp.board === "DEMO شحنات" && inp.button === "DEMO ابعت للتأكيد" && inp["رقم الشحنة"] === "AB-123" && inp["موعد التسليم"] === "2026-11-20" && JSON.stringify(inp).indexOf("0944") < 0, "…carrying the card's title, board, button and its fields (no customer data exists in any of them)", inp);
-
-    // the sidebar: rename, hide, add (never past seven), reorder — and two edits at the same moment both land
-    await op({ op: "page.hide", key: "done", hidden: true });
-    const added = await op({ op: "page.add", kind: "link", label: "DEMO درايف", href: "https://drive.google.com/drive/folders/abc" });
-    const vis = effectivePages(added.config, BUILTIN_PAGES).filter((p) => !p.hidden && !p.archived);
-    check(vis.length === 7 && vis.at(-1)!.key === "settings" && vis.at(-2)!.label === "DEMO درايف", "a page of the owner's is added before «الإعدادات» — the sidebar holds seven");
-    check((await refused({ op: "page.add", kind: "link", label: "DEMO تاني", href: "/ads" })).includes("أقصى شي 7") && (await refused({ op: "page.hide", key: "settings", hidden: true })).includes("الإعدادات"), "an eighth is refused, and «الإعدادات» cannot be hidden");
-    await Promise.all([op({ op: "page.rename", key: "ads", label: "DEMO حملاتي" }), op({ op: "page.rename", key: "videos", label: "DEMO فيديوهاتي" })]);
-    const both = effectivePages(await getUiConfig(), BUILTIN_PAGES);
-    check(both.find((p) => p.key === "ads")!.label === "DEMO حملاتي" && both.find((p) => p.key === "videos")!.label === "DEMO فيديوهاتي", "two edits at the same moment both land (the setting is changed under a lock, one after the other)");
-
-    // history: every edit is a version of the setting, and one can be put back
+    // two edits at the same moment both land (the setting is changed under a lock, one after the other); every edit is a version, and the one before can be put back
+    const l1 = "DEMO لوحة أ";
+    const l2 = "DEMO لوحة ب";
+    await Promise.all([op({ op: "board.rename", key: ship, label: l1 }), op({ op: "board.rename", key: deliv, label: l2 })]);
+    const both = effectiveBoards(await getUiConfig());
+    check(both.find((x) => x.key === ship)!.label === l1 && both.find((x) => x.key === deliv)!.label === l2, "two edits at the same moment both land (the setting is changed under a lock, one after the other)");
     const versions = await db.settingVersion.count({ where: { key: "ui.config" } });
     const cur = (await db.setting.findUnique({ where: { key: "ui.config" } }))!.version;
     await restoreSetting("ui.config", cur - 1, "demo-mcp-user");
-    check(versions >= 12 && effectivePages(await getUiConfig(), BUILTIN_PAGES).filter((p) => p.label.startsWith("DEMO ") && (p.key === "ads" || p.key === "videos")).length === 1, "every edit is a version of the setting, and putting the one before back works", { versions });
+    const afterRestore = effectiveBoards(await getUiConfig());
+    check(versions >= 8 && [ship, deliv].filter((k) => afterRestore.find((x) => x.key === k)!.label.startsWith("DEMO لوحة ")).length === 1, "every edit is a version of the setting, and putting the one before back works", { versions });
 
     // the duplicates it suggests merging (two boards with one name; tasks that look alike)
     const dupCfg = await getUiConfig();
@@ -1318,31 +1302,10 @@ async function clean() {
     const sug = (await panelData()).suggestions;
     check(sug.some((s) => s.kind === "board" && s.op?.op === "board.merge"), "the detector suggests merging two boards named alike", sug.map((s) => s.text));
 
-    // fields and buttons on videos and workflows, a field changing type, and a row dropped onto another
-    const board = await loadBoard();
-    const vid = board.products.flatMap((p) => [...p.winners, ...p.learning, ...p.rest])[0];
-    check(!!vid, "the video board has a video to hang a field on (the demo bank's)");
-    if (vid) {
-      const fv = (await op({ op: "field.add", entity: "video", label: "DEMO ملاحظة فيديو", type: "text" })).config.fields.find((f) => f.label === "DEMO ملاحظة فيديو")!.id;
-      const fw = (await op({ op: "field.add", entity: "workflow", label: "DEMO مسؤول", type: "person" })).config.fields.find((f) => f.label === "DEMO مسؤول")!.id;
-      await setValues("video", vid.key, { [fv]: "هوك أقوى بالثانية 3" }, owner);
-      await setValues("workflow", "daily-check", { [fw]: "laith" }, owner);
-      const got = { v: (await getValues("video", [vid.key]))[vid.key]?.[fv], w: (await getValues("workflow", ["daily-check"]))["daily-check"]?.[fw] };
-      check(got.v === "هوك أقوى بالثانية 3" && got.w === "laith", "a video and a workflow keep what is typed into their fields", got);
-      check((await setValues("video", "no-such-video", { [fv]: "x" }, owner).then(() => "", (e: Error) => e.message)).includes("مش موجود") && (await setValues("workflow", "no-such-flow", { [fw]: "laith" }, owner).then(() => "", (e: Error) => e.message)).includes("مش موجود"), "a card that does not exist takes no value");
-      check((await setValues("video", vid.key, { [fw]: "laith" }, owner).then(() => "", (e: Error) => e.message)).includes("مش معروف"), "a field of one kind of card is not written on another");
-      const bv = (await op({ op: "button.add", entity: "video", label: "DEMO اسأل عن الفيديو", workflow: "daily-check" })).config.buttons.find((b) => b.label === "DEMO اسأل عن الفيديو")!.id;
-      const bw = (await op({ op: "button.add", entity: "workflow", label: "DEMO راجعه", workflow: "daily-check" })).config.buttons.find((b) => b.label === "DEMO راجعه")!.id;
-      const rv = await runButton(bv, "video", vid.key, owner);
-      const rw = await runButton(bw, "workflow", "daily-check", owner);
-      const ivp = rv.handoff.context.inputs ?? {};
-      const iwp = rw.handoff.context.inputs ?? {};
-      check(rv.created && ivp.card === "video" && ivp.card_id === vid.key && ivp.card_title === vid.label && ivp["DEMO ملاحظة فيديو"] === "هوك أقوى بالثانية 3", "a button on a video hands Claude that video's own words and fields", ivp);
-      check(rw.created && iwp.card === "workflow" && iwp.card_id === "daily-check" && iwp["DEMO مسؤول"] === "laith", "a button on a workflow hands Claude that workflow's words and fields", iwp);
-      check((await runButton(bv, "workflow", "daily-check", owner).then(() => "", (e: Error) => e.message)).includes("الزر مش موجود"), "a video's button does not run on a workflow card");
-      await db.handoff.updateMany({ where: { workflowKey: "daily-check", status: "open" }, data: { status: "cancelled" } });
-    }
+    // only the team's tasks have fields (v6 · P8, Q5): the fields of the other cards are refused at the door
+    check(!UiOpSchema.safeParse({ op: "field.add", entity: "video", label: "DEMO س", type: "text" }).success && !UiOpSchema.safeParse({ op: "button.add", entity: "task", label: "DEMO س", workflow: "daily-check" }).success, "a field for a video or a job, and a button on a card, are not ops any more (the schema refuses them)");
 
+    // a field changing type, and a row dropped onto another
     // a text field whose values are all numbers becomes a number: each stored value is rewritten as one
     const fq = (await op({ op: "field.add", entity: "task", label: "DEMO كمية", type: "text" })).config.fields.find((f) => f.label === "DEMO كمية")!.id;
     await setValues("task", t[0]!.id, { [fq]: "12" }, owner);
@@ -1363,7 +1326,7 @@ async function clean() {
 
     // the routes: the owner only, and on the demo nothing is written
     const uiGet = await (await uiGet_()).json();
-    const uiPostDemo = await (await uiPost(new Request("http://localhost:3140/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "page.hide", key: "ads", hidden: true }) }))).json();
+    const uiPostDemo = await (await uiPost(new Request("http://localhost:3140/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "board.hide", key: "leak", hidden: true }) }))).json();
     const uiBad = await uiPost(new Request("http://localhost:3140/api/ui", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ op: "page.delete", key: "ads" }) }));
     check(uiGet.demo === true && uiPostDemo.demo === true && uiBad.status === 400, "GET/POST /api/ui: with sign-in off (the demo caller) nothing is read or written; an op that does not exist is a 400");
   }

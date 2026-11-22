@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { CircleHelp, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
-import { IconButton } from "@/components/ui/icon-button";
 import { guideOf } from "@/lib/guide";
 import "driver.js/dist/driver.css";
 import "@/components/ui/tour.css";
@@ -20,20 +18,7 @@ export async function runTour(key: string) {
   driver({ steps, showProgress: true, progressText: "{{current}} من {{total}}", nextBtnText: "التالي", prevBtnText: "رجوع", doneBtnText: "خلصت", popoverClass: "zaki-tour" }).drive();
 }
 
-/** The «؟» of every page: what this page is, the next step, and «فرجيني». */
-export function PageHelp({ place }: { place: { key: string; label: string } }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <IconButton aria-label="شو هاي الصفحة؟" title="شو هاي الصفحة؟" onClick={() => setOpen(true)}>
-        <CircleHelp className="size-5" aria-hidden />
-      </IconButton>
-      <PageHelpSheet place={place} open={open} onOpenChange={setOpen} />
-    </>
-  );
-}
-
-/** The sheet itself: opened by the «؟» of the old header, or by «شو هاي الصفحة؟» in the «⋯» menu of the new one. */
+/** What this page is, the next step, and «فرجيني»: opened by «شو هاي الصفحة؟» in the «⋯» menu of the header. */
 export function PageHelpSheet({ place, open, onOpenChange }: { place: { key: string; label: string }; open: boolean; onOpenChange: (open: boolean) => void }) {
   const setOpen = onOpenChange;
   const g = guideOf(place.key);
@@ -46,11 +31,11 @@ export function PageHelpSheet({ place, open, onOpenChange }: { place: { key: str
           </SheetHeader>
           <SheetBody className="space-y-4">
             <section>
-              <h3 className="mb-1 text-xs font-semibold text-fg-muted">شو هاي الصفحة</h3>
+              <h3 className="mb-1 text-sm font-semibold text-fg-muted">شو هاي الصفحة</h3>
               <p className="text-sm leading-6 text-fg">{g.what}</p>
             </section>
             <section className="rounded-xl border border-accent/30 bg-accent/5 p-3">
-              <h3 className="mb-1 text-xs font-semibold text-accent">شو بعدها</h3>
+              <h3 className="mb-1 text-sm font-semibold text-accent">شو بعدها</h3>
               <p className="text-sm leading-6 text-fg">{g.next}</p>
             </section>
             <div className="flex flex-wrap gap-2">

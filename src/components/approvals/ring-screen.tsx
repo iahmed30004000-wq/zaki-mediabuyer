@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { fromApproval } from "@/core/inbox";
 import { cn } from "@/lib/utils";
 import type { ApprovalView } from "@/server/approvals";
-import { minutesLeft } from "./approval-card";
 
 /** Two tones, again and again — the sound of an incoming call. Returns the function that stops it. A browser may refuse sound until the page was touched once: then only the screen and the vibration work. */
 export function startRingtone(): () => void {

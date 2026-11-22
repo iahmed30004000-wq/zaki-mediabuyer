@@ -323,7 +323,7 @@ export async function applyStock(raw: unknown[], opts: { actor: Actor; source: "
     if (urgency) {
       const text = stockAlertText(p.data.product, p.data.days_cover, urgency, p.data.units);
       for (const audience of rules.stock.audience) {
-        const n = await createNotification({ urgency, audience, title: text.title, body: text.body, href: "/products/" + encodeURIComponent(p.data.product), source: "stock", key: stockAlertKey(p.data.product, urgency, dayKey) });
+        const n = await createNotification({ urgency, audience, title: text.title, body: text.body, href: "/numbers/products/" + encodeURIComponent(p.data.product), source: "stock", key: stockAlertKey(p.data.product, urgency, dayKey) });
         if (n.created) alerts++;
       }
     }

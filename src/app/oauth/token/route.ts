@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const f = await readParams(req);
   const type = f.get("grant_type");
   const r = type === "authorization_code" ? await exchangeCode(f) : type === "refresh_token" ? await refreshGrant(f) : null;
-  if (!r) return jsonError(400, oauthError("unsupported_grant_type", "بس authorization_code و refresh_token"));
+  if (!r) return jsonError(400, oauthError("unsupported_grant_type", "نوع الطلب مش مدعوم"));
   return r.ok ? jsonOk(r.data) : jsonError(r.status, r.body);
 }
 

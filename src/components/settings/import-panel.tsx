@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Download, FileUp, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label, Select } from "@/components/ui/input";
+import { Input, Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
 import { FIELDS, FIELD_AR, REQUIRED, type Field } from "@/io/import";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/call";
+import { Table } from "@/components/ui/table";
 
 interface Preview {
   headers: string[];
@@ -68,7 +69,7 @@ export function ImportPanel() {
         <p className="text-sm text-fg-muted">تقرير يومي على مستوى الإعلان (CSV أو Excel، عربي أو إنجليزي): اليوم · رقم الإعلان أو اسمه · المبلغ المصروف · مرات الظهور، والباقي إذا موجود. مفيد للأيام اللي قبل الربط.</p>
         <label className={cn("flex min-h-10 max-md:min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm text-fg hover:border-accent/50", busy && "opacity-50")}>
           <FileUp className="size-4" /> {file ? file.name : "اختار الملف"}
-          <input type="file" accept=".csv,.xlsx,text/csv" className="hidden" disabled={busy} onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
+          <Input type="file" accept=".csv,.xlsx,text/csv" className="hidden" disabled={busy} onChange={(e) => e.target.files?.[0] && pick(e.target.files[0])} />
         </label>
         {p ? (
           <>
@@ -86,7 +87,7 @@ export function ImportPanel() {
             {p.errors.length ? <ul className="space-y-1 rounded-lg bg-warn/10 p-2 text-sm text-fg">{p.errors.map((e) => <li key={e}>{e}</li>)}</ul> : null}
             {p.already ? <p className="rounded-lg bg-surface-2 p-2 text-sm text-fg-muted">هالملف انستورد قبل ({p.already.rows} سطر) — استيراده مرة تانية ما بيغيّر شي.</p> : null}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <Table aria-label="معاينة الاستيراد" className="w-full text-sm">
                 <thead className="text-fg-muted"><tr><th className="py-1 text-start font-medium">اليوم</th><th className="py-1 text-start font-medium">الإعلان</th><th className="py-1 text-start font-medium">الصرف</th><th className="py-1 text-start font-medium">الظهور</th><th className="py-1 text-start font-medium">شراء</th></tr></thead>
                 <tbody>
                   {p.preview.map((r, i) => (
@@ -95,7 +96,7 @@ export function ImportPanel() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button

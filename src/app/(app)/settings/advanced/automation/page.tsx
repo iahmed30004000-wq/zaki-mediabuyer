@@ -1,6 +1,5 @@
 import { CircleDot } from "lucide-react";
 import { Panel } from "@/components/mb/section";
-import { SOURCES } from "@/lib/mock/data";
 import { loadEditView } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
 import { requirePage } from "@/server/auth";
@@ -17,7 +16,7 @@ const KEYS = ["stepRunner", "scheduler", "n8n"];
 export default async function AutomationPage() {
   await requirePage("settings.view");
   const edit = await loadEditView();
-  const rows = (edit?.links ?? SOURCES).filter((l) => KEYS.includes(l.key));
+  const rows = (edit?.links ?? []).filter((l) => KEYS.includes(l.key));
   return (
     <div className="space-y-4">
       <p className="text-sm text-fg-muted">هون بتشوف حالة الأتمتة بس. المفاتيح والمواقع المسموحة بتنكتب بـ Coolify. ساعة الموقع دايماً شغّالة: بتراقب كل مهمة بموعدها، ومهام Claude بتضل بتصحى لحالها.</p>

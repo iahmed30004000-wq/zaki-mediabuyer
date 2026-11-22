@@ -10,6 +10,8 @@ import { Input, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import type { NightPermission, OwnerMode } from "@/core/mode";
 import { safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * «صاحي ونايم»: the schedule (awake from … asleep from …), the jobs that may run while he sleeps — each with the most it
@@ -45,10 +47,7 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
       <div className="space-y-2">
         <p className="text-base font-semibold text-fg">جدول تلقائي</p>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <label className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-fg">
-            <input type="checkbox" checked={sch.enabled} onChange={(e) => setSch({ ...sch, enabled: e.target.checked })} className="size-4 accent-accent" />
-            شغّله
-          </label>
+          <Checkbox label="شغّله" checked={sch.enabled} onChange={(e) => setSch({ ...sch, enabled: e.target.checked })} />
           <label className="inline-flex items-center gap-2 text-fg-muted">
             صاحي من
             <Input type="time" dir="ltr" value={sch.awake} onChange={(e) => setSch({ ...sch, awake: e.target.value })} className="w-28" />
@@ -71,7 +70,7 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
           {perms.map((p) => (
             <li key={p.key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
               <span className="flex-1 text-fg">{p.label}</span>
-              <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.key}</span>
+              <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{p.key}</span>
               <span className="text-sm text-fg-muted">{p.cap ? `حد ${p.cap}$` : "بلا صرف"}</span>
               <IconButton aria-label={`شيل ${p.label}`} disabled={busy} onClick={() => { const next = perms.filter((x) => x.key !== p.key); setPerms(next); void save({ nightPermissions: next }); }}>
                 <X className="size-4" />
@@ -111,11 +110,11 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
         <p className="text-sm text-fg-muted">أنواع القرارات (الحقل kind اللي بيبعته Claude، مثلاً <span dir="ltr" className="tabular-nums">cap_raise</span>) اللي بيصير الرنين عليها حتى وإنت نايم.</p>
         <div className="flex flex-wrap gap-2">
           {kinds.map((k) => (
-            <span key={k} className="inline-flex items-center gap-1 rounded-full bg-surface-2 py-1 ps-3 pe-1 text-xs text-fg">
+            <span key={k} className="inline-flex items-center gap-1 rounded-full bg-surface-2 py-1 ps-3 pe-1 text-sm text-fg">
               <span dir="ltr" className="tabular-nums">{k}</span>
-              <button type="button" aria-label={`شيل ${k}`} disabled={busy} onClick={() => { const next = kinds.filter((x) => x !== k); setKinds(next); void save({ wakeKinds: next }); }} className="inline-flex size-6 items-center justify-center rounded-full hover:bg-surface-1">
+              <Tap type="button" aria-label={`شيل ${k}`} disabled={busy} onClick={() => { const next = kinds.filter((x) => x !== k); setKinds(next); void save({ wakeKinds: next }); }} className="inline-flex size-6 items-center justify-center rounded-full hover:bg-surface-1">
                 <X className="size-3.5" />
-              </button>
+              </Tap>
             </span>
           ))}
           {!kinds.length ? <span className="text-sm text-fg-muted">ولا نوع — ما في شي بيصحّيك.</span> : null}

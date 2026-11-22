@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CircleHelp, MessageCircleQuestion, Play, RotateCcw, Send, TriangleAlert } from "lucide-react";
+import { CircleHelp, Play, RotateCcw, Send, TriangleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Input } from "@/components/ui/input";
+import { Tap } from "@/components/ui/tap";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Artifact, Fact, SourceRef } from "@/core/assistant";
 import { guideOf } from "@/lib/guide";
@@ -14,13 +18,13 @@ import { safeFetch } from "@/lib/call";
 /** Fired by the header button on phones. */
 export const CONSULTANT_EVENT = "mb:consultant";
 
+/** What to ask first, by the place the person is in (`CurrentPlace.key`: the four places, the decisions list and the settings). */
 const STARTERS: Record<string, string[]> = {
-  today: ["كم كلفة الطلب الحقيقي امبارح؟", "شو بانتظار موافقتي؟", "لخّصلي اليوم"],
-  ads: ["أي إعلان أغلى طلب حقيقي هالأسبوع؟", "شو الإعلانات اللي لازم تتوقف؟"],
-  videos: ["كم فيديو ناقص بالبنك لكل منتج؟", "مين الفيديوهات الرابحة؟"],
-  tasks: ["شو المهام المفتوحة؟", "اعملي مهمة: متابعة الكرتون بكرا"],
-  workflow: ["شو آخر تشغيل خلص؟", "ارسملي مهمة لمتابعة الشحنات العالقة"],
-  done: ["لخّصلي امبارح بتلات أسطر"],
+  home: ["كم كلفة الطلب الحقيقي امبارح؟", "شو بانتظار موافقتي؟", "لخّصلي اليوم"],
+  inbox: ["شو بانتظار موافقتي؟", "شو أهم قرار فيهم؟"],
+  tasks: ["شو المهام المفتوحة؟", "شو آخر تشغيل خلص؟", "اعملي مهمة: متابعة الكرتون بكرا", "لخّصلي امبارح بتلات أسطر"],
+  numbers: ["كم كلفة الطلب الحقيقي امبارح؟", "أي منتج صار أغلى من قبل؟"],
+  ads: ["أي إعلان أغلى طلب حقيقي هالأسبوع؟", "شو الإعلانات اللي لازم تتوقف؟", "كم فيديو ناقص بالبنك لكل منتج؟"],
   settings: ["شو الفرق بين المستوى 1 و 2؟"],
 };
 
@@ -210,30 +214,30 @@ export function Consultant() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               المساعد
-              {info ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-semibold text-accent">{MODE_CHIP[info.mode]}</span> : null}
+              {info ? <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-sm font-semibold text-accent">{MODE_CHIP[info.mode]}</span> : null}
             </SheetTitle>
             <SheetDescription>بيفهم إنك هلأ بـ «{place.label}». بيجاوب من أرقام الشاشات وبيعمل مهام ومسودات، وما بينفّذ صرف — أي تغيير بيستنى موافقتك.</SheetDescription>
           </SheetHeader>
           <SheetBody className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={explain} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 text-sm font-medium text-accent hover:bg-accent/10">
+              <Button variant="secondary" size="sm" onClick={explain}>
                 <CircleHelp className="size-4" />
                 اشرح لي هالشاشة
-              </button>
+              </Button>
               {log.length ? (
-                <button type="button" onClick={reset} className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg">
+                <Button variant="ghost" size="sm" onClick={reset}>
                   <RotateCcw className="size-3.5" />
                   محادثة جديدة
-                </button>
+                </Button>
               ) : null}
             </div>
-            {info?.notice ? <p className="rounded-lg border border-dashed border-border p-2.5 text-xs leading-5 text-fg-muted">{info.notice}</p> : null}
+            {info?.notice ? <p className="rounded-lg border border-dashed border-border p-2.5 text-sm leading-5 text-fg-muted">{info.notice}</p> : null}
             {log.length === 0 ? (
               <div className="flex flex-wrap gap-2">
                 {(STARTERS[place.key] ?? []).map((s) => (
-                  <button key={s} type="button" onClick={() => ask(s)} className="rounded-full border border-border px-3 py-1.5 text-xs text-fg hover:border-accent/60 hover:bg-accent/5">
+                  <Tap key={s} onClick={() => ask(s)} className="min-h-10 rounded-full border border-border px-3 py-1.5 text-sm text-fg hover:border-accent/60 hover:bg-accent/5 max-md:min-h-11">
                     {s}
-                  </button>
+                  </Tap>
                 ))}
               </div>
             ) : (
@@ -241,25 +245,24 @@ export function Consultant() {
                 <div key={i} className={m.me ? "ms-8 rounded-xl bg-accent px-3 py-2 text-sm text-accent-fg" : m.error ? "me-8 rounded-xl border border-dashed border-border px-3 py-2 text-sm text-fg-muted" : "me-8 space-y-2 rounded-xl bg-surface-2 px-3 py-2 text-sm text-fg"}>
                   <p className="whitespace-pre-wrap leading-6">{m.text}</p>
                   {m.tour ? (
-                    <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-accent">
-                      <button
-                        type="button"
+                    <div className="flex flex-wrap items-center gap-3 text-sm font-medium text-accent">
+                      <Tap
                         onClick={() => {
                           close();
                           setTimeout(() => void runTour(place.key), 250);
                         }}
-                        className="inline-flex items-center gap-1 hover:underline"
+                        className="inline-flex min-h-10 items-center gap-1 hover:underline max-md:min-h-11"
                       >
                         <Play className="size-3.5" />
                         فرجيني
-                      </button>
+                      </Tap>
                       <Link href="/settings/advanced/guide" onClick={close} className="hover:underline">
                         الدليل والمصطلحات
                       </Link>
                     </div>
                   ) : null}
                   {!m.me && m.unsupported?.length ? (
-                    <p className="flex items-start gap-1.5 rounded-lg border border-warn/40 bg-warn/10 px-2 py-1.5 text-xs leading-5 text-fg">
+                    <p className="flex items-start gap-1.5 rounded-lg border border-warn/40 bg-warn/10 px-2 py-1.5 text-sm leading-5 text-fg">
                       <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warn" />
                       <span>
                         ما قدرت أتحقق من: <span dir="ltr">{m.unsupported.join(" · ")}</span> — مش من أرقام الأدوات، فلا تعتمد عليها قبل ما تشوفها بالشاشة.
@@ -271,23 +274,22 @@ export function Consultant() {
                   ))}
                   {!m.me && m.by === "agent" && /بقترح|اقتراح|وقّف|وقف|خفّض|كبّر/.test(m.text) ? (
                     m.drafted ? (
-                      <a href="/work/tasks" className="block text-xs font-medium text-accent">{m.drafted}</a>
+                      <Link href="/inbox" className="block text-sm font-medium text-accent">{m.drafted}</Link>
                     ) : (
-                      <button
-                        type="button"
+                      <Tap
                         onClick={async () => {
                           const r = await safeFetch("/api/agents/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: m.text }) });
                           const j = (await r.json()) as { ok?: boolean; error?: string; items?: number; refused?: string[] };
-                          setLog((l) => l.map((x, n) => (n === i ? { ...x, drafted: r.ok ? `انعملت مسودة (${j.items ?? 0} تغيير) — بانتظارك بـ «المهام»${j.refused?.length ? ` · انشال: ${j.refused.join("، ")}` : ""}` : j.error ?? "ما زبط" } : x)));
+                          setLog((l) => l.map((x, n) => (n === i ? { ...x, drafted: r.ok ? `انعملت مسودة (${j.items ?? 0} تغيير) — بانتظارك بـ «القرارات»${j.refused?.length ? ` · انشال: ${j.refused.join("، ")}` : ""}` : j.error ?? "ما زبط" } : x)));
                         }}
-                        className="text-xs font-medium text-accent hover:underline"
+                        className="min-h-10 text-sm font-medium text-accent hover:underline max-md:min-h-11"
                       >
                         حوّلها لمسودة تغيير (بتستنى موافقتك)
-                      </button>
+                      </Tap>
                     )
                   ) : null}
                   {!m.me && (m.facts?.length || m.sources?.length) ? <FactsList facts={m.facts ?? []} sources={m.sources ?? []} onNavigate={close} /> : null}
-                  {!m.me && m.notice ? <p className="text-xs leading-5 text-fg-muted">{m.notice}</p> : null}
+                  {!m.me && m.notice ? <p className="text-sm leading-5 text-fg-muted">{m.notice}</p> : null}
                 </div>
               ))
             )}
@@ -306,10 +308,10 @@ export function Consultant() {
                 ask(q);
               }}
             >
-              <input value={q} onChange={(e) => setQ(e.target.value)} maxLength={1000} placeholder="اكتب سؤالك…" dir="auto" className="h-10 max-md:h-[44px] min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 text-sm text-fg" />
-              <button type="submit" disabled={busy} aria-label="ابعت" className="inline-flex size-11 items-center justify-center rounded-lg bg-accent text-accent-fg disabled:opacity-50">
+              <Input value={q} onChange={(e) => setQ(e.target.value)} maxLength={1000} placeholder="اكتب سؤالك…" aria-label="سؤالك" dir="auto" className="min-w-0 flex-1" />
+              <IconButton type="submit" disabled={busy} aria-label="ابعت" className="size-12 bg-accent text-accent-fg hover:bg-accent/90 hover:text-accent-fg">
                 <Send className="size-4 rtl:-scale-x-100" />
-              </button>
+              </IconButton>
             </form>
           </SheetFooter>
         </SheetContent>

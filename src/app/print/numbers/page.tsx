@@ -4,6 +4,7 @@ import { stampOf } from "@/core/freshness";
 import { loadNumbers } from "@/lib/numbers-view";
 import { loadSourceFacts } from "@/lib/source-facts";
 import { requirePage } from "@/server/auth";
+import { Table as KitTable } from "@/components/ui/table";
 
 export const metadata = { title: "أرقام اليوم — للطباعة" };
 export const dynamic = "force-dynamic";
@@ -12,13 +13,13 @@ function Table({ title, set, extra }: { title: string; set: NumbersSet; extra?: 
   return (
     <section className="break-inside-avoid space-y-2 border-t border-neutral-300 pt-4">
       <h2 className="text-base font-bold">{title}</h2>
-      {extra ? <p className="text-xs text-neutral-600">{extra}</p> : null}
+      {extra ? <p className="text-sm text-neutral-600">{extra}</p> : null}
       <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
         {GROUPS.map((g) => (
-          <table key={g.key} className="w-full text-sm">
+          <KitTable key={g.key} aria-label="الأرقام" className="w-full text-sm">
             <thead>
               <tr>
-                <th colSpan={2} className="pb-1 text-start text-xs font-semibold text-neutral-600">{g.label}</th>
+                <th colSpan={2} className="pb-1 text-start text-sm font-semibold text-neutral-600">{g.label}</th>
               </tr>
             </thead>
             <tbody>
@@ -29,7 +30,7 @@ function Table({ title, set, extra }: { title: string; set: NumbersSet; extra?: 
                 </tr>
               ))}
             </tbody>
-          </table>
+          </KitTable>
         ))}
       </div>
     </section>
@@ -58,7 +59,7 @@ export default async function PrintNumbersPage({ searchParams: searchParamsP }: 
       {data.products.map((p) => (
         <Table key={p.code} title={`${p.name} (${p.code})`} set={p.current} extra={p.rejectReasons.length ? `أسباب الرفض: ${p.rejectReasons.map((r) => `${r.reason} (${r.count})`).join("، ")}` : undefined} />
       ))}
-      <p className="border-t border-neutral-300 pt-3 text-xs text-neutral-500">كل رقم محسوب بالكود من أرقام ميتا والـ OMS. الصرف = صرف ميتا + رسوم البطاقة 1%. الإيراد المتوقع = مجموع قيمة الشحنات × نسبة التوصيل آخر 30 يوم.</p>
+      <p className="border-t border-neutral-300 pt-3 text-sm text-neutral-500">كل رقم محسوب بالكود من أرقام ميتا والـ OMS. الصرف = صرف ميتا + رسوم البطاقة 1%. الإيراد المتوقع = مجموع قيمة الشحنات × نسبة التوصيل آخر 30 يوم.</p>
     </main>
   );
 }

@@ -6,6 +6,7 @@ import { Moon, Sun } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/call";
+import { Tap } from "@/components/ui/tap";
 
 export interface ModeLite {
   mode: "awake" | "asleep";
@@ -46,7 +47,7 @@ export function ModeSwitch({ initial, demo }: { initial: ModeLite; demo: boolean
   }
 
   const opt = (key: ModeLite["mode"], label: string, Icon: typeof Sun) => (
-    <button
+    <Tap
       type="button"
       role="radio"
       aria-checked={m.mode === key}
@@ -56,7 +57,7 @@ export function ModeSwitch({ initial, demo }: { initial: ModeLite; demo: boolean
     >
       <Icon className="size-5" />
       {label}
-    </button>
+    </Tap>
   );
 
   return (

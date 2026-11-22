@@ -5,6 +5,7 @@ import { can } from "@/core/roles";
 import { SCOPE_AR } from "@/core/token-scopes";
 import { currentCaller } from "@/server/auth";
 import { checkAuthRequest } from "@/server/oauth";
+import { Input } from "@/components/ui/input";
 
 export const metadata = { title: "موافقة على ربط" };
 export const dynamic = "force-dynamic";
@@ -70,10 +71,10 @@ export default async function AuthorizePage({ searchParams: searchParamsP }: { s
               </li>
             ))}
           </ul>
-          <p className="rounded-lg bg-surface-2 p-3 text-xs leading-5 text-fg-muted">ما بيقدر يصرف ولا يغيّر شي على ميتا، وكل طلب موافقة بيطلع عندك بـ «بانتظارك». بتقدر تشيله وقت ما بدك من الإعدادات ← الفريق ← توكنات الوكلاء.</p>
+          <p className="rounded-lg bg-surface-2 p-3 text-sm leading-5 text-fg-muted">ما بيقدر يصرف ولا يغيّر شي على ميتا، وكل طلب موافقة بيطلع عندك بـ «بانتظارك». بتقدر تشيله وقت ما بدك من الإعدادات ← الفريق ← توكنات الوكلاء.</p>
           <form method="post" action="/oauth/authorize/decide" className="flex flex-wrap gap-2">
             {Object.entries(hidden).map(([k, v]) => (
-              <input key={k} type="hidden" name={k} value={v} />
+              <Input key={k} type="hidden" name={k} value={v} />
             ))}
             <Button type="submit" name="decision" value="approve">
               اسمح

@@ -68,13 +68,13 @@ describe("where each role lands and what it sees (§3)", () => {
     expect(ROLE_PLACES.VIEWER).toEqual(["home", "ads", "ops"]);
   });
   it("the start page by role; the ones without a home are sent to theirs", () => {
-    expect(ROLE_START.TEAM_LEAD).toBe("/ops/confirm");
-    expect(ROLE_START.MEMBER).toBe("/work/tasks");
+    expect(ROLE_START.TEAM_LEAD).toBe("/numbers/ops");
+    expect(ROLE_START.MEMBER).toBe("/tasks/team");
     expect(COLS.filter((r) => !hasHome(r))).toEqual(["TEAM_LEAD", "MEMBER"]);
     for (const r of COLS) expect(canOpenPath(r, ROLE_START[r]), r).toBe(true);
   });
   it("every place in a role's bar is a place it may open, and the ones not in it answer «not yours»", () => {
-    const addr: Record<string, string> = { inbox: "/inbox", work: "/work", ads: "/ads", ops: "/ops" };
+    const addr: Record<string, string> = { inbox: "/inbox", work: "/tasks", ads: "/ads", ops: "/numbers/ops" };
     for (const r of COLS) {
       for (const [place, path] of Object.entries(addr)) {
         const inBar = (ROLE_PLACES[r] as readonly string[]).includes(place);
@@ -83,10 +83,10 @@ describe("where each role lands and what it sees (§3)", () => {
       }
     }
   });
-  it("a member opens only the tasks page of «الشغل»; the settings are for the owner and the manager", () => {
-    expect(canOpenPath("MEMBER", "/work/tasks")).toBe(true);
-    expect(canOpenPath("MEMBER", "/work")).toBe(false);
-    expect(canOpenPath("MEMBER", "/work/reports")).toBe(false);
+  it("a member opens only the team page of «المهام»; the settings are for the owner and the manager", () => {
+    expect(canOpenPath("MEMBER", "/tasks/team")).toBe(true);
+    expect(canOpenPath("MEMBER", "/tasks")).toBe(false);
+    expect(canOpenPath("MEMBER", "/tasks/results")).toBe(false);
     expect(COLS.filter((r) => canOpenPath(r, "/settings/team"))).toEqual(["OWNER", "MANAGER"]);
     expect(COLS.filter((r) => canOpenPath(r, "/settings/connections"))).toEqual(["OWNER"]);
     expect(canOpenPath("VIEWER", "/login")).toBe(true);

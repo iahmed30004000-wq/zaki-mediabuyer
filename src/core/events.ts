@@ -60,7 +60,7 @@ export const wantsEvent = (kind: RunEventKind, notifyOn: readonly string[] | nul
 
 /** The row of a run's event. */
 export function runEventRow(f: RunEventFacts): EventRow {
-  const href = `/work/job/${f.jobKey}`;
+  const href = `/tasks/${f.jobKey}`;
   const key = `${f.kind}:${f.runId}`;
   const slot = f.scheduledFor ? ` ${clock(f.scheduledFor)}` : "";
   switch (f.kind) {

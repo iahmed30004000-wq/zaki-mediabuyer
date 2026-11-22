@@ -41,7 +41,7 @@ export async function DataHealth() {
           <Panel className="space-y-2">
             {health.gaps.slice(0, 8).map((g) => (
               <div key={g.campaign} className="flex flex-wrap items-baseline gap-2 text-sm">
-                <span dir="ltr" className="tabular-nums text-xs text-fg">{g.campaign}</span>
+                <span dir="ltr" className="tabular-nums text-sm text-fg">{g.campaign}</span>
                 <span className={Math.abs(g.gap) > 20 ? "font-semibold text-warn" : "text-fg-muted"} dir="ltr">{g.gap > 0 ? "+" : ""}{g.gap}%</span>
                 <span className="text-sm text-fg-muted">{g.cause}</span>
               </div>

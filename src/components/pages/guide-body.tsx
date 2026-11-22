@@ -3,6 +3,7 @@ import { Panel } from "@/components/mb/section";
 import { GLOSSARY, SOURCE_AR } from "@/lib/glossary";
 import { ARTICLES, PAGE_GUIDE } from "@/lib/guide";
 import { PLACES } from "@/lib/nav";
+import { Table } from "@/components/ui/table";
 
 /** «الدليل» — it lives in الإعدادات now; the assistant's «اشرح لي هالشاشة» opens the page's own part of it. */
 export function GuideBody() {
@@ -12,13 +13,13 @@ export function GuideBody() {
         <div>
           <h3 className="text-base font-bold text-fg">أهلين بالميديا باير</h3>
           <p className="mt-1 max-w-prose text-sm leading-6 text-fg-muted">
-            النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. خمس أماكن بس، وبكل صفحة زر «؟» بيشرحها وبيفرجيك، والمساعد (الزر العائم) بيشرح أي شاشة بضغطة.
+            النظام بيحسب كل رقم من الحقيقة (الـ OMS)، بيحرس صرفك لحاله، وبيستنى موافقتك على أي دولار زيادة. أربع أماكن بس، وبكل صفحة زر «؟» بيشرحها وبيفرجيك، والمساعد (الزر العائم) بيشرح أي شاشة بضغطة.
           </p>
         </div>
       </div>
 
       <section className="space-y-3">
-        <h3 className="text-base font-bold text-fg">الأماكن الخمسة</h3>
+        <h3 className="text-base font-bold text-fg">الأماكن الأربعة</h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {PLACES.map((p) => (
             <Link key={p.key} href={p.href} className="rounded-card border border-border bg-surface-1 p-4 shadow-card hover:border-accent/50">
@@ -49,7 +50,7 @@ export function GuideBody() {
       <details className="group space-y-3 rounded-card border border-border bg-surface-1 p-4">
         <summary className="flex min-h-10 cursor-pointer list-none items-center text-base font-bold text-fg group-open:text-accent max-md:min-h-[44px]">كل رقم من وين</summary>
         <Panel className="mt-3 overflow-x-auto p-0">
-          <table className="w-full min-w-[34rem] text-sm">
+          <Table aria-label="كل رقم من وين" className="w-full min-w-[34rem] text-sm">
             <tbody className="divide-y divide-border">
               {Object.values(GLOSSARY).map((t) => (
                 <tr key={t.name}>
@@ -59,7 +60,7 @@ export function GuideBody() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </Panel>
       </details>
     </div>

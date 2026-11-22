@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Coffee, X } from "lucide-react";
 import { Panel } from "@/components/mb/section";
 import type { MorningCard as Morning } from "@/lib/today-view";
+import { IconButton } from "@/components/ui/icon-button";
 
 /** The ONE word of each state (docs/rebuild-v6/03-look.md §9). */
 const STATUS: Record<string, string> = { ok: "خلصت", failed: "وقفت", waiting: "واقفة — بدها حدا", running: "شغّالة", skipped: "انتخطت", missed: "فاتت", lost: "انقطعت" };
@@ -22,9 +23,9 @@ export function MorningCard({ m }: { m: Morning }) {
   const quiet = !m.runs.ok && !trouble && !m.approvalsQueued && !m.notifications.length && !m.executed;
   return (
     <Panel className="relative space-y-3 border-accent/40 bg-accent/5">
-      <button type="button" aria-label="سكّر" onClick={() => { localStorage.setItem(id, "1"); setHidden(true); }} className="absolute end-2 top-2 inline-flex size-8 items-center justify-center rounded-md text-fg-muted hover:bg-surface-2">
+      <IconButton aria-label="سكّر" onClick={() => { localStorage.setItem(id, "1"); setHidden(true); }} className="absolute end-1 top-1">
         <X className="size-4" />
-      </button>
+      </IconButton>
       <h2 className="flex items-center gap-2 text-base font-bold text-fg">
         <Coffee className="size-5 text-accent" />
         صباح الخير — شو صار وإنت نايم
