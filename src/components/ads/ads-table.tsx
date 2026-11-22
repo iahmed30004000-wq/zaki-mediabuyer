@@ -58,7 +58,7 @@ function Cell({ def, row, compare, target }: { def: ColumnDef; row: TableRow; co
     case "product":
       return row.product ? <span className="block truncate text-fg" title={row.product.code}>{row.product.name}</span> : dash;
     case "page":
-      return row.pages.length ? <span dir="ltr" className="font-mono text-fg">{row.pages.join(" · ")}</span> : dash;
+      return row.pages.length ? <span dir="ltr" className="tabular-nums text-fg">{row.pages.join(" · ")}</span> : dash;
     case "status":
       return <StatusChip status={row.status} />;
     case "days":
@@ -97,11 +97,11 @@ function NameCell({ row, depth, hasKids, open, onToggle, onOpen }: { row: TableR
       <button type="button" onClick={() => onOpen(row)} className="min-w-0 flex-1 text-start">
         <span className="flex items-center gap-1.5">
           {row.needsNaming ? <span className="shrink-0 rounded-md bg-warn/10 px-1 py-0.5 text-xs font-semibold text-warn">بدها تسمية</span> : null}
-          <span dir="ltr" className={cn("block truncate font-mono text-fg hover:text-accent", depth === 0 ? "text-xs font-semibold" : "text-xs")}>{row.name}</span>
+          <span dir="ltr" className={cn("block truncate tabular-nums text-fg hover:text-accent", depth === 0 ? "text-sm font-semibold" : "text-sm")}>{row.name}</span>
         </span>
-        {row.decoded ? <span className="block truncate text-xs text-fg-muted">{row.decoded.join(" · ")}</span> : null}
-        {depth === 2 && row.codes ? <span dir="ltr" className="block truncate font-mono text-xs text-fg-muted">{row.codes}</span> : null}
-        {row.note ? <span className="block truncate text-xs text-warn">{row.note}</span> : null}
+        {row.decoded ? <span className="block truncate text-sm text-fg-muted">{row.decoded.join(" · ")}</span> : null}
+        {depth === 2 && row.codes ? <span dir="ltr" className="block truncate tabular-nums text-xs text-fg-muted">{row.codes}</span> : null}
+        {row.note ? <span className="block truncate text-sm text-warn">{row.note}</span> : null}
       </button>
     </div>
   );
@@ -120,9 +120,9 @@ function HelpSheet({ def, onClose }: { def: ColumnDef | null; onClose: () => voi
               <SheetDescription>قاعدة الاحتساب</SheetDescription>
             </SheetHeader>
             <SheetBody className="space-y-3">
-              <p className="rounded-lg bg-surface-2 px-3 py-2 text-sm text-fg">{t.formula}</p>
-              <p className="text-sm leading-6 text-fg">{t.meaning}</p>
-              <p className="flex items-start gap-2 text-xs leading-5 text-fg-muted">
+              <p className="rounded-lg bg-surface-2 px-3 py-2 text-base text-fg">{t.formula}</p>
+              <p className="text-base leading-6 text-fg">{t.meaning}</p>
+              <p className="flex items-start gap-2 text-sm leading-5 text-fg-muted">
                 <SourceBadge source={t.source} />
                 {SOURCE_HINT[t.source]}
               </p>
@@ -175,7 +175,7 @@ function ColumnPicker({ open, onOpenChange, cols, onChange }: { open: boolean; o
           </ul>
           {off.length ? (
             <div>
-              <p className="mb-1.5 text-xs font-semibold text-fg-muted">أعمدة تانية</p>
+              <p className="mb-1.5 text-sm font-semibold text-fg-muted">أعمدة تانية</p>
               <ul className="space-y-1">
                 {off.map((d) => (
                   <li key={d.key} className="flex items-center gap-2 px-2 py-1">
@@ -266,7 +266,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
 
   return (
     <div className="space-y-3">
-      {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-xs leading-5 text-warn">بيانات تجريبية — أرقام مثال بنفس الحسابات. لما يبعت Claude أرقامك (أو ينربط ميتا والـ OMS) وتشغّل الموقع على الحقيقي، بتطلع حملاتك الفعلية.</p> : null}
+      {data.demo ? <p className="rounded-lg border border-dashed border-warn/50 bg-warn/5 p-3 text-sm leading-5 text-warn">بيانات تجريبية — أرقام مثال بنفس الحسابات. لما يبعت Claude أرقامك (أو ينربط ميتا والـ OMS) وتشغّل الموقع على الحقيقي، بتطلع حملاتك الفعلية.</p> : null}
 
       <Gauge share={data.share} />
 
@@ -317,11 +317,11 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
           الأعمدة
         </Button>
       </div>
-      {compare ? <p className="text-xs leading-4 text-fg-muted">كل رقم مقابل {data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "اليوم اللي قبله") : "الفترة اللي قبلها"}. السهم الأخضر = أحسن، الأحمر = أسوأ. الصرف مقابل أمس.</p> : null}
+      {compare ? <p className="text-sm leading-4 text-fg-muted">كل رقم مقابل {data.range.days === 1 ? (data.range.key === "today" ? "أمس" : "اليوم اللي قبله") : "الفترة اللي قبلها"}. السهم الأخضر = أحسن، الأحمر = أسوأ. الصرف مقابل أمس.</p> : null}
 
       {lines.length ? (
         <div data-tour="tree" className="overflow-x-auto rounded-card border border-border bg-surface-1">
-          <table className="w-full min-w-max border-collapse text-xs">
+          <table className="w-full min-w-max border-collapse text-sm">
             <thead>
               <tr className="border-b border-border text-fg-muted">
                 {defs.map((d) => (
@@ -365,7 +365,7 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
       )}
 
       {data.rulesMissing && !data.demo ? (
-        <p className="rounded-lg border border-border bg-surface-1 p-3 text-xs leading-5 text-fg-muted">
+        <p className="rounded-lg border border-border bg-surface-1 p-3 text-sm leading-5 text-fg-muted">
           لون «تكلفة الطلب الحقيقي» (أخضر / برتقالي / أحمر) بدّه «الهدف» و«نقطة التعادل» من <a href="/settings/rules#campaign-rules" className="font-medium text-accent hover:underline">قواعد الحملات</a> — لسا ناقصة.
         </p>
       ) : null}

@@ -107,7 +107,7 @@ function ProductCard({ p, compare, target, prevLabel }: { p: ProductNumbers; com
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="truncate text-sm font-semibold text-fg">{p.name}</span>
-            <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span>
+            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span>
             {p.stockUrgency ? <span title="المخزون">{URGENCY_ICON[p.stockUrgency]}</span> : null}
           </span>
           <span className="mt-1 grid grid-cols-4 gap-2 text-xs">

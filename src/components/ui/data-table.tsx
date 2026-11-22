@@ -39,11 +39,11 @@ export function DataTable<Row>({
   return (
     <div className={className}>
       <div className="hidden overflow-x-auto rounded-card border border-border bg-surface-1 md:block">
-        <table aria-label={label} className="w-full border-collapse text-sm">
+        <table aria-label={label} className="w-full border-collapse text-base">
           <thead>
             <tr className="bg-surface-2 text-fg-muted">
               {columns.map((c) => (
-                <th key={c.key} scope="col" className={cn("h-10 whitespace-nowrap px-3 text-start text-xs font-bold", c.numeric && "text-end", c.className)}>
+                <th key={c.key} scope="col" className={cn("h-11 whitespace-nowrap px-3 text-start text-sm font-bold", c.numeric && "text-end", c.className)}>
                   {c.header}
                 </th>
               ))}
@@ -51,7 +51,7 @@ export function DataTable<Row>({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={rowKey(row)} className="h-11 border-t border-border hover:bg-surface-2/60">
+              <tr key={rowKey(row)} className="h-12 border-t border-border hover:bg-surface-2/60">
                 {columns.map((c) => (
                   <td key={c.key} className={cn("px-3 align-middle", c.numeric && "text-end tabular-nums [direction:ltr]", c.className)}>
                     {c.cell(row)}
@@ -64,10 +64,10 @@ export function DataTable<Row>({
       </div>
       <ul aria-label={label} className="space-y-3 md:hidden">
         {rows.map((row) => (
-          <li key={rowKey(row)} className="space-y-1.5 rounded-card border border-border bg-surface-1 p-4">
+          <li key={rowKey(row)} className="space-y-1.5 rounded-xl border border-border bg-surface-1 p-4">
             {mobile.map((c, i) => (
-              <div key={c.key} className={cn("flex items-baseline justify-between gap-3 text-sm", i === 0 && "text-base font-extrabold")}>
-                {i === 0 ? null : <span className="shrink-0 text-xs text-fg-muted">{c.header}</span>}
+              <div key={c.key} className={cn("flex items-baseline justify-between gap-3 text-base", i === 0 && "font-extrabold")}>
+                {i === 0 ? null : <span className="shrink-0 text-sm text-fg-muted">{c.header}</span>}
                 <span className={cn("min-w-0", c.numeric && "tabular-nums [direction:ltr]")}>{c.cell(row)}</span>
               </div>
             ))}

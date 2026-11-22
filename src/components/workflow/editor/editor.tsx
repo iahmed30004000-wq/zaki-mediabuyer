@@ -392,7 +392,7 @@ export function WorkflowEditor({ card, canEdit, demo }: { card: WorkflowCard; ca
         <h2 className="flex min-w-[9rem] flex-1 items-center gap-2 text-base font-bold text-fg">
           {liveNow ? <Radio className="size-4 shrink-0 animate-pulse text-accent motion-reduce:animate-none" aria-label="شغّال هلأ" /> : null}
           <span className="truncate">{meta.name}</span>
-          <span dir="ltr" className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted">v{version}</span>
+          <span dir="ltr" className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 tabular-nums text-xs font-medium text-fg-muted">v{version}</span>
         </h2>
         <span className="flex shrink-0 items-center gap-1.5">
           <PermBadge permission={meta.permission} />

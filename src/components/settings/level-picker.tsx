@@ -45,16 +45,16 @@ export function LevelPicker({ row }: { row: LevelRow }) {
               disabled={busy}
               title={o.ok ? LEVEL_HINT[i] : o.why}
               onClick={() => pick(i)}
-              className={cn("min-h-10 max-md:min-h-[44px] rounded-md py-1 text-center text-xs", i === row.level ? "bg-accent text-accent-fg" : o.ok ? "bg-surface-2 text-fg hover:bg-accent/15" : "bg-surface-2 text-fg-muted/60")}
+              className={cn("min-h-10 max-md:min-h-[44px] rounded-md py-1 text-center text-sm", i === row.level ? "bg-accent text-accent-fg" : o.ok ? "bg-surface-2 text-fg hover:bg-accent/15" : "bg-surface-2 text-fg-muted/60")}
             >
               {l}
             </button>
           );
         })}
       </div>
-      <p className="text-xs text-fg-muted">{LEVEL_HINT[row.level as 0 | 1 | 2 | 3]}</p>
-      {row.level < 2 && !row.options[2]!.ok ? <p className="text-xs text-fg-muted">للمكبّر المحدود: {row.options[2]!.why}</p> : null}
-      {row.restricted ? <p className="text-xs text-danger">الحساب عليه تنبيه سلامة — المستوى الفعلي صفر</p> : null}
+      <p className="text-sm text-fg-muted">{LEVEL_HINT[row.level as 0 | 1 | 2 | 3]}</p>
+      {row.level < 2 && !row.options[2]!.ok ? <p className="text-sm text-fg-muted">للمكبّر المحدود: {row.options[2]!.why}</p> : null}
+      {row.restricted ? <p className="text-sm text-danger">الحساب عليه تنبيه سلامة — المستوى الفعلي صفر</p> : null}
     </div>
   );
 }

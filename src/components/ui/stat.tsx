@@ -31,13 +31,13 @@ export function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1 rounded-card border border-border bg-surface-1 p-4", className)}>
-      <span className="text-xs font-semibold text-fg-muted">{label}</span>
+    <div className={cn("flex min-w-0 flex-col gap-1 rounded-xl border border-border bg-surface-1 p-4", className)}>
+      <span className="text-sm font-semibold text-fg-muted">{label}</span>
       <Num value={value} unit={unit} term={term} source={source} label={label} big tone={tone} />
-      {note ? <span className="text-xs text-fg-muted">{note}</span> : null}
+      {note ? <span className="text-sm text-fg-muted">{note}</span> : null}
       {typeof bar === "number" ? (
         <span aria-hidden className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-2">
-          <span className={cn("block h-full rounded-full", tone === "danger" ? "bg-danger" : tone === "warn" ? "bg-warn" : "bg-accent")} style={{ width: `${Math.max(0, Math.min(100, bar))}%` }} />
+          <span className={cn("block h-full rounded-full", tone === "danger" ? "bg-danger" : tone === "warn" ? "bg-warn" : "bg-fg")} style={{ width: `${Math.max(0, Math.min(100, bar))}%` }} />
         </span>
       ) : null}
     </div>

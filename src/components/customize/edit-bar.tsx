@@ -25,7 +25,7 @@ export function EditBar() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2 text-sm md:px-6">
         <Pencil className="size-4 text-accent" />
         <span className="font-semibold text-fg">وضع التعديل شغّال</span>
-        <span className="hidden text-xs text-fg-muted sm:inline">الصفحات واللوحات والحقول والأزرار — كل تعديل بيتحفظ فوراً</span>
+        <span className="hidden text-sm text-fg-muted sm:inline">الصفحات واللوحات والحقول والأزرار — كل تعديل بيتحفظ فوراً</span>
         <Button size="sm" className="ms-auto min-h-10 max-md:min-h-[44px]" onClick={() => openPanel()}>
           افتح لوحة التعديل
         </Button>

@@ -74,18 +74,18 @@ export function DecisionCard({
   const delta = item.effect?.moneyDeltaDaily ?? null;
   const expires = left(item.expiresAt);
   return (
-    <article className={cn("space-y-3 rounded-card border bg-surface-1 p-4", item.urgency === "red" && !resolved ? "border-danger/50" : "border-border", className)} data-item={item.id}>
+    <article className={cn("space-y-3 rounded-2xl border p-4", resolved ? "border-border bg-surface-1" : item.urgency === "red" ? "border-danger/45 bg-danger/[0.06]" : item.urgency === "orange" ? "border-warn/45 bg-warn/[0.06]" : "border-border bg-surface-1", className)} data-item={item.id}>
       <div className="flex flex-wrap items-center gap-2">
         <Pill tone={u.tone}>{u.label}</Pill>
         <Chip>{KIND_AR[item.kind]}</Chip>
         <Chip>{DOMAIN_AR[item.domain]}</Chip>
         {item.from ? (
-          <span className="inline-flex items-center gap-1 text-xs text-fg-muted">
+          <span className="inline-flex items-center gap-1 text-sm text-fg-muted">
             <Bot className="size-3.5" aria-hidden />
             {item.from.label}
           </span>
         ) : null}
-        {expires ? <span className="ms-auto text-xs text-fg-muted">ينتهي {expires}</span> : null}
+        {expires ? <span className="ms-auto text-sm text-fg-muted">ينتهي {expires}</span> : null}
       </div>
 
       <h3 className="text-base font-extrabold leading-7 text-fg">{item.title}</h3>
@@ -119,8 +119,8 @@ export function DecisionCard({
         </div>
       ) : null}
 
-      {item.preview ? <p className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-sm leading-6 text-fg">{item.preview}</p> : null}
-      {item.postponedUntil ? <p className="text-xs text-warn">مأجّل — بيرجع {left(item.postponedUntil) ?? "قريب"}</p> : null}
+      {item.preview ? <p className="whitespace-pre-wrap rounded-lg bg-surface-2 p-3 text-base leading-6 text-fg">{item.preview}</p> : null}
+      {item.postponedUntil ? <p className="text-sm text-warn">مأجّل — بيرجع {left(item.postponedUntil) ?? "قريب"}</p> : null}
 
       {resolved ? (
         <p className="text-sm font-bold text-ok">{resolved}</p>

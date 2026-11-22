@@ -43,7 +43,7 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
   return (
     <Panel className="space-y-5">
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-fg">جدول تلقائي</p>
+        <p className="text-base font-semibold text-fg">جدول تلقائي</p>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <label className="inline-flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-fg">
             <input type="checkbox" checked={sch.enabled} onChange={(e) => setSch({ ...sch, enabled: e.target.checked })} className="size-4 accent-accent" />
@@ -61,24 +61,24 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
             احفظ
           </Button>
         </div>
-        <p className="text-xs text-fg-muted">مع الجدول شغّال، الساعة بتحكم. وإذا ضغطت زر «صاحي/نايم» باليوم بيوقف الجدول.</p>
+        <p className="text-sm text-fg-muted">مع الجدول شغّال، الساعة بتحكم. وإذا ضغطت زر «صاحي/نايم» باليوم بيوقف الجدول.</p>
       </div>
 
       <div className="space-y-2 border-t border-border pt-4">
-        <p className="text-sm font-semibold text-fg">صلاحيات الليل</p>
-        <p className="text-xs text-fg-muted">المهام اللي بتشتغل وإنت نايم، ولكل وحدة أقصى صرف. أي شي مش هون بيستنى للصبح.</p>
+        <p className="text-base font-semibold text-fg">صلاحيات الليل</p>
+        <p className="text-sm text-fg-muted">المهام اللي بتشتغل وإنت نايم، ولكل وحدة أقصى صرف. أي شي مش هون بيستنى للصبح.</p>
         <ul className="space-y-1.5">
           {perms.map((p) => (
             <li key={p.key} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
               <span className="flex-1 text-fg">{p.label}</span>
-              <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.key}</span>
-              <span className="text-xs text-fg-muted">{p.cap ? `حد ${p.cap}$` : "بلا صرف"}</span>
+              <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.key}</span>
+              <span className="text-sm text-fg-muted">{p.cap ? `حد ${p.cap}$` : "بلا صرف"}</span>
               <IconButton aria-label={`شيل ${p.label}`} disabled={busy} onClick={() => { const next = perms.filter((x) => x.key !== p.key); setPerms(next); void save({ nightPermissions: next }); }}>
                 <X className="size-4" />
               </IconButton>
             </li>
           ))}
-          {!perms.length ? <li className="text-xs text-fg-muted">ولا مهمة مسموحة بالليل.</li> : null}
+          {!perms.length ? <li className="text-sm text-fg-muted">ولا مهمة مسموحة بالليل.</li> : null}
         </ul>
         {free.length ? (
           <form
@@ -107,18 +107,18 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
       </div>
 
       <div className="space-y-2 border-t border-border pt-4">
-        <p className="text-sm font-semibold text-fg">قرارات بتصحّيني</p>
-        <p className="text-xs text-fg-muted">أنواع القرارات (الحقل kind اللي بيبعته Claude، مثلاً <span dir="ltr" className="font-mono">cap_raise</span>) اللي بيصير الرنين عليها حتى وإنت نايم.</p>
+        <p className="text-base font-semibold text-fg">قرارات بتصحّيني</p>
+        <p className="text-sm text-fg-muted">أنواع القرارات (الحقل kind اللي بيبعته Claude، مثلاً <span dir="ltr" className="tabular-nums">cap_raise</span>) اللي بيصير الرنين عليها حتى وإنت نايم.</p>
         <div className="flex flex-wrap gap-2">
           {kinds.map((k) => (
             <span key={k} className="inline-flex items-center gap-1 rounded-full bg-surface-2 py-1 ps-3 pe-1 text-xs text-fg">
-              <span dir="ltr" className="font-mono">{k}</span>
+              <span dir="ltr" className="tabular-nums">{k}</span>
               <button type="button" aria-label={`شيل ${k}`} disabled={busy} onClick={() => { const next = kinds.filter((x) => x !== k); setKinds(next); void save({ wakeKinds: next }); }} className="inline-flex size-6 items-center justify-center rounded-full hover:bg-surface-1">
                 <X className="size-3.5" />
               </button>
             </span>
           ))}
-          {!kinds.length ? <span className="text-xs text-fg-muted">ولا نوع — ما في شي بيصحّيك.</span> : null}
+          {!kinds.length ? <span className="text-sm text-fg-muted">ولا نوع — ما في شي بيصحّيك.</span> : null}
         </div>
         <form
           className="flex items-center gap-2"
@@ -132,11 +132,11 @@ export function ModeSettings({ schedule, night, wakeKinds, workflows, demo }: { 
             void save({ wakeKinds: next });
           }}
         >
-          <Input dir="ltr" value={kind} onChange={(e) => setKind(e.target.value)} placeholder="cap_raise" className="w-48 font-mono" aria-label="نوع القرار" />
+          <Input dir="ltr" value={kind} onChange={(e) => setKind(e.target.value)} placeholder="cap_raise" className="w-48 tabular-nums" aria-label="نوع القرار" />
           <Button size="sm" variant="secondary" type="submit" disabled={!kind.trim() || busy}>أضف</Button>
         </form>
       </div>
-      {demo ? <p className="text-xs text-fg-muted">(تجريبي: ما بينحفظ شي)</p> : null}
+      {demo ? <p className="text-sm text-fg-muted">(تجريبي: ما بينحفظ شي)</p> : null}
     </Panel>
   );
 }

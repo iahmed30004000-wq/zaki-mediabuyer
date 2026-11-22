@@ -1,26 +1,25 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Cairo, IBM_Plex_Sans_Arabic } from "next/font/google";
+import { Changa, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { PwaRegister } from "@/components/pwa-register";
 import { THEME_COOKIE, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
 
-/** One face for everything: Cairo (400 · 600 · 700 · 800). */
-const cairo = Cairo({
+/** Two faces (docs/rebuild-v6/03-look.md §3). Changa (500 · 700 · 800): titles, numbers and clocks, a bold board like an airport's. */
+const changa = Changa({
   subsets: ["arabic", "latin"],
-  weight: ["400", "600", "700", "800"],
+  weight: ["500", "700", "800"],
   display: "swap",
-  variable: "--font-cairo",
+  variable: "--font-changa",
 });
 
-/** The fallback in the font stack (not preloaded: it is only used while Cairo loads). */
+/** IBM Plex Sans Arabic (400 · 500 · 600 · 700): all the text. */
 const plex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
-  weight: ["400", "600"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
-  preload: false,
   variable: "--font-plex",
 });
 
@@ -47,7 +46,7 @@ export async function generateViewport(): Promise<Viewport> {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { theme } = await chosen();
   const attrs = rootThemeAttributes(theme);
-  const className = [cairo.variable, plex.variable, attrs.dark ? "dark" : ""].filter(Boolean).join(" ");
+  const className = [changa.variable, plex.variable, attrs.dark ? "dark" : ""].filter(Boolean).join(" ");
   return (
     <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} className={className} suppressHydrationWarning>
       <body>

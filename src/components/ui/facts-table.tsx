@@ -19,7 +19,7 @@ export function FactsTable({ facts, showEmpty = false, className }: { facts: rea
   return (
     <dl className={cn("divide-y divide-border rounded-card border border-border bg-surface-1", className)}>
       {rows.map((f) => (
-        <div key={f.label} className="flex items-baseline justify-between gap-4 px-4 py-2.5 text-sm">
+        <div key={f.label} className="flex items-baseline justify-between gap-4 px-4 py-2.5 text-base">
           <dt className="shrink-0 text-fg-muted">{f.label}</dt>
           <dd className="min-w-0 text-end font-semibold text-fg">{isEmpty(f.value) ? "—" : f.value}</dd>
         </div>

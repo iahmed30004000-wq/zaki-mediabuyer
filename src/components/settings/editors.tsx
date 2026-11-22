@@ -51,7 +51,7 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
     <div className="grid gap-3 md:grid-cols-2">
       {accounts.map((a) => (
         <Panel key={a.metaId} className="space-y-2">
-          <p className="text-sm font-semibold text-fg">{a.name} <span className="text-xs font-normal text-fg-muted">· {a.market}</span></p>
+          <p className="text-base font-semibold text-fg">{a.name} <span className="text-sm font-normal text-fg-muted">· {a.market}</span></p>
           <div className="grid grid-cols-2 gap-2">
             <label><Label>السقف اليومي $</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.d} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, d: e.target.value } })} /></label>
             <label><Label>السقف الشهري $</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.m} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, m: e.target.value } })} /></label>
@@ -59,13 +59,13 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
           <Button disabled={busy} className="min-h-10 max-md:min-h-[44px]" onClick={() => save(`/api/accounts/${a.metaId}/caps`, { dailyCap: num(caps[a.metaId]!.d), monthlyCap: num(caps[a.metaId]!.m) || 0 }, `${a.name}: السقوف انحفظت`)}>
             <Check className="size-4" /> احفظ
           </Button>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-sm">
             <ShieldCheck className={cn("size-4", a.safetyNet === "on" ? "text-ok" : "text-fg-muted")} />
             <span className="flex-1 text-fg-muted">
               {a.safetyNet === "on" ? "شبكة الأمان على ميتا مركّبة: سقف الحساب + قاعدة إيقاف جوّا ميتا" : a.safetyNet === "pending" ? "شبكة الأمان بانتظار موافقتك بـ «القرارات»" : "شبكة الأمان على ميتا: سقف الحساب (الشهري + 10%) وقاعدة إيقاف بتشتغل حتى لو نظامنا وقف"}
             </span>
             {a.safetyNet === "none" ? (
-              <Button variant="ghost" disabled={busy || !a.monthlyCap} className="min-h-10 max-md:min-h-[44px] px-2 text-xs" onClick={() => save("/api/safety-net", { accountMetaId: a.metaId }, "جهزتها — وافق عليها بـ «القرارات»")}>
+              <Button variant="ghost" disabled={busy || !a.monthlyCap} className="min-h-10 max-md:min-h-[44px] px-2 text-sm" onClick={() => save("/api/safety-net", { accountMetaId: a.metaId }, "جهزتها — وافق عليها بـ «القرارات»")}>
                 جهّزها
               </Button>
             ) : null}
@@ -73,13 +73,13 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
         </Panel>
       ))}
       <Panel className="space-y-2">
-        <p className="text-sm font-semibold text-fg">توزيع الميزانية</p>
+        <p className="text-base font-semibold text-fg">توزيع الميزانية</p>
         <div className="grid grid-cols-3 gap-2">
           {(["scale", "test", "new"] as const).map((k) => (
             <label key={k}><Label>{{ scale: "تكبير %", test: "اختبار %", new: "جديد %" }[k]}</Label><Input dir="ltr" inputMode="numeric" value={sp[k]} onChange={(e) => setSp({ ...sp, [k]: e.target.value })} /></label>
           ))}
         </div>
-        <p className={cn("text-xs", total === 100 ? "text-fg-muted" : "text-warn")}>المجموع {Number.isFinite(total) ? total : "—"}% {total === 100 ? "" : "— لازم 100%"}</p>
+        <p className={cn("text-sm", total === 100 ? "text-fg-muted" : "text-warn")}>المجموع {Number.isFinite(total) ? total : "—"}% {total === 100 ? "" : "— لازم 100%"}</p>
         <Button disabled={busy || total !== 100} className="min-h-10 max-md:min-h-[44px]" onClick={() => save("/api/settings/budget.split", { value: { scale: num(sp.scale) / 100, test: num(sp.test) / 100, new: num(sp.new) / 100 } }, "التوزيع انحفظ")}>
           <Check className="size-4" /> احفظ
         </Button>
@@ -149,9 +149,9 @@ export function ProductsEditor({ products }: Pick<EditView, "products">) {
         <details key={p.code} className="rounded-card border border-border bg-surface-1 p-3">
           <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
             <span className="font-semibold text-fg">{p.name}</span>
-            <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span>
-            <span className="text-xs text-fg-muted">· {MARKET_AR[p.market as keyof typeof MARKET_AR] ?? p.market}</span>
-            <span className="ms-auto text-xs text-fg-muted">هدف الطلب {fmt(p.tOrder, "$")} · السقف {fmt(p.ceiling, "$")}{p.source === "actual" ? "" : " (تقدير)"}</span>
+            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span>
+            <span className="text-sm text-fg-muted">· {MARKET_AR[p.market as keyof typeof MARKET_AR] ?? p.market}</span>
+            <span className="ms-auto text-sm text-fg-muted">هدف الطلب {fmt(p.tOrder, "$")} · السقف {fmt(p.ceiling, "$")}{p.source === "actual" ? "" : " (تقدير)"}</span>
             {p.losing ? <span className="rounded-md bg-warn/10 px-1.5 py-0.5 text-xs font-semibold text-warn">خسران بأسعاره</span> : null}
           </summary>
           <div className="mt-3"><ProductForm p={p} caps={caps} /></div>
@@ -162,7 +162,7 @@ export function ProductsEditor({ products }: Pick<EditView, "products">) {
       ) : (
         <Button variant="ghost" className="min-h-10 max-md:min-h-[44px]" onClick={() => setAdding(true)}><Plus className="size-4" /> منتج جديد</Button>
       )}
-      <p className="text-xs text-fg-muted">لما ينربط الـ OMS، أرقامه (التكلفة والرسوم والمخزون) بتغلب بكل مزامنة. هدف الطلب والسقف بيتحسبوا من هالأرقام بالحاسبة.</p>
+      <p className="text-sm text-fg-muted">لما ينربط الـ OMS، أرقامه (التكلفة والرسوم والمخزون) بتغلب بكل مزامنة. هدف الطلب والسقف بيتحسبوا من هالأرقام بالحاسبة.</p>
     </div>
   );
 }
@@ -175,19 +175,19 @@ export function PagesEditor({ pages }: Pick<EditView, "pages">) {
   const [n, setN] = useState({ metaId: "", name: "", code: "" });
   return (
     <Panel className="space-y-2">
-      <p className="text-sm font-semibold text-fg">صفحات فيسبوك ورموزها</p>
-      <p className="text-xs text-fg-muted">الرمز (حرفين) بينكتب باسم كل مجموعة، فبتنقارن الصفحات بالتقرير. الصفحات بتيجي من ميتا لما ينربط.</p>
+      <p className="text-base font-semibold text-fg">صفحات فيسبوك ورموزها</p>
+      <p className="text-sm text-fg-muted">الرمز (حرفين) بينكتب باسم كل مجموعة، فبتنقارن الصفحات بالتقرير. الصفحات بتيجي من ميتا لما ينربط.</p>
       {pages.map((p) => (
         <div key={p.metaId} className="flex items-end gap-2">
-          <div className="min-w-0 flex-1"><p className="truncate text-sm text-fg">{p.name}</p><p dir="ltr" className="text-start font-mono text-xs text-fg-muted">{p.metaId}</p></div>
-          <Input dir="ltr" className="w-16 text-center font-mono" maxLength={2} value={codes[p.metaId]} onChange={(e) => setCodes({ ...codes, [p.metaId]: e.target.value.toUpperCase() })} aria-label={`رمز ${p.name}`} />
+          <div className="min-w-0 flex-1"><p className="truncate text-base text-fg">{p.name}</p><p dir="ltr" className="text-start tabular-nums text-xs text-fg-muted">{p.metaId}</p></div>
+          <Input dir="ltr" className="w-16 text-center tabular-nums" maxLength={2} value={codes[p.metaId]} onChange={(e) => setCodes({ ...codes, [p.metaId]: e.target.value.toUpperCase() })} aria-label={`رمز ${p.name}`} />
           <Button variant="ghost" disabled={busy || codes[p.metaId] === (p.code ?? "")} className="min-h-10 max-md:min-h-[44px]" onClick={() => save("/api/pages", { metaId: p.metaId, name: p.name, code: codes[p.metaId] }, `${p.name}: ${codes[p.metaId]}`)}>احفظ</Button>
         </div>
       ))}
       <div className="grid grid-cols-[1fr_1fr_4rem_auto] items-end gap-2 border-t border-border pt-2">
         <label><Label>رقم الصفحة</Label><Input dir="ltr" inputMode="numeric" value={n.metaId} onChange={(e) => setN({ ...n, metaId: e.target.value.trim() })} /></label>
         <label><Label>الاسم</Label><Input value={n.name} onChange={(e) => setN({ ...n, name: e.target.value })} /></label>
-        <label><Label>الرمز</Label><Input dir="ltr" className="w-16 text-center font-mono" maxLength={2} value={n.code} onChange={(e) => setN({ ...n, code: e.target.value.toUpperCase() })} /></label>
+        <label><Label>الرمز</Label><Input dir="ltr" className="w-16 text-center tabular-nums" maxLength={2} value={n.code} onChange={(e) => setN({ ...n, code: e.target.value.toUpperCase() })} /></label>
         <Button aria-label="ضيف صفحة" disabled={busy} className="min-h-10 max-md:min-h-[44px]" onClick={async () => { if (await save("/api/pages", n, `${n.name}: انضافت`)) setN({ metaId: "", name: "", code: "" }); }}><Plus className="size-4" /></Button>
       </div>
     </Panel>
@@ -200,18 +200,18 @@ export function LandingEditor({ landing, products }: Pick<EditView, "landing" | 
   const put = (list: EditView["landing"], done: string) => save("/api/settings/landing.pages", { value: list }, done);
   return (
     <Panel className="space-y-2">
-      <p className="text-sm font-semibold text-fg">صفحات الهبوط</p>
-      <p className="text-xs text-fg-muted">رمز الصفحة (LP1 · LP2) بيدخل باسم كل إعلان، ورابطها بيتعبّى لحاله بمعالج الإطلاق.</p>
+      <p className="text-base font-semibold text-fg">صفحات الهبوط</p>
+      <p className="text-sm text-fg-muted">رمز الصفحة (LP1 · LP2) بيدخل باسم كل إعلان، ورابطها بيتعبّى لحاله بمعالج الإطلاق.</p>
       {landing.map((l) => (
         <div key={`${l.productCode}-${l.lpCode}`} className="flex items-center gap-2 text-sm">
-          <span dir="ltr" className="w-28 shrink-0 font-mono text-xs text-fg">{l.productCode} · {l.lpCode}</span>
-          <span dir="ltr" className="min-w-0 flex-1 truncate text-start text-xs text-fg-muted">{l.url}</span>
+          <span dir="ltr" className="w-28 shrink-0 tabular-nums text-xs text-fg">{l.productCode} · {l.lpCode}</span>
+          <span dir="ltr" className="min-w-0 flex-1 truncate text-start text-sm text-fg-muted">{l.url}</span>
           <button type="button" aria-label="شيل" disabled={busy} onClick={() => put(landing.filter((x) => x !== l), "انشالت")} className="text-fg-muted hover:text-danger"><Trash2 className="size-4" /></button>
         </div>
       ))}
       <div className="grid grid-cols-[6rem_4rem_1fr_auto] items-end gap-2 border-t border-border pt-2">
         <label><Label>المنتج</Label><Select value={n.productCode} onChange={(e) => setN({ ...n, productCode: e.target.value })}>{products.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}</Select></label>
-        <label><Label>الرمز</Label><Input dir="ltr" className="text-center font-mono" value={n.lpCode} onChange={(e) => setN({ ...n, lpCode: e.target.value.toUpperCase() })} /></label>
+        <label><Label>الرمز</Label><Input dir="ltr" className="text-center tabular-nums" value={n.lpCode} onChange={(e) => setN({ ...n, lpCode: e.target.value.toUpperCase() })} /></label>
         <label><Label>الرابط</Label><Input dir="ltr" placeholder="https://…" value={n.url} onChange={(e) => setN({ ...n, url: e.target.value.trim() })} /></label>
         <Button aria-label="ضيف صفحة هبوط" disabled={busy || !n.url} className="min-h-10 max-md:min-h-[44px]" onClick={async () => { if (await put([...landing, n], `${n.productCode} ${n.lpCode}: انضافت`)) setN({ ...n, url: "" }); }}><Plus className="size-4" /></Button>
       </div>
@@ -225,9 +225,9 @@ function CodeOnce({ code, hours, onClose }: { code: string; hours: number; onClo
   const [copied, setCopied] = useState(false);
   return (
     <div className="space-y-2 rounded-lg border border-accent bg-accent/5 p-3">
-      <p className="text-sm font-semibold text-fg">رمز الدعوة — بيبيّن هلأ بس</p>
-      <p dir="ltr" className="text-center font-mono text-base tracking-widest text-fg">{code}</p>
-      <p className="text-xs text-fg-muted">ابعته للعضو بإيدك. بيفتح الموقع ← «عندي رمز دعوة» ← إيميله والرمز وكلمة سر بيختارها. بينفع مرة وحدة، لمدة {hours} ساعة.</p>
+      <p className="text-base font-semibold text-fg">رمز الدعوة — بيبيّن هلأ بس</p>
+      <p dir="ltr" className="text-center tabular-nums text-base tracking-widest text-fg">{code}</p>
+      <p className="text-sm text-fg-muted">ابعته للعضو بإيدك. بيفتح الموقع ← «عندي رمز دعوة» ← إيميله والرمز وكلمة سر بيختارها. بينفع مرة وحدة، لمدة {hours} ساعة.</p>
       <div className="flex gap-2">
         <Button variant="ghost" className="min-h-10 max-md:min-h-[44px]" onClick={() => { navigator.clipboard?.writeText(code).then(() => setCopied(true)).catch(() => undefined); }}><Copy className="size-4" /> {copied ? "انتسخ" : "انسخ"}</Button>
         <Button variant="ghost" className="min-h-10 max-md:min-h-[44px]" onClick={onClose}>خلص</Button>
@@ -247,16 +247,16 @@ export function TeamPanel({ team, me }: Pick<EditView, "team"> & { me: string | 
           <div key={u.id} className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">
             <div className="min-w-0 flex-1 max-md:basis-full">
               <p className="text-fg">{u.name}{u.id === me ? " (إنت)" : ""}</p>
-              <p dir="ltr" className="text-start text-xs text-fg-muted">{u.email}</p>
-              <p className="text-xs text-fg-muted">{u.invitePending ? "بانتظار أول دخول بالرمز" : u.lastLogin ? `آخر دخول ${u.lastLogin}` : "ما دخل لسا"}{u.active ? "" : " · موقوف"}</p>
+              <p dir="ltr" className="text-start text-sm text-fg-muted">{u.email}</p>
+              <p className="text-sm text-fg-muted">{u.invitePending ? "بانتظار أول دخول بالرمز" : u.lastLogin ? `آخر دخول ${u.lastLogin}` : "ما دخل لسا"}{u.active ? "" : " · موقوف"}</p>
             </div>
             <Select aria-label={`دور ${u.name}`} className="w-36" disabled={busy || u.id === me} value={u.role} onChange={(e) => save(`/api/team/${u.id}`, { role: e.target.value }, `${u.name}: صار ${ROLE_AR[e.target.value as RoleKey]}`, "PATCH")}>
               {ROLES.map((r) => <option key={r} value={r}>{ROLE_AR[r]}</option>)}
             </Select>
             {u.id === me ? null : (
               <>
-                <Button variant="ghost" disabled={busy} className="min-h-10 max-md:min-h-[44px] px-2 text-xs" onClick={async () => { const j = await save(`/api/team/${u.id}`, { reinvite: true }, "رمز جديد", "PATCH"); if (j?.code) setCode({ code: String(j.code), hours: Number(j.hours) }); }}><KeyRound className="size-3.5" /> رمز جديد</Button>
-                <Button variant="ghost" disabled={busy} className={cn("min-h-10 max-md:min-h-[44px] px-2 text-xs", u.active ? "text-danger" : "")} onClick={() => save(`/api/team/${u.id}`, { active: !u.active }, u.active ? `${u.name}: انوقف` : `${u.name}: رجع`, "PATCH")}>{u.active ? "أوقف" : "رجّع"}</Button>
+                <Button variant="ghost" disabled={busy} className="min-h-10 max-md:min-h-[44px] px-2 text-sm" onClick={async () => { const j = await save(`/api/team/${u.id}`, { reinvite: true }, "رمز جديد", "PATCH"); if (j?.code) setCode({ code: String(j.code), hours: Number(j.hours) }); }}><KeyRound className="size-3.5" /> رمز جديد</Button>
+                <Button variant="ghost" disabled={busy} className={cn("min-h-10 max-md:min-h-[44px] px-2 text-sm", u.active ? "text-danger" : "")} onClick={() => save(`/api/team/${u.id}`, { active: !u.active }, u.active ? `${u.name}: انوقف` : `${u.name}: رجع`, "PATCH")}>{u.active ? "أوقف" : "رجّع"}</Button>
               </>
             )}
           </div>
@@ -264,14 +264,14 @@ export function TeamPanel({ team, me }: Pick<EditView, "team"> & { me: string | 
       </Panel>
       {code ? <CodeOnce code={code.code} hours={code.hours} onClose={() => setCode(null)} /> : null}
       <Panel className="space-y-2">
-        <p className="text-sm font-semibold text-fg">ضيف عضو</p>
+        <p className="text-base font-semibold text-fg">ضيف عضو</p>
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr_10rem_auto] sm:items-end">
           <label><Label>الإيميل</Label><Input dir="ltr" type="email" value={n.email} onChange={(e) => setN({ ...n, email: e.target.value.trim() })} /></label>
           <label><Label>الاسم</Label><Input value={n.name} onChange={(e) => setN({ ...n, name: e.target.value })} /></label>
           <label><Label>الدور</Label><Select value={n.role} onChange={(e) => setN({ ...n, role: e.target.value as RoleKey })}>{ROLES.filter((r) => r !== "OWNER").map((r) => <option key={r} value={r}>{ROLE_AR[r]}</option>)}</Select></label>
           <Button disabled={busy || !n.email || !n.name} className="min-h-10 max-md:min-h-[44px]" onClick={async () => { const j = await save("/api/team", n, `${n.name}: انعملت الدعوة`); if (j?.code) { setCode({ code: String(j.code), hours: Number(j.hours) }); setN({ email: "", name: "", role: "ADS_MANAGER" }); } }}><UserPlus className="size-4" /> ادعُ</Button>
         </div>
-        <p className="text-xs text-fg-muted">مدير الإعلانات: بيوقف وبيوافق ضمن السقف · المحلل: بيقترح بس · المشاهد: بيشوف بس. السقوف والمستويات والفريق: للمالك بس.</p>
+        <p className="text-sm text-fg-muted">مدير الإعلانات: بيوقف وبيوافق ضمن السقف · المحلل: بيقترح بس · المشاهد: بيشوف بس. السقوف والمستويات والفريق: للمالك بس.</p>
       </Panel>
     </div>
   );

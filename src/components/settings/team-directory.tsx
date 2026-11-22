@@ -49,7 +49,7 @@ function ActorRow({ actor, users, linkedTo }: { actor: DirEntry; users: Linkable
   return (
     <li className="space-y-3 px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span dir="ltr" className="text-xs font-bold text-fg-muted">{actor.key}</span>
+        <span dir="ltr" className="text-sm font-bold text-fg-muted">{actor.key}</span>
         <Pill tone={actor.kind === "agent" ? "info" : "neutral"}>{actor.kind === "agent" ? "وكيل" : "شخص"}</Pill>
         {!actor.active ? <Pill tone="warn">مؤرشف</Pill> : null}
         {actor.hasTelegram ? <Pill tone="ok">تيليجرام مربوط</Pill> : null}
@@ -143,7 +143,7 @@ export function ActorsPanel({ actors, users }: { actors: DirEntry[]; users: Link
         ))}
       </ul>
       <div className="space-y-3 rounded-card border border-border bg-surface-1 p-4">
-        <p className="text-sm font-bold text-fg">ضيف شخص أو وكيل</p>
+        <p className="text-base font-bold text-fg">ضيف شخص أو وكيل</p>
         <div className="grid gap-3 md:grid-cols-5 md:items-end">
           <Field label="المفتاح" hint="حروف إنجليزية صغيرة، ما بيتغيّر">
             <Input dir="ltr" value={n.key} onChange={(e) => setN({ ...n, key: e.target.value.toLowerCase() })} maxLength={32} />
@@ -224,7 +224,7 @@ export function AgentTokens({ agents, tokens }: { agents: { key: string; name: s
             <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
               <span className="min-w-0 flex-1">
                 <span className="block font-bold text-fg">{t.name}{t.actorName ? ` · ${t.actorName}` : ""}</span>
-                <span className="block text-xs text-fg-muted">
+                <span className="block text-sm text-fg-muted">
                   <span dir="ltr">{t.prefix}…</span> · {t.scopes.map((s) => (SCOPE_AR as Record<string, string>)[s] ?? s).join(" · ")} · {t.lastUsed ? `آخر استعمال ${t.lastUsed}` : "ما انستعمل"}
                 </span>
               </span>
@@ -244,9 +244,9 @@ export function AgentTokens({ agents, tokens }: { agents: { key: string; name: s
 
       {shown ? (
         <div role="status" className="space-y-2 rounded-card border border-accent bg-surface-1 p-4">
-          <p className="text-sm font-bold text-fg">هاد التوكن بيظهر مرة وحدة بس — انسخه هلأ</p>
-          <p dir="ltr" className="break-all rounded-lg bg-surface-2 p-2 text-start text-xs text-fg">{shown.token}</p>
-          <p className="text-xs text-fg-muted">العنوان اللي بيتوصّل عليه الوكيل: <span dir="ltr">{shown.url}</span></p>
+          <p className="text-base font-bold text-fg">هاد التوكن بيظهر مرة وحدة بس — انسخه هلأ</p>
+          <p dir="ltr" className="break-all rounded-lg bg-surface-2 p-2 text-start text-sm text-fg">{shown.token}</p>
+          <p className="text-sm text-fg-muted">العنوان اللي بيتوصّل عليه الوكيل: <span dir="ltr">{shown.url}</span></p>
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(shown.token).then(() => toast("اننسخ", "success")).catch(() => undefined)}>
               انسخ
@@ -259,7 +259,7 @@ export function AgentTokens({ agents, tokens }: { agents: { key: string; name: s
       ) : null}
 
       <div className="space-y-3 rounded-card border border-border bg-surface-1 p-4">
-        <p className="text-sm font-bold text-fg">توكن جديد لوكيل</p>
+        <p className="text-base font-bold text-fg">توكن جديد لوكيل</p>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="الاسم" hint="مثلاً: Claude الرئيسي">
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
@@ -275,7 +275,7 @@ export function AgentTokens({ agents, tokens }: { agents: { key: string; name: s
         </div>
         <fieldset className="space-y-1">
           <legend className="text-sm font-bold text-fg">شو بيقدر يستعمل</legend>
-          <p className="text-xs text-fg-muted">{all ? "كل الأدوات (متل التوكنات القديمة)" : picked.length ? "بس اللي علّمته" : "علّم واحد على الأقل"}</p>
+          <p className="text-sm text-fg-muted">{all ? "كل الأدوات (متل التوكنات القديمة)" : picked.length ? "بس اللي علّمته" : "علّم واحد على الأقل"}</p>
           <div className="grid gap-x-4 md:grid-cols-2">
             {MCP_SCOPES.map((s) => (
               <Checkbox key={s} label={SCOPE_AR[s]} checked={picked.includes(s)} onChange={(e) => setPicked(e.target.checked ? [...picked, s] : picked.filter((x) => x !== s))} />
@@ -315,7 +315,7 @@ export function ConnectedApps({ clients, url }: { clients: ConnectedRow[]; url: 
       <div className="space-y-1 rounded-card border border-border bg-surface-1 p-4 text-sm">
         <p className="font-bold text-fg">لإضافة Claude كموصّل</p>
         <p className="text-fg-muted">
-          بـ claude.ai ← الإعدادات ← الموصّلات ← «إضافة موصّل مخصّص»، الصق هالعنوان: <span dir="ltr" className="font-mono font-bold text-fg">{url}</span>. بيفتحلك الموقع لتوافق، وبعدها بيشتغل لحاله.
+          بـ claude.ai ← الإعدادات ← الموصّلات ← «إضافة موصّل مخصّص»، الصق هالعنوان: <span dir="ltr" className="tabular-nums font-bold text-fg">{url}</span>. بيفتحلك الموقع لتوافق، وبعدها بيشتغل لحاله.
         </p>
       </div>
       {clients.length ? (
@@ -323,8 +323,8 @@ export function ConnectedApps({ clients, url }: { clients: ConnectedRow[]; url: 
           {clients.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
               <span className="min-w-0 flex-1">
-                <span className="block font-bold text-fg">{c.name} <span dir="ltr" className="font-mono text-xs font-normal text-fg-muted">{c.host}</span></span>
-                <span className="block text-xs text-fg-muted">
+                <span className="block font-bold text-fg">{c.name} <span dir="ltr" className="tabular-nums text-xs font-normal text-fg-muted">{c.host}</span></span>
+                <span className="block text-sm text-fg-muted">
                   {c.scopes.map((s) => (SCOPE_AR as Record<string, string>)[s] ?? s).join(" · ") || "ما إله صلاحيات"} · {c.lastUsedAt ? `آخر نداء ${new Date(c.lastUsedAt).toLocaleString("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", dateStyle: "short", timeStyle: "short" })}` : "ما نادى لسا"}
                 </span>
               </span>

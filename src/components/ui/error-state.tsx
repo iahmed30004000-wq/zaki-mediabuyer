@@ -8,8 +8,8 @@ export function ErrorState({ title = "ما قدرت أحمّل هالجزء", hi
   return (
     <div role="alert" className="flex flex-col items-center gap-2 rounded-card border border-danger/30 bg-danger/10 p-6 text-center">
       <AlertTriangle aria-hidden className="size-6 text-danger" />
-      <p className="text-sm font-bold text-fg">{title}</p>
-      {hint ? <p className="text-xs text-fg-muted">{hint}</p> : null}
+      <p className="text-base font-bold text-fg">{title}</p>
+      {hint ? <p className="text-sm text-fg-muted">{hint}</p> : null}
       {onRetry ? (
         <Button variant="secondary" size="sm" onClick={onRetry}>
           جرّب كمان مرة

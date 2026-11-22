@@ -28,9 +28,9 @@ export async function DataHealth() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {metrics.map((m) => (
             <Panel key={m.l}>
-              <p className="text-xs text-fg-muted">{m.l}</p>
+              <p className="text-sm text-fg-muted">{m.l}</p>
               <Num value={m.v} unit={m.u} term={"term" in m ? m.term : undefined} source="truth" big tone={m.ok ? undefined : "warn"} />
-              <p className="mt-1 text-xs text-fg-muted">{m.h}</p>
+              <p className="mt-1 text-sm text-fg-muted">{m.h}</p>
             </Panel>
           ))}
         </div>
@@ -41,9 +41,9 @@ export async function DataHealth() {
           <Panel className="space-y-2">
             {health.gaps.slice(0, 8).map((g) => (
               <div key={g.campaign} className="flex flex-wrap items-baseline gap-2 text-sm">
-                <span dir="ltr" className="font-mono text-xs text-fg">{g.campaign}</span>
+                <span dir="ltr" className="tabular-nums text-xs text-fg">{g.campaign}</span>
                 <span className={Math.abs(g.gap) > 20 ? "font-semibold text-warn" : "text-fg-muted"} dir="ltr">{g.gap > 0 ? "+" : ""}{g.gap}%</span>
-                <span className="text-xs text-fg-muted">{g.cause}</span>
+                <span className="text-sm text-fg-muted">{g.cause}</span>
               </div>
             ))}
           </Panel>
@@ -60,14 +60,14 @@ export async function DataHealth() {
                     {a.verdict === "ok" ? <ShieldCheck className="mt-0.5 size-5 text-ok" /> : <ShieldAlert className={a.verdict === "restricted" ? "mt-0.5 size-5 text-danger" : "mt-0.5 size-5 text-warn"} />}
                     <div className="space-y-1 text-sm">
                       <p className="font-semibold text-fg">{a.name}</p>
-                      <p className="text-xs text-fg-muted">{a.status}{a.notes.length ? ` · ${a.notes.join(" · ")}` : " · ولا رفض آخر 24 ساعة · الدفع سليم"}</p>
-                      {a.frozenUntil ? <p className="text-xs text-warn">الإنشاء مجمّد لـ {a.frozenUntil}</p> : null}
+                      <p className="text-sm text-fg-muted">{a.status}{a.notes.length ? ` · ${a.notes.join(" · ")}` : " · ولا رفض آخر 24 ساعة · الدفع سليم"}</p>
+                      {a.frozenUntil ? <p className="text-sm text-warn">الإنشاء مجمّد لـ {a.frozenUntil}</p> : null}
                     </div>
                   </div>
                   {a.issues.map((i) => (
-                    <details key={i.id} className="rounded-lg border border-border p-2 text-xs">
+                    <details key={i.id} className="rounded-lg border border-border p-2 text-sm">
                       <summary className="cursor-pointer text-fg">
-                        <span dir="ltr" className="font-mono">{i.adName}</span> انرفض — {i.reasons}
+                        <span dir="ltr" className="tabular-nums">{i.adName}</span> انرفض — {i.reasons}
                       </summary>
                       {i.draft ? <pre className="mt-2 whitespace-pre-wrap font-sans leading-6 text-fg-muted">{i.draft}</pre> : <p className="mt-2 text-fg-muted">المسودة بتنكتب بالفحص الجاي</p>}
                     </details>
@@ -82,7 +82,7 @@ export async function DataHealth() {
                   <ShieldCheck className="mt-0.5 size-5 text-ok" />
                   <div className="space-y-1 text-sm">
                     <p className="font-semibold text-fg">{a.name}</p>
-                    <p className="text-xs text-fg-muted">ولا رفض آخر 24 ساعة · الدفع سليم · بلا قيود{a.note ? ` · ${a.note}` : ""}</p>
+                    <p className="text-sm text-fg-muted">ولا رفض آخر 24 ساعة · الدفع سليم · بلا قيود{a.note ? ` · ${a.note}` : ""}</p>
                   </div>
                 </Panel>
               ))}

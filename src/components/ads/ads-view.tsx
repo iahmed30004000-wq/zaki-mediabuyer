@@ -36,16 +36,16 @@ function Experiments({ list }: { list: ExperimentView[] }) {
         <Panel key={e.id} className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-semibold text-fg">{e.title}</span>
-            <span dir="ltr" className="font-mono text-xs text-fg-muted">{e.campaign}</span>
-            <span className={cn("ms-auto text-xs font-medium", EXP_STATUS[e.status].c)}>
+            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{e.campaign}</span>
+            <span className={cn("ms-auto text-sm font-medium", EXP_STATUS[e.status].c)}>
               {EXP_STATUS[e.status].l}
               {e.status === "running" ? ` · يوم ${e.day} من ${e.days}` : ""}
             </span>
           </div>
-          <p className="text-xs text-fg-muted">الفرضية: {e.hypothesis}</p>
+          <p className="text-sm text-fg-muted">الفرضية: {e.hypothesis}</p>
           {e.arms.length ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead className="text-fg-muted">
                   <tr>
                     <th className="py-1 text-start font-medium">المفهوم</th>
@@ -58,7 +58,7 @@ function Experiments({ list }: { list: ExperimentView[] }) {
                 <tbody>
                   {e.arms.map((a) => (
                     <tr key={a.key} className={cn("border-t border-border", e.winner === a.key && "text-ok")}>
-                      <td dir="ltr" className="py-1 text-start font-mono">{a.key}</td>
+                      <td dir="ltr" className="py-1 text-start tabular-nums">{a.key}</td>
                       <td className="py-1">{fmt(a.spend, "$")}</td>
                       <td className="py-1">{a.orders}</td>
                       <td className="py-1">{a.confirmed}</td>
@@ -69,7 +69,7 @@ function Experiments({ list }: { list: ExperimentView[] }) {
               </table>
             </div>
           ) : null}
-          <p className="text-sm text-fg">{e.verdict}</p>
+          <p className="text-base text-fg">{e.verdict}</p>
         </Panel>
       ))}
     </div>
@@ -157,13 +157,13 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
           <Panel key={p.code} className="space-y-3">
             <div className="flex items-center gap-2">
               <p className="font-semibold text-fg">{p.name}</p>
-              <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span>
-              <span className="text-xs text-fg-muted">· {p.market === "SY" ? "سوريا" : "الأردن"}</span>
+              <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span>
+              <span className="text-sm text-fg-muted">· {p.market === "SY" ? "سوريا" : "الأردن"}</span>
               <span className={cn("ms-auto rounded-md px-1.5 py-0.5 text-xs font-semibold", winner ? "bg-ok/10 text-ok" : p.view.delivered ? "bg-warn/10 text-warn" : "bg-surface-2 text-fg-muted")}>
                 {winner ? "رابح" : p.view.delivered ? "خاسر لهلأ" : "بيانات غير كافية"}
               </span>
             </div>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
               <div><dt className="text-fg-muted">الصرف</dt><dd><Num value={p.view.spend} unit="$" term="spend" /></dd></div>
               <div><dt className="text-fg-muted">تكلفة المؤكد</dt><dd><Num value={p.view.costPerConfirmed} unit="$" term="costPerConfirmed" /></dd></div>
               <div><dt className="text-fg-muted">السقف</dt><dd><Num value={p.view.ceiling} unit="$" term="ceiling" /></dd></div>
@@ -171,7 +171,7 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
               <div><dt className="text-fg-muted">التوصيل</dt><dd><Num value={p.view.deliveryRate} unit="%" term="deliveryRate" /></dd></div>
               <div><dt className="text-fg-muted">ربح المُسلَّم</dt><dd><Num value={p.view.profitPerDelivered} unit="$" term="profitDelivered" tone={winner ? "ok" : undefined} /></dd></div>
             </dl>
-            <p className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs text-fg-muted">
+            <p className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-sm text-fg-muted">
               هدف الطلب <Num value={p.targets.tOrder} unit="$" term="tOrder" source={p.targets.estimated ? "estimate" : "truth"} />
               <span>· المخزون {p.stockDays} يوم{p.stockDays < 5 ? " (التكبير مجمّد)" : ""}</span>
             </p>
@@ -214,7 +214,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
         {row && v ? (
           <>
             <SheetHeader>
-              <SheetTitle dir="ltr" className="text-start font-mono text-sm">{row.name}</SheetTitle>
+              <SheetTitle dir="ltr" className="text-start tabular-nums text-sm">{row.name}</SheetTitle>
               <SheetDescription>{row.decoded ? row.decoded.join(" · ") : "الاسم ما انفهم — بدها تسمية من الإعدادات أو من هون."}</SheetDescription>
             </SheetHeader>
             <SheetBody className="space-y-4">
@@ -225,18 +225,18 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
                     تعلّم {row.learning.events} من {row.learning.of}
                   </span>
                 ) : null}
-                {row.budget ? <span className="text-xs text-fg-muted">الميزانية {fmt(row.budget, "$", 0)} / يوم</span> : null}
+                {row.budget ? <span className="text-sm text-fg-muted">الميزانية {fmt(row.budget, "$", 0)} / يوم</span> : null}
               </div>
               {row.note ? <p className="rounded-lg bg-warn/10 p-2 text-sm text-warn">{row.note}</p> : null}
 
               {funnel ? (
                 <section>
-                  <h3 className="mb-2 text-xs font-semibold text-fg-muted">القمع</h3>
+                  <h3 className="mb-2 text-sm font-semibold text-fg-muted">القمع</h3>
                   <ol className="space-y-1.5">
                     {funnel.map((f, i) => {
                       const max = funnel[0]!.n || 1;
                       return (
-                        <li key={f.l} className="flex items-center gap-2 text-xs">
+                        <li key={f.l} className="flex items-center gap-2 text-sm">
                           <span className="w-14 shrink-0 text-fg-muted">{f.l}</span>
                           <span className="h-2 flex-1 rounded-full bg-surface-2">
                             <span className="block h-2 rounded-full bg-accent" style={{ width: `${Math.max(2, i === 0 ? 100 : Math.sqrt(f.n / max) * 100)}%` }} />
@@ -249,7 +249,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
                 </section>
               ) : null}
 
-              <section className="grid grid-cols-2 gap-3 text-xs">
+              <section className="grid grid-cols-2 gap-3 text-sm">
                 <div><p className="text-fg-muted">Hook</p><Num value={v.hook} unit="%" term="hook" /></div>
                 <div><p className="text-fg-muted">Hold</p><Num value={v.hold} unit="%" term="hold" /></div>
                 <div><p className="text-fg-muted">CTR</p><Num value={v.ctr} unit="%" term="ctr" /></div>
@@ -260,7 +260,7 @@ function ItemSheet({ row, onClose }: { row: TreeRow | null; onClose: () => void 
                 <div><p className="text-fg-muted">العائد الحقيقي</p><Num value={v.roas} unit="x" term="roas" /></div>
               </section>
 
-              {!v.enoughData ? <p className="rounded-lg border border-dashed border-border p-2 text-xs text-fg-muted">بيانات غير كافية للحكم: بدها 3,000 ظهور وصرف ضعف هدف الطلب ({fmt(row.tOrder !== null ? row.tOrder * 2 : null, "$")}).</p> : null}
+              {!v.enoughData ? <p className="rounded-lg border border-dashed border-border p-2 text-sm text-fg-muted">بيانات غير كافية للحكم: بدها 3,000 ظهور وصرف ضعف هدف الطلب ({fmt(row.tOrder !== null ? row.tOrder * 2 : null, "$")}).</p> : null}
             </SheetBody>
             <SheetFooter>
               {row.status !== "paused" ? (

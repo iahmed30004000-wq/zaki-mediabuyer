@@ -17,8 +17,37 @@ describe("the two Media Buyer themes", () => {
   });
 
   it("the page colours are the ones the look spec writes down", () => {
-    expect(PALETTES.zaki.colors).toMatchObject({ surface: "#F5F6F8", "surface-1": "#FFFFFF", accent: "#1B2A4A", "accent-2": "#F2B705", danger: "#B42318" });
-    expect(PALETTES["zaki-dark"].colors).toMatchObject({ surface: "#0E1420", "surface-1": "#161E2E", accent: "#F2B705", "accent-fg": "#172033" });
+    expect(PALETTES.zaki.colors).toMatchObject({
+      surface: "#EEF1EF",
+      "surface-1": "#FFFFFF",
+      accent: "#0F1E26",
+      "accent-2": "#F2B705",
+      danger: "#B93124",
+      tape: "#DFE6E3",
+      "key-edge": "#000000",
+    });
+    expect(PALETTES["zaki-dark"].colors).toMatchObject({
+      surface: "#0B1318",
+      "surface-1": "#131F27",
+      accent: "#E8F0F2",
+      "accent-fg": "#0B1318",
+      "accent-2": "#F2B705",
+      tape: "#0A1116",
+      "key-edge": "#5F7480",
+    });
+  });
+
+  it("the gold stays the same in both themes and is not the action colour (colour = state; the keys are ink)", () => {
+    expect(PALETTES.zaki.colors["accent-2"]).toBe(PALETTES["zaki-dark"].colors["accent-2"]);
+    for (const key of THEME_KEYS) expect(PALETTES[key].colors.accent).not.toBe(PALETTES[key].colors["accent-2"]);
+  });
+
+  it("the style values: Changa for display, 18px panels, no shadows", () => {
+    for (const key of THEME_KEYS) {
+      expect(PALETTES[key].style["font-display"]).toContain("Changa");
+      expect(PALETTES[key].style["radius-card"]).toBe("18px");
+      expect(PALETTES[key].style["shadow-card"]).toBe("none");
+    }
   });
 
   for (const key of THEME_KEYS) {

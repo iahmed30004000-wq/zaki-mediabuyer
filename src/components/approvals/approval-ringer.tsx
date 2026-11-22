@@ -93,9 +93,9 @@ export function ApprovalRinger() {
       <PhoneMissed className="size-5 shrink-0 text-warn" />
       <button type="button" onClick={() => setRing({ approval: first, ringing: false })} className="min-w-0 flex-1 text-start text-sm">
         <span className="block truncate font-medium text-fg">{waiting.length > 1 ? `${waiting.length} موافقات بانتظارك` : `بانتظارك: ${first.title}`}</span>
-        <span className="block truncate text-xs text-fg-muted">{first.why}</span>
+        <span className="block truncate text-sm text-fg-muted">{first.why}</span>
       </button>
-      <Link href="/inbox" className="shrink-0 text-xs font-medium text-accent">
+      <Link href="/inbox" className="shrink-0 text-sm font-medium text-accent">
         افتح
       </Link>
     </div>

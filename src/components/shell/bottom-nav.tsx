@@ -22,7 +22,7 @@ export function BottomNav() {
             aria-current={active ? "page" : undefined}
             className={cn("relative flex flex-1 flex-col items-center justify-center gap-0.5 text-xs font-bold", active ? "text-fg" : "text-fg-muted")}
           >
-            {active ? <span aria-hidden className="absolute inset-x-4 top-0 h-[3px] rounded-b-full bg-accent-2" /> : null}
+            {active ? <span aria-hidden className="absolute inset-x-4 top-0 h-[3px] rounded-b-full bg-accent" /> : null}
             <span className="relative">
               <Icon className="size-5" aria-hidden />
               {p.key === "inbox" ? <CountBadge count={inbox} className="absolute -end-3 -top-2" /> : null}

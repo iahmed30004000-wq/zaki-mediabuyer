@@ -27,8 +27,8 @@ export default async function AutomationPage() {
             <Panel key={s.key} className="flex items-center gap-3">
               <CircleDot className={cn("size-4 shrink-0", s.state === "ok" ? "text-ok" : s.state === "late" ? "text-warn" : "text-fg-muted")} aria-hidden />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-fg">{s.label}</p>
-                <p className="text-xs text-fg-muted">{s.detail}</p>
+                <p className="text-base font-semibold text-fg">{s.label}</p>
+                <p className="text-sm text-fg-muted">{s.detail}</p>
               </div>
             </Panel>
           ))}

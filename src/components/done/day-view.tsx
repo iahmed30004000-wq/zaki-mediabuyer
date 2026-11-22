@@ -10,7 +10,7 @@ function Line({ i }: { i: DayItem }) {
   const tone = i.tone === "danger" ? "text-danger" : i.tone === "warn" ? "text-warn" : "text-fg";
   return (
     <li className="flex items-start gap-3 py-2 text-sm">
-      <span dir="ltr" className="w-11 shrink-0 pt-0.5 font-mono text-xs text-fg-muted">{lineTime(i)}</span>
+      <span dir="ltr" className="w-11 shrink-0 pt-0.5 tabular-nums text-xs text-fg-muted">{lineTime(i)}</span>
       <span className="min-w-0 flex-1 leading-6">
         {i.href ? (
           <Link href={i.href} className={cn("hover:text-accent", tone)}>{i.text}</Link>

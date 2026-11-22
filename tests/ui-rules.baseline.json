@@ -1,11 +1,17 @@
 {
-  "rawButtons": 0,
+  "rulesVersion": 2,
+  "rawButtons": 66,
+  "rawControls": 91,
+  "jargon": 103,
+  "smallText": 220,
+  "mockInUi": 11,
+  "oldRoutes": 49,
+  "bareFetch": 9,
   "arbitraryText": 0,
   "offScaleText": 0,
   "offScaleHeights": 0,
   "hexColors": 0,
   "decorImports": 0,
   "mockChecks": 0,
-  "mockInUi": 11,
-  "jargon": 0
+  "fontMono": 0
 }

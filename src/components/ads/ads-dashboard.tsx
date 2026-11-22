@@ -95,7 +95,7 @@ export async function NightRoundCard() {
         <CardBody className="space-y-2">
           {r ? (
             <>
-              <p className="text-sm text-fg">{r.summary ?? "ما انكتب لها سطر."}</p>
+              <p className="text-base text-fg">{r.summary ?? "ما انكتب لها سطر."}</p>
               <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-muted">
                 <span>كبّر <b dir="ltr" className="tabular-nums text-fg">{n("scaled")}</b></span>
                 <span>وقّف <b dir="ltr" className="tabular-nums text-fg">{n("paused")}</b></span>
@@ -140,7 +140,7 @@ export async function BankCard() {
                 {p.bank.count} / {p.bank.target}
               </span>
               {p.bank.short > 0 ? <Pill tone="warn">ناقص {p.bank.short}</Pill> : <Pill tone="ok">كامل</Pill>}
-              <span className="ms-auto text-xs text-fg-muted">رابحين {p.winners.length} · تعبانين {p.tiredCount}</span>
+              <span className="ms-auto text-sm text-fg-muted">رابحين {p.winners.length} · تعبانين {p.tiredCount}</span>
             </li>
           ))}
           {!board.products.length ? <li className="px-4 py-3 text-sm text-fg-muted">ما في منتجات بالبنك لسا.</li> : null}
@@ -163,7 +163,7 @@ export async function ScaleCandidates() {
         <CardBody className="space-y-2">
           {ok.length ? (
             ok.map((r) => (
-              <p key={r.adSetId} className="text-sm text-fg">
+              <p key={r.adSetId} className="text-base text-fg">
                 <span className="font-bold">{r.name}</span> — {r.decision.sentence}
               </p>
             ))

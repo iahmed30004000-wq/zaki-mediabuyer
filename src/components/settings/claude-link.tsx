@@ -66,13 +66,13 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
           <Bot className="size-5" />
         </span>
         <div>
-          <p className="text-sm font-semibold text-fg">Claude — طريق الأرقام لحد ما تنربط الـ APIs الرسمية</p>
-          <p className="text-xs leading-5 text-fg-muted">Claude بيقرا مدير الإعلانات والـ OMS من متصفحك وبيبعت الأرقام والتشغيلات والطلبات هون. الموقع بيتصرف نفس تصرفه لو كان مربوط مباشرة: نفس الشاشات ونفس السجل. وبيطلب موافقتك على أي شي برّا القواعد، والتلفون بيرنّ.</p>
+          <p className="text-base font-semibold text-fg">Claude — طريق الأرقام لحد ما تنربط الـ APIs الرسمية</p>
+          <p className="text-sm leading-5 text-fg-muted">Claude بيقرا مدير الإعلانات والـ OMS من متصفحك وبيبعت الأرقام والتشغيلات والطلبات هون. الموقع بيتصرف نفس تصرفه لو كان مربوط مباشرة: نفس الشاشات ونفس السجل. وبيطلب موافقتك على أي شي برّا القواعد، والتلفون بيرنّ.</p>
         </div>
       </div>
 
       {mock ? (
-        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs leading-5 text-warn">
+        <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm leading-5 text-warn">
           الموقع لسا بالوضع التجريبي: الأرقام اللي بيبعتها Claude بتنحفظ بس الشاشات بتضل تعرض الأرقام التجريبية. لما تربط Claude، وقّف الوضع التجريبي من Coolify.
         </p>
       ) : null}
@@ -82,14 +82,14 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
         <li>
           <span className="font-semibold">2.</span> بـ Claude: <span className="text-fg-muted">الإعدادات ← الموصّلات (Customize ← Connectors) ← «إضافة» ← موصّل مخصّص</span>، واكتب العنوان:
           <span className="mt-1 flex items-center gap-2">
-            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 font-mono text-xs text-fg">{url || "…/mcp"}</code>
+            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-xs text-fg">{url || "…/mcp"}</code>
             <Button size="sm" variant="secondary" disabled={!url} onClick={() => copy(url, "انسخ العنوان ✓")}>
               <Copy className="size-3.5" /> انسخ
             </Button>
           </span>
         </li>
         <li>
-          <span className="font-semibold">3.</span> بقسم <span className="text-fg-muted">«ترويسات الطلب» (Request headers)</span> أضف: <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs">Authorization</code> = <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs">Bearer التوكن</code> — واختار «بلا تسجيل دخول». بعدين اطلب من Claude: «شغّل get_mode».
+          <span className="font-semibold">3.</span> بقسم <span className="text-fg-muted">«ترويسات الطلب» (Request headers)</span> أضف: <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-xs">Authorization</code> = <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 tabular-nums text-xs">Bearer التوكن</code> — واختار «بلا تسجيل دخول». بعدين اطلب من Claude: «شغّل get_mode».
         </li>
       </ol>
 
@@ -98,26 +98,26 @@ export function ClaudeLink({ mock }: { mock: boolean }) {
           <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
             <KeyRound className="size-4 text-fg-muted" />
             <span className="text-fg">{t.name}</span>
-            <span dir="ltr" className="font-mono text-xs text-fg-muted">{t.prefix}…</span>
+            <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{t.prefix}…</span>
             <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-fg-muted">{t.scopes.includes("mcp") ? "Claude (MCP)" : "طابور المتوقفة بس"}</span>
-            <span className="ms-auto text-xs text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
+            <span className="ms-auto text-sm text-fg-muted">آخر استعمال: {when(t.lastUsedAt)}</span>
             <Button size="sm" variant="ghost" onClick={async () => (await call(`/api/mcp/tokens/${t.id}`, { method: "DELETE" })) && load()}>
               وقّفه
             </Button>
           </div>
         ))}
-        {tokens && !live.length ? <p className="text-xs text-fg-muted">ما في توكن لـ Claude لسا.</p> : null}
+        {tokens && !live.length ? <p className="text-sm text-fg-muted">ما في توكن لـ Claude لسا.</p> : null}
       </div>
 
-      <p className="text-xs leading-5 text-fg-muted">
-        <span className="font-semibold text-fg">طابور المتوقفة:</span> لما تضغط «شغّل هلق» أو تقف فرع، بتنزل هناك. Claude بيقراه بـ <code dir="ltr" className="font-mono">get_handoffs</code> (نفس مفتاح الربط)، وClaude Desktop أو أي وكيل بيقدر يقراه من <code dir="ltr" className="break-all font-mono">{handoffUrl || "…/api/v1/handoffs"}</code> بمفتاح «طابور المتوقفة بس» (<code dir="ltr" className="font-mono">Authorization: Bearer …</code>).
+      <p className="text-sm leading-5 text-fg-muted">
+        <span className="font-semibold text-fg">طابور المتوقفة:</span> لما تضغط «شغّل هلق» أو تقف فرع، بتنزل هناك. Claude بيقراه بـ <code dir="ltr" className="tabular-nums">get_handoffs</code> (نفس مفتاح الربط)، وClaude Desktop أو أي وكيل بيقدر يقراه من <code dir="ltr" className="break-all tabular-nums">{handoffUrl || "…/api/v1/handoffs"}</code> بمفتاح «طابور المتوقفة بس» (<code dir="ltr" className="tabular-nums">Authorization: Bearer …</code>).
       </p>
 
       {fresh ? (
         <div className="space-y-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
-          <p className="text-xs text-fg">هاد التوكن بيظهر هلأ بس. انسخه وحطه بإعدادات الموصّل بـ Claude، وما تبعته بأي محادثة.</p>
+          <p className="text-sm text-fg">هاد التوكن بيظهر هلأ بس. انسخه وحطه بإعدادات الموصّل بـ Claude، وما تبعته بأي محادثة.</p>
           <div className="flex items-center gap-2">
-            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 font-mono text-xs text-fg">{fresh}</code>
+            <code dir="ltr" className="flex-1 break-all rounded bg-surface-2 px-2 py-1 tabular-nums text-xs text-fg">{fresh}</code>
             <Button size="sm" variant="secondary" onClick={() => copy(fresh, "انسخ ✓ — حطه بـ Claude هلأ")}>
               <Copy className="size-3.5" /> انسخ
             </Button>

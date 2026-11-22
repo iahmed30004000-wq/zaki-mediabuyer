@@ -32,7 +32,7 @@ export default async function ReportPage({ params: paramsP }: { params: Promise<
       <header className="space-y-3 rounded-card border border-border bg-surface-1 p-4">
         <div className="flex flex-wrap items-center gap-3">
           {r.jobKey ? <JobNumber n={r.jobNumber} /> : null}
-          <h2 className="min-w-0 flex-1 text-xl font-extrabold text-fg">{r.title}</h2>
+          <h2 className="min-w-0 flex-1 font-display text-lg font-extrabold text-fg">{r.title}</h2>
           {s ? <Pill tone={s.tone}>{s.label}</Pill> : null}
         </div>
         <p className="text-sm text-fg-muted">{when(r.at)}</p>

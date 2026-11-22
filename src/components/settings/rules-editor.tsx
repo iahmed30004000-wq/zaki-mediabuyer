@@ -130,7 +130,7 @@ function NumberField({ f, value, onChange }: { f: Field; value: number | null; o
         }}
         className="w-24 text-end tabular-nums"
       />
-      <span className="w-4 text-xs text-fg-muted">{f.kind === "pct" ? "%" : f.hint ?? ""}</span>
+      <span className="w-4 text-sm text-fg-muted">{f.kind === "pct" ? "%" : f.hint ?? ""}</span>
     </div>
   );
 }
@@ -176,10 +176,10 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
       {missing.length ? (
         <Panel className="space-y-1 border-warn/40 bg-warn/5">
           <p className="text-sm font-semibold text-warn">ناقص {missing.length} رقم — Claude ما رح ينفّذ قاعدة رقمها ناقص:</p>
-          <p className="text-xs leading-5 text-fg-muted">{missing.map((m) => m.label).join(" · ")}</p>
+          <p className="text-sm leading-5 text-fg-muted">{missing.map((m) => m.label).join(" · ")}</p>
         </Panel>
       ) : (
-        <p className="text-xs text-ok">✓ كل أرقام القواعد مكتوبة.</p>
+        <p className="text-sm text-ok">✓ كل أرقام القواعد مكتوبة.</p>
       )}
 
       <Panel className="space-y-3">
@@ -188,14 +188,14 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
           <div className="mt-3 space-y-2">
             {be.map(([p, v]) => (
               <div key={p} className="flex items-center gap-2 text-sm">
-                <span dir="ltr" className="w-28 font-mono text-xs text-fg">{p}</span>
+                <span dir="ltr" className="w-28 tabular-nums text-xs text-fg">{p}</span>
                 <NumberField f={{ path: `breakeven.${p}`, label: `تعادل ${p}`, kind: "money", hint: "$" }} value={v} onChange={(n) => n !== null && edit("breakeven", { ...rules.breakeven, [p]: n })} />
                 <IconButton aria-label={`شيل ${p}`} onClick={() => { const { [p]: _gone, ...rest } = rules.breakeven; edit("breakeven", rest); }}>
                   <X className="size-4" />
                 </IconButton>
               </div>
             ))}
-            {!be.length ? <p className="text-xs text-fg-muted">ما في منتج لسا. اكتب رمز المنتج (مثل <span dir="ltr" className="font-mono">TRF01</span>) ورقم التعادل.</p> : null}
+            {!be.length ? <p className="text-sm text-fg-muted">ما في منتج لسا. اكتب رمز المنتج (مثل <span dir="ltr" className="tabular-nums">TRF01</span>) ورقم التعادل.</p> : null}
             <form
               className="flex flex-wrap items-center gap-2"
               onSubmit={(e) => {
@@ -208,7 +208,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
                 setAmount("");
               }}
             >
-              <Input dir="ltr" list="rules-products" value={code} onChange={(e) => setCode(e.target.value)} placeholder="رمز المنتج" className="w-36 font-mono" aria-label="رمز المنتج" />
+              <Input dir="ltr" list="rules-products" value={code} onChange={(e) => setCode(e.target.value)} placeholder="رمز المنتج" className="w-36 tabular-nums" aria-label="رمز المنتج" />
               <datalist id="rules-products">{products.map((p) => <option key={p} value={p} />)}</datalist>
               <Input dir="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} placeholder="$" className="w-24 text-end" aria-label="نقطة التعادل بالدولار" />
               <Button size="sm" variant="secondary" type="submit" disabled={!code.trim() || !Number(amount)}>
@@ -242,7 +242,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
               {g.title === "المخزون" ? (
                 <label className="flex items-center justify-between gap-3 text-sm text-fg md:col-span-2">
                   <span>التنبيه لمين (مفاتيح مفصولة بفاصلة)</span>
-                  <Input dir="ltr" value={rules.stock.audience.join(", ")} onChange={(e) => edit("stock.audience", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} className="w-64 font-mono" aria-label="مين بيتبلّغ" />
+                  <Input dir="ltr" value={rules.stock.audience.join(", ")} onChange={(e) => edit("stock.audience", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} className="w-64 tabular-nums" aria-label="مين بيتبلّغ" />
                 </label>
               ) : null}
             </div>
@@ -254,7 +254,7 @@ export function RulesEditor({ initial, version, products, demo }: { initial: Cam
         <Button disabled={busy || !dirty} onClick={save} className="min-h-10 max-md:min-h-[44px]">
           احفظ القواعد
         </Button>
-        <span className="text-xs text-fg-muted">{demo ? "تجريبي: ما بينحفظ" : version ? `النسخة الحالية ${version}` : "لسا ما انحفظت نسخة"}{dirty ? " · فيه تعديل ما انحفظ" : ""}</span>
+        <span className="text-sm text-fg-muted">{demo ? "تجريبي: ما بينحفظ" : version ? `النسخة الحالية ${version}` : "لسا ما انحفظت نسخة"}{dirty ? " · فيه تعديل ما انحفظ" : ""}</span>
       </div>
 
       <Panel>

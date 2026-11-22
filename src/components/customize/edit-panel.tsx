@@ -114,7 +114,7 @@ const Chip = ({ children, tone }: { children: React.ReactNode; tone?: "accent" }
 function More({ children }: { children: React.ReactNode }) {
   return (
     <details className="group">
-      <summary className="cursor-pointer list-none text-xs font-medium text-accent hover:underline">خيارات أكتر</summary>
+      <summary className="cursor-pointer list-none text-sm font-medium text-accent hover:underline">خيارات أكتر</summary>
       <div className="mt-2 space-y-2 border-t border-border pt-2">{children}</div>
     </details>
   );
@@ -124,7 +124,7 @@ function More({ children }: { children: React.ReactNode }) {
 function ScopePicker({ boards, value, onChange }: { boards: { key: string; label: string }[]; value: string[]; onChange: (v: string[]) => void }) {
   return (
     <fieldset className="space-y-1">
-      <legend className="text-xs text-fg-muted">بتظهر على</legend>
+      <legend className="text-sm text-fg-muted">بتظهر على</legend>
       <label className="flex min-h-10 max-md:min-h-[44px] items-center gap-2 text-sm text-fg">
         <input type="checkbox" checked={!value.length} onChange={() => onChange([])} className="size-4 accent-accent" />
         كل اللوحات
@@ -168,14 +168,14 @@ function Suggestions({ data, run, busy }: { data: PanelData; run: Run; busy: boo
       <ul className="mt-2 space-y-2">
         {data.suggestions.map((s) => (
           <li key={s.id} className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 flex-1 text-xs leading-5 text-fg">{s.text}</span>
+            <span className="min-w-0 flex-1 text-sm leading-5 text-fg">{s.text}</span>
             {s.op ? (
               <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(s.op!)}>
                 <Combine className="size-3.5" />
                 ادمجهم
               </Button>
             ) : s.href ? (
-              <a href={s.href} className="text-xs font-medium text-accent hover:underline">
+              <a href={s.href} className="text-sm font-medium text-accent hover:underline">
                 افتح
               </a>
             ) : null}
@@ -195,7 +195,7 @@ function BoardsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
   const [into, setInto] = useState<Record<string, string>>({});
   return (
     <div className="space-y-3">
-      <p className="text-xs leading-5 text-fg-muted">اللوحات هي تبويبات «المهام». دمج لوحتين بينقل مهامهم وحقولهم وأزرارهم لوحدة وما بيخسّر ولا شي، وبترجّع الدمج من «المحذوفات».</p>
+      <p className="text-sm leading-5 text-fg-muted">اللوحات هي تبويبات «المهام». دمج لوحتين بينقل مهامهم وحقولهم وأزرارهم لوحدة وما بيخسّر ولا شي، وبترجّع الدمج من «المحذوفات».</p>
       <ul className="space-y-2">
         {list.map((b) => {
           const others = list.filter((x) => x.key !== b.key);
@@ -234,7 +234,7 @@ function BoardsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
                       ادمج
                     </Button>
                   </div>
-                  {into[b.key] ? <p className="text-xs text-fg-muted">رح تنتقل {b.tasks} مهمة لـ «{list.find((x) => x.key === into[b.key])?.label}» ومعها كل قيمها.</p> : null}
+                  {into[b.key] ? <p className="text-sm text-fg-muted">رح تنتقل {b.tasks} مهمة لـ «{list.find((x) => x.key === into[b.key])?.label}» ومعها كل قيمها.</p> : null}
                   <Button size="sm" variant="ghost" disabled={busy || b.tasks > 0} onClick={() => void run({ op: "board.archive", key: b.key })}>
                     <Trash2 className="size-3.5" />
                     {b.tasks > 0 ? "عليها مهام — ادمجها أول" : "احذفها (بترجّعها من «المحذوفات»)"}
@@ -253,12 +253,12 @@ function BoardsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
           if (await run({ op: "board.add", label: name, template })) setName("");
         }}
       >
-        <p className="text-sm font-semibold text-fg">＋ لوحة من قالب</p>
+        <p className="text-base font-semibold text-fg">＋ لوحة من قالب</p>
         <div className="grid gap-2">
           {BOARD_TEMPLATES.map((t) => (
             <button key={t.id} type="button" aria-pressed={template === t.id} onClick={() => setTemplate(t.id)} className={cn("flex min-h-10 max-md:min-h-[48px] flex-col items-start rounded-xl border px-3 py-2 text-start", template === t.id ? "border-accent bg-accent/5" : "border-border")}>
               <span className="text-sm font-semibold text-fg">{t.name}</span>
-              <span className="text-xs text-fg-muted">{t.about}</span>
+              <span className="text-sm text-fg-muted">{t.about}</span>
             </button>
           ))}
         </div>
@@ -290,7 +290,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
   return (
     <div className="space-y-3">
       <EntityPick value={entity} onChange={setEntity} />
-      <p className="text-xs leading-5 text-fg-muted">حقول بطاقات {ENTITY_AR[entity]}: نص · رقم · تاريخ · اختيار · شخص · رابط. الحقل اللي فيه قيم ما بينحذف — بتخفيه (بتضل القيم محفوظة) أو بتدمجه بحقل تاني من نفس النوع، أو بتغيّر نوعه لو كل قيمه بتنفع للنوع الجديد.</p>
+      <p className="text-sm leading-5 text-fg-muted">حقول بطاقات {ENTITY_AR[entity]}: نص · رقم · تاريخ · اختيار · شخص · رابط. الحقل اللي فيه قيم ما بينحذف — بتخفيه (بتضل القيم محفوظة) أو بتدمجه بحقل تاني من نفس النوع، أو بتغيّر نوعه لو كل قيمه بتنفع للنوع الجديد.</p>
       <ul className="space-y-2">
         {list.map((f) => {
           const others = list.filter((x) => x.id !== f.id && x.type === f.type);
@@ -321,7 +321,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
               <More>
                 {f.type === "select" ? (
                   <div className="space-y-1.5">
-                    <label className="block text-xs text-fg-muted">
+                    <label className="block text-sm text-fg-muted">
                       الخيارات (واحد بكل سطر)
                       <textarea value={d.options ?? (f.options ?? []).join("\n")} onChange={(e) => setDraft((m) => ({ ...m, [f.id]: { ...m[f.id], options: e.target.value } }))} rows={4} className={cn(control, "py-2 leading-6")} />
                     </label>
@@ -353,7 +353,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
                     </Button>
                   </div>
                   {convert[f.id]?.to === "select" ? <textarea value={convert[f.id]!.options} onChange={(e) => setConvert((m) => ({ ...m, [f.id]: { to: "select", options: e.target.value } }))} rows={3} placeholder="الخيارات: واحد بكل سطر — لازم تغطّي كل القيم المكتوبة" className={cn(control, "py-2 leading-6")} /> : null}
-                  <p className="text-xs leading-5 text-fg-muted">بينغيّر بس لو كل القيم المكتوبة ({f.values}) بتنفع للنوع الجديد؛ وإلا بيوقف وبيقلّك كم قيمة ما بتنفع.</p>
+                  <p className="text-sm leading-5 text-fg-muted">بينغيّر بس لو كل القيم المكتوبة ({f.values}) بتنفع للنوع الجديد؛ وإلا بيوقف وبيقلّك كم قيمة ما بتنفع.</p>
                 </div>
                 {others.length ? (
                   <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
             </Card>
           );
         })}
-        {!list.length ? <li className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في حقول لسا. أضف أول حقل تحت، أو اعمل لوحة من قالب وبتجي معها حقولها.</li> : null}
+        {!list.length ? <li className="rounded-lg border border-dashed border-border p-3 text-sm leading-5 text-fg-muted">ما في حقول لسا. أضف أول حقل تحت، أو اعمل لوحة من قالب وبتجي معها حقولها.</li> : null}
       </ul>
 
       <form
@@ -392,7 +392,7 @@ function FieldsTab({ data, run, busy }: { data: PanelData; run: Run; busy: boole
           }
         }}
       >
-        <p className="text-sm font-semibold text-fg">＋ حقل جديد على بطاقة {ENTITY_ONE[entity]}</p>
+        <p className="text-base font-semibold text-fg">＋ حقل جديد على بطاقة {ENTITY_ONE[entity]}</p>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="اسم الحقل (مثلاً: رقم الشحنة)" maxLength={40} dir="auto" className={control} />
         <select value={type} onChange={(e) => setType(e.target.value as FieldType)} className={control} aria-label="النوع">
           {FIELD_TYPES.map((t) => (
@@ -431,7 +431,7 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
   return (
     <div className="space-y-3">
       <EntityPick value={entity} onChange={setEntity} />
-      <p className="text-xs leading-5 text-fg-muted">زر على بطاقة {ENTITY_ONE[entity]} بيطلب من Claude يشغّل ورك فلو على هالبطاقة (متل «شغّل هلق»)، وبيبعتله عنوانها وحقولها. ما بيصرف ولا بيلمس ميتا.</p>
+      <p className="text-sm leading-5 text-fg-muted">زر على بطاقة {ENTITY_ONE[entity]} بيطلب من Claude يشغّل ورك فلو على هالبطاقة (متل «شغّل هلق»)، وبيبعتله عنوانها وحقولها. ما بيصرف ولا بيلمس ميتا.</p>
       <ul className="space-y-2">
         {list.map((b) => (
           <Card key={b.id} dim={b.hidden} drag={{ list: `buttons-${entity}`, id: b.id, onDrop: (from, onto) => void run({ op: "button.drop", id: from, onto }) }}>
@@ -479,7 +479,7 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
             </More>
           </Card>
         ))}
-        {!list.length ? <li className="rounded-lg border border-dashed border-border p-3 text-xs leading-5 text-fg-muted">ما في أزرار لسا. مثلاً زر «ابعت للتأكيد» بيشغّل مهمة التأكيد على المهمة.</li> : null}
+        {!list.length ? <li className="rounded-lg border border-dashed border-border p-3 text-sm leading-5 text-fg-muted">ما في أزرار لسا. مثلاً زر «ابعت للتأكيد» بيشغّل مهمة التأكيد على المهمة.</li> : null}
       </ul>
 
       <form
@@ -489,7 +489,7 @@ function ButtonsTab({ data, run, busy }: { data: PanelData; run: Run; busy: bool
           if (await run({ op: "button.add", entity, label, workflow, boards: entity === "task" && scope.length ? scope : null, confirm })) setLabel("");
         }}
       >
-        <p className="text-sm font-semibold text-fg">＋ زر جديد على بطاقة {ENTITY_ONE[entity]}</p>
+        <p className="text-base font-semibold text-fg">＋ زر جديد على بطاقة {ENTITY_ONE[entity]}</p>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="اسم الزر (مثلاً: ابعت للتأكيد)" maxLength={30} dir="auto" className={control} />
         <select value={workflow} onChange={(e) => setWorkflow(e.target.value)} className={control} aria-label="المهمة">
           <option value="">أي مهمة بيشغّل؟</option>
@@ -526,8 +526,8 @@ function TrashTab({ data, run, busy }: { data: PanelData; run: Run; busy: boolea
     <Card key={key}>
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-fg">{text}</p>
-          <p className="text-xs text-fg-muted">{sub}</p>
+          <p className="truncate text-base font-medium text-fg">{text}</p>
+          <p className="text-sm text-fg-muted">{sub}</p>
         </div>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(op)}>
           <RotateCcw className="size-3.5" />
@@ -538,13 +538,13 @@ function TrashTab({ data, run, busy }: { data: PanelData; run: Run; busy: boolea
   );
   return (
     <div className="space-y-3">
-      <p className="text-xs leading-5 text-fg-muted">ما في شي بينحذف: اللي بتحذفه أو بتدمجه بيجي هون وبترجّعه.</p>
+      <p className="text-sm leading-5 text-fg-muted">ما في شي بينحذف: اللي بتحذفه أو بتدمجه بيجي هون وبترجّعه.</p>
       <ul className="space-y-2">
         {pages.map((p) => row(p.key, p.label, p.mergedInto ? `اندمجت بـ «${name(p.mergedInto)}»` : "صفحة", { op: "page.restore", key: p.key }, "رجّعها"))}
         {boards.map((b) => row(b.key, b.label, b.mergedInto ? `اندمجت بـ «${name(b.mergedInto)}»${b.movedCount ? ` · ${b.movedCount} مهمة` : ""}` : "لوحة", { op: "board.restore", key: b.key }, b.canMoveBack ? "رجّعها ومهامها" : "رجّعها"))}
         {fields.map((f) => row(f.id, f.label, f.mergedInto ? `اندمج بـ «${name(f.mergedInto)}» · ${f.values} قيمة محفوظة` : `حقل · ${f.values} قيمة`, { op: "field.restore", id: f.id }, "رجّعه"))}
         {buttons.map((b) => row(b.id, b.label, "زر", { op: "button.restore", id: b.id }, "رجّعه"))}
-        {empty ? <li className="rounded-lg border border-dashed border-border p-3 text-xs text-fg-muted">فاضي.</li> : null}
+        {empty ? <li className="rounded-lg border border-dashed border-border p-3 text-sm text-fg-muted">فاضي.</li> : null}
       </ul>
     </div>
   );
@@ -615,7 +615,7 @@ export function EditPanel() {
             {TABS.map((t) => (
               <button key={t.key} role="tab" aria-selected={panel.tab === t.key} onClick={() => setTab(t.key)} className={cn("min-h-10 max-md:min-h-[44px] shrink-0 rounded-md px-3 text-sm font-medium", panel.tab === t.key ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg")}>
                 {t.label}
-                {t.key === "trash" && trash ? <span className="ms-1 text-xs opacity-80">{trash}</span> : null}
+                {t.key === "trash" && trash ? <span className="ms-1 text-sm opacity-80">{trash}</span> : null}
               </button>
             ))}
           </div>

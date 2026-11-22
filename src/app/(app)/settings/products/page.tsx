@@ -21,7 +21,7 @@ export default async function ProductsSettingsPage() {
     return (
       <Panel className="overflow-x-auto p-0">
         <table className="w-full min-w-[36rem] text-sm">
-          <thead className="bg-surface-2 text-xs text-fg-muted">
+          <thead className="bg-surface-2 text-sm text-fg-muted">
             <tr>
               {["المنتج", "السعر", "تكلفة الوحدة", "التوصيل", "المرتجع", "هدف الطلب"].map((h) => (
                 <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>
@@ -33,7 +33,7 @@ export default async function ProductsSettingsPage() {
               const t = targetsOf(p);
               return (
                 <tr key={p.code}>
-                  <td className="px-3 py-2 text-fg">{p.name} <span dir="ltr" className="font-mono text-xs text-fg-muted">{p.code}</span></td>
+                  <td className="px-3 py-2 text-fg">{p.name} <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{p.code}</span></td>
                   {[p.price, p.unitCost, p.delivery, p.returnFee].map((n, i) => (
                     <td key={i} dir="ltr" className="px-3 py-2 text-end tabular-nums text-fg">{fmt(n, "$")}</td>
                   ))}

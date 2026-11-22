@@ -98,7 +98,7 @@ function FieldEditor({ f, locked, onChanged }: { f: FieldView; locked: boolean; 
           />
         )}
       </Field>
-      <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs", line.tone === "ok" ? "text-ok" : "text-fg-muted")}>
+      <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm", line.tone === "ok" ? "text-ok" : "text-fg-muted")}>
         {line.tone === "ok" ? <CheckCircle2 className="size-3.5 shrink-0" aria-hidden /> : <CircleAlert className="size-3.5 shrink-0" aria-hidden />}
         {line.parts.map((t, i) => (
           <span key={i} className="whitespace-nowrap">
@@ -163,7 +163,7 @@ function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boole
         <p className="min-w-0 flex-1 text-base font-bold text-fg">{row.title}</p>
         {row.kind !== "info" ? <Pill tone={row.linked ? "ok" : "warn"}>{row.linked ? "مربوط" : "ناقص"}</Pill> : null}
       </div>
-      {row.note ? <p className="text-xs leading-5 text-fg-muted">{row.note}</p> : null}
+      {row.note ? <p className="text-sm leading-5 text-fg-muted">{row.note}</p> : null}
       {row.fields.map((f) => (
         <FieldEditor key={f.name} f={f} locked={(f.kind === "secret" || f.kind === "file") && secretLocked} onChanged={onChanged} />
       ))}
@@ -180,12 +180,12 @@ function RowCard({ row, masterKey, onChanged }: { row: RowView; masterKey: boole
             ) : null}
           </div>
           {result ? (
-            <p role="status" className={cn("flex items-start gap-1.5 text-sm", result.ok ? "text-ok" : "text-danger")}>
+            <p role="status" className={cn("flex items-start gap-1.5 text-base", result.ok ? "text-ok" : "text-danger")}>
               {result.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden /> : <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />}
               <span>{result.ok ? "✓ " : "✗ "}{result.message}</span>
             </p>
           ) : (
-            <p className="text-xs text-fg-muted">مكالمة وحدة حقيقية للقراءة بس — ما بتغيّر ولا بتبعت شي.</p>
+            <p className="text-sm text-fg-muted">مكالمة وحدة حقيقية للقراءة بس — ما بتغيّر ولا بتبعت شي.</p>
           )}
         </div>
       ) : null}
@@ -222,7 +222,7 @@ export function ConnectionsPanel() {
       {!view.masterKey ? (
         <Panel className="space-y-1 border-warn/40">
           <p className="text-sm font-semibold text-warn">مفتاح التشفير ناقص</p>
-          <p className="text-xs leading-5 text-fg-muted">
+          <p className="text-sm leading-5 text-fg-muted">
             بدّك تحط <code dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 text-fg">SECRETS_MASTER_KEY</code> بـ Coolify مرة وحدة (32 بايت base64 أو 64 خانة hex) وتعيد التشغيل. لحد هيك الأسرار ما بتنحفظ من الموقع، والعناوين والمعرّفات بتنحفظ عادي، ومفاتيح Coolify بتضل شغّالة.
           </p>
         </Panel>

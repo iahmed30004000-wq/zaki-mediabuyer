@@ -1,10 +1,11 @@
 /**
- * THE TWO PALETTES of the Media Buyer — every colour a screen may use, per theme, by ROLE and never by look (docs/rebuild/03-look.md §2).
+ * THE TWO PALETTES of the Media Buyer — every colour a screen may use, per theme, by ROLE and never by look (docs/rebuild-v6/03-look.md §2).
  *
- * «فاتح» (`zaki`, the default): white paper, navy ink, a gold line. «داكن» (`zaki-dark`): the same on a night surface, where the gold
- * becomes the primary colour. `src/app/themes.css` is GENERATED from this file (`npm run themes:css`) and tests/themes-palettes.test.ts
- * runs every palette through the contrast gate. Meanings (ok / warn / danger) keep their roles in both; danger is for risk only.
- * The gold (`accent-2`) is a signal only — the line under a title, the active tab, a number, the focus ring — never a text colour on white.
+ * v6 «غرفة تحكم»: colour tells a STATE and nothing else (green done · blue running · orange needs you · red stopped). The actions are ink keys:
+ * dark ink on the light page (`zaki`, the default), pale ink on the night page (`zaki-dark`). The names of the tokens never changed, so the
+ * whole site re-colours by itself; `tape` (the groove a light strip runs in) and `key-edge` (the edge under a key) are the two new ones.
+ * `src/app/themes.css` is GENERATED from this file (`npm run themes:css`) and tests/themes-palettes.test.ts runs every palette through the
+ * contrast gate. Danger is for risk only. The gold (`accent-2`) is the logo and the job number only — never a text colour, never a state.
  */
 import { DEFAULT_THEME, type ThemeKey } from "./registry";
 import { SCRIM_BACKDROP_ALPHA, SCRIM_PANEL_ALPHA, hexToTriplet } from "./contrast";
@@ -31,6 +32,8 @@ export const COLOR_TOKENS = [
   "warn-fg",
   "danger-fg",
   "info-fg",
+  "tape",
+  "key-edge",
   "scrim",
   "cat-1",
   "cat-2",
@@ -41,7 +44,7 @@ export const COLOR_TOKENS = [
 ] as const;
 export type ColorToken = (typeof COLOR_TOKENS)[number];
 
-/** The categorical colours (labels, departments, chart series): 1 violet · 2 fuchsia · 3 rose · 4 teal · 5 lime · 6 indigo. */
+/** The categorical colours (labels, departments, chart series): 1 violet · 2 fuchsia · 3 rose · 4 teal · 5 lime · 6 indigo. They live inside charts only. */
 export const CAT_TOKENS = ["cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6"] as const;
 
 /** The per-theme values that are not colours. */
@@ -54,69 +57,74 @@ export interface Palette {
   style: Record<StyleToken, string>;
 }
 
-/** One face for everything: Cairo (loaded by the root layout through next/font as --font-cairo), IBM Plex Sans Arabic as the fallback. */
-const CAIRO_STACK = 'var(--font-cairo, "Cairo"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif';
+/** Two faces (03-look §3): Changa for titles, numbers and clocks (the root layout loads it through next/font as --font-changa), IBM Plex Sans Arabic (--font-plex) for all the text. */
+const DISPLAY_STACK = 'var(--font-changa, "Changa"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif';
 
 const STYLE: Palette["style"] = {
-  "font-display": CAIRO_STACK,
-  "radius-card": "14px",
-  "shadow-card": "0 1px 2px rgb(16 24 40 / 0.04)",
+  "font-display": DISPLAY_STACK,
+  "radius-card": "18px",
+  // no shadows: depth is a line and the edge of a key (03-look §4)
+  "shadow-card": "none",
 };
 
 export const PALETTES: Record<ThemeKey, Palette> = {
-  /** «فاتح» — white paper (muted / ok / warn / three category colours are one step darker than the first sketch so every pair passes the contrast gate), navy ink, a gold line. The default. */
+  /** «فاتح» — a cool grey-green page, white panels, ink keys. The default. */
   zaki: {
     colors: {
-      surface: "#F5F6F8",
+      surface: "#EEF1EF",
       "surface-1": "#FFFFFF",
-      "surface-2": "#EEF1F5",
-      border: "#DCE1E9",
-      muted: "#626C7B",
-      fg: "#172033",
-      "fg-muted": "#5A657A",
-      accent: "#1B2A4A", // navy
+      "surface-2": "#F5F7F6",
+      border: "#D3DBD8",
+      muted: "#C3CECA", // an unlit lamp, a locked control: a SHAPE, never a text colour
+      fg: "#0F1E26",
+      "fg-muted": "#56666F",
+      accent: "#0F1E26", // ink
       "accent-fg": "#FFFFFF",
-      "accent-2": "#F2B705", // gold, as a signal only
-      ok: "#167049",
-      warn: "#975506",
-      danger: "#B42318",
-      info: "#1F4FBF",
+      "accent-2": "#F2B705", // gold: the logo and the job number only
+      ok: "#0D714F", // one notch darker than the sketch (#0E7A55): the 10% status chip on the page must reach 4.5:1
+      warn: "#905709", // sketch #A8650A, darkened for the same reason
+      danger: "#B93124", // sketch #BF3325
+      info: "#1564B6", // sketch #1565B8
       "ok-fg": "#FFFFFF",
       "warn-fg": "#FFFFFF",
       "danger-fg": "#FFFFFF",
       "info-fg": "#FFFFFF",
+      tape: "#DFE6E3",
+      "key-edge": "#000000",
       scrim: "#0B1220",
       "cat-1": "#6C5A9E",
       "cat-2": "#9D3D8D",
-      "cat-3": "#9A526B",
-      "cat-4": "#0B6F7F",
+      "cat-3": "#944F67",
+      "cat-4": "#0B6E7E",
       "cat-5": "#5B6B17",
       "cat-6": "#384DB8",
     },
     style: STYLE,
   },
 
-  /** «داكن» — the same on a night surface; the gold is the primary colour. */
+  /** «داكن» — the same on a night page: pale ink keys, lamps that glow. */
   "zaki-dark": {
     colors: {
-      surface: "#0E1420",
-      "surface-1": "#161E2E",
-      "surface-2": "#1D2739",
-      border: "#2A3650",
-      muted: "#8896AD",
-      fg: "#E9EDF5",
-      "fg-muted": "#9BA7BD",
-      accent: "#F2B705",
-      "accent-fg": "#172033",
+      surface: "#0B1318",
+      "surface-1": "#131F27",
+      "surface-2": "#182730",
+      border: "#273944",
+      muted: "#2C3F4A",
+      fg: "#E8F0F2",
+      "fg-muted": "#8FA4AF",
+      accent: "#E8F0F2",
+      "accent-fg": "#0B1318",
       "accent-2": "#F2B705",
-      ok: "#4CC38A",
-      warn: "#E8913A",
-      danger: "#FF8A7A",
-      info: "#8FB2FF",
-      "ok-fg": "#10151F",
-      "warn-fg": "#10151F",
-      "danger-fg": "#10151F",
-      "info-fg": "#10151F",
+      ok: "#35D49A",
+      warn: "#FFC24D",
+      danger: "#FF7466",
+      info: "#5BB4FF",
+      "ok-fg": "#0B1318",
+      "warn-fg": "#0B1318",
+      "danger-fg": "#0B1318",
+      "info-fg": "#0B1318",
+      tape: "#0A1116",
+      "key-edge": "#5F7480",
       scrim: "#05080F",
       "cat-1": "#B592F5",
       "cat-2": "#E07AD0",

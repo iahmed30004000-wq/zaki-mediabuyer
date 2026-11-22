@@ -20,7 +20,7 @@ function Section({ title, groups }: { title: string; groups: DayGroup[] }) {
           <tbody>
             {g.items.map((i, n) => (
               <tr key={`${i.at}-${n}`} className="border-b border-neutral-200 align-top">
-                <td dir="ltr" className="w-14 py-1 font-mono text-xs text-neutral-600">{lineTime(i)}</td>
+                <td dir="ltr" className="w-14 py-1 tabular-nums text-xs text-neutral-600">{lineTime(i)}</td>
                 <td className={`py-1 ${i.tone === "danger" ? "font-semibold" : ""}`}>{i.text}</td>
                 <td dir="ltr" className="py-1 text-end text-xs tabular-nums text-neutral-600">{i.numbers?.join(" · ")}</td>
               </tr>

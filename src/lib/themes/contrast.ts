@@ -84,7 +84,7 @@ export function deltaEOK(a: string, b: string): number {
 
 // ── the gate ────────────────────────────────────────────────────────────────
 
-export type GateRule = "text" | "chip" | "ui" | "distinct" | "scrim";
+export type GateRule = "text" | "chip" | "ui" | "lamp" | "distinct" | "scrim";
 
 export interface GateProblem {
   rule: GateRule;
@@ -97,7 +97,7 @@ export interface GateProblem {
 
 /** The three page levels text is drawn on: the page, a card, a hover row or a chip's ground. */
 const GROUNDS = ["surface", "surface-1", "surface-2"] as const;
-/** Colours that are also used AS TEXT: links and the active tab (accent), status words, category labels. */
+/** Colours that are also used AS TEXT: links and the active tab (accent), status words, category labels. (`muted` is NOT one: it is an unlit lamp, a shape.) */
 const TEXT_COLOURS = ["accent", "ok", "warn", "danger", "info", "cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6"] as const;
 /** Each meaning and the text colour drawn ON it (a solid danger button, a solid status badge). */
 const ON = [
@@ -111,8 +111,13 @@ const ON = [
 const MEANINGS = ["accent", "ok", "warn", "danger", "info"] as const;
 const CATS = ["cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6"] as const;
 
-/** The one gold of the identity. On a light page it is a signal (a line, an underline), never text or the only carrier of a meaning, so the 3:1 shape rule does not apply to it. */
+/** The one gold of the identity (the logo and the job number). On a light page it is a signal, never text or the only carrier of a meaning, so the 3:1 shape rule does not apply to it. */
 export const SIGNAL_GOLD = "#F2B705";
+
+/** The states a lamp can light (a light strip, a status word): each must show on a panel and in the groove (`tape`) it runs in. */
+const LAMP_COLOURS = ["ok", "info", "warn", "danger"] as const;
+/** An unlit lamp (`muted`) must still be told from the groove / the panel it sits on: a soft difference, it is the dim one on purpose. */
+export const LAMP_OFF_MIN = 1.25;
 
 /** The opacity of the tinted ground a status chip is drawn on: `bg-ok/10 text-ok`. */
 export const CHIP_TINT = 0.1;
@@ -126,12 +131,14 @@ export const SCRIM_BACKDROP_ALPHA = 0.6;
 
 /**
  * Every pair a screen actually draws, measured. Returns the failures (empty = the palette passes):
- *  - text  >= 4.5:1  fg, fg-muted and muted on the page, a card and a hover row; every colour that is
+ *  - text  >= 4.5:1  fg and fg-muted on the page, a card and a hover row; every colour that is
  *                    also used as text (accent, ok, warn, danger, info, cat-1..6) on the same three;
  *                    the label colour on each solid meaning (accent-fg on accent, ok-fg on ok, ...).
  *  - chip  >= 4.5:1  the same text colours on their OWN 10% tint over the page and a card
  *                    (`bg-ok/10 text-ok` is how the code draws a status chip).
- *  - ui    >= 3:1    accent and accent-2 as shapes on the page and a card.
+ *  - ui    >= 3:1    accent and accent-2 as shapes on the page and a card; key-edge (the edge under a key) on the page and a card.
+ *  - lamp            ok / info / warn / danger lamps >= 3:1 on a card and in the `tape` groove; an unlit lamp (muted) >= 1.25:1 against the tape and a card;
+ *                    fg-muted (an unlit step's label, a dotted lamp) >= 4.5:1 on the tape.
  *  - distinct        the six categorical colours, and the five meanings, pairwise >= DISTINCT_MIN.
  *  - scrim           a dark veil: darker than the page, a card and a hover row (it DIMS what is
  *                    under it); a white caption — and a dark theme's own text — on it at
@@ -146,7 +153,7 @@ export function checkPalette(colors: Readonly<Record<ColorToken, string>>): Gate
   };
 
   for (const ground of GROUNDS) {
-    for (const text of ["fg", "fg-muted", "muted", ...TEXT_COLOURS] as const) {
+    for (const text of ["fg", "fg-muted", ...TEXT_COLOURS] as const) {
       need("text", `${text} on ${ground}`, contrastRatio(colors[text], colors[ground]), AA_TEXT);
     }
   }
@@ -158,11 +165,22 @@ export function checkPalette(colors: Readonly<Record<ColorToken, string>>): Gate
       need("chip", `${text} on ${text}/10 over ${ground}`, contrastRatio(colors[text], tint), AA_TEXT);
     }
     for (const shape of ["accent", "accent-2"] as const) {
-      // the signal gold is exempt on a light page: it never carries meaning alone (a line, a tab underline, a number) — docs/rebuild/03-look.md §1
+      // the signal gold is exempt on a light page: it never carries meaning alone (a line, a tab underline, a number) — docs/rebuild-v6/03-look.md §1
       if (shape === "accent-2" && colors[shape].toUpperCase() === SIGNAL_GOLD && contrastRatio(colors[shape], colors[ground]) < AA_UI) continue;
       need("ui", `${shape} on ${ground}`, contrastRatio(colors[shape], colors[ground]), AA_UI);
     }
   }
+
+  for (const ground of ["surface", "surface-1"] as const) {
+    need("ui", `key-edge on ${ground}`, contrastRatio(colors["key-edge"], colors[ground]), AA_UI);
+  }
+  for (const lamp of LAMP_COLOURS) {
+    need("lamp", `${lamp} on surface-1`, contrastRatio(colors[lamp], colors["surface-1"]), AA_UI);
+    need("lamp", `${lamp} on tape`, contrastRatio(colors[lamp], colors.tape), AA_UI);
+  }
+  need("lamp", "muted (unlit) on tape", contrastRatio(colors.muted, colors.tape), LAMP_OFF_MIN);
+  need("lamp", "muted (unlit) on surface-1", contrastRatio(colors.muted, colors["surface-1"]), LAMP_OFF_MIN);
+  need("text", "fg-muted on tape", contrastRatio(colors["fg-muted"], colors.tape), AA_TEXT);
 
   for (const group of [CATS, MEANINGS] as const) {
     for (let i = 0; i < group.length; i++) {

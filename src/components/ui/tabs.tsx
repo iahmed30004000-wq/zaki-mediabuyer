@@ -25,13 +25,13 @@ export function tabIsActive(href: string, pathname: string, query: URLSearchPara
 }
 
 /**
- * The tabs of a place: real links (the keyboard and middle-click work), the active one with the gold line. Four at most (03 §7).
+ * The tabs of a place: real links (the keyboard and middle-click work), the active one with an ink line. Four at most (03 §7).
  * `exact` makes the first tab of a place (`/ads`) active only on its own address.
  */
 export function Tabs(props: TabsProps) {
   // useSearchParams needs a Suspense boundary (the static pass of the build); the fallback is the same bar with nothing active
   return (
-    <Suspense fallback={<div aria-hidden className="h-10 border-b border-border" />}>
+    <Suspense fallback={<div aria-hidden className="h-12 border-b border-border" />}>
       <TabsBar {...props} />
     </Suspense>
   );
@@ -58,12 +58,12 @@ function TabsBar({ items, label = "التبويبات", exactFirst = true, class
                 href={it.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "-mb-px inline-flex h-10 items-center gap-1.5 border-b-[3px] px-3 text-sm font-bold transition-colors max-md:h-11",
-                  active ? "border-accent-2 text-fg" : "border-transparent text-fg-muted hover:text-fg",
+                  "-mb-px inline-flex h-12 items-center gap-1.5 border-b-[3px] px-4 text-base font-bold transition-colors",
+                  active ? "border-accent text-fg" : "border-transparent text-fg-muted hover:text-fg",
                 )}
               >
                 {it.label}
-                {it.count ? <span className="rounded-full bg-surface-2 px-1.5 text-xs font-bold text-fg-muted">{it.count}</span> : null}
+                {it.count ? <span className="rounded-full bg-surface-2 px-1.5 font-display text-xs font-bold text-fg-muted">{it.count}</span> : null}
               </Link>
             </li>
           );

@@ -44,8 +44,8 @@ export default async function ConnectionsPage() {
         <FoldCard id="meta-write" title="الكتابة على ميتا" summary={edit.writeMode === "live" ? "الكتابة حقيقية" : "الكتابة تجريبية"}>
           <div className="grid gap-3">
             <Panel className="space-y-1">
-              <p className="text-sm font-semibold text-fg">الكتابة على ميتا</p>
-              <p className={cn("text-sm", edit.writeMode === "live" ? "text-warn" : "text-fg-muted")}>{edit.writeMode === "live" ? "حقيقية — كل قرار بيوصل لميتا" : "تجريبية — كل قرار بيتسجّل وما بيوصل لميتا"}</p>
+              <p className="text-base font-semibold text-fg">الكتابة على ميتا</p>
+              <p className={cn("text-base", edit.writeMode === "live" ? "text-warn" : "text-fg-muted")}>{edit.writeMode === "live" ? "حقيقية — كل قرار بيوصل لميتا" : "تجريبية — كل قرار بيتسجّل وما بيوصل لميتا"}</p>
             </Panel>
           </div>
         </FoldCard>

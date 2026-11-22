@@ -37,9 +37,9 @@ export default async function LogPage({ searchParams: searchParamsP }: { searchP
           audit.map((a) => (
             <div key={a.id} className="space-y-0.5 px-4 py-2 text-sm">
               <p className="text-fg">
-                <span className="font-medium">{a.who}</span> · {a.action} <span dir="ltr" className="font-mono text-xs text-fg-muted">{a.target}</span> <span className="text-xs text-fg-muted">· {a.at}</span>
+                <span className="font-medium">{a.who}</span> · {a.action} <span dir="ltr" className="tabular-nums text-xs text-fg-muted">{a.target}</span> <span className="text-sm text-fg-muted">· {a.at}</span>
               </p>
-              {a.change ? <p dir="ltr" className="truncate text-start font-mono text-xs text-fg-muted">{a.change}</p> : null}
+              {a.change ? <p dir="ltr" className="truncate text-start tabular-nums text-xs text-fg-muted">{a.change}</p> : null}
             </div>
           ))
         ) : (

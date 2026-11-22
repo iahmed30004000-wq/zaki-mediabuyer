@@ -63,7 +63,7 @@ export function Num({
   const toneClass = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : "text-fg";
   const body = (
     <>
-      <span dir="ltr" className={cn("tabular-nums font-semibold", big ? "text-3xl font-extrabold" : "text-sm", toneClass)}>
+      <span dir="ltr" className={cn("font-display tabular-nums font-semibold", big ? "text-3xl font-extrabold" : "text-base", toneClass)}>
         {fmt(value, unit)}
       </span>
       {src ? <SourceBadge source={src} /> : null}
@@ -80,17 +80,17 @@ export function Num({
         aria-controls={id}
         aria-label={`${label ?? t.name}: ${fmt(value, unit)} — ليش؟`}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-md px-0.5 underline decoration-dotted max-md:min-h-[44px] decoration-fg-muted/40 underline-offset-4 hover:decoration-accent"
+        className="inline-flex items-center gap-1.5 rounded-md px-0.5 underline decoration-dotted max-md:min-h-[44px] decoration-fg-muted/40 underline-offset-4 hover:decoration-fg"
       >
         {body}
       </button>
       {open ? (
         <span id={id} role="dialog" className="absolute start-0 top-full z-40 mt-2 w-64 animate-fade-in rounded-xl border border-border bg-surface-1 p-3 text-start shadow-card">
           <span className="block text-sm font-semibold text-fg">{t.name}</span>
-          <span className="mt-1 block rounded-md bg-surface-2 px-2 py-1 text-xs text-fg-muted">{t.formula}</span>
-          <span className="mt-2 block text-xs leading-5 text-fg">{t.meaning}</span>
+          <span className="mt-1 block rounded-md bg-surface-2 px-2 py-1 text-sm text-fg-muted">{t.formula}</span>
+          <span className="mt-2 block text-sm text-fg">{t.meaning}</span>
           {src ? (
-            <span className="mt-2 flex items-start gap-1.5 text-xs text-fg-muted">
+            <span className="mt-2 flex items-start gap-1.5 text-sm text-fg-muted">
               <SourceBadge source={src} />
               {SOURCE_HINT[src]}
             </span>

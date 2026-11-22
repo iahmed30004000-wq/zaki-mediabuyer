@@ -47,7 +47,7 @@ export function LoginForm({ next }: { next: string }) {
       {invite !== null ? (
         <label className="block space-y-1">
           <span className="text-xs font-medium text-fg-muted">رمز الدعوة</span>
-          <input dir="ltr" autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 font-mono tracking-wider text-fg" />
+          <input dir="ltr" autoComplete="one-time-code" required placeholder="XXXX-XXXX-XXXX-XXXX" value={invite} onChange={(e) => setInvite(e.target.value.toUpperCase())} className="h-10 max-md:h-[44px] w-full rounded-lg border border-border bg-surface px-3 tabular-nums tracking-wider text-fg" />
         </label>
       ) : null}
       {error ? <p className="rounded-lg bg-danger/10 p-2 text-sm text-danger">{error}</p> : null}

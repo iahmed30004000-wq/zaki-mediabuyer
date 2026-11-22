@@ -24,7 +24,7 @@ export function PageHeader({ actions }: { actions?: ReactNode }) {
       <div className="mx-auto flex max-w-[1180px] items-center gap-2 px-4 py-3 md:px-6">
         <MediaBuyerMark className="size-8 shrink-0 md:hidden" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-extrabold text-fg">{place.title}</h1>
+          <h1 className="truncate font-display text-xl font-extrabold text-fg">{place.title}</h1>
           <p className="truncate text-sm text-fg-muted">{place.question}</p>
         </div>
         {actions}

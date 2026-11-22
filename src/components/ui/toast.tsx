@@ -63,7 +63,7 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
   const icons: Record<ToastKind, ReactNode> = {
     success: <CheckCircle2 className="size-4 shrink-0 text-ok" aria-hidden="true" />,
     error: <AlertCircle className="size-4 shrink-0 text-danger" aria-hidden="true" />,
-    info: <Info className="size-4 shrink-0 text-accent" aria-hidden="true" />,
+    info: <Info className="size-4 shrink-0 text-info" aria-hidden="true" />,
   };
   return (
     <div
@@ -73,12 +73,12 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
       )}
     >
       {icons[item.kind]}
-      <p className="min-w-0 flex-1 py-3 text-sm text-fg">{item.message}</p>
+      <p className="min-w-0 flex-1 py-3 text-base text-fg">{item.message}</p>
       <button
         type="button"
         onClick={onDismiss}
         aria-label={t("ui.toast_close")}
-        className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+        className="flex size-11 shrink-0 items-center justify-center rounded-lg text-fg-muted hover:text-fg"
       >
         <X className="size-4" aria-hidden="true" />
       </button>
