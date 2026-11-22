@@ -1164,6 +1164,12 @@
             "analysis": {
               "type": "object",
               "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "description": "نص الرسالة اللي بتنبعت للفريق (لطلب send_message)"
+                },
                 "decision": {
                   "type": "string",
                   "minLength": 1,

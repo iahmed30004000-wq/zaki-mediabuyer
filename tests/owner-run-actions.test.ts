@@ -21,7 +21,7 @@ const NOW = new Date("2026-11-22T10:00:00.000Z");
 const min = (m: number) => new Date(NOW.getTime() + m * 60_000);
 const owner = { type: "user" as const, id: "u1" };
 const agent = { type: "agent" as const, id: "mcp:Claude" };
-const rows = (name: "handoff" | "workflowRun" | "workflow") => (h.db[name] as unknown as { rows: Record<string, any>[] }).rows;
+const rows = (name: "handoff" | "workflowRun" | "workflow" | "approval") => (h.db[name] as unknown as { rows: Record<string, any>[] }).rows;
 
 /** a run that failed at step «b» of a, b, c, d */
 async function failedRun(over: { status?: string; states?: Record<string, unknown> } = {}) {
@@ -132,6 +132,52 @@ describe("the owner's buttons", () => {
       const r = await skipRunStep("night-check", run.id, owner, min(5));
       expect(r.run.nodeStates.b!.status).toBe("skipped");
       expect(r.handoff).toMatchObject({ nodeId: "c" });
+    });
+
+    describe("a step that waits for a decision", () => {
+      const gateRun = async (ref: string) => {
+        await logRun({ job: "night-check", ref, status: "running", nodes: [{ id: "a", status: "done" }, { id: "b", status: "approval", note: "بانتظار موافقتك" }] }, agent, "mcp", NOW, { actorKey: "claude" });
+        await logRun({ job: "night-check", ref, status: "waiting" }, agent, "mcp", min(1), { actorKey: "claude" });
+        return rows("workflowRun").find((x) => x.ref === ref)!;
+      };
+      const manager = { role: "MANAGER" as never };
+      const ops = { role: "OPS_MANAGER" as never };
+      const ownerRole = { role: "OWNER" as never };
+
+      it("a manager cannot skip a step that waits for an owner-only decision, and the decision stays pending", async () => {
+        const run = await gateRun("g1");
+        await h.db.approval.create({ data: { title: "ارفع السقف", why: "w", kind: "cap_raise", amount: 200, workflowKey: "night-check", runRef: "g1", nodeId: "b", status: "pending" } });
+        await expect(skipRunStep("night-check", run.id, owner, min(5), undefined, manager)).rejects.toMatchObject({ status: 403 });
+        expect(rows("workflowRun").find((x) => x.ref === "g1")).toMatchObject({ status: "waiting" });
+        expect(rows("approval")[0]!.status).toBe("pending");
+        expect(rows("handoff")).toHaveLength(0);
+      });
+
+      it("no caller role, or no linked request to say otherwise, means owner-only", async () => {
+        const run = await gateRun("g2");
+        await expect(skipRunStep("night-check", run.id, owner, min(5))).rejects.toMatchObject({ status: 403 });
+        await expect(skipRunStep("night-check", run.id, owner, min(5), undefined, manager)).rejects.toMatchObject({ status: 403 });
+        await expect(skipRunStep("night-check", run.id, owner, min(5), undefined, ownerRole)).resolves.toBeTruthy();
+      });
+
+      it("the owner may skip it, and the request it waited for is cancelled — none stays pending for a step that was set aside", async () => {
+        const run = await gateRun("g3");
+        await h.db.approval.create({ data: { title: "ارفع السقف", why: "w", kind: "cap_raise", amount: 200, workflowKey: "night-check", runRef: "g3", nodeId: "b", status: "pending" } });
+        const r = await skipRunStep("night-check", run.id, owner, min(5), undefined, ownerRole);
+        expect(r.run.nodeStates.b!.status).toBe("skipped");
+        expect(rows("approval")[0]).toMatchObject({ status: "cancelled", decidedBy: "u1" });
+      });
+
+      it("a real message to the team (the operations manager's to approve) may be skipped by that manager", async () => {
+        const run = await gateRun("g4");
+        await h.db.approval.create({ data: { title: "رسالة", why: "w", kind: "send_message", amount: null, analysis: { text: "أهلاً" }, workflowKey: "night-check", runRef: "g4", nodeId: "b", status: "pending" } });
+        await expect(skipRunStep("night-check", run.id, owner, min(5), undefined, ops)).resolves.toBeTruthy();
+      });
+
+      it("a step that merely failed is still skippable by a manager", async () => {
+        const run = await failedRun();
+        await expect(skipRunStep("night-check", run.id, owner, min(10), undefined, manager)).resolves.toBeTruthy();
+      });
     });
   });
 

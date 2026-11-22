@@ -152,6 +152,23 @@ describe("the queue, on a database", () => {
       expect(table("workflowRun")[0]!.nodeStates.read.status).toBe("handoff");
     });
 
+    it("an agent's request never reopens a run that ended or that the owner cancelled", async () => {
+      const wf = table("workflow")[0]!;
+      const mk = async (ref: string, over: Record<string, unknown>) => { await db().workflowRun.create({ data: { workflowId: wf.id, ref, startedAt: NOW, ...over } }); };
+      await mk("c1", { status: "skipped", endReason: "cancelled", finishedAt: min(1) });
+      await mk("c2", { status: "ok", finishedAt: min(1) });
+      await mk("c3", { status: "failed", finishedAt: min(1) });
+      for (const ref of ["c1", "c2", "c3"]) {
+        await expect(createHandoff({ workflow: "daily-check", kind: "node_failed", node: "read", title: "فشلت", run_ref: ref }, agent, min(2))).rejects.toMatchObject({ status: 409 });
+      }
+      expect(table("handoff")).toHaveLength(0);
+      expect(table("workflowRun").find((x) => x.ref === "c1")).toMatchObject({ status: "skipped", endReason: "cancelled" });
+      expect(table("workflowRun").find((x) => x.ref === "c2")).toMatchObject({ status: "ok", finishedAt: min(1) });
+      // a run that is still going is fine, and so is a ref the site has not seen yet
+      await mk("live", { status: "running" });
+      await expect(createHandoff({ workflow: "daily-check", kind: "node_failed", node: "read", title: "فشلت", run_ref: "live" }, agent, min(2))).resolves.toMatchObject({ created: true });
+    });
+
     it("a scheduled request ends at its slot + graceMin", async () => {
       const slot = new Date("2026-11-22T09:30:00Z");
       const r = await createHandoff({ workflow: "daily-check", kind: "manual_run", title: "t" }, owner, NOW, { scheduledFor: slot });

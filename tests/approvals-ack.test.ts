@@ -177,10 +177,12 @@ describe("decisions, on a database", () => {
 
   describe("who may answer, decided on the server", () => {
     it("the operations manager may approve a real message to the team", async () => {
-      const a = (await ask({ kind: "send_message", analysis: { analysis: "x" } as never })).approval;
+      const a = (await ask({ kind: "send_message", analysis: { analysis: "x" } })).approval;
       // no text to send → owner only
       await expect(decideApproval(a.id, { action: "approve" }, opsCaller, min(1))).rejects.toMatchObject({ status: 403 });
-      const m = await h.db.approval.create({ data: { title: "رسالة", why: "w", kind: "send_message", amount: null, analysis: { text: "أهلاً" } } });
+      // the real door (request_approval's schema) carries the text, so the manager can approve what it asks for
+      expect(ApprovalInput.safeParse({ title: "t", why: "w", urgency: "yellow", kind: "send_message", analysis: { text: "أهلاً" } }).success).toBe(true);
+      const m = (await ask({ kind: "send_message", analysis: { text: "أهلاً بالفريق" } })).approval;
       await expect(decideApproval(m.id, { action: "approve" }, opsCaller, min(1))).resolves.toMatchObject({ status: "approved" });
     });
 

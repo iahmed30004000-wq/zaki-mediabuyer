@@ -39,7 +39,7 @@ export async function POST(req: Request, { params: paramsP }: { params: Promise<
         params.action === "retry"
           ? await retryRun(params.key, params.id, actor)
           : params.action === "skip"
-            ? await skipRunStep(params.key, params.id, actor, new Date(), b.node)
+            ? await skipRunStep(params.key, params.id, actor, new Date(), b.node, { role: caller.role })
             : params.action === "cancel"
               ? await cancelRun(params.key, params.id, actor)
               : await reassignRun(params.key, params.id, b.assignee ?? "", actor);

@@ -14,7 +14,7 @@ import { z } from "zod";
 import type { Handoff, Prisma } from "@prisma/client";
 import { AGENT_HANDOFF_KINDS, KIND_AR, STATUS_AR, assigneeLabel, canMove, claimGate, completeGate, expiryFor, firstStep, isExpired, leaseUntil, newRunRef, queueAssignee, waitingMinutes, type HandoffKind, type HandoffStatus } from "@/core/handoff";
 import { refuseIfPrivate } from "@/core/push-rows";
-import { nodeStatusOnComplete, statusOnComplete } from "@/core/run-state";
+import { isTerminalRun, nodeStatusOnComplete, statusOnComplete } from "@/core/run-state";
 import { GraphSchema, type NodeStates } from "@/core/workflow";
 import { audit, type Actor } from "./audit";
 import { db } from "./db";
@@ -173,6 +173,11 @@ export async function createHandoff(input: HandoffCreateT, actor: Actor, now = n
   const node = input.node ?? (kind === "manual_run" ? firstStep(graph)?.id : undefined);
   if (node && !graph.nodes.some((n) => n.id === node)) throw new HandoffRefused(`node: «${node}» مش بخطوات ${wf.key} — الخطوات: ${graph.nodes.map((n) => n.id).join("، ")}`);
 
+  // an agent's request (a stuck step, a timeout…) never reopens a run that ended or that the owner cancelled: only the site's own queued requests may write the run
+  if (!queued && input.run_ref) {
+    const known = await db.workflowRun.findUnique({ where: { workflowId_ref: { workflowId: wf.id, ref: input.run_ref } }, select: { status: true, endReason: true } });
+    if (known && (isTerminalRun(known.status) || known.endReason === "cancelled")) throw new HandoffRefused("التشغيل خلص / ألغاه المالك — ما بينفع تفتح تسليم عليه. اعمل تشغيل جديد بـ ref جديد", 409);
+  }
   const ref = input.run_ref ?? newRunRef(kind, now, randomBytes(3).toString("hex"));
   const steps = graph.nodes.filter((n) => n.type !== "trigger" && !n.disabled).map((n) => ({ id: n.id, label: n.label }));
   const assignee = input.assignee ?? queueAssignee(wf.assigneeKey);

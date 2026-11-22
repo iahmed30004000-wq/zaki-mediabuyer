@@ -40,7 +40,7 @@ export const ApprovalInput = z
     numbers: z.array(NumberRow).max(12).optional().describe("الأرقام الأساسية: [{label, value}]"),
     options: z.array(Option).min(2).max(5).optional().describe("الخيارات [{key, label}] — الافتراضي موافق/رفض"),
     analysis: z
-      .object({ decision: text(600).optional(), analysis: text(1500).optional(), if_yes: text(600).optional(), if_no: text(600).optional(), recommendation: text(600).optional() })
+      .object({ text: text(2000).optional().describe("نص الرسالة اللي بتنبعت للفريق (لطلب send_message)"), decision: text(600).optional(), analysis: text(1500).optional(), if_yes: text(600).optional(), if_no: text(600).optional(), recommendation: text(600).optional() })
       .strict()
       .optional()
       .describe("صفحة «ليش؟»: القرار · التحليل · المآل إذا نعم/لا · التوصية"),
