@@ -8,3 +8,10 @@ export function fmt(value: number | null | undefined, unit: "$" | "%" | "x" | ""
   if (unit === "x") return `×${n}`;
   return n;
 }
+
+/** A figure with an EXACT number of decimals whatever its unit (`fmt` writes a plain count and a percentage with a fixed few): «402$» · «4.7» · «118». */
+export function fmtExact(value: number | null | undefined, unit: "$" | "%" | "x" | "", digits: number): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  const n = value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return unit === "$" ? `${n}$` : unit === "%" ? `${n}%` : unit === "x" ? `×${n}` : n;
+}

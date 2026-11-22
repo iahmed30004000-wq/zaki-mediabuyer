@@ -29,7 +29,8 @@ const LEVELS_BY_DETAIL = ["ad", "adset", "campaign"] as const;
 export interface MorningCard {
   from: string;
   to: string;
-  runs: { ok: number; failed: number; waiting: number; list: { name: string; status: string; summary: string | null }[] };
+  /** `missed` (the time came and nothing started) and `lost` (the news stopped) are runs that did not happen as planned (v6 · P5) */
+  runs: { ok: number; failed: number; waiting: number; missed: number; lost: number; list: { name: string; status: string; summary: string | null }[] };
   approvalsQueued: number;
   notifications: { title: string; urgency: string }[];
   executed: number;
@@ -223,7 +224,7 @@ async function morningOf(now: Date, awake: boolean): Promise<MorningCard | null>
   return {
     from: night.from.toISOString(),
     to: night.to.toISOString(),
-    runs: { ok: n("ok"), failed: n("failed"), waiting: n("waiting"), list: runs.slice(-6).map((r) => ({ name: r.workflow.name, status: r.status, summary: r.summary })) },
+    runs: { ok: n("ok"), failed: n("failed"), waiting: n("waiting"), missed: n("missed"), lost: n("lost"), list: runs.slice(-6).map((r) => ({ name: r.workflow.name, status: r.status, summary: r.summary })) },
     approvalsQueued: queued,
     notifications,
     executed,

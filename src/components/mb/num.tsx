@@ -3,9 +3,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { GLOSSARY, SOURCE_AR, SOURCE_HINT, type Source, type TermKey } from "@/lib/glossary";
 import { cn } from "@/lib/utils";
-import { fmt } from "@/lib/format";
+import { fmt, fmtExact } from "@/lib/format";
 
 export { fmt };
+
+/** `digits` given: exactly that many decimals; else the usual writing of the unit. */
+const show = (value: number | null | undefined, unit: "$" | "%" | "x" | "", digits?: number) => (digits === undefined ? fmt(value, unit) : fmtExact(value, unit, digits));
 
 const SOURCE_STYLE: Record<Source, string> = {
   meta: "border-border bg-surface-2 text-fg-muted",
@@ -30,6 +33,7 @@ export function Num({
   label,
   big = false,
   tone,
+  digits,
   className,
 }: {
   value: number | null | undefined;
@@ -39,6 +43,8 @@ export function Num({
   label?: string;
   big?: boolean;
   tone?: "ok" | "warn" | "danger";
+  /** decimals for a `$` figure (default 2): the average of a day is read as «402$», not «402.00$» */
+  digits?: number;
   className?: string;
 }) {
   const t = term ? GLOSSARY[term] : undefined;
@@ -64,23 +70,23 @@ export function Num({
   const body = (
     <>
       <span dir="ltr" className={cn("font-display tabular-nums font-semibold", big ? "text-3xl font-extrabold" : "text-base", toneClass)}>
-        {fmt(value, unit)}
+        {show(value, unit, digits)}
       </span>
       {src ? <SourceBadge source={src} /> : null}
     </>
   );
 
-  if (!t) return <span className={cn("inline-flex items-center gap-1.5", className)}>{body}</span>;
+  if (!t) return <span className={cn("inline-flex max-w-full flex-wrap items-center gap-x-1.5", className)}>{body}</span>;
 
   return (
-    <span ref={box} className={cn("relative inline-flex", className)}>
+    <span ref={box} className={cn("relative inline-flex max-w-full", className)}>
       <button
         type="button"
         aria-expanded={open}
         aria-controls={id}
-        aria-label={`${label ?? t.name}: ${fmt(value, unit)} — ليش؟`}
+        aria-label={`${label ?? t.name}: ${show(value, unit, digits)} — ليش؟`}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-md px-0.5 underline decoration-dotted max-md:min-h-[44px] decoration-fg-muted/40 underline-offset-4 hover:decoration-fg"
+        className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 rounded-md px-0.5 underline decoration-dotted max-md:min-h-[44px] decoration-fg-muted/40 underline-offset-4 hover:decoration-fg"
       >
         {body}
       </button>

@@ -253,6 +253,43 @@ export interface NowInput {
   now: Date;
 }
 
+/** Which lane a run belongs in (the ONE rule «هلق» and the home share, so the two never disagree): واقفة · فاتت · شغّالة · خلصت اليوم — or none. */
+export function laneOfRun(run: ViewRun, job: Pick<ViewJob, "graceMin">, runs: readonly ViewRun[], now: Date, workday: { from: number; to: number }): "stuck" | "missed" | "running" | "done" | null {
+  if (run.status === "waiting") return "stuck";
+  if (run.status === "queued") return (now.getTime() - moment(run)) / 60_000 > job.graceMin ? "stuck" : "running";
+  if (run.status === "running") return "running";
+  if ((run.status === "failed" || run.status === "lost") && now.getTime() - T(run.finishedAt ?? run.startedAt) <= 24 * HOUR && !isSuperseded(run, runs)) return "stuck";
+  if (run.status === "missed" && moment(run) >= workday.from && moment(run) < workday.to) return "missed";
+  if (run.status === "ok" && T(run.finishedAt ?? run.startedAt) >= workday.from && T(run.finishedAt ?? run.startedAt) < workday.to) return "done";
+  return null;
+}
+
+/** One card a job for the missed slots: the latest slot, and how many came before it. */
+function missedCards(byJob: ReadonlyMap<string, ViewRun[]>, jobOf: ReadonlyMap<string, ViewJob>, names: Names, now: Date): NowCard[] {
+  return [...byJob.entries()].map(([key, list]) => {
+    const sorted = [...list].sort((a, b) => moment(b) - moment(a));
+    return cardOf(jobOf.get(key)!, sorted[0]!, names, now, sorted.length - 1);
+  });
+}
+
+const byAtAsc = (a: NowCard, b: NowCard) => T(a.at) - T(b.at);
+
+export interface StuckData {
+  /** the cards that need somebody: the stopped and waiting ones first (oldest first), then the missed ones */
+  cards: NowCard[];
+  total: number;
+}
+
+/**
+ * What needs somebody, for the home (v6 · P5, 02-screens.md §2 section 1): the first two lanes of «هلق» — the runs that WAIT (a decision or a step), a request nobody took past its grace,
+ * a run that stopped or was lost in the last 24 hours and that nothing later answered, and the slots of today that were missed. It is read from the lanes themselves (`laneOfRun`), so the
+ * home and the tasks screen can never say two different things.
+ */
+export function stuckOf(now: Pick<NowData, "lanes">): StuckData {
+  const cards = now.lanes.filter((l) => l.key === "stuck" || l.key === "missed").flatMap((l) => l.cards);
+  return { cards, total: cards.length };
+}
+
 /**
  * «هلق» — six lanes, an empty one is left out (02 §3.1):
  *  واقفة — بدها حدا    a run `waiting`, a request nobody took for longer than the job's grace, a run that stopped or was lost in the last 24 hours and that nothing later answered
@@ -266,8 +303,7 @@ export function buildNow(input: NowInput): NowData {
   const { now, names } = input;
   const bounds = workdayBounds(now);
   const jobOf = new Map(input.jobs.map((j) => [j.key, j]));
-  const dayStart = bounds.from.getTime();
-  const dayEnd = bounds.to.getTime();
+  const workday = { from: bounds.from.getTime(), to: bounds.to.getTime() };
   const runs = input.runs.filter((r) => jobOf.has(r.jobKey));
 
   const stuck: NowCard[] = [];
@@ -277,25 +313,18 @@ export function buildNow(input: NowInput): NowData {
 
   for (const r of runs) {
     const job = jobOf.get(r.jobKey)!;
-    if (r.status === "waiting") stuck.push(cardOf(job, r, names, now));
-    else if (r.status === "queued") {
-      const lateMin = (now.getTime() - moment(r)) / 60_000;
-      (lateMin > job.graceMin ? stuck : running).push(cardOf(job, r, names, now));
-    } else if (r.status === "running") running.push(cardOf(job, r, names, now));
-    else if ((r.status === "failed" || r.status === "lost") && now.getTime() - T(r.finishedAt ?? r.startedAt) <= 24 * HOUR && !isSuperseded(r, runs)) stuck.push(cardOf(job, r, names, now));
-    else if (r.status === "missed" && moment(r) >= dayStart && moment(r) < dayEnd) missedByJob.set(r.jobKey, [...(missedByJob.get(r.jobKey) ?? []), r]);
-    else if (r.status === "ok" && T(r.finishedAt ?? r.startedAt) >= dayStart && T(r.finishedAt ?? r.startedAt) < dayEnd) done.push(r);
+    const lane = laneOfRun(r, job, runs, now, workday);
+    if (lane === "stuck") stuck.push(cardOf(job, r, names, now));
+    else if (lane === "running") running.push(cardOf(job, r, names, now));
+    else if (lane === "missed") missedByJob.set(r.jobKey, [...(missedByJob.get(r.jobKey) ?? []), r]);
+    else if (lane === "done") done.push(r);
   }
 
   // one card a job for the missed ones: the latest slot, and how many before it
-  const missed: NowCard[] = [...missedByJob.entries()].map(([key, list]) => {
-    const sorted = [...list].sort((a, b) => moment(b) - moment(a));
-    return cardOf(jobOf.get(key)!, sorted[0]!, names, now, sorted.length - 1);
-  });
+  const missed = missedCards(missedByJob, jobOf, names, now);
 
-  const byAt = (a: NowCard, b: NowCard) => T(a.at) - T(b.at);
-  stuck.sort(byAt);
-  missed.sort(byAt);
+  stuck.sort(byAtAsc);
+  missed.sort(byAtAsc);
   running.sort((a, b) => T(b.at) - T(a.at));
 
   // what is still to come today: the slots the clock has not reached (the same laying-out as the board, so the two never disagree)
