@@ -12,7 +12,7 @@ describe("the people's side of «who can do what»", () => {
   it("three groups, and a cell for each of the eight roles on every row", () => {
     expect(sections.map((s) => s.title)).toEqual(["الإعلانات", "التشغيل والفريق", "الشغل والنظام"]);
     for (const r of rows) expect(Object.keys(r.cells).sort(), r.key).toEqual([...ROLES].sort());
-    expect(CAPABILITY_COUNT).toBe(18);
+    expect(CAPABILITY_COUNT).toBe(19);
   });
 
   it("every cell is the table of roles, not a copy: ✓ exactly where `can` says so", () => {

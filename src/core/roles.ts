@@ -1,5 +1,5 @@
 /**
- * ROLES — who may do what, as ONE table (docs/rebuild/05-permissions.md §2–3). Eight roles × eighteen capabilities. Pure: the API checks it,
+ * ROLES — who may do what, as ONE table (docs/rebuild/05-permissions.md §2–3). Eight roles × nineteen capabilities. Pure: the API checks it,
  * the screens hide what is not allowed, and tests/roles.test.ts holds every cell. A role is a ready-made template: the owner picks one for a person
  * and does not edit boxes (simpler, and every box is tested).
  *
@@ -44,6 +44,7 @@ export const CAPABILITIES = [
   "money.view",
   "work.view",
   "work.control",
+  "work.create",
   "orders.restrict",
   "tasks.manage",
   "tasks.own",
@@ -67,6 +68,7 @@ export const CAPABILITY_AR: Record<Capability, string> = {
   "money.view": "يشوف الأرباح والهوامش والتكاليف ونقط التعادل",
   "work.view": "يشوف خريطة المهام والتقارير (لمجالاته بس)",
   "work.control": "يشغّل أو يطفي مهمة أو فرع، ويقرّر على ورقة القرار",
+  "work.create": "ينشئ مهمة جديدة (يركّبها أو من قالب) وبيحفظها بالخريطة",
   "orders.restrict": "يسجّل أمر ساري بيشدّد",
   "tasks.manage": "ينشئ ويوزّع وينقل مهام أي حدا",
   "tasks.own": "يشوف ويحدّث مهامه",
@@ -89,6 +91,7 @@ const MATRIX: Record<Capability, readonly RoleKey[]> = {
   "money.view": ["OWNER", "MANAGER", "ADS_MANAGER", "ANALYST"],
   "work.view": ["OWNER", "MANAGER", "ADS_MANAGER", "OPS_MANAGER", "TEAM_LEAD", "ANALYST", "VIEWER"],
   "work.control": ["OWNER", "MANAGER"],
+  "work.create": ["OWNER", "MANAGER"],
   "orders.restrict": ["OWNER", "MANAGER"],
   "tasks.manage": ["OWNER", "MANAGER", "ADS_MANAGER", "OPS_MANAGER", "TEAM_LEAD"],
   "tasks.own": ["OWNER", "MANAGER", "ADS_MANAGER", "OPS_MANAGER", "TEAM_LEAD", "MEMBER", "ANALYST"],
@@ -144,6 +147,8 @@ const PAGE_RULES: readonly { test: RegExp; any: readonly Capability[]; place?: P
   { test: /^\/work\/tasks(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
   // the new place «المهام» (v6 · P3): the people's board is the same screen as the old «مهام الفريق»; the rest of it is the work place
   { test: /^\/tasks\/team(\/|$)/, any: ["tasks.own", "tasks.manage"], place: "work" },
+  // making a job (v6 · P4-1): the owner and the manager — the rest never see the screen, even though they may read the jobs
+  { test: /^\/tasks\/new(\/|$)/, any: ["work.create"], place: "work" },
   { test: /^\/tasks(\/|$)/, any: ["work.view"], place: "work" },
   { test: /^\/work(\/|$)/, any: ["work.view"], place: "work" },
   { test: /^\/print\/(work|report|day)(\/|$)/, any: ["work.view"] },

@@ -37,7 +37,7 @@ describe("every API route is guarded", () => {
       const caps = [...f.src.matchAll(/requireCapability\(([^)]*)\)/g)];
       const guarded = caps.length > 0 || /requireSignedIn\(\)/.test(f.src) || /requireToken\(/.test(f.src) || /requireMcp\(/.test(f.src) || /withHandoffToken\(/.test(f.src) || /from "@\/app\/api\//.test(f.src);
       expect(guarded || !!open, `${f.rel} has no guard`).toBe(true);
-      // every capability named is one of the eighteen (the old names are gone)
+      // every capability named is one of the table (the old names are gone)
       for (const c of caps) {
         const named = [...c[1]!.matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]!).filter((n) => n.includes(".") || n === "owner_only" || /^(view|connect_meta|propose_change|pause_or_reduce|approve_within_cap|kill_switch)$/.test(n));
         expect(named.length, `${f.rel}: requireCapability(${c[1]})`).toBeGreaterThan(0);
