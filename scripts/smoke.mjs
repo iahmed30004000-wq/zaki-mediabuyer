@@ -9,13 +9,35 @@
  * It only talks to a local address unless SMOKE_ALLOW_REMOTE=1: it is not a tool to point at production with a real password.
  * It never prints the password, a cookie, or a page body — only the address and the problem.
  *
- * Every interface phase adds its own addresses to SMOKE_PAGES below.
+ * Every interface phase adds its own addresses to SMOKE_PAGES below (and tests/smoke.test.ts keeps the list in step with the map in src/lib/nav.ts).
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** The screens opened after sign-in. Add a phase's new addresses here (v6: `/tasks` · `/numbers` · `/ads` · `/settings` as each one ships). */
-export const SMOKE_PAGES = ["/", "/work", "/inbox", "/ads", "/ops", "/settings"];
+/**
+ * The screens opened after sign-in: every place of the v6 map (src/lib/nav.ts: home, tasks, numbers, ads, settings) with its tabs, plus «all the decisions» (/inbox and its tabs,
+ * a section of the home, not a place) and the two pages that open from links on the ads place (health, scale). A phase that adds a place or a tab adds its address here (tests/smoke.test.ts keeps this list in step with the map).
+ */
+export const SMOKE_PAGES = [
+  "/",
+  "/tasks",
+  "/tasks/day",
+  "/tasks/all",
+  "/tasks/results",
+  "/numbers",
+  "/numbers/products",
+  "/numbers/ops",
+  "/numbers/stock",
+  "/ads",
+  "/ads/videos",
+  "/ads/tests",
+  "/ads/health",
+  "/ads/scale",
+  "/inbox",
+  "/inbox/later",
+  "/inbox/done",
+  "/settings",
+];
 
 /** Text that means a screen crashed. */
 export const BAD_TEXT = ["Application error", "صار خطأ بهالصفحة"];

@@ -5,8 +5,8 @@
 #   1. merge  : only for a pull request whose CI run (ci.yml) passed, from THIS repository, not a draft, whose head is exactly the
 #               commit CI checked, and which does not touch the deploy files (.github/**, Dockerfile, docker-compose*.yml, the guard
 #               itself — scripts/release-guard.mjs). Those wait for the owner's own merge; the robot leaves a comment saying so.
-#   2. deploy : always from `main` itself. Migrations are checked, the image is built from `main` and proved (starts, signs in, five
-#               pages open), tagged `sha-<first 7 of main>` and `main` (the old `main` becomes `previous` first, unless this commit was already published), then ONE call to
+#   2. deploy : always from `main` itself. Migrations are checked, the image is built from `main` and proved (starts, signs in, the
+#               pages of the map open), tagged `sha-<first 7 of main>` and `main` (the old `main` becomes `previous` first, unless this commit was already published), then ONE call to
 #               Coolify and a wait for /api/health to say "ok":true with this very version. No answer in 8 minutes: `main` is pointed
 #               back at `previous`, Coolify is asked once more, and the run fails.
 #

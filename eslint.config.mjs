@@ -15,5 +15,6 @@ export default defineConfig([
       "react-hooks/preserve-manual-memoization": "off",
     },
   },
-  globalIgnores([".next/**", "node_modules/**", "next-env.d.ts", "public/**", "vendor/**", "coverage/**", "tests/fixtures/**"]),
+  // scripts/*.d.mts: the type declarations of the two plain-JS release scripts (smoke.mjs, release-guard.mjs); the config has no TypeScript parser for the .mts extension
+  globalIgnores([".next/**", "node_modules/**", "next-env.d.ts", "public/**", "vendor/**", "coverage/**", "tests/fixtures/**", "scripts/*.d.mts"]),
 ]);

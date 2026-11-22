@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INBOX_TABS, PLACES, SETTINGS } from "../src/lib/nav";
 import { BAD_TEXT, SMOKE_PAGES, cookieHeader, isLocalBase, judgePage, runSmoke } from "../scripts/smoke.mjs";
 
 /** A fake site: `routes` maps an address to a Response factory. */
@@ -46,8 +47,13 @@ describe("smoke — helpers", () => {
     expect(isLocalBase("http://localhost.evil.test")).toBe(false);
     expect(isLocalBase("not a url")).toBe(false);
   });
-  it("starts with the home page and the work place", () => {
-    expect(SMOKE_PAGES.slice(0, 2)).toEqual(["/", "/work"]);
+  it("opens the home page first and every place of the v6 map with its tabs (so a new place or tab cannot ship unchecked)", () => {
+    expect(SMOKE_PAGES[0]).toBe("/");
+    const want = [...PLACES.flatMap((p) => [p.href, ...p.tabs.map((t) => t.href)]), SETTINGS.href, ...INBOX_TABS.map((x) => x.href)];
+    for (const href of want) expect(SMOKE_PAGES, href).toContain(href);
+  });
+  it("does not open an address of the old map", () => {
+    for (const old of ["/work", "/ops", "/products", "/ads/campaigns"]) expect(SMOKE_PAGES).not.toContain(old);
   });
 });
 

@@ -2,7 +2,7 @@
 # the token is read-only and no secret is passed in. (The merge and the deploy are .github/workflows/release.yml,
 # which always runs from `main`, never from the code of the pull request it judges — D8 in docs/DECISIONS.md.)
 #
-# What it proves: types, tests, no secret in the repository, migrations that are additive and match the schema, the image
+# What it proves: types, lint, tests, no secret in the repository, migrations that are additive and match the schema, the image
 # builds, the image STARTS on a real Postgres and answers /api/health, and — after seeding an owner account and the
 # starter data — every main screen opens after a real sign-in (scripts/smoke.mjs).
 name: CI
@@ -34,6 +34,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm run lint
       - run: npx vitest run
       - run: node scripts/scan-secrets.mjs
       # the database changes at start-up on live data: only additive migrations (scripts/release-guard.mjs)
