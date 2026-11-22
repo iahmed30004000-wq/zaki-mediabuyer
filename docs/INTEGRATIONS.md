@@ -1,5 +1,13 @@
 # INTEGRATIONS — Media Buyer ↔ OMS ↔ Studio ↔ Replies ↔ Drive ↔ Meta
 
+> **الحالة الحالية (v6 · P8، 22/11/2026) — اقرا هاد أول، وبعدها الباقي تاريخ:**
+> - **التحويلات (Purchase/Confirmed/Delivered):** الـ OMS هو المرسِل الوحيد (قرار المالك 17/11، `docs/INTEGRATION_CONTRACTS.md`). كود الإرسال بالميديا باير (`src/core/capi.ts` · `src/jobs/capi.ts`) **مطفي** ما لم ينكتب `CAPI_SEND=1` عن قصد؛ ولا صف `CapiEvent` بينعمل. أي فقرة تحت بتقول إنو الميديا باير بيبعتها (مثلاً «D-CAPI») **مستبدلة**.
+> - **تيليجرام:** بوت الميديا باير نفسه (التنبيهات وتقرير الصبح و«اوقف»)، بمفاتيحه بإعدادات النشر. بعد ما ينتقل الإرسال للـ OMS (`/api/v1/notify`) بيصير عنده البوت.
+> - **مصدر الصرف:** ميتا (قراءة بـ `src/adapters/meta.ts`). الـ OMS مصدر الطلبات المؤكدة والمُسلَّمة (الحقيقة)، ورقم الإعلان مع كل طلب بيجي منه.
+> - **الساعة:** «الحارس» داخل الـ worker (`src/jobs/watchdog.ts`، كل دقيقة)، وجدولة مهام Claude نفسه. ما في n8n بالمسار؛ ملفاته (`n8n/media-buyer/`) اختيارية.
+> - **الإشعارات على الجوال:** FCM (`src/adapters/fcm.ts`) بمشروع Firebase اللي بيجهّزه المالك — `docs/LIVE_CHECKS.md` L18.
+
+
 Single source for **how the five systems fit together, what already works, what is missing, and who must do it**.
 Written 2026-11-04 from a read-only study of the four code bases, then corrected after the OMS session found parts of the first study stale (see §4.1).
 Rule zero (CLAUDE.md): **numbers are computed by code (`src/core`)**; no customer data (name / phone / address / message text)
@@ -95,7 +103,7 @@ Not verified: nothing ran against a real Postgres or the real Media Buyer; `ad_i
 
 > **v6 · P0-2 (2026-11-22): the sending is OFF by default in the code.** `enqueueCapi` and `sendCapi` do nothing unless `CAPI_SEND=1` is set on purpose (no `CapiEvent` row is made); the «when do we tell Meta «purchase»?» card is gone from the settings. The OMS is the only sender, per the 2026-11-17 decision — turn `CAPI_SEND` on only if that decision is ever reversed.
 
-**D-CAPI — DECIDED by the owner (2026-11-04): Media Buyer sends the purchase events.** `capi.send` on main stays (event id `oms-<order>-<status>`, mature-order truth, identifiers fetched from the OMS in memory, hashed, never stored).
+**D-CAPI — ⚠ SUPERSEDED on 2026-11-17 (the OMS is the only sender; see the note at the top): it was DECIDED by the owner (2026-11-04) that Media Buyer sends the purchase events.** `capi.send` on main stays (event id `oms-<order>-<status>`, mature-order truth, identifiers fetched from the OMS in memory, hashed, never stored).
 Consequences, in this order — none of it is optional:
 1. The OMS key for Media Buyer **must carry `capi.identifiers`** (the owner ticks it by hand when minting the token). Without it `capi_ref` is null and nothing is sent.
 2. **Never two senders on one pixel.** The OMS already sends server CAPI (`CustomConversion` triggers `order.created / confirmed / delivered`). Before Media Buyer goes `live`, the OMS conversions for the same pixel and the same moment are switched **off** (the browser pixel stays). Order: Media Buyer sends test events with `CAPI_TEST_EVENT_CODE` → compare in Events Manager → only then switch the OMS side off.

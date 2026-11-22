@@ -1,3 +1,5 @@
+> مؤرشف (v6 · P8): هاد الملف بيوصف الموقع قبل إعادة الهيكلة v6 (خمس أماكن بأسماء قديمة، 197 اختبار، 10 هجرات). الحالة الحالية بـ `docs/STATE.md`. ما بيتحدّث.
+
 # HANDOFF — Zaki Media Buyer («الميديا باير»)
 
 **For:** the next agent (e.g. GLM) or developer who continues this project.

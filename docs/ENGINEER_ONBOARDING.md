@@ -2,7 +2,7 @@
 
 **Audience:** the engineer (or model, e.g. GLM) who takes over the repository from the previous assistant, on a different account.
 **Written:** 27 Oct 2026 · **Written by:** Claude (previous assistant), who stops after this file. Everything here was checked against the code on `main` at merge `6c115de`. Where something was NOT verified, the text says **VERIFY**.
-**Companion file:** `docs/HANDOFF.md` — the step-by-step playbook (rules, SOPs, the four remaining tasks with exact file names, schemas and tests). **This file comes first**: it gives you the map, the permissions, the integrations and the audit plan. `HANDOFF.md` is what you execute afterwards.
+**Companion file:** `docs/archive/HANDOFF.md` — the step-by-step playbook (rules, SOPs, the four remaining tasks with exact file names, schemas and tests). **This file comes first**: it gives you the map, the permissions, the integrations and the audit plan. `HANDOFF.md` is what you execute afterwards.
 
 Arabic terms are kept in Arabic on purpose (they are the exact words on the screens and in the owner's vocabulary). Do not translate them in the product.
 
@@ -96,7 +96,7 @@ Arabic terms are kept in Arabic on purpose (they are the exact words on the scre
 | `/setup` shows real state | ❌ still reads mock steps (Task E2) | |
 | Real links: Meta, OMS, Telegram, Drive, a model on the server | ❌ owner's keys (§10) | |
 
-**Verification evidence on file:** `docs/FULL_CHECK.md` (16/16, spec 17.4), `docs/PROGRESS.md`, 23 test files / 197 tests (`npm test`), demo scripts under `scripts/`.
+**Verification evidence on file:** `docs/archive/FULL_CHECK.md` (16/16, spec 17.4), `docs/PROGRESS.md`, 23 test files / 197 tests (`npm test`), demo scripts under `scripts/`.
 
 ---
 
