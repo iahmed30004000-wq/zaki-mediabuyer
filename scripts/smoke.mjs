@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Smoke test (v6 P0-3): sign in with the seeded owner account and open the main pages of a RUNNING site. It fails on any 5xx answer,
  * on the words «Application error» (Next's own crash page) or «صار خطأ بهالصفحة» (the site's error screen), and on a page that sends the

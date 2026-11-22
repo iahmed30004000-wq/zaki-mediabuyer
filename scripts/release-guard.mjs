@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * The two checks the release path leans on (v6 P0-3). No dependencies, so a workflow can run it straight from a checkout of `main`.
  *
