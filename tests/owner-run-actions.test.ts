@@ -129,7 +129,7 @@ describe("the owner's buttons", () => {
       await logRun({ job: "night-check", ref: "r3", status: "running", nodes: [{ id: "a", status: "done" }, { id: "b", status: "approval", note: "بانتظار موافقتك" }] }, agent, "mcp", NOW, { actorKey: "claude" });
       await logRun({ job: "night-check", ref: "r3", status: "waiting" }, agent, "mcp", min(1), { actorKey: "claude" });
       const run = rows("workflowRun").find((x) => x.ref === "r3")!;
-      const r = await skipRunStep("night-check", run.id, owner, min(5));
+      const r = await skipRunStep("night-check", run.id, owner, min(5), undefined, { role: "OWNER" as never });
       expect(r.run.nodeStates.b!.status).toBe("skipped");
       expect(r.handoff).toMatchObject({ nodeId: "c" });
     });
