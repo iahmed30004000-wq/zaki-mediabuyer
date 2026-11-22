@@ -19,6 +19,8 @@ export const DeviceInput = z
     kind: z.enum(DEVICE_KINDS).default("fcm_fid"),
     platform: z.enum(PLATFORMS).optional(),
     label: z.string().trim().min(1).max(60).optional(),
+    /** the id of the row this browser remembers: set only by the automatic renewal on every open, which never brings a removed device back */
+    refreshOf: z.string().trim().min(1).max(64).optional(),
   })
   .strict();
 export type DeviceInputT = z.infer<typeof DeviceInput>;
@@ -42,14 +44,32 @@ const view = (d: { id: string; label: string | null; platform: string | null; la
   failedAt: d.failedAt?.toISOString() ?? null,
 });
 
-/** Registers a browser's token for this person, or refreshes it (the token is unique: a token that moves to another person's session moves with it). */
+/**
+ * Registers a browser's token for this person, or refreshes it (the token is unique: a token that moves to another person's session moves with it).
+ * A renewal (`refreshOf`, sent by the automatic refresh on every open) only touches a row that is the person's own and not removed: «شيله» sticks, and only the button
+ * «فعّل الإشعارات على هالجهاز» (a plain registration) brings a removed device back.
+ */
 export async function registerDevice(userId: string, input: DeviceInputT, now = new Date()): Promise<{ device: DeviceView; created: boolean }> {
   const found = await db.pushDevice.findUnique({ where: { token: input.token } });
+  if (input.refreshOf) return { device: await renewDevice(userId, input, found, now), created: false };
   const data = { userId, kind: input.kind, platform: input.platform ?? found?.platform ?? null, label: input.label ?? found?.label ?? "جهاز", lastSeenAt: now, revokedAt: null, failedAt: null };
   const row = found ? await db.pushDevice.update({ where: { id: found.id }, data }) : await db.pushDevice.create({ data: { token: input.token, ...data } });
   // the name and the kind, never the token (the log redacts a key that says «token» anyway)
   if (!found || found.revokedAt || found.userId !== userId) await audit({ type: "user", id: userId }, "push.device_register", { type: "push_device", id: row.id }, { after: { platform: row.platform, kind: row.kind } });
   return { device: view(row), created: !found };
+}
+
+type DeviceRow = NonNullable<Awaited<ReturnType<typeof db.pushDevice.findUnique>>>;
+
+/** The automatic renewal: moves `lastSeenAt` of the person's own, still-active row (and follows a rotated Installation ID). Anything else is «مش موجود» — it never revives a removed device. */
+async function renewDevice(userId: string, input: DeviceInputT, found: DeviceRow | null, now: Date): Promise<DeviceView> {
+  const mine = await db.pushDevice.findUnique({ where: { id: input.refreshOf! } });
+  if (!mine || mine.userId !== userId || mine.revokedAt) throw new HttpError(404, "الجهاز مش موجود");
+  // the Installation ID is already another row: only an active row of the same person may take the renewal, never a removed one or somebody else's
+  const target = found && found.id !== mine.id ? found : mine;
+  if (target.id !== mine.id && (target.userId !== userId || target.revokedAt)) throw new HttpError(404, "الجهاز مش موجود");
+  const data = target.id === mine.id ? { token: input.token, lastSeenAt: now, failedAt: null } : { lastSeenAt: now, failedAt: null };
+  return view(await db.pushDevice.update({ where: { id: target.id }, data }));
 }
 
 /** The person's own devices that still work, newest first. */

@@ -38,7 +38,7 @@ vi.mock("@firebase/messaging", () => {
   };
 });
 
-import { currentPushState, disablePush, enablePush, refreshPush, setBadge, thisDeviceId } from "@/lib/push-client";
+import { currentPushState, disablePush, enablePush, forgetPushConfig, preloadPushConfig, refreshPush, setBadge, thisDeviceId } from "@/lib/push-client";
 
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36";
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17.4 Mobile/15E148 Safari/604.1";
@@ -97,6 +97,7 @@ function world(ua: string, over: { standalone?: boolean; pushManager?: boolean }
 }
 
 beforeEach(() => {
+  forgetPushConfig();
   calls.length = 0;
   permission = "default";
   asked = 0;
@@ -128,13 +129,49 @@ describe("turning it on (from a press)", () => {
     expect(currentPushState()).toBe("granted");
   });
 
+  it("the permission is asked FIRST in the press, before any network call (Safari/iOS ignore a request that comes after an await)", async () => {
+    world(ANDROID);
+    const order: string[] = [];
+    const inner = (globalThis as any).fetch;
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      order.push(`fetch:${url}`);
+      return inner(url, init);
+    });
+    const Notif = (globalThis as any).Notification;
+    const ask = Notif.requestPermission;
+    Notif.requestPermission = async () => {
+      order.push("ask");
+      return ask();
+    };
+    expect(await enablePush()).toMatchObject({ ok: true });
+    expect(order[0]).toBe("ask");
+    // with the setup fetched ahead (as the panel does), no fetch at all stands between the press and the question
+    forgetPushConfig();
+    await preloadPushConfig();
+    permission = "default";
+    order.length = 0;
+    expect(await enablePush()).toMatchObject({ ok: true });
+    expect(order[0]).toBe("ask");
+    expect(order.filter((o) => o === "fetch:/api/push/config")).toHaveLength(0);
+  });
+
   it("not set up: it says so and does NOT ask for the permission (no point in a prompt that leads nowhere)", async () => {
     world(ANDROID);
     configAnswer = { configured: false, missing: ["FIREBASE_APP_ID"], web: null };
+    await preloadPushConfig();
     const r = await enablePush();
     expect(r).toMatchObject({ ok: false, reason: "setup_needed" });
     expect(asked).toBe(0);
     expect(fb.registered).toHaveLength(0);
+    expect(calls.some((c) => c.url === "/api/push/devices")).toBe(false);
+  });
+
+  it("the box closed without an answer is «dismissed» (try again), not a refusal", async () => {
+    world(ANDROID);
+    vi.stubGlobal("Notification", Object.assign(function () {}, { permission: "default", requestPermission: async () => "default" }));
+    const r = await enablePush();
+    expect(r).toMatchObject({ ok: false, reason: "dismissed" });
+    expect(r.ok ? "" : r.sentence).not.toContain("انرفض");
     expect(calls.some((c) => c.url === "/api/push/devices")).toBe(false);
   });
 
@@ -188,7 +225,21 @@ describe("every open of the site", () => {
     asked = 0;
     await refreshPush();
     expect(asked).toBe(0);
-    expect(calls.filter((c) => c.url === "/api/push/devices")).toHaveLength(1);
+    const sent = calls.filter((c) => c.url === "/api/push/devices");
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.body.refreshOf).toBe("dev-1"); // a renewal names its row: the server never revives a removed one from it
+  });
+
+  it("a phone that was removed (from another device) is told «مش موجود»: it forgets itself and does not come back", async () => {
+    world(ANDROID);
+    await enablePush();
+    expect(thisDeviceId()).toBe("dev-1");
+    serverAnswer = { ok: false, status: 404, body: { error: "الجهاز مش موجود" } };
+    await refreshPush();
+    expect(thisDeviceId()).toBeNull();
+    calls.length = 0;
+    await refreshPush(); // nothing remembered: nothing is sent
+    expect(calls).toHaveLength(0);
   });
 
   it("does nothing for a browser that never registered, or one whose permission was taken back", async () => {

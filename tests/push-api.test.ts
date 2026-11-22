@@ -85,7 +85,7 @@ describe("registering a phone", () => {
     expect(rows("pushDevice")).toHaveLength(0);
   });
 
-  it("the same token again is a refresh (one row, `lastSeenAt` moves, a revoked one comes back), not a second device", async () => {
+  it("the same token again from the button is a registration (one row, `lastSeenAt` moves, a revoked one comes back), not a second device", async () => {
     await register(send("POST", { token: TOKEN_A }));
     rows("pushDevice")[0]!.revokedAt = new Date();
     rows("pushDevice")[0]!.failedAt = new Date();
@@ -94,6 +94,35 @@ describe("registering a phone", () => {
     expect(rows("pushDevice")).toHaveLength(1);
     expect(rows("pushDevice")[0]).toMatchObject({ revokedAt: null, failedAt: null, label: "هاتفي" });
     expect(rows("pushDevice")[0]!.lastSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("the automatic renewal moves `lastSeenAt` of an active row, but never brings back a removed one (and never takes another person's)", async () => {
+    const id = JSON.parse(await (await register(send("POST", { token: TOKEN_A }))).text()).device.id as string;
+    const row = rows("pushDevice")[0]!;
+    row.lastSeenAt = new Date(0);
+    const ok = await register(send("POST", { token: TOKEN_A, refreshOf: id }));
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(await ok.text())).toMatchObject({ created: false });
+    expect(row.lastSeenAt!.getTime()).toBeGreaterThan(0);
+    // a rotated Installation ID follows the same row
+    expect((await register(send("POST", { token: TOKEN_B, refreshOf: id }))).status).toBe(200);
+    expect(rows("pushDevice")).toHaveLength(1);
+    expect(row.token).toBe(TOKEN_B);
+    // «شيله»: the device is revoked, and the renewal that every open sends does not revive it
+    row.revokedAt = new Date();
+    const gone = await register(send("POST", { token: TOKEN_B, refreshOf: id }));
+    expect(gone.status).toBe(404);
+    expect(row.revokedAt).toBeInstanceOf(Date);
+    expect(JSON.parse(await (await listDevices()).text()).devices).toHaveLength(0);
+    // another person cannot renew this row, and a made-up id is «مش موجود»
+    state.user = "u2";
+    expect((await register(send("POST", { token: TOKEN_B, refreshOf: id }))).status).toBe(404);
+    expect((await register(send("POST", { token: TOKEN_B, refreshOf: "nope" }))).status).toBe(404);
+    expect(row.revokedAt).toBeInstanceOf(Date);
+    // only the button (a plain registration) brings it back
+    state.user = "u1";
+    expect((await register(send("POST", { token: TOKEN_B }))).status).toBe(200);
+    expect(row.revokedAt).toBeNull();
   });
 
   it("a bad token or platform is refused with a sentence", async () => {

@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { KIND_TABLE, defaultPref, type NotifyPref } from "@/core/notify-plan";
 import { IOS_STEPS, type PushState } from "@/core/push-env";
 import { callJson } from "@/lib/call";
-import { currentPushState, disablePush, enablePush, thisDeviceId } from "@/lib/push-client";
+import { currentPushState, disablePush, enablePush, preloadPushConfig, thisDeviceId } from "@/lib/push-client";
 
 export interface DeviceRow {
   id: string;
@@ -58,6 +58,8 @@ export function NotificationsPanel({ prefs: initial, devices, missing, canLink, 
   useEffect(() => {
     setState(currentPushState());
     setMine(thisDeviceId());
+    // fetched now, so the press of «فعّل» can ask for the permission before any network call (Safari/iOS need that)
+    void preloadPushConfig().catch(() => undefined);
   }, []);
 
   const setup = missing.length === 0;
