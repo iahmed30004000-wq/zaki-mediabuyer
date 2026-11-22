@@ -5,7 +5,7 @@ import { ContractError, contractResponse, requireToken } from "@/server/api-toke
 
 /** {result:{…}} is the contract; the studio's queue_worker posts {status:"draft", draft:{…}} — both are taken. */
 const Body = z
-  .object({ result: z.record(z.unknown()).optional(), draft: z.record(z.unknown()).optional(), status: z.string().optional() })
+  .object({ result: z.record(z.string(), z.unknown()).optional(), draft: z.record(z.string(), z.unknown()).optional(), status: z.string().optional() })
   .refine((b) => b.result ?? b.draft, "result");
 
 /**

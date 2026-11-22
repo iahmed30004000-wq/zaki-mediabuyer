@@ -49,7 +49,7 @@ const NewVideo = z
 export const VideoRequestComplete = z
   .object({
     note: text(300).optional().describe("سطر: شو انعمل"),
-    result: z.record(z.union([z.string().max(80), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 رقم").optional().describe("النتيجة {الاسم: القيمة}"),
+    result: z.record(z.string(), z.union([z.string().max(80), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 رقم").optional().describe("النتيجة {الاسم: القيمة}"),
     new_videos: z.array(NewVideo).max(20).optional().describe("الفيديوهات اللي طلعت من الطلب (هوكات جديدة…): بتنضاف للبنك «جاهز»"),
   })
   .strict();

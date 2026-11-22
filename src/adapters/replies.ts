@@ -10,7 +10,7 @@ export const RepliesCapacity = z
   .object({
     unanswered: z.number().int().nonnegative(),
     first_response_p50_min: z.number().nonnegative().nullable().optional(),
-    by_channel: z.record(z.number().int().nonnegative()).optional(),
+    by_channel: z.record(z.string(), z.number().int().nonnegative()).optional(),
     at: z.string().datetime({ offset: true }),
   })
   .strict();

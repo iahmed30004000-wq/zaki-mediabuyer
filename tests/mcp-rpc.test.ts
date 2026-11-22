@@ -128,7 +128,7 @@ describe("zod → JSON Schema", () => {
   });
 
   it("handles arrays, records, unions, defaults and literals", () => {
-    const s = toJsonSchema(z.object({ a: z.array(z.string()).min(1).max(5), b: z.record(z.number()), c: z.union([z.string(), z.number()]), d: z.boolean().default(false), e: z.literal("x") })) as { properties: Record<string, unknown>; required: string[] };
+    const s = toJsonSchema(z.object({ a: z.array(z.string()).min(1).max(5), b: z.record(z.string(), z.number()), c: z.union([z.string(), z.number()]), d: z.boolean().default(false), e: z.literal("x") })) as { properties: Record<string, unknown>; required: string[] };
     expect(s.properties.a).toEqual({ type: "array", items: { type: "string" }, minItems: 1, maxItems: 5 });
     expect(s.properties.b).toEqual({ type: "object", additionalProperties: { type: "number" } });
     expect(s.properties.c).toEqual({ anyOf: [{ type: "string" }, { type: "number" }] });

@@ -23,7 +23,7 @@ export const CampaignRulesSchema = z
     ignoreFirstDay: z.boolean(),
     realCostFactor: z.number().min(1).max(3).describe("تكلفة الطلب الحقيقي = تكلفة البكسل × هالعامل"),
     targetCost: money.describe("الهدف: تكلفة الطلب الحقيقي أقل من"),
-    breakeven: z.record(z.number().nonnegative().max(1000)).describe("نقطة التعادل لكل منتج (دولار للطلب الحقيقي)"),
+    breakeven: z.record(z.string(), z.number().nonnegative().max(1000)).describe("نقطة التعادل لكل منتج (دولار للطلب الحقيقي)"),
     adsetPauseDays: days,
     ad: z
       .object({ minAdsetHours: hours, spendZeroSales: money, spendOneSale: money, daysAboveBreakeven: days, untestedShare: share })

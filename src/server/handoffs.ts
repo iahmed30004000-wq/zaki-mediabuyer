@@ -24,7 +24,7 @@ export class HandoffRefused extends Error {
 }
 
 const text = (n: number) => z.string().trim().min(1).max(n);
-const Inputs = z.record(z.union([z.string().max(200), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 مدخل");
+const Inputs = z.record(z.string(), z.union([z.string().max(200), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 مدخل");
 
 export const HandoffCreate = z
   .object({
@@ -45,7 +45,7 @@ export type HandoffCreateT = z.infer<typeof HandoffCreate>;
 export const HandoffComplete = z
   .object({
     note: text(300).optional().describe("سطر: شو انعمل"),
-    result: z.record(z.union([z.string().max(80), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 رقم").optional().describe("النتيجة {الاسم: القيمة}"),
+    result: z.record(z.string(), z.union([z.string().max(80), z.number().finite()])).refine((o) => Object.keys(o).length <= 20, "حتى 20 رقم").optional().describe("النتيجة {الاسم: القيمة}"),
     run_status: z.enum(["running", "ok", "failed"]).optional().describe("كيف انتهى التشغيل: ok · failed · running (الافتراضي: ok لطلب المالك، running لخطوة واقفة)"),
   })
   .strict();
