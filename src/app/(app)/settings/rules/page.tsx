@@ -1,12 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { ModeSwitch } from "@/components/home/mode-switch";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Panel } from "@/components/mb/section";
 import { CapsEditor } from "@/components/settings/editors";
 import { LevelPicker } from "@/components/settings/level-picker";
-import { ModeSettings } from "@/components/settings/mode-settings";
 import { RulesEditor } from "@/components/settings/rules-editor";
 import { OrdersSection } from "@/components/work/orders-section";
 import { Pill } from "@/components/ui/pill";
@@ -14,10 +12,8 @@ import { DOMAIN_AR, EFFECT_AR, untilWords, type OrderDomain } from "@/core/order
 import { isDemo } from "@/core/readiness";
 import { can } from "@/core/roles";
 import { loadEditView, loadSettingsView } from "@/lib/settings-view";
-import { loadWorkflowCards } from "@/lib/workflow-view";
 import { currentCaller, requirePage } from "@/server/auth";
 import { db } from "@/server/db";
-import { currentMode } from "@/server/mode";
 import { listOrders } from "@/server/orders";
 import { getRules } from "@/server/rules";
 
@@ -46,13 +42,11 @@ function RuleCard({ id, title, summary, children }: { id: string; title: string;
  */
 export default async function RulesPage() {
   await requirePage("settings.view");
-  const [real, edit, me, rulesView, mode, wf, productRows, archive, active] = await Promise.all([
+  const [real, edit, me, rulesView, productRows, archive, active] = await Promise.all([
     loadSettingsView(),
     loadEditView(),
     currentCaller(),
     getRules(),
-    currentMode(),
-    loadWorkflowCards(),
     db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } }),
     listOrders({ archive: true, limit: 200 }),
     listOrders({}),
@@ -88,9 +82,11 @@ export default async function RulesPage() {
         <RulesEditor initial={rulesView.rules} version={rulesView.version} products={productRows.map((p) => p.productCode)} demo={demo} />
       </RuleCard>
 
-      <RuleCard id="mode" title="صاحي ونايم" summary="جدول الليل، وشو بيشتغل وإنت نايم، وشو بيصحّيك">
-        <ModeSwitch initial={{ mode: mode.mode, since: mode.since, schedule: mode.schedule }} demo={demo} />
-        <ModeSettings schedule={mode.schedule} night={mode.nightPermissions} wakeKinds={mode.wakeKinds} workflows={wf.cards.map((c) => ({ key: c.key, name: c.name }))} demo={demo} />
+      <RuleCard id="mode" title="صاحي ونايم" summary="انتقلت لـ «الإعدادات ← الإشعارات»">
+        <p className="text-base text-fg">جدول الليل، وشو بيشتغل وإنت نايم، وشو بيصحّيك: صاروا مع الإشعارات لأنهم هني اللي بيقرروا شو يرنّ.</p>
+        <Link href="/settings/notifications#mode" className="inline-flex min-h-11 items-center font-semibold text-info hover:underline">
+          افتحهم من الإشعارات ←
+        </Link>
       </RuleCard>
 
       <RuleCard id="orders" title="الأوامر السارية" summary={`${active.filter((o) => o.status === "active").length} فعّال · ${ended.length} بالأرشيف`}>

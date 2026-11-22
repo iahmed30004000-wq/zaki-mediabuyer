@@ -1,20 +1,15 @@
 /**
  * NON-BLOCKING ALERTS (v4 · A `notify`): an urgency (🔴 🟠 🟡), an audience (the owner or a person), a title. It is stored
- * first — it shows in «اليوم» whatever happens to the delivery — then sent on Telegram when that is linked.
+ * first — it shows in the bell whatever happens to the delivery — and the ONE sender (src/jobs/notify-dispatch.ts, v6 · P7) takes it from there: the phone (Firebase),
+ * Telegram when no phone can be reached, and the bell for what is only news. Nothing else in the code calls Telegram or Firebase for a notice.
  *
- * Delivery follows the owner's switch: while he is awake 🔴 and 🟠 go out (🟡 never does — it is silent by definition);
- * while he sleeps nothing goes to his phone, it waits for the «صباح الخير» card. A person other than the owner is reached
- * on the Telegram chat the owner gave for them (setting `notify.contacts`), never on a guess.
+ * Delivery follows the owner's choices per kind and his awake / asleep switch (src/core/notify-plan.ts): what would sound while he sleeps waits for the morning.
+ * A person other than the owner is reached on the Telegram chat the owner gave for them (setting `notify.contacts`), never on a guess.
  * Money is never approved from here — a message only says «افتح الموقع».
  */
 import { Prisma } from "@prisma/client";
-import { effectiveMode, type Urgency } from "@/core/mode";
-import { missingText } from "@/core/readiness";
-import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
+import type { Urgency } from "@/core/mode";
 import { db } from "./db";
-import { telegramOf } from "./directory";
-import { appOrigin } from "./env";
-import { getSetting } from "./settings";
 
 export const URGENCY_ICON: Record<Urgency, string> = { red: "🔴", orange: "🟠", yellow: "🟡" };
 
@@ -27,6 +22,15 @@ export interface NotifyInput {
   source?: string;
   /** the same alert twice is one (per audience) */
   key?: string;
+  /** what kind of notice this is (src/core/notify-plan.ts); left out, it is told from the source and the colour */
+  kind?: string;
+}
+
+/** A notice that did not say its kind: the stock ones are known by their source or their key, the rest by their colour alone. */
+export function inferKind(i: Pick<NotifyInput, "kind" | "source" | "key" | "urgency">): string | null {
+  if (i.kind) return i.kind.slice(0, 40);
+  if (i.source === "stock" || i.key?.startsWith("stock:")) return i.urgency === "red" ? "stock.red" : "stock.orange";
+  return null;
 }
 
 export async function createNotification(i: NotifyInput): Promise<{ id: string; created: boolean }> {
@@ -36,7 +40,7 @@ export async function createNotification(i: NotifyInput): Promise<{ id: string; 
     if (found) return { id: found.id, created: false };
   }
   try {
-    const row = await db.notification.create({ data: { urgency: i.urgency, audience, title: i.title.slice(0, 200), body: i.body?.slice(0, 600) ?? null, href: i.href ?? null, source: i.source ?? "mcp", key: i.key ?? null } });
+    const row = await db.notification.create({ data: { urgency: i.urgency, audience, title: i.title.slice(0, 200), body: i.body?.slice(0, 600) ?? null, href: i.href ?? null, source: i.source ?? "mcp", key: i.key ?? null, kind: inferKind(i) } });
     return { id: row.id, created: true };
   } catch (e) {
     // two identical alerts at once: the second finds the first
@@ -49,34 +53,21 @@ export async function createNotification(i: NotifyInput): Promise<{ id: string; 
 }
 
 export interface Delivery {
+  /** it really left on a channel (the phone or Telegram) — a notice that stays in the bell is not «delivered» */
   delivered: boolean;
-  via?: "telegram";
+  via?: "push" | "telegram";
+  /** what is true now: queued for the phone · held for the morning · the bell only */
+  delivery?: "queued" | "held_asleep" | "site_only";
   reason?: string;
 }
 
-/** Sends a stored notification if the owner's switch, the urgency and the links allow it. Never throws. */
+/** Sends a stored notification through the one sender, now. Never throws. (The sender also picks everything up on its own every minute.) */
 export async function dispatchNotification(id: string, now = new Date()): Promise<Delivery> {
   try {
-    const n = await db.notification.findUnique({ where: { id } });
-    if (!n) return { delivered: false, reason: "مش موجود" };
-    if (n.sentAt) return { delivered: true, via: "telegram" };
-    if (n.urgency === "yellow") return { delivered: false, reason: "🟡 صامت: بيظهر بـ «اليوم» بس" };
-    const tg = telegramFromEnv();
-    if (!tg) return { delivered: false, reason: missingText("telegram") ?? "تيليجرام مش مربوط" };
-    let chatId = tg.chatId;
-    if (n.audience === "owner") {
-      if (effectiveMode(await getSetting("owner.mode"), now) === "asleep") return { delivered: false, reason: "المالك نايم — بيطلع بكرت «صباح الخير»" };
-    } else {
-      const contact = await telegramOf(n.audience);
-      if (!contact) return { delivered: false, reason: `ما في رقم تيليجرام لـ ${n.audience} — حطه من الإعدادات` };
-      chatId = contact;
-    }
-    const link = n.href ? `\n${appOrigin()}${n.href.startsWith("/") ? n.href : `/${n.href}`}` : "";
-    await sendTelegram({ ...tg, chatId }, `${n.title}${n.body ? `\n${n.body}` : ""}${link}`);
-    await db.notification.update({ where: { id }, data: { sentAt: now } });
-    return { delivered: true, via: "telegram" };
+    const { dispatchOne } = await import("@/jobs/notify-dispatch");
+    return await dispatchOne(id, now);
   } catch (e) {
     console.error("notification dispatch failed:", e instanceof Error ? e.message : e);
-    return { delivered: false, reason: "ما انبعت — الإشعار انحفظ وبيظهر بالموقع" };
+    return { delivered: false, delivery: "queued", reason: "ما انبعت هلق — الإشعار انحفظ وبيظهر بالموقع وبنعيد المحاولة" };
   }
 }

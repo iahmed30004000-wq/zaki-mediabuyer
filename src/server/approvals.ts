@@ -11,18 +11,17 @@ import type { Approval } from "@prisma/client";
 import { approvalCapabilityOf, expiryAfterPostpone } from "@/core/approval-rules";
 import { can } from "@/core/roles";
 import { nextRuns } from "@/core/cron";
-import { deliveryFor, effectiveMode, type Delivery, type Urgency } from "@/core/mode";
+import type { Urgency } from "@/core/mode";
+import type { DeliveryWord } from "@/core/notify-plan";
 import { refuseIfPrivate } from "@/core/push-rows";
 import { isTerminalRun, runSteps } from "@/core/run-state";
 import { GraphSchema } from "@/core/workflow";
-import { sendTelegram, telegramFromEnv } from "@/adapters/telegram";
 import { db } from "./db";
 import { audit, type Actor } from "./audit";
 import { createHandoff } from "./handoffs";
 import { logRun } from "./workflows";
 import { HttpError } from "./auth";
-import { appOrigin } from "./env";
-import { URGENCY_ICON } from "./notify";
+import { createNotification, dispatchNotification } from "./notify";
 import { getSetting } from "./settings";
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -111,25 +110,36 @@ export class Refused extends Error {}
 
 const DEFAULT_OPTIONS = [{ key: "approve", label: "موافق" }, { key: "reject", label: "رفض" }];
 
-/** Sends the request to the owner the way its urgency and his switch allow. Telegram only says «افتح الموقع». */
-async function deliver(a: Approval, delivery: Delivery, now: Date): Promise<void> {
-  if (delivery === "silent" || delivery === "queue") return;
-  const tg = telegramFromEnv();
-  if (tg) {
-    try {
-      const amount = a.amount !== null ? `\nالمبلغ: ${Number(a.amount)}$` : "";
-      await sendTelegram(tg, `${URGENCY_ICON[a.urgency as Urgency]} بدي موافقتك: ${a.title}\n${a.why}${amount}\nللموافقة (من الموقع بس): ${appOrigin()}/inbox/${encodeURIComponent(`approval:${a.id}`)}`);
-    } catch (e) {
-      console.error("approval telegram failed:", e instanceof Error ? e.message : e);
-    }
+/**
+ * Tells the owner a decision waits (v6 · P7, docs/rebuild-v6/05-notify.md §2): the request becomes ONE notice (`approval.new`, key `approval:<id>`) and the one sender takes it to his phone
+ * (his choice for this kind, his awake / asleep switch and the kinds he marked «يصحّيني» decide whether it rings, waits or stays in the bell). Nothing here calls Telegram or Firebase.
+ * The notice only opens the decision: the money is approved on the site. Returns what is true now — queued for the phone, held for the morning, or only in the bell — never «it rang».
+ * A failure to write the notice never undoes the request.
+ */
+async function announce(a: Approval, now: Date, keySuffix = ""): Promise<DeliveryWord> {
+  try {
+    const amount = a.amount !== null ? ` · المبلغ ${Number(a.amount)}$` : "";
+    const n = await createNotification({
+      urgency: a.urgency as Urgency,
+      audience: "owner",
+      kind: "approval.new",
+      title: `بدّها قرارك: ${a.title}`,
+      body: `${a.why}${amount}. اضغط تفتح القرار — الموافقة من الموقع بس.`,
+      href: `/inbox/${encodeURIComponent(`approval:${a.id}`)}`,
+      source: "approval",
+      key: `approval:${a.id}${keySuffix}`,
+    });
+    const d = await dispatchNotification(n.id, now);
+    if (d.delivered) await db.approval.update({ where: { id: a.id }, data: { notifiedAt: now } });
+    return d.delivery ?? "site_only";
+  } catch (e) {
+    console.error("approval notice failed:", e instanceof Error ? e.message : e);
+    return "site_only";
   }
-  // the phone app's push (FCM) goes out from the worker, which reads `notifiedAt = null` approvals — see src/jobs/approvals.ts
-  if (!tg) return;
-  await db.approval.update({ where: { id: a.id }, data: { notifiedAt: now } });
 }
 
 /** Creates (or finds, by `ref`) a request for the owner's decision. Throws Refused when the text carries private data. */
-export async function requestApproval(input: ApprovalInputT, actor: Actor, now = new Date()): Promise<{ approval: ApprovalView; created: boolean; delivery: Delivery | "already" }> {
+export async function requestApproval(input: ApprovalInputT, actor: Actor, now = new Date()): Promise<{ approval: ApprovalView; created: boolean; delivery: DeliveryWord | "already" }> {
   if (input.ref) {
     const found = await db.approval.findUnique({ where: { ref: input.ref } });
     if (found) return { approval: approvalView(found), created: false, delivery: "already" };
@@ -139,8 +149,6 @@ export async function requestApproval(input: ApprovalInputT, actor: Actor, now =
 
   const wakeKinds = (await getSetting("owner.wake_kinds")) as string[];
   const wakeOwner = !!input.kind && wakeKinds.includes(input.kind);
-  const mode = effectiveMode(await getSetting("owner.mode"), now);
-  const delivery = deliveryFor(input.urgency, mode, wakeOwner);
   const row = await db.approval.create({
     data: {
       ref: input.ref ?? null,
@@ -160,8 +168,8 @@ export async function requestApproval(input: ApprovalInputT, actor: Actor, now =
       wakeOwner,
     },
   });
+  const delivery = await announce(row, now);
   await audit(actor, "approval.request", { type: "approval", id: row.id }, { after: { title: row.title, urgency: row.urgency, amount: input.amount, delivery } });
-  await deliver(row, delivery, now);
   return { approval: approvalView(row), created: true, delivery };
 }
 
@@ -171,14 +179,14 @@ export async function requestApproval(input: ApprovalInputT, actor: Actor, now =
  */
 export async function refreshApprovals(now = new Date()): Promise<{ expired: number; woken: number }> {
   const due = await db.approval.findMany({ where: { status: "postponed", postponedUntil: { lte: now } } });
-  const mode = effectiveMode(await getSetting("owner.mode"), now);
   let woken = 0;
   for (const a of due) {
     const expiresAt = expiryAfterPostpone({ expiresAt: a.expiresAt, createdAt: a.createdAt, until: now });
     const woke = await db.approval.updateMany({ where: { id: a.id, status: "postponed" }, data: { status: "pending", postponedUntil: null, notifiedAt: null, expiresAt } });
     if (woke.count) {
       woken += 1;
-      await deliver({ ...a, status: "pending", notifiedAt: null, expiresAt }, deliveryFor(a.urgency as Urgency, mode, a.wakeOwner), now);
+      // it comes back as a new notice (its own key: the first one is already in the bell)
+      await announce({ ...a, status: "pending", notifiedAt: null, expiresAt }, now, `:back:${a.postponedUntil?.getTime() ?? now.getTime()}`);
     }
   }
   // a postponed one that is still asleep is not expired (it ends after it has come back and nobody answered)

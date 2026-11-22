@@ -3,6 +3,7 @@
  * a failure says the status (or that nothing answered) and what to do. The credential is read from `process.env` — the overlay has already put the site's value there.
  */
 import { driveFromEnv, getFile } from "@/adapters/drive";
+import { checkFcmAccess, fcmFromEnv, firebaseMissing } from "@/adapters/fcm";
 import { readCapacity, repliesFromEnv } from "@/adapters/replies";
 import { missingText } from "@/core/readiness";
 import { statusWords } from "@/core/connections";
@@ -75,6 +76,18 @@ const TESTS: Record<string, Tester> = {
       }
     }
     return { ok: true, message: `تمام — قريت ${done.join(" · ")}` };
+  },
+
+  async firebase(fetchImpl) {
+    const missing = firebaseMissing();
+    if (missing.length) return { ok: false, message: `إشعارات الجوال مش مجهّزة — ناقص: ${missing.join(" · ")}. الصقهم هون.` };
+    const c = fcmFromEnv();
+    if (!c) return { ok: false, message: "ملف الـService Account مش صحيح أو ما فيه رقم المشروع" };
+    const r = await checkFcmAccess({ ...c, fetch: fetchImpl });
+    if (r.ok) return { ok: true, message: "تمام — جوجل قبلت ملف الـService Account. ما انبعت إشعار لحدا (جرّب من «الإعدادات ← الإشعارات»)" };
+    if (r.reason === "bad_key") return { ok: false, message: "المفتاح الخاص بالملف مش صحيح — نزّل ملف جديد من Service accounts" };
+    if (r.reason === "key_refused") return { ok: false, message: "جوجل رفضت ملف الـService Account (انسحب أو انحذف) — اعمل مفتاح جديد وارفعه" };
+    return { ok: false, message: r.status ? statusWords(r.status, "جوجل") : unreachable("جوجل") };
   },
 
   async oms(fetchImpl) {

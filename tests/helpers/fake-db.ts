@@ -233,7 +233,9 @@ export function makeFakeDb(start = new Date("2026-11-22T09:00:00Z")) {
     approval: makeTable(() => ({ ref: null, analysis: null, numbers: null, options: null, amount: null, urgency: "orange", status: "pending", source: "mcp", workflowKey: null, kind: null, expiresAt: null, postponedUntil: null, chosenOption: null, decisionNote: null, decidedBy: null, decidedAt: null, wakeOwner: false, notifiedAt: null, runRef: null, nodeId: null, actedAt: null }), [["ref"]], clock),
     standingOrder: makeTable(() => ({}), [], clock),
     task: makeTable(() => ({ assignee: null, status: "new", dueAt: null, archivedAt: null, priority: "normal" }), [], clock),
-    notification: makeTable(() => ({ audience: "owner", body: null, href: null, source: "mcp", key: null, readAt: null, sentAt: null }), [["audience", "key"]], clock),
+    notification: makeTable(() => ({ audience: "owner", body: null, href: null, source: "mcp", key: null, readAt: null, sentAt: null, kind: null, ring: false, channels: [], attempts: 0, nextTryAt: null, lastError: null }), [["audience", "key"]], clock),
+    pushDevice: makeTable(() => ({ userId: null, kind: "fcm_fid", keys: null, label: null, platform: null, lastSeenAt: null, revokedAt: null, failedAt: null }), [["token"]], clock),
+    alert: makeTable(() => ({ href: null, sentAt: null, readAt: null }), [], clock),
     agentRun: makeTable(() => ({ blocked: null, tokensIn: 0, tokensOut: 0, costUsd: 0, ms: 0, error: null }), [], clock),
     productEconomics: makeTable(() => ({ stockDays: null }), [["productCode"]], clock),
     stockSnapshot: makeTable(() => ({ units: null, source: "mcp" }), [], clock),
@@ -250,6 +252,12 @@ export function makeFakeDb(start = new Date("2026-11-22T09:00:00Z")) {
 }
 
 export type FakeDb = ReturnType<typeof makeFakeDb>;
+
+/** The people who sign in (`User`): a test that needs real rows adds the table here; the tests that fake `user` by hand keep doing so. */
+export function addUsers<T extends object>(db: T): T & { user: Table } {
+  const clock = () => new Date();
+  return Object.assign(db, { user: makeTable(() => ({ role: "VIEWER", active: true, sessionVer: 1, name: "x" }), [["email"]], clock) });
+}
 
 /** A job (workflow row) with a plain chain of steps: a trigger, then the ids given. */
 export function jobRow(key: string, steps: string[], extra: Row = {}): Row {

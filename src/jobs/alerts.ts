@@ -1,15 +1,16 @@
 /**
  * alerts.read (every 15 min) and alerts.send (every 5 min) — spec 12.3. The reading gathers the facts, runs the
  * detectors (src/core/alerts.ts) under the two-readings rule, and adds the event alerts (a safety action that ran,
- * a change with spend waiting for approval). The sending puts every unsent danger/warning alert into ONE Telegram
- * message. Info alerts stay on the site. Without Telegram linked, nothing is sent and nothing is lost.
+ * a change with spend waiting for approval). The sending (`queueAlerts`) writes a notice for every unsent danger/warning
+ * alert, and the one sender (src/jobs/notify-dispatch.ts) takes it from there. Info alerts stay on the site.
  */
 import { db } from "@/server/db";
 import { envProblems, omsLinked } from "@/server/env";
-import { detect, reading, telegramText, type AlertFacts, type Signal } from "@/core/alerts";
+import { detect, reading, type AlertFacts, type Signal } from "@/core/alerts";
+import { alertNotice } from "@/core/notify-plan";
+import { createNotification } from "@/server/notify";
 import { lastSuccess } from "./runner";
 import { reachedMeta } from "@/core/reached-meta";
-import { sendTelegram, type TelegramOptions } from "@/adapters/telegram";
 
 const DAY = 86_400_000;
 
@@ -83,11 +84,17 @@ export async function readAlerts(now = new Date()) {
   return { signals: signals.length, raised: raise.length };
 }
 
-export async function sendAlerts(tg: TelegramOptions | null, now = new Date()) {
-  const due = await db.alert.findMany({ where: { sentAt: null, tone: { in: ["danger", "warn"] }, createdAt: { gte: new Date(now.getTime() - DAY) } }, orderBy: { createdAt: "asc" }, take: 30 });
-  if (!due.length) return { sent: 0 };
-  if (!tg) return { sent: 0, waiting: due.length, skipped: "Telegram not linked yet (P0.7)" };
-  await sendTelegram(tg, telegramText(due, process.env.APP_URL?.trim() || null));
-  await db.alert.updateMany({ where: { id: { in: due.map((a) => a.id) } }, data: { sentAt: now } });
-  return { sent: due.length };
+/**
+ * alerts.send (every 5 min), v6 · P7: it no longer sends. It writes one `Notification` row per unsent danger/warning alert (key `alert:<id>`, so one alert is one notice however many
+ * times this runs) and the one sender (src/jobs/notify-dispatch.ts) takes them from there; the alert's own `sentAt` is written by the sender, when a channel really took the notice.
+ * Info alerts stay on the site. Without Telegram or a phone linked nothing is lost: the notice is in the bell and waits.
+ */
+export async function queueAlerts(now = new Date()) {
+  const due = await db.alert.findMany({ where: { sentAt: null, tone: { in: ["danger", "warn"] }, createdAt: { gte: new Date(now.getTime() - DAY) } }, orderBy: { createdAt: "asc" }, take: 100 });
+  let written = 0;
+  for (const a of due) {
+    const r = await createNotification({ ...alertNotice(a), audience: "owner", source: "alert" });
+    if (r.created) written += 1;
+  }
+  return { alerts: due.length, written };
 }

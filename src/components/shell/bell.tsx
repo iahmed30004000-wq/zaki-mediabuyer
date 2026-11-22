@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { Lamp } from "@/components/ui/lamp";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { BellItem } from "@/core/bell";
 import { callJson } from "@/lib/call";
+import { setBadge } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 
 interface BellData {
@@ -41,6 +42,10 @@ export function BellButton() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
   const unread = data?.unread ?? 0;
+  // the number on the app's icon, where the phone can show one (05-notify.md §6)
+  useEffect(() => {
+    if (data) setBadge(data.unread);
+  }, [data]);
   return (
     <>
       <IconButton aria-label={unread ? `الإشعارات — ${unread} ما انقرت` : "الإشعارات"} title="الإشعارات" onClick={() => setOpen(true)} className="relative">

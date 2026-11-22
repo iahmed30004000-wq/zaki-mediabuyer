@@ -3,6 +3,7 @@
  * audience — `owner` (the owner and the manager) or a person's key; a role that is not either sees an empty bell, never somebody else's notices. `readAt` is really written (W-07).
  */
 import { BELL_LIMIT, bellItems, type BellItem } from "@/core/bell";
+import { FRESH_MS, MAX_ATTEMPTS } from "@/core/notify-plan";
 import { db } from "./db";
 import { actorOfUser } from "./directory";
 import type { Caller } from "./auth";
@@ -27,6 +28,24 @@ export async function loadBell(caller: Pick<Caller, "id" | "role" | "demo">, now
     db.notification.count({ where: { audience, readAt: null } }),
   ]);
   return { unread, items: bellItems(rows, now) };
+}
+
+export interface NotifyStatus {
+  /** fresh notices that were saved but not sent anywhere yet (no phone, no Telegram, or waiting for a retry) */
+  waiting: number;
+  /** of those: waiting for him to wake */
+  held: number;
+  /** notices the sender gave up on in the last day (the bell has them) */
+  gaveUp: number;
+}
+
+/** What the notifications page says about the road: how many notices are in the bell but never left it. Counts only — never a title or a body. */
+export async function loadNotifyStatus(audience: string, now = new Date()): Promise<NotifyStatus> {
+  const since = new Date(now.getTime() - FRESH_MS);
+  const rows = await db.notification.findMany({ where: { audience, sentAt: null, createdAt: { gte: since } }, select: { attempts: true, lastError: true } });
+  const open = rows.filter((r) => r.attempts < MAX_ATTEMPTS);
+  const closed = rows.filter((r) => r.attempts >= MAX_ATTEMPTS && r.lastError !== "decided" && r.lastError !== "private_data");
+  return { waiting: open.length, held: open.filter((r) => r.lastError === "held_asleep").length, gaveUp: closed.length };
 }
 
 /** Marks the person's notices read — all of them, or only these ids (always inside their own audience). Returns how many changed. */

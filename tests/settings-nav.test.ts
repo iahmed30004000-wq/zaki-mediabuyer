@@ -5,9 +5,9 @@ import { ADVANCED_PAGES, SETTINGS_HASH, SETTINGS_PAGES, settingsFromHash, settin
 
 const pageFile = (href: string) => join(process.cwd(), "src", "app", "(app)", ...href.split("/").filter(Boolean), "page.tsx");
 
-describe("the settings are a list of six pages and five more under «متقدّم» (02 §3.7)", () => {
-  it("six pages, in the owner's order", () => {
-    expect(SETTINGS_PAGES.map((p) => p.href)).toEqual(["/settings/connections", "/settings/team", "/settings/rules", "/settings/products", "/settings/look", "/settings/advanced"]);
+describe("the settings are a list of seven pages and five more under «متقدّم» (02 §3.7; «الإشعارات» came with v6 · P7)", () => {
+  it("seven pages, in the owner's order", () => {
+    expect(SETTINGS_PAGES.map((p) => p.href)).toEqual(["/settings/connections", "/settings/team", "/settings/rules", "/settings/products", "/settings/notifications", "/settings/look", "/settings/advanced"]);
     expect(ADVANCED_PAGES.map((p) => p.href)).toEqual(["/settings/advanced/customize", "/settings/advanced/automation", "/settings/advanced/manual", "/settings/advanced/log", "/settings/advanced/guide"]);
   });
   it("every page of the list exists as a screen, and so does the list itself", () => {
@@ -31,7 +31,8 @@ describe("the old anchors of the long page still arrive", () => {
     expect(settingsFromHash("#setup")).toBe("/settings/connections");
     expect(settingsFromHash("readiness")).toBe("/settings/connections");
     expect(settingsFromHash("#campaign-rules")).toBe("/settings/rules");
-    expect(settingsFromHash("#mode")).toBe("/settings/rules");
+    // «صاحي ونايم» moved to the notifications page (v6 · P7); the old card on «القواعد» keeps the anchor and points there
+    expect(settingsFromHash("#mode")).toBe("/settings/notifications");
     expect(settingsFromHash("#products")).toBe("/settings/products");
     expect(settingsFromHash("#agents")).toBe("/settings/team");
     expect(settingsFromHash("#team")).toBe("/settings/team");
