@@ -50,6 +50,18 @@ describe("planRun — the times and the heartbeat", () => {
     expect(second.data.scheduledFor).toEqual(new Date(slot));
   });
 
+  it("scheduled_for with seconds (the moment the agent woke) is stored as the slot it names; one near no slot is cut to the minute", () => {
+    const job = { kind: "recurring", schedule: "0 9 * * *", graceMin: 15 }; // 09:00 Amman = 06:00Z
+    const snapped = ok(planRun(args({ job, input: { status: "running", scheduled_for: "2026-11-22T06:03:27.412Z", updates: [] } })));
+    expect(snapped.data.scheduledFor).toEqual(new Date("2026-11-22T06:00:00.000Z"));
+    const early = ok(planRun(args({ job, input: { status: "running", scheduled_for: "2026-11-22T05:58:40Z", updates: [] } })));
+    expect(early.data.scheduledFor).toEqual(new Date("2026-11-22T06:00:00.000Z"));
+    const far = ok(planRun(args({ job, input: { status: "running", scheduled_for: "2026-11-22T08:30:45Z", updates: [] } })));
+    expect(far.data.scheduledFor).toEqual(new Date("2026-11-22T08:30:00.000Z"));
+    const noJob = ok(planRun(args({ input: { status: "running", scheduled_for: "2026-11-22T08:30:45Z", updates: [] } })));
+    expect(noJob.data.scheduledFor).toEqual(new Date("2026-11-22T08:30:00.000Z"));
+  });
+
   it("every call (a heartbeat alone too) is a sign of life: heartbeatAt moves to now", () => {
     const p = ok(planRun(args({ existing: existing(), input: { heartbeat: true, updates: [] } })));
     expect(p.data.heartbeatAt).toEqual(NOW);

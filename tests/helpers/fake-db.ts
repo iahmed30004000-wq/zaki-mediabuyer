@@ -30,6 +30,8 @@ function cond(actual: unknown, want: unknown): boolean {
       switch (op) {
         case "in":
           return (v as unknown[]).some((x) => time(x) === time(actual));
+        case "notIn":
+          return !(v as unknown[]).some((x) => time(x) === time(actual));
         case "not":
           return !cond(actual, v);
         case "lt":
@@ -85,6 +87,9 @@ export interface Table {
   upsert(a: { where: Row; create: Row; update: Row }): Promise<Row>;
   count(a?: { where?: Row }): Promise<number>;
   aggregate(a: { _max?: Record<string, true> }): Promise<{ _max: Record<string, unknown> }>;
+  /** the one shape the code uses: `by` columns, `where`, and `_max` / `_count` */
+  groupBy(a: { by: string[]; where?: Row; _max?: Record<string, true>; _count?: { _all: true } }): Promise<Row[]>;
+  deleteMany(a?: { where?: Row }): Promise<{ count: number }>;
 }
 
 export function makeTable(defaults: () => Row, unique: string[][], clock: () => Date): Table {
@@ -174,6 +179,30 @@ export function makeTable(defaults: () => Row, unique: string[][], clock: () => 
     async count(a = {}) {
       return rows.filter((x) => matches(x, a.where)).length;
     },
+    async groupBy({ by, where, _max, _count }) {
+      const groups = new Map<string, Row[]>();
+      for (const r of rows.filter((x) => matches(x, where))) {
+        const k = JSON.stringify(by.map((c) => time(r[c])));
+        groups.set(k, [...(groups.get(k) ?? []), r]);
+      }
+      return [...groups.values()].map((g) => {
+        const out: Row = Object.fromEntries(by.map((c) => [c, g[0]![c]]));
+        if (_max) {
+          out._max = {};
+          for (const col of Object.keys(_max)) {
+            const vals = g.map((r) => r[col]).filter((v) => v !== null && v !== undefined);
+            out._max[col] = vals.length ? vals.reduce((a, b) => ((time(a) as number) >= (time(b) as number) ? a : b)) : null;
+          }
+        }
+        if (_count) out._count = { _all: g.length };
+        return out;
+      });
+    },
+    async deleteMany({ where } = {}) {
+      const hit = rows.filter((x) => matches(x, where));
+      for (const r of hit) rows.splice(rows.indexOf(r), 1);
+      return { count: hit.length };
+    },
     async aggregate({ _max }) {
       const out: Record<string, unknown> = {};
       for (const k of Object.keys(_max ?? {})) {
@@ -197,10 +226,15 @@ export function makeFakeDb(start = new Date("2026-11-22T09:00:00Z")) {
     handoff: makeTable(() => ({ runRef: null, nodeId: null, context: {}, assignee: "claude", status: "open", claimedBy: null, claimedAt: null, result: null, resultNote: null, doneBy: null, doneAt: null, createdBy: null, scheduledFor: null, expiresAt: null, leaseUntil: null, claimNonce: null }), [], clock),
     approval: makeTable(() => ({ ref: null, analysis: null, numbers: null, options: null, amount: null, urgency: "orange", status: "pending", source: "mcp", workflowKey: null, kind: null, expiresAt: null, postponedUntil: null, chosenOption: null, decisionNote: null, decidedBy: null, decidedAt: null, wakeOwner: false, notifiedAt: null, runRef: null, nodeId: null, actedAt: null }), [["ref"]], clock),
     standingOrder: makeTable(() => ({}), [], clock),
-    actor: makeTable(() => ({ lastSeenAt: null, active: true, telegram: null }), [["key"]], clock),
+    notification: makeTable(() => ({ audience: "owner", body: null, href: null, source: "mcp", key: null, readAt: null, sentAt: null }), [["audience", "key"]], clock),
+    setting: makeTable(() => ({ version: 1 }), [["key"]], clock),
+    actor: makeTable(() => ({ lastSeenAt: null, active: true, telegram: null, kind: "agent" }), [["key"]], clock),
     apiToken: makeTable(() => ({ scopes: [], actorKey: null, revokedAt: null, expiresAt: null, lastUsedAt: null }), [["tokenHash"]], clock),
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
     $executeRaw: async () => 0,
+    /** the watchdog's `pg_try_advisory_xact_lock`: this stand-in always gets the lock (a test sets `lock.held` to see it refused) */
+    lock: { held: false },
+    $queryRaw: async () => [{ ok: !db.lock.held }],
   };
   return db;
 }

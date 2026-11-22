@@ -4,7 +4,7 @@
  */
 import { isValidCron, nextRuns } from "@/core/cron";
 import { SEED_JOB_META } from "@/core/jobs";
-import { SEED_WORKFLOWS } from "@/core/workflow";
+import { SEED_WORKFLOWS, assigneeOfExecutor } from "@/core/workflow";
 import { listWorkflows, type WorkflowCard } from "@/server/workflows";
 
 export async function loadWorkflowCards(now = new Date()): Promise<{ cards: WorkflowCard[]; demo: boolean }> {
@@ -44,6 +44,11 @@ export async function loadWorkflowCards(now = new Date()): Promise<{ cards: Work
       decision: null,
       decidedAt: null,
       source: "seed",
+      wake: "self",
+      graceMin: 15,
+      maxRunMin: 90,
+      assigneeKey: assigneeOfExecutor(s.executor),
+      ownerEdited: [],
     })),
   };
 }

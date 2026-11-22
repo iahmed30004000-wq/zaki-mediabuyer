@@ -199,6 +199,8 @@ model Campaign {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   adsets          AdSet[]
+
+  @@index([accountId])
 }
 
 model AdSet {
@@ -219,6 +221,8 @@ model AdSet {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   ads                   Ad[]
+
+  @@index([campaignId])
 }
 
 model Ad {
@@ -236,6 +240,8 @@ model Ad {
   startTime    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([adSetId])
 }
 
 model ProductAlias {
@@ -406,6 +412,9 @@ model Alert {
   readAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@index([createdAt])
+  @@index([sentAt, createdAt])
 }
 
 model Report {
@@ -1039,6 +1048,7 @@ model WorkflowRun {
   @@index([startedAt])
   @@index([status])
   @@index([workflowId, scheduledFor])
+  @@index([workflowId, startedAt])
 }
 
 /// A request for the owner's decision (title, why, numbers, amount, options) — it rings the phone when it is urgent.

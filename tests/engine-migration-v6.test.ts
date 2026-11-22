@@ -29,9 +29,9 @@ const statements = sql
   .filter(Boolean);
 
 describe("the migration is additive (rule 5 of docs/rebuild-v6/06-phases.md)", () => {
-  it("is the newest one, so it runs after everything that exists", () => {
+  it("runs after every migration that existed when it was written (P1-2's own migration, 20261124…, comes after it and is checked in tests/watchdog-migration-v6.test.ts)", () => {
     const all = readdirSync(dir).filter((d) => /^\d{14}_/.test(d)).sort();
-    expect(all[all.length - 1]).toBe(name);
+    expect(all.indexOf(name)).toBeGreaterThan(all.indexOf("20261122100000_report_empty"));
   });
 
   it("has no DROP, RENAME, TRUNCATE, DELETE, type change or constraint that could refuse a live row", () => {

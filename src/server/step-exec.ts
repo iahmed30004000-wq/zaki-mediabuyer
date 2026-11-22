@@ -13,7 +13,8 @@ import { GraphSchema, type NodeStates } from "@/core/workflow";
 import { audit, type Actor } from "./audit";
 import { db } from "./db";
 import { createHandoff } from "./handoffs";
-import { UnknownJob, ensureSeeded, logRun } from "./workflows";
+import { loadJob } from "./job-map";
+import { UnknownJob, logRun } from "./workflows";
 
 export class ExecRefused extends Error {
   constructor(message: string, public status = 400) {
@@ -113,10 +114,22 @@ export interface ExecResult {
 
 const sec = (s: string, n: number) => s.slice(0, n);
 
-export async function executeWorkflow(key: string, actor: Actor, d: ExecDeps = realDeps()): Promise<ExecResult> {
-  await ensureSeeded();
-  const wf = await db.workflow.findUnique({ where: { key } });
+/** What the clock adds when it is the one that asks: the slot's own ref, the slot it answers, and that it is not a manual run. */
+export interface ExecOpts {
+  ref?: string;
+  scheduledFor?: Date;
+  trigger?: "schedule" | "manual";
+}
+
+/**
+ * Runs the steps the site may run for a job. One at a time per job (W-18): the check for a run that is going and the first write of this one happen
+ * under one lock, so two presses of the button, or the button and the clock, cannot both start; a run that went quiet is the watchdog's to close
+ * (a site run that lost its news is `failed`, and the owner's «أعد المحاولة» continues it).
+ */
+export async function executeWorkflow(key: string, actor: Actor, d: ExecDeps = realDeps(), opts: ExecOpts = {}): Promise<ExecResult> {
+  const wf = await loadJob(key);
   if (!wf || wf.archivedAt) throw new UnknownJob((await db.workflow.findMany({ where: { archivedAt: null }, select: { key: true }, orderBy: { key: "asc" } })).map((w) => w.key));
+  key = wf.key; // a key that was merged into another job leads to it
   if (!wf.enabled) throw new ExecRefused("هالورك فلو مطفي — شغّله أول", 409);
   if (wf.permission === "black") throw new ExecRefused("هالورك فلو أسود — ممنوع على الوكلاء وعلى الموقع", 403);
   const graph = GraphSchema.parse(wf.graph);
@@ -126,9 +139,22 @@ export async function executeWorkflow(key: string, actor: Actor, d: ExecDeps = r
   if (await db.handoff.findFirst({ where: { workflowKey: key, status: { in: ["open", "claimed"] } } })) throw new ExecRefused("في تسليم مفتوح للورك فلو — خلّصه أو الغِه أول", 409);
 
   const now = d.now();
-  const ref = `site-${now.getTime().toString(36)}-${randomBytes(2).toString("hex")}`;
+  const ref = opts.ref ?? `site-${now.getTime().toString(36)}-${randomBytes(2).toString("hex")}`;
   const triggers = graph.nodes.filter((n) => n.type === "trigger" && !n.disabled).map((n) => ({ id: n.id, status: "done" as const }));
-  await logRun({ job: key, ref, status: "running", trigger: "manual", started_at: now.toISOString(), summary: "عم يشتغل من الموقع", ...(triggers.length ? { nodes: triggers } : {}) }, actor, "ui", now);
+  await db.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`exec:${wf.key}`}))`;
+      const going = await tx.workflowRun.findFirst({ where: { workflowId: wf.id, status: "running", ref: { not: ref }, updatedAt: { gt: new Date(now.getTime() - wf.maxRunMin * 60_000) } } });
+      if (going) throw new ExecRefused("في تشغيل شغّال للمهمة هلق — استنى يخلص أو يوقف", 409);
+      await logRun(
+        { job: wf.key, ref, status: "running", trigger: opts.trigger ?? "manual", started_at: now.toISOString(), ...(opts.scheduledFor ? { scheduled_for: opts.scheduledFor.toISOString() } : {}), summary: "عم يشتغل من الموقع", ...(triggers.length ? { nodes: triggers } : {}) },
+        actor,
+        "ui",
+        now,
+      );
+    },
+    { timeout: 20_000 },
+  );
 
   const ran: ExecResult["ran"] = [];
   const handoff = async (step: PlanStep, kind: "node_failed" | "needs_input", why: string, lastError?: string) => {

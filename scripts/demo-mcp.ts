@@ -47,10 +47,10 @@ import { POST as vrComplete } from "../src/app/api/v1/video-requests/[id]/comple
 import { loadBoard } from "../src/lib/videos-board";
 import { approve, propose } from "../src/server/changes";
 import { loadReadiness } from "../src/lib/readiness-view";
-import { runScheduled } from "../src/server/scheduler";
+import { applyWatch, loadSnapshot, watchPlan } from "../src/jobs/watchdog";
 import { clearChat, loadChat, saveChat } from "../src/server/assistant/chat";
 import { syncDriveLibrary } from "../src/jobs/drive-library";
-import { WorkflowPatch, createWorkflow, listVersions, logRun, updateWorkflow } from "../src/server/workflows";
+import { WorkflowPatch, createWorkflow, ensureSeeded, listVersions, logRun, updateWorkflow } from "../src/server/workflows";
 import { ExecRefused, executeWorkflow, sweepTimeouts, type ExecDeps } from "../src/server/step-exec";
 import { siteConfigFrom, verifySignature } from "../src/core/step-exec";
 import type { WfGraph } from "../src/core/workflow";
@@ -256,6 +256,7 @@ async function clean() {
   }
 
   // ── workflows ──
+  await ensureSeeded(); // the seeded jobs live in a new database only now: no read of the site makes them (docs/rebuild-v6/01-model.md §12)
   const r1 = await tool("log_run", { job: "daily-check", ref: "demo-mcp-1", status: "running", summary: "بدأ" });
   const st1 = r1.data?.run.nodeStates as Record<string, { status: string }>;
   check(!r1.isError && r1.data?.run.status === "running" && st1.start?.status === "done" && st1.read?.status === "running", "log_run (running) moves the workflow: trigger done, first step running", st1);
@@ -1547,24 +1548,26 @@ async function clean() {
     const wfSite = await createWorkflow({ name: "DEMO جدولة موقع", graph: chain("n8n", "daily-ops") }, me);
     const wfOff = await createWorkflow({ name: "DEMO جدولة مطفية", graph: chain("claude_mcp") }, me);
     const mine = [wfClaude.key, wfSite.key, wfOff.key];
-    await db.workflow.updateMany({ where: { key: { in: mine } }, data: { schedule: "7 3 * * *", enabled: true } });
+    // the site's one clock (the watchdog, docs/rebuild-v6/01-model.md §6), on only these three jobs: a job it wakes (wake = site) is asked for as a queued run + a request
+    await db.workflow.updateMany({ where: { key: { in: mine } }, data: { schedule: "7 3 * * *", enabled: true, wake: "site", createdAt: new Date(Date.UTC(2026, 10, 1)) } });
     await db.workflow.update({ where: { key: wfOff.key }, data: { enabled: false } });
     const at = new Date(Date.UTC(2026, 10, 16, 0, 7, 30)); // 03:07 in Amman: only these three are due
-
-    const off = await runScheduled(at, deps, {});
-    check(!!off.note && !off.fired.length && !(await db.handoff.count({ where: { workflowKey: { in: mine } } })), "SITE_SCHEDULER off: the clock does nothing");
-    const on = { SITE_SCHEDULER: "1" };
-    const r1 = await runScheduled(at, deps, on);
-    const fired = r1.fired.filter((f) => mine.includes(f.key));
-    check(fired.find((f) => f.key === wfClaude.key)?.how === "claude" && fired.find((f) => f.key === wfSite.key)?.how === "site" && !fired.some((f) => f.key === wfOff.key), "on: a Claude-only workflow becomes a «run now» request, one with n8n steps runs from the site, a switched-off one is left alone", fired);
+    const only = async (now: Date) => {
+      const snap = await loadSnapshot(now);
+      return watchPlan({ ...snap, since: new Date(Date.UTC(2026, 10, 15)), jobs: snap.jobs.filter((j) => mine.includes(j.key)), runs: snap.runs.filter((r) => mine.includes(r.jobKey)), handoffs: snap.handoffs.filter((h) => mine.includes(h.workflowKey)), approvals: [] }, now);
+    };
+    const p1 = (await only(at)).filter((x) => x.type === "fire");
+    check(p1.length === 2 && !p1.some((x) => x.type === "fire" && x.jobKey === wfOff.key), "the plan asks for the two jobs that are on, not the switched-off one", p1);
+    const r1 = await applyWatch(p1, at);
+    check(r1.applied.fire === 2 && !r1.errors.length, "…and both are carried out", r1);
     const open = await db.handoff.findFirst({ where: { workflowKey: wfClaude.key, kind: "manual_run", status: "open" } });
-    check(!!open && reached.includes("https://n8n.example.com/webhook/daily-ops"), "…the request is in the handoff queue, and the n8n webhook was called, signed");
-    const r2 = await runScheduled(new Date(at.getTime() + 60_000), deps, on);
-    check(!r2.fired.some((f) => mine.includes(f.key)) && reached.length === 1, "the same due minute is never fired twice (a tick a minute later finds it done)");
-    const r3 = await runScheduled(new Date(at.getTime() + 30 * 60_000), deps, on);
-    check(!r3.fired.some((f) => mine.includes(f.key)), "a time that was missed long ago is not replayed");
+    const queued = await db.workflowRun.findFirst({ where: { workflow: { key: wfClaude.key }, status: "queued" } });
+    check(!!open && !!queued && queued.scheduledFor?.toISOString() === "2026-11-16T00:07:00.000Z" && open.expiresAt?.toISOString() === "2026-11-16T00:22:00.000Z", "…a request is in the queue with its end (slot + grace), and the run is queued for that slot", { open, queued });
+    check(!(await only(new Date(at.getTime() + 60_000))).some((x) => x.type === "fire" || x.type === "miss"), "the same slot is never asked for twice (a minute later finds it answered)");
+    check(!(await only(new Date(at.getTime() + 30 * 60_000))).some((x) => x.type === "miss"), "a slot that has a run is not «missed» just because time passed");
     check((await db.auditLog.count({ where: { action: "workflow.scheduled", targetId: { in: mine } } })) === 2, "each firing is in the audit log");
-    await db.jobRun.deleteMany({ where: { job: { in: mine.map((k) => `workflow.fire:${k}`) } } });
+    await db.handoff.deleteMany({ where: { workflowKey: { in: mine } } });
+    await db.workflowRun.deleteMany({ where: { workflow: { key: { in: mine } } } });
     await db.auditLog.deleteMany({ where: { action: "workflow.scheduled", targetId: { in: mine } } });
 
     // the kept conversation: saved as shown, one per person, and nothing private is kept

@@ -25,6 +25,8 @@
  *   alerts.read    every 15 min — the instant alerts of spec 12.3 (two readings in a row, the instant ones at once)
  *   alerts.send    every 5 min — every unsent danger/warning alert in ONE Telegram message
  *   workflow.timeouts every 5 min — a workflow step «running» past its own timeout goes to the handoff queue (once each)
+ *   (watchdog)     every minute, no slot row (N-14): the site's one clock — asks for the runs of the jobs it wakes, writes «فاتت» and «انقطعت», src/jobs/watchdog.ts
+ *   db.cleanup     Sunday from 04:00 — the tables that grow are trimmed (30 days of worker slots, 90 of tool-call audit rows, expired codes), src/jobs/cleanup.ts
  *   safety.month   the 1st at 06:00 — the account cap on Meta reset for the new month (waits for the owner)
  *   creatives.fatigue 07:30 — a tired winner is marked and new hooks are queued for the studio (never paused)
  *   rules.scale    every hour at :17, after the safety rules — the scale ladder (auto at level 2, approval at 1)
@@ -69,7 +71,8 @@ import { repliesFromEnv } from "../src/adapters/replies";
 import { sendTelegram, telegramFromEnv } from "../src/adapters/telegram";
 import { sweepTimeouts } from "../src/server/step-exec";
 import { realDoorDeps, syncWorkspace } from "../src/server/workspace";
-import { runScheduled } from "../src/server/scheduler";
+import { runWatchdog } from "../src/jobs/watchdog";
+import { weeklyCleanup } from "../src/jobs/cleanup";
 import { db } from "../src/server/db";
 
 const DAY = 86_400_000;
@@ -77,7 +80,7 @@ const DAY = 86_400_000;
 function amman(now = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(now).map((p) => [p.type, p.value]));
   const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", weekday: "short" }).format(now);
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minute: Number(parts.minute), saturday: weekday === "Sat", firstOfMonth: parts.day === "01" };
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour), minute: Number(parts.minute), saturday: weekday === "Sat", sunday: weekday === "Sun", firstOfMonth: parts.day === "01" };
 }
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const utcDay = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -159,8 +162,9 @@ export async function tick(now = new Date()) {
     requireKeys("workspace");
     return syncWorkspace(realDoorDeps(), now);
   });
-  // the site's own clock for workflows with a schedule (off unless SITE_SCHEDULER=1): every minute
-  await runOnce("workflow.schedule", `${t.date}T${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`, () => runScheduled(now));
+  // the site's one clock (docs/rebuild-v6/01-model.md §6): every minute, under its own lock, with no row of its own — a failure here never stops the rest of the round
+  await runWatchdog(now).catch((e) => console.error("watchdog failed:", e instanceof Error ? e.message : e));
+  if (t.sunday && t.hour >= 4) await runOnce("db.cleanup", t.date, () => weeklyCleanup(now));
   await runOnce("capi.send", quarter, async () => {
     // R-11: the OMS is the only sender of conversion events (owner, 17/11): off unless CAPI_SEND=1
     if (!capiSendOn()) return { skipped: "CAPI_SEND is off — the OMS sends the conversion events" };

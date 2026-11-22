@@ -899,6 +899,22 @@
     ],
     "additionalProperties": false
   },
+  "get_jobs": {
+    "type": "object",
+    "properties": {
+      "all": {
+        "type": "boolean",
+        "description": "true: كل مهام الموقع مش بس مهامك"
+      },
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 60,
+        "description": "مهمة وحدة بمفتاحها"
+      }
+    },
+    "additionalProperties": false
+  },
   "record_order": {
     "type": "object",
     "properties": {

@@ -16,14 +16,21 @@ import { answerExtras, planRun } from "@/core/run-log";
 import { isTerminalRun, type RunView as CoreRunView } from "@/core/run-state";
 import { AGENT_RUN_STATUSES, EXECUTORS, assigneeOfExecutor, GraphSchema, NODE_STATUSES, PERMISSIONS, SEED_WORKFLOWS, type NodeStates, type RunStatus, type WfGraph } from "@/core/workflow";
 import { diffText, ensureLayout, graphDiff, isChanged, templateOf } from "@/core/workflow-edit";
+import { mergeOwnerEdited, ownerEditedFields } from "@/core/push-jobs";
 import { db } from "./db";
 import { audit, type Actor } from "./audit";
+import { emit } from "./events";
+import { loadJob, nextJobNumber, withNumberLock } from "./job-map";
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
-/** Adds the seeded jobs that are missing. Never touches one that exists — what the owner edited stays his. */
-export async function ensureSeeded(): Promise<number> {
-  const r = await db.workflow.createMany({
+/**
+ * Adds the seeded jobs that are missing. Never touches one that exists — what the owner edited stays his. It is for a database that is EMPTY
+ * (`prisma/seed.ts` and the demo scripts call it): no read and no write of the site calls it any more — the map in the database is the one
+ * map (docs/rebuild-v6/01-model.md §12).
+ */
+export async function ensureSeeded(client: Pick<typeof db, "workflow"> = db): Promise<number> {
+  const r = await client.workflow.createMany({
     data: SEED_WORKFLOWS.map((s) => ({ key: s.key, name: s.name, description: s.description, schedule: s.schedule, executor: s.executor, assigneeKey: assigneeOfExecutor(s.executor), dataSource: "mcp", permission: s.permission, graph: json(s.graph), ...(SEED_JOB_META[s.key] ?? {}) })),
     skipDuplicates: true,
   });
@@ -134,17 +141,18 @@ export async function logRun(input: LogRunCall, actor: Actor, source: "mcp" | "w
   for (const a of input.artifacts ?? []) if (a.url && !isHttpsUrl(a.url)) throw new RunRefused("artifacts: الرابط لازم https:// صريح (بلا اسم مستخدم)");
 
   const ref = input.ref;
-  await ensureSeeded();
   const out = await db.$transaction(
     async (tx) => {
       // one run at a time: a second call for the same (job, ref) waits here until the first is written
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`run:${input.job}:${ref}`}))`;
-      let wf: Workflow | null = await tx.workflow.findUnique({ where: { key: input.job } });
+      // a key that was merged into another job leads to it
+      let wf: Workflow | null = await loadJob(input.job, tx);
       let createdWorkflow = false;
       if (!wf && input.create_if_missing) {
         if (!/^[a-z0-9][a-z0-9-]{1,59}$/.test(input.job)) throw new RunRefused("job: حروف إنجليزية صغيرة وأرقام وشرطات بس");
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"jobs:number"}))`;
         const graph: WfGraph = { nodes: [{ id: "start", type: "trigger", label: "بداية", executor: "system", permission: "green" }, { id: "work", type: "step", label: input.job, executor: "claude_mcp", dataSource: "mcp", permission: "green" }], edges: [{ from: "start", to: "work" }] };
-        wf = await tx.workflow.create({ data: { key: input.job, name: input.job, executor: "claude_mcp", dataSource: "mcp", permission: "green", assigneeKey: "claude", graph: json(graph) } });
+        wf = await tx.workflow.create({ data: { key: input.job, name: input.job, executor: "claude_mcp", dataSource: "mcp", permission: "green", assigneeKey: "claude", graph: json(graph), number: await nextJobNumber(tx) } });
         createdWorkflow = true;
       }
       if (!wf) throw new UnknownJob((await tx.workflow.findMany({ where: { archivedAt: null }, select: { key: true }, orderBy: { key: "asc" } })).map((w) => w.key));
@@ -171,6 +179,7 @@ export async function logRun(input: LogRunCall, actor: Actor, source: "mcp" | "w
         actorKey: doneByOf(actor, opts.actorKey),
         site: opts.site,
         endReason: opts.endReason,
+        job: { kind: wf.kind, schedule: wf.schedule, runsAt: wf.runsAt, endsAt: wf.endsAt, graceMin: wf.graceMin },
       });
       if (!plan.ok) throw new RunRefused(plan.error);
 
@@ -192,13 +201,19 @@ export async function logRun(input: LogRunCall, actor: Actor, source: "mcp" | "w
         await tx.handoff.updateMany({ where: { workflowKey: wf.key, runRef: ref, status: "claimed" }, data: { leaseUntil: leaseUntil(now, wf.maxRunMin) } });
       }
       const orders = await tx.standingOrder.aggregate({ _max: { updatedAt: true } });
-      return { run, wf, created: plan.created, stop: plan.stop, createdWorkflow, currentGraph, ordersAt: orders._max.updatedAt };
+      return { run, wf, created: plan.created, stop: plan.stop, createdWorkflow, currentGraph, ordersAt: orders._max.updatedAt, was: existing?.status ?? null };
     },
     { timeout: 15_000 },
   );
 
   if (out.createdWorkflow) await audit(actor, "workflow.create", { type: "workflow", id: out.wf.id }, { after: { key: out.wf.key, via: "log_run" } });
   await audit(actor, "workflow.log_run", { type: "workflow_run", id: out.run.id }, { after: { job: out.wf.key, status: out.run.status, summary: input.summary } });
+  // the run ended by the agent's word (or the owner's button): the owner hears of a failure — and of a success, when the job asks to be told (§10). Once per run.
+  if ((out.run.status === "failed" || out.run.status === "ok") && out.was !== out.run.status) {
+    const failed = out.run.status === "failed";
+    const bad = Object.values((out.run.nodeStates as unknown as NodeStates) ?? {}).find((n) => n.status === "failed" && n.error)?.error;
+    await emit({ kind: failed ? "run.failed" : "run.done", runId: out.run.id, jobKey: out.wf.key, jobName: out.wf.name, scheduledFor: out.run.scheduledFor, detail: failed ? (bad ?? out.run.summary) : out.run.summary, who: null }, out.wf.notifyOn);
+  }
   return {
     run: runView(out.run),
     workflow: { key: out.wf.key, name: out.wf.name, enabled: out.wf.enabled },
@@ -246,24 +261,41 @@ export interface WorkflowCard {
   decision: string | null;
   decidedAt: string | null;
   source: string;
+  /** who wakes it (self · site · site_run) and how long the site waits before it says «فاتت» / «انقطعت» (v6) */
+  wake: string;
+  graceMin: number;
+  maxRunMin: number;
+  assigneeKey: string | null;
+  /** the fields the owner edited by hand: the agent's map does not write over them */
+  ownerEdited: string[];
 }
 
 const LIVE_HOURS = 6;
 
-/** Every workflow with its last run, the run that is moving now, and when it runs next (the Amman clock). */
-export async function listWorkflows(now = new Date()): Promise<WorkflowCard[]> {
-  await ensureSeeded();
-  const rows = await db.workflow.findMany({ where: { archivedAt: null }, orderBy: [{ enabled: "desc" }, { name: "asc" }] });
+/**
+ * Every workflow with its last run, the run that is moving now, and when it runs next (the Amman clock). A fixed number of queries whatever the number of
+ * jobs (W-20): the jobs, the newest start of each, those runs, and the runs that are going now. `only` asks for one job (what a save answers with).
+ */
+export async function listWorkflows(now = new Date(), only?: { key: string }): Promise<WorkflowCard[]> {
+  const rows = await db.workflow.findMany({ where: { archivedAt: null, ...(only ? { key: only.key } : {}) }, orderBy: [{ enabled: "desc" }, { name: "asc" }] });
   rows.sort((a, b) => Number(b.enabled) - Number(a.enabled) || (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));
+  if (!rows.length) return [];
+  const ids = rows.map((w) => w.id);
   const since = new Date(now.getTime() - LIVE_HOURS * 3_600_000);
-  const cards: WorkflowCard[] = [];
-  for (const w of rows) {
-    const [last, live] = await Promise.all([
-      db.workflowRun.findFirst({ where: { workflowId: w.id }, orderBy: { startedAt: "desc" } }),
-      db.workflowRun.findFirst({ where: { workflowId: w.id, status: { in: ["running", "waiting"] }, startedAt: { gte: since } }, orderBy: { startedAt: "desc" } }),
-    ]);
+  const newest = await db.workflowRun.groupBy({ by: ["workflowId"], where: { workflowId: { in: ids } }, _max: { startedAt: true } });
+  const [lasts, lives] = await Promise.all([
+    newest.length ? db.workflowRun.findMany({ where: { OR: newest.filter((n) => n._max.startedAt).map((n) => ({ workflowId: n.workflowId, startedAt: n._max.startedAt as Date })) } }) : Promise.resolve([] as WorkflowRun[]),
+    db.workflowRun.findMany({ where: { workflowId: { in: ids }, status: { in: ["running", "waiting"] }, startedAt: { gte: since } }, orderBy: { startedAt: "desc" } }),
+  ]);
+  const lastOf = new Map<string, WorkflowRun>();
+  for (const r of lasts) if (!lastOf.has(r.workflowId) || r.createdAt > lastOf.get(r.workflowId)!.createdAt) lastOf.set(r.workflowId, r);
+  const liveOf = new Map<string, WorkflowRun>();
+  for (const r of lives) if (!liveOf.has(r.workflowId)) liveOf.set(r.workflowId, r);
+  return rows.map((w) => {
+    const last = lastOf.get(w.id);
+    const live = liveOf.get(w.id);
     const graph = GraphSchema.safeParse(w.graph);
-    cards.push({
+    return {
       id: w.id,
       key: w.key,
       name: w.name,
@@ -296,9 +328,13 @@ export async function listWorkflows(now = new Date()): Promise<WorkflowCard[]> {
       decision: w.decision,
       decidedAt: w.decidedAt?.toISOString() ?? null,
       source: w.source,
-    });
-  }
-  return cards;
+      wake: w.wake,
+      graceMin: w.graceMin,
+      maxRunMin: w.maxRunMin,
+      assigneeKey: w.assigneeKey,
+      ownerEdited: w.ownerEdited,
+    };
+  });
 }
 
 export async function runsOf(key: string, f: { status?: string; limit?: number } = {}): Promise<RunView[]> {
@@ -365,9 +401,12 @@ export async function updateWorkflow(key: string, patch: WorkflowPatchT, actor: 
           update: {},
         });
       }
+      // what the owner changes by hand is his: a push of the agent's map does not write over it (W-13)
+      const edited = actor.type === "user" ? ownerEditedFields(patch, before) : [];
       const after = await tx.workflow.update({
         where: { key },
         data: {
+          ...(edited.length ? { ownerEdited: mergeOwnerEdited(before.ownerEdited ?? [], edited) } : {}),
           ...(patch.name ? { name: patch.name } : {}),
           ...(patch.description !== undefined ? { description: patch.description } : {}),
           ...(patch.schedule !== undefined ? { schedule: patch.schedule } : {}),
@@ -389,7 +428,7 @@ export async function updateWorkflow(key: string, patch: WorkflowPatchT, actor: 
   if (!done) return null;
   const { before, after } = done;
   await audit(actor, "workflow.update", { type: "workflow", id: after.id }, { before: { enabled: before.enabled, schedule: before.schedule, permission: before.permission, version: before.version }, after: { enabled: after.enabled, schedule: after.schedule, permission: after.permission, version: after.version } });
-  return (await listWorkflows()).find((c) => c.key === key) ?? null;
+  return (await listWorkflows(now, { key }))[0] ?? null;
 }
 
 /**
@@ -404,7 +443,7 @@ export async function setStepEnabled(key: string, stepId: string, enabled: boole
     const graph = GraphSchema.parse(wf.graph);
     const node = graph.nodes.find((n) => n.id === stepId);
     if (!node || node.type === "trigger") throw new RunRefused(`الخطوة «${stepId}» مش بخطوات هالمهمة`);
-    if (!!node.disabled === !enabled) return { card: (await listWorkflows()).find((c) => c.key === key)!, changed: false };
+    if (!!node.disabled === !enabled) return { card: (await listWorkflows(new Date(), { key }))[0]!, changed: false };
     const next: WfGraph = { ...graph, nodes: graph.nodes.map((n) => (n.id === stepId ? { ...n, disabled: !enabled } : n)) };
     try {
       const card = await updateWorkflow(key, { graph: next, baseVersion: wf.version, note: enabled ? `شغّلت خطوة ${node.label}` : `طفّيت خطوة ${node.label}` }, actor);
@@ -437,7 +476,6 @@ export type WorkflowCreateT = z.infer<typeof WorkflowCreate>;
 export async function createWorkflow(input: WorkflowCreateT, actor: Actor): Promise<WorkflowCard> {
   const refusal = refuseIfPrivate(input.name, input.description);
   if (refusal) throw new RunRefused(refusal);
-  await ensureSeeded();
   let graph: WfGraph;
   let executor = "claude_mcp";
   let permission = "green";
@@ -467,10 +505,13 @@ export async function createWorkflow(input: WorkflowCreateT, actor: Actor): Prom
     key = `wf-${randomBytes(4).toString("hex").slice(0, 6)}`;
     if (!(await db.workflow.findUnique({ where: { key } }))) break;
   }
-  const row = await db.workflow.create({ data: { key, name: input.name, description: input.description ?? null, executor, assigneeKey: assigneeOfExecutor(executor), dataSource: "mcp", permission, graph: json(graph), ...(input.enabled === undefined ? {} : { enabled: input.enabled }) } });
+  // the site gives the number: the next free one, taken under the numbering lock so two jobs made together never share it
+  const row = await withNumberLock(async (tx) =>
+    tx.workflow.create({ data: { key, name: input.name, description: input.description ?? null, executor, assigneeKey: assigneeOfExecutor(executor), dataSource: "mcp", permission, graph: json(graph), number: await nextJobNumber(tx), ...(input.enabled === undefined ? {} : { enabled: input.enabled }) } }),
+  );
   await db.workflowVersion.create({ data: { workflowId: row.id, version: 1, graph: json(graph), note, createdBy: actor.id ?? actor.type } });
   await audit(actor, "workflow.create", { type: "workflow", id: row.id }, { after: { key, name: input.name, from: input.copy_of ?? input.template ?? "blank" } });
-  return (await listWorkflows()).find((c) => c.key === key)!;
+  return (await listWorkflows(new Date(), { key }))[0]!;
 }
 
 export interface VersionView {
