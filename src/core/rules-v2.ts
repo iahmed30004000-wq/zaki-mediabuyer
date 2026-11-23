@@ -30,7 +30,7 @@ export const CampaignRulesSchema = z
       .strict(),
     newAdsetFreezeHours: hours,
     scale: z
-      .object({ maxCost: money, days, stepPct: share, everyHours: hours, maxWeekPct: share, stockBlocks: z.boolean(), capRunning: money, proposeCapRaiseDays: days })
+      .object({ maxCost: money, days, stepPct: share, everyHours: hours, maxWeekPct: share, stockBlocks: z.boolean(), capRunning: money, proposeCapRaiseDays: days, minConfirmed: z.number().int().min(0).max(1000) })
       .strict(),
     revert: z.object({ backToOldBudget: z.boolean(), pauseAfterHours: hours }).strict(),
     stock: z.object({ redDays: days, orangeDays: days, yellowDays: days, audience: z.array(z.string().trim().min(1).max(30)).max(10) }).strict(),
@@ -49,6 +49,7 @@ export const CampaignRulesSchema = z
       .strict(),
     budgets: z.object({ runningCap: money, newProductTests: money, testPerProduct: money, fallbackTotal: money }).strict(),
     newProductTest: z.object({ perDay: money, ignoreDay1: z.boolean(), day2Max: money, day3Max: money, maxSpend: money }).strict(),
+    returns: z.object({ stopShare: z.number().min(0).max(1), windowShipments: z.number().int().min(0).max(100000), minShipments: z.number().int().min(0).max(100000) }).strict(),
   })
   .strict();
 export type CampaignRules = z.infer<typeof CampaignRulesSchema>;
@@ -64,12 +65,13 @@ export const DEFAULT_RULES: CampaignRules = {
   adsetPauseDays: 3,
   ad: { minAdsetHours: 48, spendZeroSales: null, spendOneSale: null, daysAboveBreakeven: 3, untestedShare: 0.1 },
   newAdsetFreezeHours: 72,
-  scale: { maxCost: null, days: 3, stepPct: 0.2, everyHours: 48, maxWeekPct: 0.5, stockBlocks: false, capRunning: null, proposeCapRaiseDays: 3 },
+  scale: { maxCost: null, days: 3, stepPct: 0.2, everyHours: 48, maxWeekPct: 0.5, stockBlocks: false, capRunning: null, proposeCapRaiseDays: 3, minConfirmed: 5 },
   revert: { backToOldBudget: true, pauseAfterHours: 48 },
   stock: { redDays: 7, orangeDays: 10, yellowDays: 14, audience: ["owner", "abdullah", "mohammad"] },
   videos: { fatigueFrequency: 3, fatigueDropPct: 0.25, fatigueCostDays: 3, fatigueCostMax: null, winnerScenarios: 2, bankMin: 10, batch: 50, batchRefs: 25, batchWinners: 25 },
   budgets: { runningCap: null, newProductTests: null, testPerProduct: null, fallbackTotal: null },
   newProductTest: { perDay: null, ignoreDay1: true, day2Max: null, day3Max: null, maxSpend: null },
+  returns: { stopShare: 0.32, windowShipments: 50, minShipments: 10 },
 };
 
 /** Whatever is stored (maybe from an older version of the rules) over the defaults, then checked. Never throws: a broken value falls back to the defaults. */
@@ -108,7 +110,7 @@ export function describeRules(r: CampaignRules): string[] {
     `المجموعة الجديدة: بلا تغيير ${r.newAdsetFreezeHours} ساعة.`,
     `التكبير: ≤ ${n(r.scale.maxCost, "$")} لـ ${r.scale.days} أيام ← +${pct(r.scale.stepPct)} كل ${r.scale.everyHours} ساعة، وحد +${pct(r.scale.maxWeekPct)} بالأسبوع.${r.scale.stockBlocks ? " المخزون بيمنع التكبير." : " المخزون ما بيمنع التكبير."} سقف المنتجات الشغّالة ${n(r.scale.capRunning, "$")} باليوم (بدون اختبارات المنتجات الجديدة). إذا ${r.scale.proposeCapRaiseDays} أيام ورا بعض تكلفة الحساب ≤ الهدف والصرف وصل السقف ← بنقترح عليك رفع السقف.`,
     `مجموعة كبّرناها وصارت فوق التعادل ← ${r.revert.backToOldBudget ? "ترجع لميزانيتها القديمة" : "ما بترجع لميزانيتها"}؛ وبعد ${r.revert.pauseAfterHours} ساعة لسا فوق التعادل ← توقيف.`,
-    `المخزون: 🔴 أقل من ${r.stock.redDays} أيام · 🟠 ${r.stock.redDays}–${r.stock.orangeDays} · 🟡 ${r.stock.orangeDays}–${r.stock.yellowDays} ← تنبيه لـ ${r.stock.audience.join("، ")}.`,
+    `المخزون: 🔴 أقل من ${r.stock.redDays} أيام · 🟠 ${r.stock.redDays}–${r.stock.orangeDays} · 🟡 ${r.stock.orangeDays}–${r.stock.yellowDays} ← تنبيه لـ ${r.stock.audience.join("، ")}. المرتجع: أكتر من ${pct(r.returns.stopShare)} من أول ${r.returns.windowShipments} شحنة (بعد ${r.returns.minShipments} شحنات على الأقل) ← توقيف المنتج.`,
     `الفيديوهات: رابح تعبان (تكرار > ${r.videos.fatigueFrequency}، أو CTR/Hook نزل ≥ ${pct(r.videos.fatigueDropPct)}، أو أكتر من ${n(r.videos.fatigueCostMax, "$")} لـ ${r.videos.fatigueCostDays} أيام) ← طلب هوكات من هيرمز. رابح جديد (≤ ${n(r.scale.maxCost, "$")} على ${r.scale.days} أيام أو أكتر) ← طلب ${r.videos.winnerScenarios} سيناريوهات. بنك المنتج ≤ ${r.videos.bankMin} فيديو ← دفعة ${r.videos.batch} من ليث (${r.videos.batchRefs} مراجع + ${r.videos.batchWinners} من الرابحين). كل طلب بينتبع: طلب ← عند هيرمز/ليث ← جاهز ← مرفوع ← بالتيست ← النتيجة.`,
     `الميزانيات: المنتجات الشغّالة مع اختبارات إبداعها ≤ ${n(r.budgets.runningCap, "$")} باليوم. اختبارات المنتجات الجديدة ميزانيتها لحالها: ${n(r.budgets.newProductTests, "$")} باليوم. إذا النتائج نزلت (الحساب فوق التعادل يومين) المجموع مع الاختبارات ≤ ${n(r.budgets.fallbackTotal, "$")}.`,
     `دفعات الفيديو بتنطلب من ليث.`,

@@ -38,6 +38,11 @@ export function payloadOf(item: ChangeItemDraft): Record<string, unknown> {
   return { daily_budget: Math.round((item.after.dailyBudget ?? 0) * 100) };
 }
 
+/** Meta's daily budget is in cents: the same budget when it matches the decision's base to the cent (a rounding of one cent is the same budget). */
+export function budgetMatches(liveCents: number, expectedUsd: number): boolean {
+  return Number.isFinite(liveCents) && Math.abs(liveCents - Math.round(expectedUsd * 100)) <= 1;
+}
+
 export interface ApplyResult {
   response: unknown;
   verified: boolean;
@@ -61,6 +66,14 @@ export async function applyItem(item: ChangeItemDraft, mode: WriteMode, client: 
     return { response, verified: mismatches.length === 0, readBack, createdId: response.id, mismatches };
   }
   if (mode === "dry_run" || !client) return { response: { dryRun: true, wouldPost: { id: item.objectId, ...payload } }, verified: true, readBack: null };
+  // a budget change is written on top of what Meta has RIGHT NOW, never on the site's copy (a copy can be stale): if Meta's
+  // budget is not the one the decision was computed from, the item stops and says so — a raise is never built on a wrong base
+  if (item.op === "set_budget" && item.before.dailyBudget !== undefined) {
+    const live = await client.get<Record<string, unknown>>(item.objectId, { fields: "daily_budget" });
+    if (!budgetMatches(Number(live.daily_budget), item.before.dailyBudget)) {
+      throw new Error(`الميزانية على ميتا ${(Number(live.daily_budget) / 100).toFixed(2)}$ مش اللي انحسب عليها القرار (${item.before.dailyBudget.toFixed(2)}$) — ما انكتب شي، بيتعاد بالجولة الجاية`);
+    }
+  }
   const response = await client.post(item.objectId, payload);
   const readBack = await client.get<Record<string, unknown>>(item.objectId, { fields: item.op === "set_account_cap" ? "spend_cap,amount_spent" : item.objectType === "rule" ? "status" : "status,effective_status,daily_budget" });
   const verified =

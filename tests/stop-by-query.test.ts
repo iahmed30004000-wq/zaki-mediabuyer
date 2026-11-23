@@ -50,6 +50,21 @@ describe("stopByQuery", () => {
     expect(s.queries[0]).toEqual(["ad", expect.objectContaining({ where: { creativeCode: "CR00147", status: { not: "PAUSED" } } })]);
   });
 
+  it("R-25: one video that runs in nine ads stops all nine (it used to stop six and say ✓), and the query asks for all of them", async () => {
+    s.ads = Array.from({ length: 9 }, (_, i) => ad("CR00147 · كمأة " + (i + 1), "a" + (i + 1)));
+    const text = await stopByQuery("cr147", { id: "oms:owner" }, "oms:owner");
+    expect(text).toContain("✓ وقف");
+    expect((s.proposals[0]!.p.items as unknown[]).length).toBe(9);
+    expect((s.queries[0] as [string, { take: number }])[1].take).toBeGreaterThanOrEqual(9);
+  });
+
+  it("a code that matches more ads than one stop may carry says so instead of stopping part of them", async () => {
+    s.ads = Array.from({ length: 200 }, (_, i) => ad("CR00147 " + i, "a" + i));
+    const text = await stopByQuery("cr147", { id: "oms:owner" }, "oms:owner");
+    expect(text).toContain("كتير لوقفة وحدة");
+    expect(s.proposals).toEqual([]);
+  });
+
   it("a name that fits more than one object is NOT guessed — it asks for more words", async () => {
     s.ads = [ad("ماء كمأة 1", "a1"), ad("ماء كمأة 2", "a2")];
     const text = await stopByQuery("ماء", { id: "oms:owner" }, "oms:owner");

@@ -21,6 +21,7 @@ import { audit, type Actor } from "./audit";
 import { omsLinked } from "./env";
 import { createNotification } from "./notify";
 import { getSetting } from "./settings";
+import { adSetOwnedByMeta, campaignOwnedByMeta, withoutProtected } from "@/core/ownership";
 
 const DAY = 86_400_000;
 const RANK: Record<PushLevel, number> = { account: 0, campaign: 1, adset: 2, ad: 3, product: 4, person: 5 };
@@ -150,7 +151,7 @@ async function upsertProductDay(productCode: string, date: string, p: ProductDay
 }
 
 /** Upserts Campaign / AdSet / Ad (or the account) from a row. True when it touched the structure. */
-async function structureOf(row: MetricRowT, defaultAccount: string | undefined, aliases: ProductAlias[]): Promise<boolean> {
+export async function structureOf(row: MetricRowT, defaultAccount: string | undefined, aliases: ProductAlias[]): Promise<boolean> {
   const status = normalizeStatus(row.status);
   const start = parseStart(row.start_time);
   const budget = row.budget_daily;
@@ -179,7 +180,8 @@ async function structureOf(row: MetricRowT, defaultAccount: string | undefined, 
       ...(start ? { startTime: start } : {}),
       ...(row.product ? { productCode: row.product } : named ? { productCode: parsed?.productCode ?? legacy?.code ?? existing?.productCode ?? null } : {}),
     };
-    if (existing) await db.campaign.update({ where: { metaId: row.id }, data });
+    // Meta's sync owns the status, the budget and the account of what it has filled; a push may not rewrite them
+    if (existing) await db.campaign.update({ where: { metaId: row.id }, data: withoutProtected("campaign", data, campaignOwnedByMeta(existing)).data });
     else {
       const acct = account ?? (await accountFor(undefined, defaultAccount));
       await db.campaign.create({ data: { metaId: row.id, accountId: acct.id, name, status: status ?? "ACTIVE", ...data } });
@@ -201,7 +203,7 @@ async function structureOf(row: MetricRowT, defaultAccount: string | undefined, 
       ...(budget !== undefined ? { dailyBudget: budget } : {}),
       ...(start ? { startTime: start } : {}),
     };
-    if (existing) await db.adSet.update({ where: { metaId: row.id }, data });
+    if (existing) await db.adSet.update({ where: { metaId: row.id }, data: withoutProtected("adset", data, adSetOwnedByMeta(existing)).data });
     else await db.adSet.create({ data: { metaId: row.id, campaignId: parent!.id, name, status: status ?? "ACTIVE", ...data } });
     return true;
   }
@@ -218,7 +220,10 @@ async function structureOf(row: MetricRowT, defaultAccount: string | undefined, 
     ...(status !== undefined ? { status } : {}),
     ...(start ? { startTime: start } : {}),
   };
-  if (existing) await db.ad.update({ where: { metaId: row.id }, data });
+  if (existing) {
+    const parentOwned = adSetOwnedByMeta((await db.adSet.findUnique({ where: { id: existing.adSetId }, select: { optimizationGoal: true } })) ?? { optimizationGoal: null });
+    await db.ad.update({ where: { metaId: row.id }, data: withoutProtected("ad", data, parentOwned).data });
+  }
   else await db.ad.create({ data: { metaId: row.id, adSetId: parent!.id, name, status: status ?? "ACTIVE", ...data } });
   return true;
 }

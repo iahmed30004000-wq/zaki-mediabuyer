@@ -1,62 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { evaluateAccount, evaluateAd, evaluateAdSet, evaluateProduct, isUntested, type AdFacts } from "@/core/rules";
+import { watchAccount, watchAd } from "@/core/rules";
 import { effectiveLevel, modeFor, type ActionKind } from "@/core/autonomy";
 import { canMove, flipFlopped, simulate, spendDeltaDaily, type ChangeItemDraft } from "@/core/changeset";
 
-const ad = (x: Partial<AdFacts> = {}): AdFacts => ({
-  adId: "a1", adSetId: "s1", productCode: "TRF01", hoursRunning: 60, spend: 6, adSetSpend: 40, orders: 0, matureOrders: 0, confirmedMature: 0, fakeOrders: 0, tOrder: 2.5, ceiling: 6.64, newBatch: false, ...x,
-});
-
-describe("rule.loser_no_orders (spend ≥ 2 × T, 0 orders, ≥ 48 h)", () => {
-  it("below the threshold: nothing", () => expect(evaluateAd(ad({ spend: 4.99 }))).toEqual([]));
-  it("at the threshold: pause, with the numbers in the sentence", () => {
-    const [dec] = evaluateAd(ad({ spend: 5 }));
-    expect(dec).toMatchObject({ rule: "loser_no_orders", action: "pause", reasonCode: "S01", alertOnly: false });
-    expect(dec!.sentence).toContain("5.00$");
+/** The hourly watch (v6 · P10): it only ever raises alerts — the engine that writes is the night round (tests/rulebook.test.ts). */
+describe("the hourly watch: alerts, never actions", () => {
+  const base = { accountId: "act_1", spendToday: 100, dailyCap: 260, hourSpend: 5, avgHourSpend7d: 4, dailyBudgetsSum: 200, dataAgeHours: 0.5 };
+  it("a healthy account raises nothing", () => expect(watchAccount(base)).toEqual([]));
+  it("the daily cap is an alert (danger), and it does not say anything was stopped", () => {
+    const [a] = watchAccount({ ...base, spendToday: 260 });
+    expect(a).toMatchObject({ rule: "daily_cap", tone: "danger", level: "account" });
+    expect(a!.sentence).not.toMatch(/وقّفت|خفّضت|جمّدت/);
+    expect(a!.sentence).toContain("ما انعمل شي تلقائي");
   });
-  it("one order is enough to stay", () => expect(evaluateAd(ad({ spend: 9, orders: 1 }))).toEqual([]));
-  it("before 48 h: no verdict", () => expect(evaluateAd(ad({ spend: 9, hoursRunning: 47 }))).toEqual([]));
-  it("a new batch only alerts", () => expect(evaluateAd(ad({ spend: 9, newBatch: true }))[0]!.alertOnly).toBe(true));
-});
-
-describe("rule.loser_no_confirmed (1.5 × ceiling, ≥ 3 mature, 0 confirmed)", () => {
-  it("fires on mature orders only", () => {
-    expect(evaluateAd(ad({ spend: 10, orders: 3, matureOrders: 3, confirmedMature: 0 }))[0]).toMatchObject({ rule: "loser_no_confirmed", reasonCode: "S02" });
-    expect(evaluateAd(ad({ spend: 10, orders: 3, matureOrders: 2, confirmedMature: 0 }))).toEqual([]);
-    expect(evaluateAd(ad({ spend: 10, orders: 3, matureOrders: 3, confirmedMature: 1 }))).toEqual([]);
+  it("a spend spike is an alert, not a 30% cut", () => {
+    const out = watchAccount({ ...base, hourSpend: 13 });
+    expect(out.map((x) => x.rule)).toEqual(["spend_spike"]);
+    expect(out[0]!.sentence).not.toMatch(/وقّفت|خفّضت|جمّدت/);
   });
-});
-
-describe("«لم يُختبر» is never a loser", () => {
-  it("< 10% of the ad set after 72 h and < T", () => {
-    const a = ad({ hoursRunning: 80, spend: 2, adSetSpend: 40 });
-    expect(isUntested(a)).toBe(true);
-    expect(evaluateAd(a)).toEqual([]);
+  it("a day above 1.75 × the planned budgets is a spike", () => expect(watchAccount({ ...base, spendToday: 360, dailyCap: null }).map((x) => x.rule)).toEqual(["spend_spike"]));
+  it("stale data is an alert that says the night round will wait", () => {
+    const out = watchAccount({ ...base, dataAgeHours: 3 });
+    expect(out.map((x) => x.rule)).toEqual(["stale_data"]);
+    expect(out[0]!.sentence).toContain("جولة الليل");
   });
-});
-
-describe("other rules", () => {
-  it("high_cpa waits for the first 100$, then reduces 30%", () => {
-    expect(evaluateAdSet({ adSetId: "s1", productCode: "TRF01", costPerConfirmed: 8, ceiling: 6.64, productSpend: 99, newBatch: false })).toEqual([]);
-    expect(evaluateAdSet({ adSetId: "s1", productCode: "TRF01", costPerConfirmed: 8, ceiling: 6.64, productSpend: 120, newBatch: false })[0]).toMatchObject({ action: "reduce", pct: 0.3 });
-    expect(evaluateAdSet({ adSetId: "s1", productCode: "TRF01", costPerConfirmed: 6.6, ceiling: 6.64, productSpend: 120, newBatch: false })).toEqual([]);
-    expect(evaluateAdSet({ adSetId: "s1", productCode: "TRF01", costPerConfirmed: 6.234, ceiling: 6.23, productSpend: 120, newBatch: false })).toEqual([]);
-  });
-  it("stock: < 2 days pauses (even a new batch), < 5 freezes scaling", () => {
-    expect(evaluateProduct({ productCode: "TIN01", shipments: 0, returned: 0, shipmentsToDate: 0, stockDays: 1 })[0]).toMatchObject({ rule: "stock_out", action: "pause", alertOnly: false });
-    expect(evaluateProduct({ productCode: "TIN01", shipments: 0, returned: 0, shipmentsToDate: 0, stockDays: 4 })[0]).toMatchObject({ rule: "stock_low", action: "freeze_scale" });
-  });
-  it("returns > 32% in the first 50 shipments stop the test", () => {
-    expect(evaluateProduct({ productCode: "X", shipments: 20, returned: 7, shipmentsToDate: 20, stockDays: 30 })[0]).toMatchObject({ rule: "high_return" });
-    expect(evaluateProduct({ productCode: "X", shipments: 20, returned: 6, shipmentsToDate: 20, stockDays: 30 })).toEqual([]);
-    expect(evaluateProduct({ productCode: "X", shipments: 20, returned: 9, shipmentsToDate: 80, stockDays: 30 })).toEqual([]);
-  });
-  it("daily cap, spikes and stale data", () => {
-    const base = { accountId: "act_1", spendToday: 100, dailyCap: 260, hourSpend: 5, avgHourSpend7d: 4, dailyBudgetsSum: 200, dataAgeHours: 0.5 };
-    expect(evaluateAccount(base)).toEqual([]);
-    expect(evaluateAccount({ ...base, spendToday: 260 }).map((x) => x.rule)).toEqual(["daily_cap"]);
-    expect(evaluateAccount({ ...base, hourSpend: 13 }).map((x) => x.rule)).toEqual(["spend_spike"]);
-    expect(evaluateAccount({ ...base, dataAgeHours: 3 }).map((x) => x.rule)).toEqual(["stale_data"]);
+  it("fake orders: 30% of at least 10 is an alert, below it nothing", () => {
+    expect(watchAd({ adId: "a1", orders: 10, fakeOrders: 3 })[0]).toMatchObject({ rule: "fake_orders", level: "ad" });
+    expect(watchAd({ adId: "a1", orders: 10, fakeOrders: 2 })).toEqual([]);
+    expect(watchAd({ adId: "a1", orders: 9, fakeOrders: 9 })).toEqual([]);
   });
 });
 
@@ -92,7 +63,7 @@ describe("change sets (spec 10.2)", () => {
   });
 
   const raise: ChangeItemDraft = { op: "set_budget", objectType: "adset", objectId: "s1", before: { dailyBudget: 40 }, after: { dailyBudget: 48 } };
-  const ctx = { plannedSpendToday: 189.6, dailyCap: 350, hoursSinceSignificant: { s1: 100 }, busyObjects: new Set<string>(), safety: false };
+  const ctx = { plannedDaily: 189.6, dailyCap: 350, hoursSinceSignificant: { s1: 100 }, busyObjects: new Set<string>(), safety: false };
 
   it("the money a change moves", () => {
     expect(spendDeltaDaily([raise])).toBe(8);
@@ -105,12 +76,12 @@ describe("change sets (spec 10.2)", () => {
   });
   it("no raise without a known cap, none over the cap", () => {
     expect(simulate([raise], { ...ctx, dailyCap: null }).ok).toBe(false);
-    expect(simulate([raise], { ...ctx, plannedSpendToday: 345 }).ok).toBe(false);
+    expect(simulate([raise], { ...ctx, plannedDaily: 345 }).ok).toBe(false);
   });
   it("the learning guard blocks a significant edit within 72 h, but not safety", () => {
     const big: ChangeItemDraft = { ...raise, after: { dailyBudget: 60 } };
     expect(simulate([big], { ...ctx, hoursSinceSignificant: { s1: 20 } }).ok).toBe(false);
-    expect(simulate([big], { ...ctx, hoursSinceSignificant: { s1: 20 }, safety: true, plannedSpendToday: 0 }).checks.find((c) => c.key === "learning")!.ok).toBe(true);
+    expect(simulate([big], { ...ctx, hoursSinceSignificant: { s1: 20 }, safety: true, plannedDaily: 0 }).checks.find((c) => c.key === "learning")!.ok).toBe(true);
   });
   it("the loop guard: two flips in 48 h freeze", () => {
     const now = new Date("2026-10-26T12:00:00Z");
@@ -119,4 +90,34 @@ describe("change sets (spec 10.2)", () => {
     expect(flipFlopped([h(40, "down"), h(20, "up")], now)).toBe(false);
     expect(flipFlopped([h(60, "down"), h(20, "up"), h(2, "down")], now)).toBe(false);
   });
+});
+
+describe("the cap is the sum of the budgets, not today's spend so far (R-08)", () => {
+  const raise: ChangeItemDraft = { op: "set_budget", objectType: "adset", objectId: "s1", before: { dailyBudget: 40 }, after: { dailyBudget: 48 } };
+  const ctx = { plannedDaily: 340, dailyCap: 350, hoursSinceSignificant: {}, busyObjects: new Set<string>(), safety: false };
+  it("the budgets already planned plus the raise must fit the cap", () => {
+    expect(simulate([raise], ctx).ok).toBe(true); // 340 + 8 = 348 ≤ 350
+    expect(simulate([raise], { ...ctx, plannedDaily: 342 }).checks.find((c) => c.key === "cap")!.ok).toBe(true);
+    expect(simulate([raise], { ...ctx, plannedDaily: 343 }).checks.find((c) => c.key === "cap")!.ok).toBe(false);
+  });
+  it("an unknown account fails closed: a raise is never let through when the base is not known", () => {
+    const sim = simulate([raise], { ...ctx, plannedDaily: null });
+    expect(sim.ok).toBe(false);
+    expect(sim.checks.find((c) => c.key === "cap")!.note).toContain("الحساب مش معروف");
+  });
+  it("a cut needs no cap, known or not", () => {
+    const cut: ChangeItemDraft = { op: "set_budget", objectType: "adset", objectId: "s1", before: { dailyBudget: 40 }, after: { dailyBudget: 28 } };
+    expect(simulate([cut], { ...ctx, plannedDaily: null, dailyCap: null }).checks.find((c) => c.key === "cap")!.ok).toBe(true);
+  });
+});
+
+describe("a safety stop is not held back by another change on the same object (R-19)", () => {
+  const pause: ChangeItemDraft = { op: "pause", objectType: "campaign", objectId: "c1", before: { status: "ACTIVE" }, after: { status: "PAUSED" } };
+  const ctx = { plannedDaily: 0, dailyCap: 100, hoursSinceSignificant: {}, busyObjects: new Set(["c1"]), safety: true };
+  it("busy object + safety → the conflict check passes (and says why)", () => {
+    const c = simulate([pause], ctx).checks.find((x) => x.key === "conflict")!;
+    expect(c.ok).toBe(true);
+    expect(c.note).toContain("الإيقاف بيمرّ");
+  });
+  it("busy object + not safety → it still conflicts", () => expect(simulate([pause], { ...ctx, safety: false }).checks.find((x) => x.key === "conflict")!.ok).toBe(false));
 });

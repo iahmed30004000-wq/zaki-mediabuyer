@@ -31,6 +31,16 @@ export function lastOmsSync(runs: RunRow[]): Date | null {
   return hit ? (hit.finishedAt ?? hit.startedAt) : null;
 }
 
+/** How far back a pull reaches: the last 3 days, or — after an outage — back to a little before the last real pull, never more than 30 days. */
+export const OMS_PULL_DAYS = 3;
+export const OMS_PULL_MAX_DAYS = 30;
+export function omsPullSince(now: Date, lastReal: Date | null): Date {
+  const day = 24 * HOUR;
+  const normal = now.getTime() - OMS_PULL_DAYS * day;
+  const fromLast = lastReal ? lastReal.getTime() - HOUR : normal;
+  return new Date(Math.max(now.getTime() - OMS_PULL_MAX_DAYS * day, Math.min(normal, fromLast)));
+}
+
 /** The slot of the one pull that follows a (re)link: its own name, so the hour's slot (maybe already used by a «not linked» skip) does not hold it back. */
 export const linkSlot = (linkedAt: Date | null): string | null => (linkedAt ? `link-${linkedAt.getTime()}` : null);
 

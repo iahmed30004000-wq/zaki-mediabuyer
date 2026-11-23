@@ -17,11 +17,13 @@ import { HttpError, type Caller } from "./auth";
 import { can } from "@/core/roles";
 import { effectiveLevel, modeFor, type ActionKind, type AutonomyLevel } from "@/core/autonomy";
 import { accountRestricted } from "@/jobs/account-safety";
-import { assertMove, directionOf, flipFlopped, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
+import { assertMove, directionOf, flipFlopped, isSignificant, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
+import { plannedDaily } from "@/core/rulebook";
 import { applyItem, writeMode } from "@/meta/write";
 import { metaWriteGate } from "@/core/readiness";
 import { resolveRefs } from "@/core/templates";
 import { MetaClient } from "@/meta/client";
+import { readCampaigns } from "@/meta/read";
 import { metaToken } from "@/jobs/meta-sync";
 import { stopResult, type StopResult } from "@/core/stop-result";
 
@@ -62,10 +64,20 @@ async function tokenExpired(): Promise<boolean> {
   return !!c && (c.status === "expired" || (!!c.expiresAt && c.expiresAt < new Date()));
 }
 
-async function simulationContext(p: Proposal) {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const spent = await db.insightDaily.aggregate({ _sum: { spend: true }, where: { level: "ad", date: today } });
+/**
+ * What an account plans to spend per day: every active ad set budget and campaign budget it has now, plus the raises already waiting or
+ * running (so two raises that each fit alone are not both let through). Null when the account is unknown — the cap check then fails closed.
+ */
+export async function plannedDailyOf(accountMetaId: string | null | undefined, excludeId?: string): Promise<number | null> {
+  if (!accountMetaId) return null;
+  const account = await db.adAccount.findUnique({ where: { metaId: accountMetaId }, include: { campaigns: { include: { adsets: true } } } });
+  if (!account) return null;
+  const base = plannedDaily(account.campaigns.map((c) => ({ status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null, adsets: c.adsets.map((x) => ({ status: x.status, dailyBudget: x.dailyBudget ? Number(x.dailyBudget) : null })) })));
+  const waiting = await db.changeSet.findMany({ where: { accountMetaId, state: { in: ["pending_approval", "approved", "executing"] }, ...(excludeId ? { id: { not: excludeId } } : {}) }, select: { spendDeltaDaily: true } });
+  return Math.round((base + waiting.reduce((n, w) => n + Math.max(0, Number(w.spendDeltaDaily)), 0)) * 100) / 100;
+}
+
+async function simulationContext(p: Proposal, excludeId?: string) {
   const account = p.accountMetaId ? await db.adAccount.findUnique({ where: { metaId: p.accountMetaId } }) : null;
   const ids = p.items.map((i) => i.objectId);
   // a rolled-back change still happened: it counts for the learning guard and the loop guard
@@ -73,9 +85,10 @@ async function simulationContext(p: Proposal) {
   const hoursSinceSignificant: Record<string, number> = {};
   for (const h of history) {
     if (hoursSinceSignificant[h.objectId] !== undefined) continue;
-    if (h.op === "resume" || h.op === "set_budget") hoursSinceSignificant[h.objectId] = (Date.now() - (h.changeSet.executedAt ?? h.createdAt).getTime()) / 3_600_000;
+    // only a change Meta counts as significant restarts the learning clock: a +20% step does not (R-18)
+    if (h.op === "resume" || (h.op === "set_budget" && isSignificant({ op: "set_budget", objectType: "adset", objectId: h.objectId, before: h.before as ChangeItemDraft["before"], after: h.after as ChangeItemDraft["after"] }))) hoursSinceSignificant[h.objectId] = (Date.now() - (h.changeSet.executedAt ?? h.createdAt).getTime()) / 3_600_000;
   }
-  const busy = await db.changeItem.findMany({ where: { objectId: { in: ids }, changeSet: { state: { in: ["pending_approval", "approved", "executing"] } } }, select: { objectId: true } });
+  const busy = await db.changeItem.findMany({ where: { objectId: { in: ids }, changeSet: { state: { in: ["pending_approval", "approved", "executing"] }, ...(excludeId ? { id: { not: excludeId } } : {}) } }, select: { objectId: true } });
   let hoursSinceRuleActed: number | undefined;
   if (p.source === "rule" && p.sourceRef) {
     const last = await db.ruleRun.findFirst({ where: { rule: p.sourceRef, targetId: { in: ids }, changeSetId: { not: null } }, orderBy: { createdAt: "desc" } });
@@ -83,7 +96,7 @@ async function simulationContext(p: Proposal) {
   }
   return {
     ctx: {
-      plannedSpendToday: Number(spent._sum.spend ?? 0) * 1.01,
+      plannedDaily: await plannedDailyOf(p.accountMetaId, excludeId),
       dailyCap: account?.dailyCap ? Number(account.dailyCap) : null,
       hoursSinceSignificant,
       busyObjects: new Set(busy.map((b) => b.objectId)),
@@ -145,13 +158,23 @@ export async function propose(p: Proposal, actor: Actor) {
   return move(created.id, "simulated", "pending_approval");
 }
 
+/** The trial of a stored change, run again on today's numbers; the stored simulation is replaced by it. */
+async function resimulate(cs: { id: string; source: string; sourceRef: string | null; reasonCode: string; sentence: string; kind: string; accountMetaId: string | null; items: { seq: number; op: string; objectType: string; objectId: string; before: unknown; after: unknown }[] }) {
+  const items: ChangeItemDraft[] = [...cs.items].sort((a, b) => a.seq - b.seq).map((i) => ({ op: i.op as ChangeItemDraft["op"], objectType: i.objectType as ChangeItemDraft["objectType"], objectId: i.objectId, before: i.before as ChangeItemDraft["before"], after: i.after as ChangeItemDraft["after"] }));
+  const { ctx } = await simulationContext({ source: cs.source as Proposal["source"], sourceRef: cs.sourceRef ?? undefined, reasonCode: cs.reasonCode, sentence: cs.sentence, kind: cs.kind as ActionKind, accountMetaId: cs.accountMetaId, items }, cs.id);
+  const sim = simulate(items, ctx);
+  await db.changeSet.updateMany({ where: { id: cs.id }, data: { simulation: json(sim) } });
+  return sim;
+}
+
 /** Approve on the site. Telegram never reaches here (spec 3.13). */
 export async function approve(id: string, caller: Caller) {
-  const cs = await db.changeSet.findUniqueOrThrow({ where: { id } });
+  const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   const ownerOnly = isOwnerOnly(cs);
   if (!can(caller.role, ownerOnly ? "owner_only" : "ads.approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
-  const sim = cs.simulation as { ok?: boolean } | null;
-  if (sim && sim.ok === false && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, "التجربة ما نجحت (سقف أو تعلّم أو تعارض) — شوف «جرّب»");
+  // the trial is read again NOW — what it said when the change was proposed may not be true any more (budgets moved, other raises came in)
+  const fresh = await resimulate(cs);
+  if (!fresh.ok && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, `التجربة ما نجحت هلق (سقف أو تعلّم أو تعارض): ${fresh.checks.filter((c) => !c.ok).map((c) => c.note).join(" · ")}`);
   await move(id, cs.state as ChangeState, "approved", { approvedBy: caller.id, approvedAt: new Date() });
   await audit({ type: "user", id: caller.id }, "change.approve", { type: "changeset", id });
   return execute(id, { type: "user", id: caller.id });
@@ -165,10 +188,38 @@ export async function reject(id: string, caller: Caller) {
   return db.changeSet.findUniqueOrThrow({ where: { id } });
 }
 
+/** Campaigns Meta says are running that the site's copy does not list (live only; a failed read is never a reason not to stop what we know). */
+async function liveOnly(scope: string, known: Set<string>): Promise<{ metaId: string; status: string; dailyBudget: null; account: { metaId: string } }[]> {
+  const client = await metaClientIfLive();
+  if (!client) return [];
+  try {
+    const accounts = scope === "all" ? (await db.adAccount.findMany({ select: { metaId: true } })).map((a) => a.metaId) : [scope];
+    const out: { metaId: string; status: string; dailyBudget: null; account: { metaId: string } }[] = [];
+    for (const a of accounts) {
+      for (const c of await readCampaigns(client, a)) {
+        const status = String(c.effective_status);
+        if (!/PAUSED|ARCHIVED|DELETED/.test(status) && !known.has(String(c.id))) out.push({ metaId: String(c.id), status, dailyBudget: null, account: { metaId: a } });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 async function metaClientIfLive() {
   if (writeMode() !== "live") return null;
   const token = await metaToken();
   return token ? new MetaClient({ token }) : null;
+}
+
+/** The site's copy of an object, brought to what a verified live write left on Meta (never for a trial). */
+async function mirrorWrite(i: ChangeItemDraft): Promise<void> {
+  if (i.op === "create" || i.op === "set_account_cap" || i.objectType === "rule" || i.objectType === "account" || i.objectType === "creative") return;
+  const data = i.op === "set_budget" ? { dailyBudget: i.after.dailyBudget } : { status: i.op === "pause" ? "PAUSED" : "ACTIVE" };
+  if (i.objectType === "campaign") await db.campaign.updateMany({ where: { metaId: i.objectId }, data });
+  else if (i.objectType === "adset") await db.adSet.updateMany({ where: { metaId: i.objectId }, data: { ...data, ...(isSignificant(i) ? { lastSignificantEditAt: new Date() } : {}) } });
+  else if (i.objectType === "ad" && i.op !== "set_budget") await db.ad.updateMany({ where: { metaId: i.objectId }, data });
 }
 
 export async function execute(id: string, actor: Actor) {
@@ -198,6 +249,8 @@ export async function execute(id: string, actor: Actor) {
         const r = await applyItem(draft, cs.writeMode === "live" ? "live" : "dry_run", client);
         if (r.createdId && draft.after.ref) ids[draft.after.ref] = r.createdId;
         allVerified &&= r.verified;
+        // what Meta just confirmed by reading it back is written into the site's copy at once: the next decision (and the cap) must not wait for the next sync
+        if (r.verified && cs.writeMode === "live") await mirrorWrite(draft).catch(() => undefined);
         const why = r.verified ? null : (r.mismatches ?? []).map((m) => `${m.object}: ${m.sentence}`).join(" · ") || "القراءة بعد الكتابة ما طابقت";
         await db.changeItem.update({ where: { id: item.id }, data: { objectId: r.createdId ?? objectId, apiResponse: json(r.response), verifyResult: json({ verified: r.verified, readBack: r.readBack, mismatches: r.mismatches ?? [], ...(why ? { error: why.slice(0, 300) } : {}) }) } });
         if (!r.verified) {
@@ -289,7 +342,9 @@ export async function rollback(id: string, caller: Caller) {
  */
 export async function killSwitch(scope: string, caller: Caller): Promise<StopResult> {
   if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالإيقاف الكامل");
-  const campaigns = await db.campaign.findMany({ where: { status: { notIn: ["PAUSED", "ARCHIVED", "DELETED"] }, ...(scope === "all" ? {} : { account: { metaId: scope } }) }, include: { account: true } });
+  const mirror = await db.campaign.findMany({ where: { status: { notIn: ["PAUSED", "ARCHIVED", "DELETED"] }, ...(scope === "all" ? {} : { account: { metaId: scope } }) }, include: { account: true } });
+  // the stop must not trust the site's copy alone: live, it also asks Meta what is running
+  const campaigns = [...mirror, ...(await liveOnly(scope, new Set(mirror.map((c) => c.metaId))))];
   if (!campaigns.length) {
     await db.killSwitchEvent.create({ data: { scope, byUser: caller.id, objects: 0 } });
     return stopResult({ objects: 0, changeSetId: null, csState: "none", writeMode: "dry_run", csError: null, items: [] });

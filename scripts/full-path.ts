@@ -16,7 +16,7 @@ import { launch } from "../src/server/launch";
 import { approve } from "../src/server/changes";
 import { toAttributedOrder, type OmsOrder } from "../src/adapters/oms";
 import { computeTruthDays } from "../src/jobs/truth";
-import { gatherDecisions } from "../src/jobs/rules-run";
+import { planNight } from "../src/jobs/night-round";
 import { gatherScale } from "../src/jobs/scale-run";
 import { buildMorningReport } from "../src/jobs/morning-report";
 import { enqueueCapi, sendCapi } from "../src/jobs/capi";
@@ -112,9 +112,9 @@ const step = (n: number, ok: boolean, label: string) => {
   step(9, truth?.confirmed === 4 && Number(truth.costPerConfirmed) > 0, `the truth: ${truth?.confirmed} confirmed, ${Number(truth?.costPerConfirmed).toFixed(2)}$ per confirmed (spend × 1.01 ÷ mature confirmed)`);
 
   // 10: the rules see it (a new batch, under the ceiling: no pause) and the ladder explains it
-  const decisions = await gatherDecisions(now);
+  const decisions = (await planNight(now)).decisions;
   const ladder = (await gatherScale(now)).find((r) => r.adSetId === ids.adset1);
-  step(10, !decisions.some((d) => d.d.targetId === adId && d.d.action === "pause") && !!ladder, `the rules: not a loser · the ladder: ${ladder?.decision.raise ? "ready" : ladder?.decision.blockers[0]}`);
+  step(10, !decisions.some((d) => d.targetId === adId && d.action === "pause") && !!ladder, `the rules: not a loser · the ladder: ${ladder?.decision.raise ? "ready" : ladder?.decision.blockers[0]}`);
 
   // 11: the morning report names it among the best
   const report = await buildMorningReport(yesterday);

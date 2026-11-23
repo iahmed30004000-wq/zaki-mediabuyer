@@ -49,6 +49,7 @@ const GROUPS: { title: string; open?: boolean; fields: Field[] }[] = [
     fields: [
       { path: "scale.maxCost", label: "التكبير لما التكلفة ≤", kind: "money", hint: "$" },
       { path: "scale.days", label: "لمدة … أيام", kind: "int" },
+      { path: "scale.minConfirmed", label: "وبحد أدنى … طلب مؤكد ناضج", kind: "int" },
       { path: "scale.stepPct", label: "الزيادة كل مرة", kind: "pct" },
       { path: "scale.everyHours", label: "مرة كل … ساعة", kind: "int" },
       { path: "scale.maxWeekPct", label: "حد الأسبوع", kind: "pct" },
@@ -65,6 +66,14 @@ const GROUPS: { title: string; open?: boolean; fields: Field[] }[] = [
       { path: "stock.redDays", label: "🔴 أقل من … أيام", kind: "int" },
       { path: "stock.orangeDays", label: "🟠 لحد … أيام", kind: "int" },
       { path: "stock.yellowDays", label: "🟡 لحد … أيام", kind: "int" },
+    ],
+  },
+  {
+    title: "المرتجع",
+    fields: [
+      { path: "returns.stopShare", label: "توقيف المنتج لما المرتجع أكتر من", kind: "pct" },
+      { path: "returns.windowShipments", label: "من أول … شحنة", kind: "int" },
+      { path: "returns.minShipments", label: "وبعد … شحنات على الأقل", kind: "int" },
     ],
   },
   {

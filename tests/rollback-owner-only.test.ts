@@ -23,6 +23,7 @@ vi.mock("@/server/db", () => {
           s.sets.set(id, row);
           return { ...row, items: undefined };
         },
+        findMany: async () => [],
         findUniqueOrThrow: async ({ where, include }: { where: { id: string }; include?: { items?: boolean } }) => find(where.id, include),
         updateMany: async ({ where, data }: { where: { id: string; state?: string }; data: Record<string, unknown> }) => {
           const r = s.sets.get(where.id);
@@ -33,7 +34,7 @@ vi.mock("@/server/db", () => {
       },
       changeItem: { update: async () => ({}), findMany: async () => [] },
       insightDaily: { aggregate: async () => ({ _sum: { spend: 0 } }) },
-      adAccount: { findUnique: async () => ({ autonomyLevel: 1, dailyCap: 100 }) },
+      adAccount: { findUnique: async () => ({ autonomyLevel: 1, dailyCap: 100, campaigns: [] }) },
       metaConnection: { findFirst: async () => null },
       ruleRun: { findFirst: async () => null },
       freeze: { create: async () => ({}) },
