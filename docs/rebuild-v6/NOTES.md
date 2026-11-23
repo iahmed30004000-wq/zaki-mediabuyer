@@ -491,3 +491,7 @@
 ## بيئة التنفيذ
 
 - ما في docker على جهاز البنّاء. الـ CI اتجرّب بنفس خطواته على جهاز: Postgres 16 مؤقت (منفذ بعيد عن 5450) ← `prisma migrate deploy` ← `prisma migrate diff --exit-code` (بلا فروقات) ← `npm run build` ← `next start` بوضع الإنتاج ← `prisma/seed.ts` ← `node scripts/smoke.mjs` (نجح، وفشل بكلمة سر غلط، ورفض عنوان مش محلي).
+
+## P0-3 acceptance check (23/11/2026)
+
+This small docs-only PR is the first acceptance check of the new release path: it must merge and deploy by itself.
