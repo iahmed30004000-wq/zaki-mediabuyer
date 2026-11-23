@@ -68,6 +68,8 @@ export async function sweepInterrupted(now = new Date()): Promise<number> {
 
 /** When the last successful run of a job finished (the «stale data» rule reads this, spec 6.4 rule.stale_data). */
 export async function lastSuccess(job: string): Promise<Date | null> {
-  const r = await db.jobRun.findFirst({ where: { job, status: "ok" }, orderBy: { finishedAt: "desc" } });
-  return r?.finishedAt ?? null;
+  // R-06: a run that SKIPPED (waiting out a backoff, not linked) is saved as «ok» but pulled nothing: it is not a success, and the data it left is not fresh
+  const rows = await db.jobRun.findMany({ where: { job, status: "ok" }, orderBy: { finishedAt: "desc" }, take: 50 });
+  const real = rows.find((r) => !(r.stats && typeof r.stats === "object" && !Array.isArray(r.stats) && "skipped" in (r.stats as Record<string, unknown>)));
+  return real?.finishedAt ?? null;
 }

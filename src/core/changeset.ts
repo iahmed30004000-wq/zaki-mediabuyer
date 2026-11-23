@@ -62,8 +62,8 @@ export function isSignificant(i: ChangeItemDraft): boolean {
 }
 
 export interface SimulationContext {
-  /** what the accounts spend today so far + all approved daily budgets */
-  plannedSpendToday: number;
+  /** what the account plans to spend per day: every active budget (ad sets and campaigns) plus the raises already waiting or running. Null = the account is unknown, so the cap cannot be checked */
+  plannedDaily: number | null;
   dailyCap: number | null;
   /** hours since the last significant edit (or launch) per object id */
   hoursSinceSignificant: Record<string, number>;
@@ -88,20 +88,22 @@ export const LEARNING_GUARD_HOURS = 72;
 /** «جرّب»: everything checked, nothing changed. */
 export function simulate(items: ChangeItemDraft[], ctx: SimulationContext): Simulation {
   const delta = spendDeltaDaily(items);
-  const after = ctx.plannedSpendToday + Math.max(0, delta);
+  const after = (ctx.plannedDaily ?? 0) + Math.max(0, delta);
   const checks: Simulation["checks"] = [];
   const add = (key: string, ok: boolean, note: string) => checks.push({ key, ok, note });
 
   if (delta > 0) {
     if (ctx.dailyCap === null) add("cap", false, "السقف اليومي مش معروف — ولا زيادة صرف");
-    else add("cap", after <= ctx.dailyCap, `صرف اليوم المتوقع ${after.toFixed(2)}$ من سقف ${ctx.dailyCap.toFixed(2)}$`);
+    else if (ctx.plannedDaily === null) add("cap", false, "الحساب مش معروف — ما بنقدر نتأكد من السقف");
+    else add("cap", after <= ctx.dailyCap, `مجموع الميزانيات اليومية بعد التغيير ${after.toFixed(2)}$ من سقف ${ctx.dailyCap.toFixed(2)}$`);
   } else add("cap", true, "ما بيزيد الصرف");
 
   const fresh = items.filter((i) => isSignificant(i) && (ctx.hoursSinceSignificant[i.objectId] ?? Infinity) < LEARNING_GUARD_HOURS);
   add("learning", ctx.safety || fresh.length === 0, fresh.length ? `تعديل جوهري خلال ${LEARNING_GUARD_HOURS} ساعة من آخر تعديل` : "ما بيكسر مرحلة التعلّم");
 
   const busy = items.filter((i) => ctx.busyObjects.has(i.objectId));
-  add("conflict", busy.length === 0, busy.length ? "في تغيير تاني على نفس العنصر لسا ما خلص" : "ما في تعارض");
+  // R-19: a safety stop is never held back by another change waiting on the same object — it only lowers spend
+  add("conflict", ctx.safety || busy.length === 0, busy.length ? (ctx.safety ? "في تغيير تاني معلّق على نفس العنصر — الإيقاف بيمرّ" : "في تغيير تاني على نفس العنصر لسا ما خلص") : "ما في تعارض");
 
   if (ctx.cooldownHours !== undefined && ctx.hoursSinceRuleActed !== undefined) {
     add("cooldown", ctx.hoursSinceRuleActed >= ctx.cooldownHours, `القاعدة تصرفت قبل ${Math.round(ctx.hoursSinceRuleActed)} ساعة (التهدئة ${ctx.cooldownHours})`);

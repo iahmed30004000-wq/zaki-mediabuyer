@@ -10,6 +10,7 @@ import { getSetting } from "./settings";
 import { propose } from "./changes";
 import { can } from "@/core/roles";
 import { checkPolicy } from "@/core/policy";
+import { datasetProblem, landingProblem, type LandingPage } from "@/core/launch-guard";
 import { estimateTargets } from "@/core/economics";
 import { nextFreeCampaignName, parseCampaignName, yymmdd, type Market } from "@/core/naming";
 import { launchDailySpend, launchItems, TEMPLATES, type LaunchCreative, type LaunchRequest, type TemplateKey } from "@/core/templates";
@@ -58,7 +59,13 @@ export async function prepareLaunch(input: LaunchInput) {
   const frozen = await db.freeze.findFirst({ where: { targetId: input.accountMetaId, kind: { in: ["create", "all"] }, liftedAt: null, OR: [{ until: null }, { until: { gt: new Date() } }] } });
   if (frozen) problems.push(`الإنشاء مجمّد على هالحساب: ${frozen.reason}`);
   if (!/^LP\d$/.test(input.lpCode)) problems.push("رمز صفحة الهبوط لازم يكون LP ورقم");
-  if (!/^https:\/\//.test(input.landingUrl)) problems.push("رابط صفحة الهبوط لازم يبلّش بـ https");
+  // the link and the dataset must be ones the owner registered, not whatever the request says
+  const landing = landingProblem(input, ((await getSetting("landing.pages")) as LandingPage[] | null) ?? []);
+  if (landing) problems.push(landing);
+  const datasets = (await db.dataset.findMany({ select: { metaId: true } })).map((d) => d.metaId);
+  if (process.env.META_DATASET_ID?.trim()) datasets.push(process.env.META_DATASET_ID.trim());
+  const dataset = datasetProblem(input.datasetMetaId, datasets);
+  if (dataset) problems.push(dataset);
 
   const assets = await db.creativeAsset.findMany({ where: { crCode: { in: input.crCodes } } });
   for (const cr of input.crCodes) {

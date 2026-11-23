@@ -5,6 +5,8 @@ import { creativeCodeOf } from "@/core/telegram-command";
 import { isDemo } from "@/core/readiness";
 import { reachedMeta } from "@/core/reached-meta";
 
+/** A creative code names ONE video, which may run in many ads: all of them stop (R-25 — it used to stop six of nine and say «✓»). */
+const CODE_MAX = 200;
 const SITE = () => process.env.APP_URL ?? "https://mediabuyer.zakiai.io";
 
 /**
@@ -18,7 +20,7 @@ export async function stopByQuery(query: string, who: { id: string }, sourceRef:
 
   // find what to pause: a creative code, else a name (ad, ad set, campaign) containing the words
   const code = creativeCodeOf(query);
-  const ads = await db.ad.findMany({ where: code ? { creativeCode: code, status: { not: "PAUSED" } } : { name: { contains: query, mode: "insensitive" }, status: { not: "PAUSED" } }, include: { adSet: { include: { campaign: { include: { account: true } } } } }, take: 6 });
+  const ads = await db.ad.findMany({ where: code ? { creativeCode: code, status: { not: "PAUSED" } } : { name: { contains: query, mode: "insensitive" }, status: { not: "PAUSED" } }, include: { adSet: { include: { campaign: { include: { account: true } } } } }, take: code ? CODE_MAX : 6 });
   const adsets = ads.length ? [] : await db.adSet.findMany({ where: { name: { contains: query, mode: "insensitive" }, status: { not: "PAUSED" } }, include: { campaign: { include: { account: true } } }, take: 6 });
   const campaigns = ads.length || adsets.length ? [] : await db.campaign.findMany({ where: { name: { contains: query, mode: "insensitive" }, status: { not: "PAUSED" } }, include: { account: true }, take: 6 });
   const hits = [
@@ -29,6 +31,8 @@ export async function stopByQuery(query: string, who: { id: string }, sourceRef:
   if (hits.length === 0) return `ما لقيت شي شغّال اسمه «${query}». جرّب رقم الفيديو متل: اوقف CR00147`;
   if (hits.length > 1 && !code) return `لقيت ${hits.length} — حدّد أكتر:\n${hits.map((h) => `• ${h.name}`).join("\n")}`;
 
+  // a creative code that matches more ads than one stop may carry is said, not hidden
+  if (code && ads.length >= CODE_MAX) return `لقيت ${CODE_MAX}+ إعلان بهالرقم — كتير لوقفة وحدة. وقّفهم من الموقع.`;
   const accounts = new Set(hits.map((h) => h.account));
   const cs = await propose(
     {

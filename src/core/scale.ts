@@ -8,7 +8,12 @@
  *   ceilings  never more than +50% in a week, never above the product's daily cap (then: scale horizontally),
  *             never while a freeze is on (stock, capacity, stale data, a loop) or stock covers < 5 days.
  * Each «no» carries its reason, so the owner sees why a winner is not being raised.
+ *
+ * v6 · P10: every number comes from the owner's rules (`campaign.rules`, via `scaleParamsFrom`) — there is no second set of scale settings.
+ * The proof is his «cost ≤ X for N days»; stock blocks the raise only when he switched that on; the cap is his running-products cap.
  */
+import type { CampaignRules } from "./rules-v2";
+
 export interface ScaleParams {
   proofDays: number;
   minConfirmed: number;
@@ -17,9 +22,19 @@ export interface ScaleParams {
   maxWeekPct: number;
   learningGuardHours: number;
   maxStepsPerDay: number;
+  /** the owner's «stock blocks scaling»: off by default (the old engine did the opposite) */
+  stockBlocks: boolean;
+  /** stock under this many days blocks the raise when `stockBlocks` is on */
+  stockBlockDays: number;
 }
 
-export const SCALE_DEFAULTS: ScaleParams = { proofDays: 3, minConfirmed: 5, stepPct: 0.2, stepHours: 48, maxWeekPct: 0.5, learningGuardHours: 72, maxStepsPerDay: 1 };
+export const SCALE_DEFAULTS: ScaleParams = { proofDays: 3, minConfirmed: 5, stepPct: 0.2, stepHours: 48, maxWeekPct: 0.5, learningGuardHours: 72, maxStepsPerDay: 1, stockBlocks: false, stockBlockDays: 7 };
+
+/** The ladder's parameters from the owner's rules. Null when a number he must type (the cost, the step or the week's limit) is missing: the ladder stays silent. */
+export function scaleParamsFrom(r: CampaignRules): ScaleParams | null {
+  if (r.scale.stepPct === null || r.scale.maxWeekPct === null || r.scale.maxCost === null) return null;
+  return { proofDays: r.scale.days, minConfirmed: r.scale.minConfirmed, stepPct: r.scale.stepPct, stepHours: r.scale.everyHours, maxWeekPct: r.scale.maxWeekPct, learningGuardHours: r.newAdsetFreezeHours, maxStepsPerDay: 1, stockBlocks: r.scale.stockBlocks, stockBlockDays: r.stock.redDays };
+}
 
 export interface ScaleFacts {
   adSetId: string;
@@ -31,7 +46,9 @@ export interface ScaleFacts {
   confirmedMature: number;
   /** spend ÷ all orders over 7 days */
   cpa7: number | null;
-  tOrder: number;
+  /** the product's break-even (the owner's number): the 7-day cost must not pass it. Null = not typed, the check stays silent */
+  tOrder: number | null;
+  /** the owner's «scale only at or under this cost» */
   ceiling: number;
   confirmRate: number | null;
   productConfirmRate: number | null;
@@ -43,9 +60,11 @@ export interface ScaleFacts {
   /** a scale/all freeze on the ad set, its product or its account */
   frozen: string | null;
   stockDays: number | null;
-  /** the most this product may spend per day across its ad sets (null = only the account cap) */
-  productDailyCap: number | null;
-  productDailySpendPlanned: number;
+  /** the owner's cap on what the running products spend per day, and what they plan now (null cap = only the account cap) */
+  runningCap: number | null;
+  runningDailyPlanned: number;
+  /** the ad set belongs to a test campaign: its budget is not counted in the running cap */
+  isTest: boolean;
 }
 
 export interface ScaleDecision {
@@ -68,10 +87,10 @@ export function evaluateScale(f: ScaleFacts, p: ScaleParams = SCALE_DEFAULTS): S
     blockers.push(`ما ثبت ${p.proofDays} أيام ورا بعض تحت السقف ${usd(f.ceiling)} (${days.map((c) => (c === null ? "—" : c.toFixed(2))).join(" · ")})`);
   }
   if (f.confirmedMature < p.minConfirmed) blockers.push(`${f.confirmedMature} مؤكد ناضج بس — بدنا ${p.minConfirmed}`);
-  if (f.cpa7 === null || f.cpa7 > f.tOrder) blockers.push(`تكلفة الطلب 7 أيام ${f.cpa7 === null ? "—" : usd(f.cpa7)} فوق الهدف ${usd(f.tOrder)}`);
+  if (f.tOrder !== null && (f.cpa7 === null || f.cpa7 > f.tOrder)) blockers.push(`تكلفة الطلب 7 أيام ${f.cpa7 === null ? "—" : usd(f.cpa7)} فوق التعادل ${usd(f.tOrder)}`);
   if (f.confirmRate !== null && f.productConfirmRate !== null && f.confirmRate < f.productConfirmRate) blockers.push(`نسبة التأكيد ${Math.round(f.confirmRate * 100)}% أقل من متوسط المنتج ${Math.round(f.productConfirmRate * 100)}%`);
   if (f.frozen) blockers.push(`التكبير مجمّد: ${f.frozen}`);
-  if (f.stockDays !== null && f.stockDays < 5) blockers.push(`المخزون بيكفي ${f.stockDays} أيام بس`);
+  if (p.stockBlocks && f.stockDays !== null && f.stockDays < p.stockBlockDays) blockers.push(`المخزون بيكفي ${f.stockDays} أيام بس`);
   if (f.hoursSinceSignificant < p.learningGuardHours) blockers.push(`بمرحلة التعلّم: آخر تعديل جوهري قبل ${ago(f.hoursSinceSignificant)} (بدنا ${p.learningGuardHours})`);
   if (f.raisesToday >= p.maxStepsPerDay) blockers.push("انرفعت اليوم خلص");
   if (f.hoursSinceLastRaise < p.stepHours) blockers.push(`آخر زيادة قبل ${ago(f.hoursSinceLastRaise)} (بدنا ${p.stepHours})`);
@@ -81,12 +100,12 @@ export function evaluateScale(f: ScaleFacts, p: ScaleParams = SCALE_DEFAULTS): S
   let newBudget = Math.min(step, weekLimit);
   if (newBudget <= f.dailyBudget) blockers.push(`وصلت حد الأسبوع (+${Math.round(p.maxWeekPct * 100)}% من ${usd(f.budgetWeekAgo)})`);
   let horizontal = false;
-  if (f.productDailyCap !== null) {
-    const room = f.productDailyCap - f.productDailySpendPlanned;
+  if (f.runningCap !== null && !f.isTest) {
+    const room = f.runningCap - f.runningDailyPlanned;
     const add = newBudget - f.dailyBudget;
     if (room <= 0) {
       horizontal = true;
-      blockers.push(`المنتج وصل سقفه ${usd(f.productDailyCap)} — الأحسن ننقل الرابح لحملة التكبير بنفس المنشور`);
+      blockers.push(`المنتجات الشغّالة وصلت سقفها ${usd(f.runningCap)} باليوم — الأحسن ننقل الرابح لحملة التكبير بنفس المنشور`);
     } else if (add > room) newBudget = Math.round((f.dailyBudget + room) * 100) / 100;
   }
 

@@ -8,7 +8,8 @@
  *   db.backup      02:30 — every table to STORAGE_DIR/backups/<day>, the last 14 kept (src/ops/backup.ts)
  *   oms.sync       every hour at :05
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
- *   rules          every hour at :15, after the truth — the safety rules (Phase 2), dry-run unless META_WRITE_MODE=live
+ *   rules          every hour at :15, after the truth — the WATCH: alerts only, nothing is changed (v6 · P10)
+ *   night.round    from the owner's night-round time (Amman, `campaign.rules`) for 3 hours — the one engine that writes: his rules, then the scale ladder; every decision is a ChangeSet, dry-run unless META_WRITE_MODE=live
  *   creative.intake every 15 min — Drive 01_inbox of every product (probe · MD5 · number · name · policy · thumbnails)
  *   studio.launch every 15 min — the studio's direct uploads (POST /api/v1/vp/launch-requests) go through the same intake
  *   drive.library every 30 min — the owner's «Zaki Production» Drive: which file is which video, its scenario, the register (read only)
@@ -30,7 +31,6 @@
  *   db.cleanup     Sunday from 04:00 — the tables that grow are trimmed (30 days of worker slots, 90 of tool-call audit rows, expired codes), src/jobs/cleanup.ts
  *   safety.month   the 1st at 06:00 — the account cap on Meta reset for the new month (waits for the owner)
  *   creatives.fatigue 07:30 — a tired winner is marked and new hooks are queued for the studio (never paused)
- *   rules.scale    every hour at :17, after the safety rules — the scale ladder (auto at level 2, approval at 1)
  *   plan.week      Saturday 09:30 — M03: the week's split inside the cap (numbers by code, words by the agent)
  *   report.weekly  Saturday 10:00 · report.monthly the 1st at 10:00 — built by code, sent to Telegram
  *   `npm run worker`
@@ -42,13 +42,16 @@ import { startOverlay } from "../src/server/connections";
 import { metaToken, syncMeta } from "../src/jobs/meta-sync";
 import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
-import { linkSlot, omsBackoff } from "../src/jobs/oms-health";
+import { lastOmsSync, linkSlot, omsBackoff, omsPullSince } from "../src/jobs/oms-health";
 import { runRules } from "../src/jobs/rules-run";
 import { intakeDrive } from "../src/jobs/creative-intake";
 import { capiDataset, enqueueCapi, sendCapi } from "../src/jobs/capi";
 import { capiSendOn } from "../src/core/capi";
 import { checkAccounts, storeAttributionHealth } from "../src/jobs/account-safety";
-import { runScale } from "../src/jobs/scale-run";
+import { runNight } from "../src/jobs/night-round";
+import { getRules } from "../src/server/rules";
+import { nightDue } from "../src/core/rulebook";
+import { ammanClock } from "../src/core/dates";
 import { storePeriodReport } from "../src/jobs/weekly-report";
 import { storePlan } from "../src/agents/planner";
 import { dailyBackup } from "../src/ops/backup";
@@ -118,12 +121,13 @@ export async function tick(now = new Date()) {
         // R-26: «not linked» is a skip with the sentence, not a failure — a failure counts against the OMS
         if (!o) return { skipped: missingText("oms") ?? "OMS not linked" };
         // After failures, leave the OMS alone for 1 h, 2 h, 4 h, then 8 h (src/jobs/oms-health.ts) — except the pull that follows a new link.
+        const runs = await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 });
         if (!pullNow) {
-          const runs = await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 });
           const back = omsBackoff(runs, now, linkedAt);
           if (back.wait) return { skipped: "backoff", backoff: true, failures: back.failures, until: back.until?.toISOString() };
         }
-        return syncOms(o, new Date(now.getTime() - 3 * DAY));
+        // R-21: an outage longer than 3 days must not lose the orders in between — the pull reaches back to the last real one
+        return syncOms(o, omsPullSince(now, lastOmsSync(runs)));
       });
     }
   }
@@ -193,7 +197,11 @@ export async function tick(now = new Date()) {
     });
   }
   if (t.hour > 7 || (t.hour === 7 && t.minute >= 30)) await runOnce("creatives.fatigue", t.date, () => runFatigue(now));
-  if (t.minute >= 17) await runOnce("rules.scale", `${t.date}T${t.hour}`, () => runScale(now));
+  {
+    // v6 · P10: the night round is the one engine that writes — the owner's rules, once a day, from his night-round time. Its slot is the hour, so a round that had to wait (stale data) tries again the next hour of its window; one acting run per day.
+    const nightRound = (await getRules().catch(() => null))?.rules.nightRound;
+    if (nightRound && nightDue(ammanClock(now), nightRound)) await runOnce("night.round", `${t.date}T${String(t.hour).padStart(2, "0")}`, () => runNight(now));
+  }
   if (t.saturday && (t.hour > 9 || (t.hour === 9 && t.minute >= 30))) await runOnce("plan.week", t.date, () => storePlan(now), { retries: JOB_RETRIES["plan.week"] });
   for (const kind of ["weekly", "monthly"] as const) {
     if ((kind === "weekly" ? t.saturday : t.firstOfMonth) && t.hour >= 10) {
