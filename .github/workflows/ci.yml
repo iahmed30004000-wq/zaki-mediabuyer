@@ -86,3 +86,5 @@ jobs:
       - name: What the site logged (only when something failed)
         if: failure()
         run: docker logs --tail 200 app || true
+
+# acceptance check: this comment must stop the PR from merging by itself
