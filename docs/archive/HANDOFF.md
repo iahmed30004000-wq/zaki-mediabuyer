@@ -236,7 +236,7 @@ If you add a feature that the spec's list covers, add a demo script and an item 
    s.form.requestSubmit(s);
    ```
    Confirm on `https://github.com/iahmed30004000-wq/zaki-mediabuyer/pulls` that exactly ONE new pull request exists (never create duplicates; if the first attempt seems to fail, check the list before trying again).
-3. The workflow `.github/workflows/image.yml` runs by itself: `npm ci` → `tsc` → `vitest` → secrets scan → build the image → start it with Postgres and probe `/api/health` → **merge the pull request itself** → publish the image → call Coolify (`restart?latest=true`, secret `COOLIFY_TOKEN`) → **pass only when `/api/health` reports this build's `version`**.
+3. Two workflows run by themselves (v6 P0-3, replacing `image.yml`). `ci.yml` on the pull request: `npm ci` → `tsc` → `vitest` → secrets scan → additive-migrations check → build the image → start it on Postgres, seed an owner, sign in and open the main pages (`scripts/smoke.mjs`). `release.yml` (always from `main`): **merge the pull request** (same repo, not a draft, same commit CI checked, no deploy files touched) → build from `main` → publish `sha-<7>` and `main` (old `main` kept as `previous`) → one call to Coolify (`restart?latest=true`, secret `COOLIFY_TOKEN`) → **pass only when `/api/health` says `"ok":true` with this build's `version`**, else roll back to `previous`.
 4. Verify:
    ```
    curl -s https://mediabuyer.zakiai.io/api/health      # "version" must change from the previous value

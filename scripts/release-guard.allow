@@ -1,0 +1,4 @@
+# Migrations that may do something that is not additive (DROP, RENAME, a column type change, TRUNCATE, ...).
+# One folder name from prisma/migrations per line; text after # is a comment (write why).
+# This file is a protected path: a pull request that changes it is never merged by the robot, only by the owner.
+# Empty on purpose — every migration so far is additive.

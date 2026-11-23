@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Zaki Media Buyer — one image for the site and the worker (same code, different command).
-# Built on GitHub Actions (.github/workflows/image.yml) and pulled by Coolify: the server never compiles anything
+# Built on GitHub Actions (.github/workflows/release.yml, always from `main`) and pulled by Coolify: the server never compiles anything
 # (lesson from the OMS: a `next build` beside the live site took it down every time).
 # Debian slim: Prisma's engines need libssl3.
 

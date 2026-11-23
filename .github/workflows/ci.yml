@@ -1,0 +1,88 @@
+# CI — the check, and only the check. It runs on every pull request into main and has NO power to merge or deploy:
+# the token is read-only and no secret is passed in. (The merge and the deploy are .github/workflows/release.yml,
+# which always runs from `main`, never from the code of the pull request it judges — D8 in docs/DECISIONS.md.)
+#
+# What it proves: types, lint, tests, no secret in the repository, migrations that are additive and match the schema, the image
+# builds, the image STARTS on a real Postgres and answers /api/health, and — after seeding an owner account and the
+# starter data — every main screen opens after a real sign-in (scripts/smoke.mjs).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npx vitest run
+      - run: node scripts/scan-secrets.mjs
+      # the database changes at start-up on live data: only additive migrations (scripts/release-guard.mjs)
+      - run: node scripts/release-guard.mjs migrations
+
+      - name: Start a throw-away Postgres
+        run: |
+          docker network create t
+          docker run -d --name db --network t -p 5433:5432 -e POSTGRES_USER=mediabuyer -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=mediabuyer postgres:16-alpine
+          for i in $(seq 1 30); do docker exec db pg_isready -h 127.0.0.1 -U mediabuyer && break; sleep 1; done
+          docker exec db createdb -U mediabuyer shadow
+
+      - name: The migrations match the schema (a change to schema.prisma without its migration fails here)
+        env:
+          DATABASE_URL: postgresql://mediabuyer:ci@localhost:5433/mediabuyer
+        run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url postgresql://mediabuyer:ci@localhost:5433/shadow --exit-code
+
+      - name: Build the image
+        run: docker build --build-arg APP_VERSION=${GITHUB_SHA::7} -t mb:test .
+
+      - name: Start the image (it applies the migrations) and wait for /api/health
+        run: |
+          docker run -d --name app --network t -p 3140:3140 \
+            -e DATABASE_URL=postgresql://mediabuyer:ci@db:5432/mediabuyer \
+            -e AUTH_SECRET=ci-only-placeholder-secret-0000000000000 \
+            -e ENCRYPTION_KEY=ci-only-placeholder-encryption-key-000000 \
+            -e MOCK_MODE=1 mb:test
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3140/api/health || true)
+            [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 2
+          done
+          docker logs app; exit 1
+
+      - name: Seed the owner account and the starter data
+        run: |
+          # a one-time password for this run only, masked in the log
+          pw="$(openssl rand -hex 16)"
+          echo "::add-mask::$pw"
+          echo "SMOKE_PASSWORD=$pw" >> "$GITHUB_ENV"
+          docker exec -e SEED_OWNER_EMAIL=owner@ci.test -e "SEED_OWNER_PASSWORD=$pw" app npx tsx prisma/seed.ts
+
+      - name: Smoke test — sign in and open the main pages
+        env:
+          SMOKE_BASE_URL: http://localhost:3140
+          SMOKE_EMAIL: owner@ci.test
+        run: node scripts/smoke.mjs
+
+      - name: What the site logged (only when something failed)
+        if: failure()
+        run: docker logs --tail 200 app || true
