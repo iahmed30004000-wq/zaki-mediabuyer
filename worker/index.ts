@@ -8,7 +8,7 @@
  *   db.backup      02:30 — every table to STORAGE_DIR/backups/<day>, the last 14 kept (src/ops/backup.ts)
  *   oms.sync       every hour at :05
  *   truth.compute  every hour at :10, and 07:00 for the last 7 days
- *   rules          every hour at :15, after the truth — the WATCH: alerts only, nothing is changed (v6 · P10)
+ *   rules          every hour at :15, after the truth — the WATCH (v6 · P10) with the safety stop (D82): at an account's daily cap its campaigns are paused, a spend spike cuts its budgets 30% (once a day each, through the change service, dry-run unless META_WRITE_MODE=live); the rest is alerts
  *   night.round    from the owner's night-round time (Amman, `campaign.rules`) for 3 hours — the one engine that writes: his rules, then the scale ladder; every decision is a ChangeSet, dry-run unless META_WRITE_MODE=live
  *   creative.intake every 15 min — Drive 01_inbox of every product (probe · MD5 · number · name · policy · thumbnails)
  *   studio.launch every 15 min — the studio's direct uploads (POST /api/v1/vp/launch-requests) go through the same intake

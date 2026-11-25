@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, unknown> & { id: string; state: string; items: Record<string, unknown>[] };
-const s = vi.hoisted(() => ({ sets: new Map<string, Record<string, unknown>>(), applied: [] as string[], n: 0 }));
+const s = vi.hoisted(() => ({ sets: new Map<string, Record<string, unknown>>(), applied: [] as string[], n: 0, accounts: [] as any[] }));
 
 vi.mock("@/server/db", () => {
   const find = (id: string, include?: { items?: boolean }) => {
@@ -13,6 +13,8 @@ vi.mock("@/server/db", () => {
     if (!r) throw new Error("not found");
     return { ...r, ...(include?.items ? {} : { items: undefined }) };
   };
+  const campaigns = () => s.accounts.flatMap((a) => a.campaigns.map((c: any) => ({ ...c, account: a })));
+  const adsets = () => campaigns().flatMap((c: any) => c.adsets.map((x: any) => ({ ...x, campaign: c })));
   return {
     db: {
       changeSet: {
@@ -24,6 +26,7 @@ vi.mock("@/server/db", () => {
           return { ...row, items: undefined };
         },
         findMany: async () => [],
+        findFirst: async ({ where }: { where: { sourceRef: string; state: { in: string[] } } }) => [...s.sets.values()].find((r) => r.sourceRef === where.sourceRef && where.state.in.includes(r.state as string)) ?? null,
         findUniqueOrThrow: async ({ where, include }: { where: { id: string }; include?: { items?: boolean } }) => find(where.id, include),
         updateMany: async ({ where, data }: { where: { id: string; state?: string }; data: Record<string, unknown> }) => {
           const r = s.sets.get(where.id);
@@ -34,13 +37,15 @@ vi.mock("@/server/db", () => {
       },
       changeItem: { update: async () => ({}), findMany: async () => [] },
       insightDaily: { aggregate: async () => ({ _sum: { spend: 0 } }) },
-      adAccount: { findUnique: async () => ({ autonomyLevel: 1, dailyCap: 100, campaigns: [] }) },
+      adAccount: { findUnique: async ({ where }: { where: { metaId: string } }) => s.accounts.find((a) => a.metaId === where.metaId) ?? { metaId: where.metaId, autonomyLevel: 1, dailyCap: 100, currency: "USD", campaigns: [] } },
+      adSet: { findUnique: async ({ where }: { where: { metaId: string } }) => adsets().find((x: any) => x.metaId === where.metaId) ?? null },
+      ad: { findUnique: async ({ where }: { where: { metaId: string } }) => adsets().flatMap((x: any) => x.ads.map((ad: any) => ({ ...ad, adSet: x }))).find((ad: any) => ad.metaId === where.metaId) ?? null },
       metaConnection: { findFirst: async () => null },
       ruleRun: { findFirst: async () => null },
       freeze: { create: async () => ({}) },
       experiment: { updateMany: async () => ({ count: 0 }), findFirst: async () => null },
       killSwitchEvent: { create: async () => ({}) },
-      campaign: { findMany: async () => [] },
+      campaign: { findMany: async () => [], findUnique: async ({ where }: { where: { metaId: string } }) => campaigns().find((c: any) => c.metaId === where.metaId) ?? null },
     },
   };
 });
@@ -72,6 +77,7 @@ beforeEach(() => {
   s.sets.clear();
   s.applied.length = 0;
   s.n = 0;
+  s.accounts = [];
 });
 
 describe("«رجّع»", () => {
@@ -104,5 +110,94 @@ describe("«رجّع»", () => {
     const out = await rollback("ln", manager);
     expect(out.state).toBe("executed");
     expect(s.applied).toEqual(["cmp-new"]);
+  });
+});
+
+/** Bringing anything back raises spend, whether or not the stored pause carried a budget (a campaign whose budgets sit on its ad sets, one ad). */
+describe("«رجّع» of a stop is a raise: it waits for approval", () => {
+  const set = (metaId: string, dailyBudget: number | null, status = "ACTIVE") => ({ metaId, dailyBudget, status, ads: [{ metaId: `${metaId}-ad` }] });
+  const account = (metaId: string, adsets: ReturnType<typeof set>[], over: Record<string, unknown> = {}) => ({ metaId, autonomyLevel: 1, dailyCap: 100, currency: "USD", campaigns: [{ metaId: `${metaId}-c`, status: "PAUSED", dailyBudget: null, adsets }], ...over });
+  const stop = (id: string, objectId: string, over: Record<string, unknown> = {}, objectType = "campaign") =>
+    seed(id, { kind: "safety_pause", accountMetaId: "a1", items: [item("pause", objectId, { status: "ACTIVE" }, { status: "PAUSED" }, objectType)], ...over });
+
+  it("a campaign with its budgets on the ad sets: proposed, with the money it brings back", async () => {
+    // one ad set was paused on its own: it does not come back with the campaign, so its budget is not counted
+    s.accounts = [account("a1", [set("s1", 30, "CAMPAIGN_PAUSED"), set("s2", 20), set("s3", 500, "PAUSED")])];
+    stop("p", "a1-c");
+    const out = await rollback("p", manager);
+    expect(out).toMatchObject({ state: "pending_approval", kind: "resume" });
+    expect(Number(out.spendDeltaDaily)).toBe(50);
+    expect(s.applied).toEqual([]);
+    await approve(out.id, manager);
+    expect(s.applied).toEqual(["a1-c"]);
+    expect(s.sets.get("p")!.state).toBe("rolled_back");
+  });
+
+  it("one ad, and a campaign the site does not know: no figure, still proposed", async () => {
+    stop("ad", "some-ad", {}, "ad");
+    stop("gone", "unknown-campaign");
+    for (const id of ["ad", "gone"]) expect((await rollback(id, manager)).state).toBe("pending_approval");
+    expect(s.applied).toEqual([]);
+  });
+
+  it("an account of another currency: proposed, and none of its figures is written as dollars", async () => {
+    s.accounts = [account("a1", [set("s1", 30)], { currency: "JOD" })];
+    stop("p", "a1-c");
+    const out = await rollback("p", manager);
+    expect(out.state).toBe("pending_approval");
+    expect(Number(out.spendDeltaDaily)).toBe(0);
+  });
+
+  it("a restricted account (level 0) still gets a request that can be approved", async () => {
+    s.accounts = [account("a1", [set("s1", 30)], { autonomyLevel: 0 })];
+    stop("p", "a1-c");
+    expect((await rollback("p", manager)).state).toBe("pending_approval");
+  });
+
+  it("a second press while one is waiting makes no second request", async () => {
+    stop("p", "a1-c");
+    await rollback("p", manager);
+    await expect(rollback("p", manager)).rejects.toMatchObject({ status: 409 });
+    expect(s.sets.size).toBe(2);
+  });
+
+  it("a trial stop left the budgets running in the site's copy: they are not counted twice against the cap", async () => {
+    s.accounts = [account("a1", [set("s1", 80)])];
+    s.accounts[0].campaigns[0].status = "ACTIVE";
+    stop("p", "a1-c");
+    const out = await rollback("p", manager);
+    await approve(out.id, manager);
+    expect(s.applied).toEqual(["a1-c"]);
+  });
+
+  it("over the cap it is refused", async () => {
+    s.accounts = [account("a1", [set("s1", 150)])];
+    stop("p", "a1-c");
+    const out = await rollback("p", manager);
+    await expect(approve(out.id, manager)).rejects.toMatchObject({ status: 409 });
+    expect(s.applied).toEqual([]);
+  });
+
+  const everywhere = () => seed("all", { kind: "safety_pause", accountMetaId: null, items: [item("pause", "a1-c", { status: "ACTIVE" }, { status: "PAUSED" }), { ...item("pause", "a2-c", { status: "ACTIVE" }, { status: "PAUSED" }), seq: 1 }] });
+
+  it("a full stop of every account can be brought back: each account against its own cap", async () => {
+    s.accounts = [account("a1", [set("s1", 60)]), account("a2", [set("s2", 70)])];
+    everywhere();
+    const out = await rollback("all", manager);
+    await approve(out.id, manager);
+    expect(s.applied.sort()).toEqual(["a1-c", "a2-c"]);
+  });
+
+  it("…and refused when one of them would pass its cap", async () => {
+    s.accounts = [account("a1", [set("s1", 60)]), account("a2", [set("s2", 170)])];
+    everywhere();
+    const out = await rollback("all", manager);
+    await expect(approve(out.id, manager)).rejects.toMatchObject({ status: 409 });
+    expect(s.applied).toEqual([]);
+  });
+
+  it("undoing a resume only lowers spend: it runs at once", async () => {
+    seed("r", { kind: "resume", accountMetaId: "a1", items: [item("resume", "a1-c", { status: "PAUSED" }, { status: "ACTIVE" })] });
+    expect((await rollback("r", manager)).state).toBe("executed");
   });
 });

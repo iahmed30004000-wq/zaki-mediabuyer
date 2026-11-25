@@ -187,7 +187,7 @@ describe("what may be written into an account of another currency", () => {
     expect(s.created).toEqual([]);
   });
   it("the watch writes a foreign figure with its currency, never with a «$»", () => {
-    const [a] = watchAccount({ accountId: "act_1", spendToday: 120, dailyCap: 100, hourSpend: 0, avgHourSpend7d: 0, dailyBudgetsSum: 100, dataAgeHours: 0, unit: "EGP" });
+    const [a] = watchAccount({ accountId: "act_1", spendToday: 120, budgetedSpend: 120, dailyCap: 100, hourSpend: 0, avgHourSpend7d: 0, dailyBudgetsSum: 100, dataAgeHours: 0, unit: "EGP" });
     expect(a!.sentence).toContain("120.00 EGP");
     expect(a!.sentence).not.toContain("$");
   });

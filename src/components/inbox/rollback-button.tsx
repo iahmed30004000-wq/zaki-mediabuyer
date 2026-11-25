@@ -21,9 +21,12 @@ export function RollbackButton({ id }: { id: string }) {
         setBusy(true);
         try {
           const r = await safeFetch(`/api/changes/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "rollback" }) });
-          const d = (await r.json().catch(() => ({}))) as { error?: string };
+          const d = (await r.json().catch(() => ({}))) as { error?: string; state?: string };
           if (!r.ok) return toast(d.error ?? "صار خطأ", "error");
-          toast("انرجع ✓", "success");
+          // the answer says what really happened: bringing spend back is only a request until it is approved
+          if (d.state === "executed") toast("انرجع ✓", "success");
+          else if (d.state === "pending_approval") toast("لسا ما رجع: وافق عليه من «بانتظارك»", "info");
+          else toast("ما انرجع — شوف «بانتظارك»", "error");
           router.refresh();
         } finally {
           setBusy(false);

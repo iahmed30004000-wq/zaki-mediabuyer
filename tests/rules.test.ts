@@ -1,24 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { watchAccount, watchAd } from "@/core/rules";
+import { outcomeSentence, watchAccount, watchAd } from "@/core/rules";
 import { effectiveLevel, modeFor, type ActionKind } from "@/core/autonomy";
 import { canMove, flipFlopped, simulate, spendDeltaDaily, type ChangeItemDraft } from "@/core/changeset";
 
-/** The hourly watch (v6 · P10): it only ever raises alerts — the engine that writes is the night round (tests/rulebook.test.ts). */
-describe("the hourly watch: alerts, never actions", () => {
-  const base = { accountId: "act_1", spendToday: 100, dailyCap: 260, hourSpend: 5, avgHourSpend7d: 4, dailyBudgetsSum: 200, dataAgeHours: 0.5 };
+/** The hourly watch: it finds, it never says what was done — what the job did about a finding is tests/rules-run-watch.test.ts (D82). */
+describe("the hourly watch: the finding, not the action", () => {
+  const base = { accountId: "act_1", spendToday: 100, budgetedSpend: 100, dailyCap: 260, hourSpend: 5, avgHourSpend7d: 4, dailyBudgetsSum: 200, dataAgeHours: 0.5 };
   it("a healthy account raises nothing", () => expect(watchAccount(base)).toEqual([]));
   it("the daily cap is an alert (danger), and it does not say anything was stopped", () => {
     const [a] = watchAccount({ ...base, spendToday: 260 });
     expect(a).toMatchObject({ rule: "daily_cap", tone: "danger", level: "account" });
     expect(a!.sentence).not.toMatch(/وقّفت|خفّضت|جمّدت/);
-    expect(a!.sentence).toContain("ما انعمل شي تلقائي");
   });
-  it("a spend spike is an alert, not a 30% cut", () => {
+  it("a spending hour far above the usual is a spike", () => {
     const out = watchAccount({ ...base, hourSpend: 13 });
     expect(out.map((x) => x.rule)).toEqual(["spend_spike"]);
     expect(out[0]!.sentence).not.toMatch(/وقّفت|خفّضت|جمّدت/);
   });
-  it("a day above 1.75 × the planned budgets is a spike", () => expect(watchAccount({ ...base, spendToday: 360, dailyCap: null }).map((x) => x.rule)).toEqual(["spend_spike"]));
+  it("a day above 1.75 × the planned budgets is a spike", () => expect(watchAccount({ ...base, budgetedSpend: 360, dailyCap: null }).map((x) => x.rule)).toEqual(["spend_spike"]));
   it("stale data is an alert that says the night round will wait", () => {
     const out = watchAccount({ ...base, dataAgeHours: 3 });
     expect(out.map((x) => x.rule)).toEqual(["stale_data"]);
@@ -28,6 +27,16 @@ describe("the hourly watch: alerts, never actions", () => {
     expect(watchAd({ adId: "a1", orders: 10, fakeOrders: 3 })[0]).toMatchObject({ rule: "fake_orders", level: "ad" });
     expect(watchAd({ adId: "a1", orders: 10, fakeOrders: 2 })).toEqual([]);
     expect(watchAd({ adId: "a1", orders: 9, fakeOrders: 9 })).toEqual([]);
+  });
+});
+
+describe("what was done is said as it happened (D82)", () => {
+  const done = (state: string, writeMode = "live") => ({ state, writeMode, done: 2, total: 2 });
+  it("«وقّفت» only for a live, executed stop", () => {
+    expect(outcomeSentence("daily_cap", done("executed"))).toContain("وقّفت 2 حملة");
+    for (const o of [done("executed", "dry_run"), done("simulated"), done("pending_approval"), done("failed")]) expect(outcomeSentence("daily_cap", o)).not.toMatch(/وقّفت/);
+    expect(outcomeSentence("spend_spike", done("executed", "dry_run"))).not.toMatch(/خفّضت/);
+    expect(outcomeSentence("spend_spike", done("executed"))).toContain("30%");
   });
 });
 
