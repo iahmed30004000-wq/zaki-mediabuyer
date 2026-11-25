@@ -74,6 +74,8 @@ export interface SimulationContext {
   cooldownHours?: number;
   /** a safety change (pause / reduce) is allowed through the learning guard and the cap */
   safety: boolean;
+  /** a change that raises spend on several accounts at once (undoing a stop of all of them): each is held against its OWN cap */
+  accounts?: { plannedDaily: number | null; dailyCap: number | null; delta: number }[];
 }
 
 export interface Simulation {
@@ -92,7 +94,10 @@ export function simulate(items: ChangeItemDraft[], ctx: SimulationContext): Simu
   const checks: Simulation["checks"] = [];
   const add = (key: string, ok: boolean, note: string) => checks.push({ key, ok, note });
 
-  if (delta > 0) {
+  if (delta > 0 && ctx.accounts?.length) {
+    const over = ctx.accounts.filter((a) => a.dailyCap === null || a.plannedDaily === null || a.plannedDaily + a.delta > a.dailyCap);
+    add("cap", !over.length, over.length ? `${over.length} من ${ctx.accounts.length} حساب: السقف مش معروف أو مجموع ميزانياته بيتعدّاه` : "كل حساب تحت سقفه");
+  } else if (delta > 0) {
     if (ctx.dailyCap === null) add("cap", false, "السقف اليومي مش معروف — ولا زيادة صرف");
     else if (ctx.plannedDaily === null) add("cap", false, "الحساب مش معروف — ما بنقدر نتأكد من السقف");
     else add("cap", after <= ctx.dailyCap, `مجموع الميزانيات اليومية بعد التغيير ${after.toFixed(2)}$ من سقف ${ctx.dailyCap.toFixed(2)}$`);

@@ -6,7 +6,8 @@
  *   decide    → by the account's EFFECTIVE autonomy level: auto (safety from level 1) · approval · owner · suggest
  *   approve   → a person with the right role, on the site (Telegram can only pause — spec 9.6)
  *   execute   → dry_run or live (src/meta/write.ts), then read back = verify
- *   rollback  → a new change with the inverse items; the original is marked rolled_back
+ *   rollback  → a new change with the inverse items; the original is marked rolled_back. An inverse that brings spend back (anything
+ *               switched on again, a bigger budget) is only proposed: it waits for approval on the site
  * The loop guard freezes an object whose direction flipped twice in 48 h, and sends the change to a person.
  */
 import { Prisma } from "@prisma/client";
@@ -19,6 +20,7 @@ import { effectiveLevel, modeFor, type ActionKind, type AutonomyLevel } from "@/
 import { accountRestricted } from "@/jobs/account-safety";
 import { assertMove, directionOf, flipFlopped, isSignificant, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
 import { foreignMoneyBlock, MONEY_OPS, plannedDaily } from "@/core/rulebook";
+import { BASE_CURRENCY } from "@/core/currency";
 import { applyItem, writeMode } from "@/meta/write";
 import { metaWriteGate } from "@/core/readiness";
 import { resolveRefs } from "@/core/templates";
@@ -67,12 +69,13 @@ async function tokenExpired(): Promise<boolean> {
 /**
  * What an account plans to spend per day: every active ad set budget and campaign budget it has now, plus the raises already waiting or
  * running (so two raises that each fit alone are not both let through). Null when the account is unknown — the cap check then fails closed.
+ * `skip`: objects the change itself switches on again with their budget — never counted twice (a trial stop leaves them active in the copy).
  */
-export async function plannedDailyOf(accountMetaId: string | null | undefined, excludeId?: string): Promise<number | null> {
+export async function plannedDailyOf(accountMetaId: string | null | undefined, excludeId?: string, skip: Set<string> = new Set()): Promise<number | null> {
   if (!accountMetaId) return null;
   const account = await db.adAccount.findUnique({ where: { metaId: accountMetaId }, include: { campaigns: { include: { adsets: true } } } });
   if (!account) return null;
-  const base = plannedDaily(account.campaigns.map((c) => ({ status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null, adsets: c.adsets.map((x) => ({ status: x.status, dailyBudget: x.dailyBudget ? Number(x.dailyBudget) : null })) })));
+  const base = plannedDaily(account.campaigns.filter((c) => !skip.has(c.metaId)).map((c) => ({ status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null, adsets: c.adsets.filter((x) => !skip.has(x.metaId)).map((x) => ({ status: x.status, dailyBudget: x.dailyBudget ? Number(x.dailyBudget) : null })) })));
   const waiting = await db.changeSet.findMany({ where: { accountMetaId, state: { in: ["pending_approval", "approved", "executing"] }, ...(excludeId ? { id: { not: excludeId } } : {}) }, select: { spendDeltaDaily: true } });
   return Math.round((base + waiting.reduce((n, w) => n + Math.max(0, Number(w.spendDeltaDaily)), 0)) * 100) / 100;
 }
@@ -94,9 +97,27 @@ async function simulationContext(p: Proposal, excludeId?: string) {
     const last = await db.ruleRun.findFirst({ where: { rule: p.sourceRef, targetId: { in: ids }, changeSetId: { not: null } }, orderBy: { createdAt: "desc" } });
     if (last) hoursSinceRuleActed = (Date.now() - last.createdAt.getTime()) / 3_600_000;
   }
+  const back = new Set(p.items.filter((i) => i.op === "resume" && i.after.dailyBudget).map((i) => i.objectId));
+  // undoing a stop that spanned accounts names none: each account's share of the money is checked against that account
+  let accounts: { plannedDaily: number | null; dailyCap: number | null; delta: number }[] | undefined;
+  if (!p.accountMetaId && isRollback(p.sourceRef)) {
+    const share = new Map<string | null, number>();
+    for (const i of p.items) {
+      const delta = spendDeltaDaily([i]);
+      if (delta <= 0) continue;
+      const owner = await accountOfObject(i.objectType, i.objectId);
+      share.set(owner, (share.get(owner) ?? 0) + delta);
+    }
+    accounts = [];
+    for (const [metaId, delta] of share) {
+      const row = metaId ? await db.adAccount.findUnique({ where: { metaId } }) : null;
+      accounts.push({ plannedDaily: await plannedDailyOf(metaId, excludeId, back), dailyCap: row?.dailyCap ? Number(row.dailyCap) : null, delta });
+    }
+  }
   return {
     ctx: {
-      plannedDaily: await plannedDailyOf(p.accountMetaId, excludeId),
+      accounts,
+      plannedDaily: await plannedDailyOf(p.accountMetaId, excludeId, back),
       dailyCap: account?.dailyCap ? Number(account.dailyCap) : null,
       hoursSinceSignificant,
       busyObjects: new Set(busy.map((b) => b.objectId)),
@@ -131,6 +152,10 @@ async function refuseForeignMoney(accountMetaId: string | null | undefined, item
 }
 
 async function accountOfObject(objectType: string, metaId: string): Promise<string | null> {
+  if (objectType === "ad") {
+    const ad = await db.ad.findUnique({ where: { metaId }, select: { adSet: { select: { campaign: { select: { account: { select: { metaId: true } } } } } } } });
+    return ad?.adSet.campaign.account.metaId ?? null;
+  }
   const row =
     objectType === "adset"
       ? (await db.adSet.findUnique({ where: { metaId }, select: { campaign: { select: { account: { select: { metaId: true } } } } } }))?.campaign
@@ -179,7 +204,8 @@ export async function propose(p: Proposal, actor: Actor) {
     return execute(created.id, actor);
   }
   const mode = modeFor(p.kind, level);
-  if (mode === "suggest") return db.changeSet.findUniqueOrThrow({ where: { id: created.id } });
+  // a person's «رجّع» is a request, not a suggestion: on a restricted account too it waits where it can be approved (or refused)
+  if (mode === "suggest" && !isRollback(p.sourceRef)) return db.changeSet.findUniqueOrThrow({ where: { id: created.id } });
   // an agent only ever suggests: its changes wait for a person, whatever the level (spec 11.1)
   if (mode === "auto" && sim.ok && p.source !== "user" && p.source !== "agent") {
     await move(created.id, "simulated", "approved", { approvedBy: `level-${level}`, approvedAt: new Date() });
@@ -319,6 +345,31 @@ export async function execute(id: string, actor: Actor) {
   return db.changeSet.findUniqueOrThrow({ where: { id } });
 }
 
+const isRollback = (sourceRef: string | null | undefined) => !!sourceRef?.startsWith("rollback:");
+
+/**
+ * What switching an object on again brings back per day, from the site's copy, when the stored stop carried no figure (budgets on the ad
+ * sets, a stop by hand or from Telegram). Dollar accounts only; an ad has no budget of its own. A part paused on its own stays paused.
+ */
+async function withBudgetBack(i: ChangeItemDraft): Promise<ChangeItemDraft> {
+  if (i.op !== "resume" || i.after.dailyBudget) return i;
+  let currency: string | null | undefined;
+  let total = 0;
+  if (i.objectType === "campaign") {
+    const c = await db.campaign.findUnique({ where: { metaId: i.objectId }, select: { dailyBudget: true, account: { select: { currency: true } }, adsets: { select: { status: true, dailyBudget: true } } } });
+    if (!c) return i;
+    currency = c.account.currency;
+    total = plannedDaily([{ status: "ACTIVE", dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null, adsets: c.adsets.map((x) => ({ status: x.status === "CAMPAIGN_PAUSED" ? "ACTIVE" : x.status, dailyBudget: x.dailyBudget ? Number(x.dailyBudget) : null })) }]);
+  } else if (i.objectType === "adset") {
+    const x = await db.adSet.findUnique({ where: { metaId: i.objectId }, select: { dailyBudget: true, campaign: { select: { account: { select: { currency: true } } } } } });
+    if (!x) return i;
+    currency = x.campaign.account.currency;
+    total = x.dailyBudget ? Number(x.dailyBudget) : 0;
+  }
+  if (!total || (currency && currency !== BASE_CURRENCY)) return i;
+  return { ...i, after: { ...i.after, dailyBudget: total } };
+}
+
 /** «رجّع»: a new change with the inverse items, executed for the person who asked; the original becomes rolled_back. */
 export async function rollback(id: string, caller: Caller) {
   if (!can(caller.role, "ads.pause")) throw new HttpError(403, "دورك ما بيسمح بالرجوع");
@@ -326,8 +377,10 @@ export async function rollback(id: string, caller: Caller) {
   if (cs.state !== "executed") throw new HttpError(409, "بس التغيير المنفّذ بينرجع");
   // the same rule as approve(): what only the owner may decide, only the owner may undo (the account cap, a launch…)
   if (isOwnerOnly(cs) && !can(caller.role, "owner_only")) throw new HttpError(403, "هالقرار بدو المالك");
+  const open = await db.changeSet.findFirst({ where: { sourceRef: `rollback:${id}`, state: { in: ["pending_approval", "approved", "executing"] } } });
+  if (open) throw new HttpError(409, "في طلب رجوع لهالتغيير بانتظار الموافقة");
   // a launch is undone by pausing what it made (never deleting): the switches first, then the created objects
-  const inverse: ChangeItemDraft[] = [...cs.items].sort((a, b) => b.seq - a.seq).flatMap((i): ChangeItemDraft[] => {
+  const undone: ChangeItemDraft[] = [...cs.items].sort((a, b) => b.seq - a.seq).flatMap((i): ChangeItemDraft[] => {
     const before = i.before as ChangeItemDraft["before"];
     const after = i.after as ChangeItemDraft["after"];
     const objectType = i.objectType as ChangeItemDraft["objectType"];
@@ -336,8 +389,10 @@ export async function rollback(id: string, caller: Caller) {
     if (i.op === "set_account_cap") return [{ op: "set_account_cap", objectType, objectId: i.objectId, before: { spendCap: after.spendCap }, after: { spendCap: before.spendCap ?? 0, reset: false } }];
     return [{ op: i.op === "pause" ? "resume" : i.op === "resume" ? "pause" : "set_budget", objectType, objectId: i.objectId, before: after, after: before }];
   }).filter((x, n, all) => all.findIndex((y) => y.objectId === x.objectId) === n);
-  // an inverse that RAISES spend (un-pausing, restoring a bigger budget) is a new decision, not an undo: it goes through the caps and the learning guard and waits for approval like any other
-  if (spendDeltaDaily(inverse) > 0) {
+  const inverse = await Promise.all(undone.map(withBudgetBack));
+  // an inverse that RAISES spend (un-pausing, restoring a bigger budget) is a new decision, not an undo: it goes through the caps and the learning guard and waits for approval like any other.
+  // Switching anything on again raises spend whether or not a figure is known; only Meta's own protective rule is not spend
+  if (spendDeltaDaily(inverse) > 0 || inverse.some((i) => i.op === "resume" && i.objectType !== "rule")) {
     const kind: ActionKind = inverse.every((i) => i.op === "resume") ? "resume" : "raise_step";
     const proposed = await propose({ source: "user", sourceRef: `rollback:${id}`, reasonCode: "S11", sentence: `رجوع عن: ${cs.sentence}`, kind, accountMetaId: cs.accountMetaId, items: inverse }, { type: "user", id: caller.id });
     await audit({ type: "user", id: caller.id }, "change.rollback", { type: "changeset", id }, { after: { proposed: proposed.id, state: proposed.state } });
