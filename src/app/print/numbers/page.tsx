@@ -1,6 +1,8 @@
 import { PrintButton } from "@/components/numbers/print-button";
 import { GROUPS, STATS, formatStat, type NumbersSet } from "@/core/numbers";
+import { missingRateText } from "@/core/currency";
 import { stampOf } from "@/core/freshness";
+import { marketLabel } from "@/core/markets";
 import { loadNumbers } from "@/lib/numbers-view";
 import { loadSourceFacts } from "@/lib/source-facts";
 import { requirePage } from "@/server/auth";
@@ -38,7 +40,7 @@ function Table({ title, set, extra }: { title: string; set: NumbersSet; extra?: 
 }
 
 /** The day, laid out for paper and for «حفظ كـ PDF» on a phone: light, plain, one product after another. A session is required. */
-export default async function PrintNumbersPage({ searchParams: searchParamsP }: { searchParams: Promise<{ d?: string; from?: string; to?: string }> }) {
+export default async function PrintNumbersPage({ searchParams: searchParamsP }: { searchParams: Promise<{ d?: string; from?: string; to?: string; market?: string }> }) {
   await requirePage("money.view");
   const searchParams = await searchParamsP;
   const data = await loadNumbers(searchParams);
@@ -51,13 +53,14 @@ export default async function PrintNumbersPage({ searchParams: searchParamsP }: 
         <div>
           <h1 className="text-xl font-bold">الميديا باير — الأرقام</h1>
           <p className="text-sm text-neutral-600">{data.label} · انطبعت {at}{data.demo ? " · بيانات تجريبية" : ""}</p>
-          <p className="text-sm font-semibold text-neutral-800">المصدر: {stamp}</p>
+          <p className="text-sm font-semibold text-neutral-800">المصدر: {stamp}{data.market ? ` · ${marketLabel(data.market)}` : ""}</p>
+          {data.missingRates.length ? <p className="text-sm font-semibold text-neutral-800">{missingRateText(data.missingRates)}</p> : null}
         </div>
         <PrintButton />
       </header>
       <Table title="الإجمالي" set={data.totals.current} />
       {data.products.map((p) => (
-        <Table key={p.code} title={`${p.name} (${p.code})`} set={p.current} extra={p.rejectReasons.length ? `أسباب الرفض: ${p.rejectReasons.map((r) => `${r.reason} (${r.count})`).join("، ")}` : undefined} />
+        <Table key={p.key ?? p.code} title={`${p.name} (${p.code})`} set={p.current} extra={p.rejectReasons.length ? `أسباب الرفض: ${p.rejectReasons.map((r) => `${r.reason} (${r.count})`).join("، ")}` : undefined} />
       ))}
       <p className="border-t border-neutral-300 pt-3 text-sm text-neutral-500">كل رقم محسوب بالكود من أرقام ميتا والـ OMS. الصرف = صرف ميتا + رسوم البطاقة 1%. الإيراد المتوقع = مجموع قيمة الشحنات × نسبة التوصيل آخر 30 يوم.</p>
     </main>

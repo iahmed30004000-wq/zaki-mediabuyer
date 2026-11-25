@@ -10,6 +10,9 @@ import { ask, AgentUnavailable, PrivacyRefusal } from "@/gateway";
 import { estimateTargets } from "@/core/economics";
 import { planWeek, type PlanProduct, type WeeklyPlan } from "@/core/plan";
 import { isEmptyReport } from "@/core/report-empty";
+import { mergeMissing, missingRateText, toUsd } from "@/core/currency";
+import { gapText } from "@/core/truth-money";
+import { loadRates } from "@/server/money";
 
 const Notes = z.object({
   notes: z.array(z.object({ product_code: z.string(), reason: z.string().max(300) })).max(20),
@@ -17,14 +20,27 @@ const Notes = z.object({
   creative_needs: z.array(z.string().max(300)).max(8),
 });
 
-export async function planProducts(now = new Date()): Promise<PlanProduct[]> {
+/**
+ * The week's facts per product, and the products left out because their money cannot be worked out (v6 · P11). A product in two markets is planned on its home
+ * market's profit, with the spend of every market; one with no home market, or with any spend that has no rate, is left out.
+ */
+export async function planRows(now = new Date()): Promise<{ products: PlanProduct[]; excluded: { code: string; why: string }[] }> {
   const since = new Date(now.getTime() - 7 * 86_400_000);
   const out: PlanProduct[] = [];
+  const excluded: { code: string; why: string }[] = [];
   for (const e of await db.productEconomics.findMany()) {
-    const rows = await db.truthDaily.findMany({ where: { level: "product", objectId: e.productCode, date: { gte: since } } });
+    const all = await db.truthDaily.findMany({ where: { level: "product", OR: [{ objectId: e.productCode }, { objectId: { startsWith: `${e.productCode}@` } }], date: { gte: since } } });
+    const rows = all.filter((r) => !r.objectId || r.objectId === e.productCode);
+    const why = e.moneyMissing
+      ? missingRateText(e.moneyMissing.split(","))
+      : gapText(...all.map((r) => r.spendMissing), ...rows.map((r) => r.moneyMissing)) ?? (all.length && !rows.length ? "بأكتر من سوق وما إله أرقام بسوقه الأساسي" : null);
+    if (why) {
+      excluded.push({ code: e.productCode, why });
+      continue;
+    }
     const delivered = rows.reduce((n, r) => n + r.delivered, 0);
     const profit = rows.reduce((n, r) => n + Number(r.profitAfterCosts), 0);
-    const spend = rows.reduce((n, r) => n + Number(r.spendWithFee), 0);
+    const spend = all.reduce((n, r) => n + Number(r.spendWithFee), 0);
     const t = estimateTargets({ price: e.price.toString(), unitCost: e.unitCost.toString(), shipping: e.deliveryFee.toString(), returnFee: e.returnFee.toString(), codFee: e.codFeePct.toString(), confirmCost: e.confirmCost.toString(), confirmRate: "0.65", deliveryRate: "0.75", profitMinShare: "0.30" });
     out.push({
       code: e.productCode,
@@ -38,15 +54,25 @@ export async function planProducts(now = new Date()): Promise<PlanProduct[]> {
       spendNow: Math.round((spend / 7) * 100) / 100,
     });
   }
-  return out;
+  return { products: out, excluded };
+}
+
+export async function planProducts(now = new Date()): Promise<PlanProduct[]> {
+  return (await planRows(now)).products;
 }
 
 export async function buildPlan(now = new Date()): Promise<WeeklyPlan & { by: "code" | "agent" }> {
-  const accounts = await db.adAccount.findMany({ select: { dailyCap: true } });
-  const dailyCap = accounts.reduce((n, a) => n + Number(a.dailyCap ?? 0), 0);
+  const accounts = await db.adAccount.findMany({ select: { dailyCap: true, currency: true } });
+  // v6 · P11: a cap is in its account's currency; one with no rate is not added to the week's money
+  const rates = await loadRates();
+  const caps = accounts.map((a) => toUsd(String(a.dailyCap ?? 0), a.currency, rates));
+  const dailyCap = Math.round(caps.reduce((n, c) => n + (c.usd?.toNumber() ?? 0), 0) * 100) / 100;
   const split = (await getSetting("budget.split")) as { scale: number; test: number; new: number };
-  const products = await planProducts(now);
+  const { products, excluded } = await planRows(now);
   const plan = planWeek({ dailyCap, split, products });
+  const capsMissing = mergeMissing(...caps.map((c) => (c.missing ? [c.missing] : [])));
+  const said = [...(capsMissing.length ? [`${missingRateText(capsMissing)} — سقف حساب بهالعملة برّا مجموع الخطة`] : []), ...excluded.map((x) => `${x.code} برّا خطة هالأسبوع: ${x.why}`)];
+  plan.risks = [...said, ...plan.risks];
   try {
     const notes = await ask("M03", [
       {

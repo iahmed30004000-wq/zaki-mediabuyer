@@ -3,6 +3,7 @@
  * the archive and the OMS outcome of the orders placed that day. Days are the archive's UTC days, as in truth.ts.
  */
 import { db } from "@/server/db";
+import { spendConverter } from "@/server/money";
 import { performanceRows, studioAdName, vpIdFromAdName, type LinkedAd } from "@/core/studio-contract";
 
 const DAY = 86_400_000;
@@ -40,9 +41,24 @@ export async function studioPerformance(from: Date, to: Date) {
     where: { createdAtOms: { gte: from, lt: end }, isFake: false, OR: [{ adId: { in: ids } }, { adId: null, adName: { in: [...byName.keys()] } }] },
     select: { adId: true, adName: true, createdAtOms: true, status: true, collected: true },
   });
-  return performanceRows(
+  // v6 · P11: the studio compares spend in dollars; an (ad, day) whose spend has no rate is left out whole — never a row that reads «no spend»
+  const money = await spendConverter();
+  const holed = new Set<string>();
+  const spend = insights.flatMap((i) => {
+    const c = money.usd(i);
+    if (c.usd === null) {
+      holed.add(`${i.objectId}|${dayKey(i.date)}`);
+      return [];
+    }
+    return [{ metaAdId: i.objectId, date: dayKey(i.date), spend: c.usd.toString(), impressions: i.impressions, video3s: i.video3s }];
+  });
+  const rows = performanceRows(
     ads,
-    insights.map((i) => ({ metaAdId: i.objectId, date: dayKey(i.date), spend: i.spend.toString(), impressions: i.impressions, video3s: i.video3s })),
-    orders.map((o) => ({ metaAdId: o.adId ?? byName.get(o.adName ?? "") ?? "", date: dayKey(o.createdAtOms), status: o.status, collected: o.collected?.toString() ?? null })),
+    spend,
+    orders.flatMap((o) => {
+      const metaAdId = o.adId ?? byName.get(o.adName ?? "") ?? "";
+      return holed.has(`${metaAdId}|${dayKey(o.createdAtOms)}`) ? [] : [{ metaAdId, date: dayKey(o.createdAtOms), status: o.status, collected: o.collected?.toString() ?? null }];
+    }),
   );
+  return rows;
 }

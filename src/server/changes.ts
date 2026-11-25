@@ -18,7 +18,7 @@ import { can } from "@/core/roles";
 import { effectiveLevel, modeFor, type ActionKind, type AutonomyLevel } from "@/core/autonomy";
 import { accountRestricted } from "@/jobs/account-safety";
 import { assertMove, directionOf, flipFlopped, isSignificant, simulate, spendDeltaDaily, type ChangeItemDraft, type ChangeState } from "@/core/changeset";
-import { plannedDaily } from "@/core/rulebook";
+import { foreignMoneyBlock, MONEY_OPS, plannedDaily } from "@/core/rulebook";
 import { applyItem, writeMode } from "@/meta/write";
 import { metaWriteGate } from "@/core/readiness";
 import { resolveRefs } from "@/core/templates";
@@ -110,8 +110,39 @@ async function simulationContext(p: Proposal, excludeId?: string) {
   };
 }
 
+/**
+ * v6 · P11: no amount of the site's goes into an account of another currency — the account the change names, and the account of EVERY budget in it (a draft may
+ * name none, or mix two). A «رجّع» puts Meta's own earlier figure back, so it passes.
+ */
+async function refuseForeignMoney(accountMetaId: string | null | undefined, items: ChangeItemDraft[], sourceRef: string | null | undefined): Promise<void> {
+  const money = items.filter((i) => MONEY_OPS.has(i.op));
+  if (!money.length || sourceRef?.startsWith("rollback:")) return;
+  const accounts = new Set<string>(accountMetaId ? [accountMetaId] : []);
+  for (const item of money) {
+    if (item.op !== "set_budget") continue;
+    const owner = await accountOfObject(item.objectType, item.objectId);
+    if (owner) accounts.add(owner);
+  }
+  for (const metaId of accounts) {
+    const account = await db.adAccount.findUnique({ where: { metaId } });
+    const why = foreignMoneyBlock(account?.currency, money);
+    if (why) throw new HttpError(409, why);
+  }
+}
+
+async function accountOfObject(objectType: string, metaId: string): Promise<string | null> {
+  const row =
+    objectType === "adset"
+      ? (await db.adSet.findUnique({ where: { metaId }, select: { campaign: { select: { account: { select: { metaId: true } } } } } }))?.campaign
+      : objectType === "campaign"
+        ? await db.campaign.findUnique({ where: { metaId }, select: { account: { select: { metaId: true } } } })
+        : null;
+  return row?.account?.metaId ?? null;
+}
+
 /** Propose, simulate and route a change. Returns the stored change set (executed already when the level allows it). */
 export async function propose(p: Proposal, actor: Actor) {
+  await refuseForeignMoney(p.accountMetaId, p.items, p.sourceRef);
   const { ctx, level, history } = await simulationContext(p);
   const sim = simulate(p.items, ctx);
   const created = await db.changeSet.create({
@@ -172,6 +203,8 @@ export async function approve(id: string, caller: Caller) {
   const cs = await db.changeSet.findUniqueOrThrow({ where: { id }, include: { items: true } });
   const ownerOnly = isOwnerOnly(cs);
   if (!can(caller.role, ownerOnly ? "owner_only" : "ads.approve_within_cap")) throw new HttpError(403, ownerOnly ? "هالقرار بدو المالك" : "دورك ما بيسمح بالموافقة");
+  // a proposal stored before the account's currency was checked is checked here
+  await refuseForeignMoney(cs.accountMetaId, (cs.items ?? []).map((i) => ({ op: i.op as ChangeItemDraft["op"], objectType: i.objectType as ChangeItemDraft["objectType"], objectId: i.objectId, before: i.before as ChangeItemDraft["before"], after: i.after as ChangeItemDraft["after"] })), cs.sourceRef);
   // the trial is read again NOW — what it said when the change was proposed may not be true any more (budgets moved, other raises came in)
   const fresh = await resimulate(cs);
   if (!fresh.ok && !ownerOnly && Number(cs.spendDeltaDaily) > 0) throw new HttpError(409, `التجربة ما نجحت هلق (سقف أو تعلّم أو تعارض): ${fresh.checks.filter((c) => !c.ok).map((c) => c.note).join(" · ")}`);

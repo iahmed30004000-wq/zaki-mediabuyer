@@ -15,7 +15,10 @@ import { propose } from "@/server/changes";
 import { evaluateScale, scaleParamsFrom, type ScaleDecision, type ScaleFacts } from "@/core/scale";
 import { isSignificant } from "@/core/changeset";
 import { breakevenOf } from "@/core/rules-v2";
-import { plannedDaily } from "@/core/rulebook";
+import { currencyGate, plannedDaily } from "@/core/rulebook";
+import { mergeMissing, missingRateText, rowCurrency, toUsd } from "@/core/currency";
+import { campaignMarket, productMarkets, type ProductConflict } from "@/core/markets";
+import { loadRates } from "@/server/money";
 import { addDays, ammanInstant, ammanKey, keyMs } from "@/core/dates";
 
 const HOUR = 3_600_000;
@@ -28,6 +31,8 @@ export interface ScaleRow {
   accountMetaId: string;
   facts: ScaleFacts;
   decision: ScaleDecision;
+  /** the budget's currency when it is not dollars */
+  unit?: string;
 }
 
 const keyOf = (d: Date) => d.toISOString().slice(0, 10);
@@ -47,15 +52,37 @@ export async function gatherScale(now = new Date()): Promise<ScaleRow[]> {
   const freezes = await db.freeze.findMany({ where: { liftedAt: null, kind: { in: ["scale", "all"] }, OR: [{ until: null }, { until: { gt: now } }] } });
   const out: ScaleRow[] = [];
 
-  // what the running products (every campaign that is not a new-product test) plan per day, across the accounts
-  const campaigns = await db.campaign.findMany({ include: { adsets: true } });
-  const runningPlanned = plannedDaily(campaigns.filter((c) => c.stage !== "TEST").map((c) => ({ status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null, adsets: c.adsets.map((s) => ({ status: s.status, dailyBudget: s.dailyBudget ? Number(s.dailyBudget) : null })) })));
+  // what the running products (every campaign that is not a new-product test) plan per day, across the accounts — each budget turned into dollars first (v6 · P11)
+  const rates = await loadRates();
+  const campaigns = await db.campaign.findMany({ include: { adsets: true, account: true } });
+  const noRate: string[][] = [];
+  const dollars = (v: unknown, currency: string): number | null => {
+    if (!v) return null;
+    const c = toUsd(String(v), currency, rates);
+    if (c.usd === null) noRate.push([c.missing!]);
+    return c.usd?.toNumber() ?? null;
+  };
+  const runningPlanned = plannedDaily(campaigns.filter((c) => c.stage !== "TEST").map((c) => {
+    const currency = c.account?.currency ?? "USD";
+    return { status: c.status, dailyBudget: dollars(c.dailyBudget, currency), adsets: c.adsets.map((s) => ({ status: s.status, dailyBudget: dollars(s.dailyBudget, currency) })) };
+  }));
+  const runningMissing = mergeMissing(...noRate);
+  // codes the OMS says two different things about: their orders may be two products'
+  const stored = await getSetting("oms.product_conflicts");
+  const clashing = new Set((Array.isArray(stored) ? (stored as ProductConflict[]) : []).filter((c) => c.kind === "catalogue").map((c) => c.code));
 
   for (const s of live) {
     const product = s.campaign.productCode!;
     const breakeven = breakevenOf(rules, product);
     const adIds = s.ads.map((a) => a.metaId);
-    const insights = await db.insightDaily.findMany({ where: { level: "ad", objectId: { in: adIds }, date: { gte: new Date(keyMs(weekAgoKey)), lt: new Date(keyMs(todayKey)) } }, select: { date: true, spend: true } });
+    const currency = s.campaign.account.currency;
+    const read = await db.insightDaily.findMany({ where: { level: "ad", objectId: { in: adIds }, date: { gte: new Date(keyMs(weekAgoKey)), lt: new Date(keyMs(todayKey)) } }, select: { date: true, spend: true, currency: true, source: true } });
+    const rowNoRate: string[][] = [];
+    const insights = read.map((x) => {
+      const c = toUsd(String(x.spend), rowCurrency(x, currency), rates);
+      if (c.usd === null) rowNoRate.push([c.missing!]);
+      return { date: x.date, spend: c.usd?.toNumber() ?? 0 };
+    });
     const orders = await db.attributedOrder.findMany({ where: { adId: { in: adIds }, isFake: false, createdAtOms: { gte: weekAgoStart, lt: todayStart } }, select: { createdAtOms: true, status: true, matureAt: true } });
 
     const daily: (number | null)[] = [];
@@ -70,7 +97,24 @@ export async function gatherScale(now = new Date()): Promise<ScaleRow[]> {
     const spend7 = insights.reduce((n, x) => n + Number(x.spend), 0) * (1 + fee);
     const mature7 = orders.filter((o) => o.matureAt <= now);
     const confirmRate = mature7.length ? mature7.filter((o) => CONFIRMED.has(o.status)).length / mature7.length : null;
-    const productOrders = await db.attributedOrder.findMany({ where: { productCode: product, isFake: false, createdAtOms: { gte: weekAgoStart, lt: todayStart }, matureAt: { lte: now } }, select: { status: true } });
+    // a product seen in two markets is compared with its OWN market's confirm rate (v6 · P11)
+    const market = campaignMarket(s.campaign.parsedMarket, s.campaign.account.market);
+    const everyMarket = await db.attributedOrder.findMany({ where: { productCode: product, isFake: false, createdAtOms: { gte: weekAgoStart, lt: todayStart }, matureAt: { lte: now } }, select: { status: true, market: true } });
+    const split = productMarkets([...everyMarket.map((o) => ({ code: product, market: o.market })), ...campaigns.filter((c) => c.productCode === product).map((c) => ({ code: product, market: campaignMarket(c.parsedMarket, c.account?.market) }))], new Map()).isSplit(product);
+    const productOrders = split ? everyMarket.filter((o) => o.market === market) : everyMarket;
+    const cur = currencyGate(currency);
+    const missing = mergeMissing(...rowNoRate);
+    const moneyBlock = !cur.ok
+      ? cur.why
+      : clashing.has(product)
+        ? `رمز المنتج ${product} متضارب بنظام الطلبات (متجرين بنفس الرمز) — ما بنكبّر قبل ما يتصلّح`
+        : missing.length
+          ? missingRateText(missing)
+          : runningMissing.length && rules.scale.capRunning !== null
+            ? `${missingRateText(runningMissing)} — ما بنعرف مجموع ميزانيات المنتجات الشغّالة`
+            : split && !market
+              ? `المنتج بأكتر من سوق وسوق هالحملة مش معروف — سمّيها أو حدّد سوق حسابها`
+              : null;
     const productConfirmRate = productOrders.length ? productOrders.filter((o) => CONFIRMED.has(o.status)).length / productOrders.length : null;
 
     // change history on this ad set: the learning guard, the steps of the ladder, the budget a week ago
@@ -105,8 +149,9 @@ export async function gatherScale(now = new Date()): Promise<ScaleRow[]> {
       runningCap: rules.scale.capRunning,
       runningDailyPlanned: runningPlanned,
       isTest: s.campaign.stage === "TEST",
+      ...(moneyBlock ? { moneyBlock } : {}),
     };
-    out.push({ adSetId: s.metaId, name: s.name, accountMetaId: s.campaign.account.metaId, facts, decision: evaluateScale(facts, p) });
+    out.push({ adSetId: s.metaId, name: s.name, accountMetaId: s.campaign.account.metaId, facts, decision: evaluateScale(facts, p), ...(cur.ok ? {} : { unit: currency }) });
   }
   return out;
 }

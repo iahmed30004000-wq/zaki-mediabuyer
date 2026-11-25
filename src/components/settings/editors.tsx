@@ -8,7 +8,9 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
 import { fmt } from "@/lib/format";
+import { marketLabel } from "@/core/markets";
 import { MARKETS, MARKET_AR } from "@/core/naming";
+import type { CurrencyView } from "@/lib/currency-view";
 import { ROLES, ROLE_AR, type RoleKey } from "@/core/roles";
 import type { EditView } from "@/lib/settings-view";
 import { cn } from "@/lib/utils";
@@ -52,10 +54,18 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
     <div className="grid gap-3 md:grid-cols-2">
       {accounts.map((a) => (
         <Panel key={a.metaId} className="space-y-2">
-          <p className="text-base font-semibold text-fg">{a.name} <span className="text-sm font-normal text-fg-muted">· {a.market}</span></p>
+          <p className="text-base font-semibold text-fg">{a.name} <span className="text-sm font-normal text-fg-muted">· {a.market ? marketLabel(a.market) : "بلا سوق"} · {a.currency}</span></p>
+          <label className="block">
+            <Label>سوق الحساب</Label>
+            <Select value={a.market ?? ""} disabled={busy} onChange={(e) => void save(`/api/accounts/${a.metaId}/market`, { market: e.target.value || null }, `${a.name}: السوق انحفظ`)}>
+              <option value="">بلا سوق محدد</option>
+              {MARKETS.map((m) => <option key={m} value={m}>{MARKET_AR[m]}</option>)}
+            </Select>
+          </label>
+          {a.currency !== "USD" ? <p className="text-sm text-warn">هالحساب بعملة {a.currency}: السقوف بعملته، والموقع ما بينشئ فيه ولا بيغيّر ميزانية (الإيقاف والتشغيل شغّالين).</p> : null}
           <div className="grid grid-cols-2 gap-2">
-            <label><Label>السقف اليومي $</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.d} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, d: e.target.value } })} /></label>
-            <label><Label>السقف الشهري $</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.m} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, m: e.target.value } })} /></label>
+            <label><Label>السقف اليومي {a.currency === "USD" ? "$" : a.currency}</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.d} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, d: e.target.value } })} /></label>
+            <label><Label>السقف الشهري {a.currency === "USD" ? "$" : a.currency}</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.m} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, m: e.target.value } })} /></label>
           </div>
           <Button disabled={busy} className="min-h-10 max-md:min-h-[44px]" onClick={() => save(`/api/accounts/${a.metaId}/caps`, { dailyCap: num(caps[a.metaId]!.d), monthlyCap: num(caps[a.metaId]!.m) || 0 }, `${a.name}: السقوف انحفظت`)}>
             <Check className="size-4" /> احفظ
@@ -65,7 +75,7 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
             <span className="flex-1 text-fg-muted">
               {a.safetyNet === "on" ? "شبكة الأمان على ميتا مركّبة: سقف الحساب + قاعدة إيقاف جوّا ميتا" : a.safetyNet === "pending" ? "شبكة الأمان بانتظار موافقتك بـ «القرارات»" : "شبكة الأمان على ميتا: سقف الحساب (الشهري + 10%) وقاعدة إيقاف بتشتغل حتى لو نظامنا وقف"}
             </span>
-            {a.safetyNet === "none" ? (
+            {a.safetyNet === "none" && a.currency === "USD" ? (
               <Button variant="ghost" disabled={busy || !a.monthlyCap} className="min-h-10 max-md:min-h-[44px] px-2 text-sm" onClick={() => save("/api/safety-net", { accountMetaId: a.metaId }, "جهزتها — وافق عليها بـ «القرارات»")}>
                 جهّزها
               </Button>
@@ -85,6 +95,49 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
           <Check className="size-4" /> احفظ
         </Button>
       </Panel>
+    </div>
+  );
+}
+
+// ───────────────────────────── exchange rates (v6 · P11) ─────────────────────────────
+
+const dayWords = (iso: string) => new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", day: "numeric", month: "numeric", year: "numeric" }).format(new Date(iso));
+
+/** «كم بيساوي الدولار»: one box per currency. A pegged currency comes filled in; a floating one is empty until the owner writes it — nothing is guessed. */
+export function CurrencyEditor({ view, demo }: { view: CurrencyView; demo: boolean }) {
+  const { save, busy } = useSave();
+  const written = (r: CurrencyView["rows"][number]) => (r.perUsd === null ? "" : String(r.perUsd));
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(view.rows.map((r) => [r.code, written(r)])));
+  const [code, setCode] = useState("");
+  const [extra, setExtra] = useState("");
+  const changed = view.rows.filter((r) => values[r.code] !== written(r));
+  const bad = changed.some((r) => values[r.code]!.trim() !== "" && !(num(values[r.code]!) > 0)) || (code.trim() !== "" && !(/^[A-Za-z]{3}$/.test(code.trim()) && num(extra) > 0));
+  const rates = {
+    ...Object.fromEntries(changed.map((r) => [r.code, values[r.code]!.trim() === "" ? null : num(values[r.code]!)])),
+    ...(code.trim() ? { [code.trim().toUpperCase()]: num(extra) } : {}),
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-fg-muted">اكتب كم من العملة بيساوي دولار واحد. كل مبلغ بغير الدولار (طلبات أو صرف) بيتحوّل بهالأسعار قبل ما ينجمع. العملة اللي بلا سعر ما بتنجمع: بيطلع «ناقص سعر صرف».</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {view.rows.map((r) => (
+          <label key={r.code} className="block">
+            <Label>{r.name} (<span dir="ltr">{r.code}</span>) لكل دولار</Label>
+            <Input dir="ltr" inputMode="decimal" value={values[r.code] ?? ""} placeholder="ما في سعر" aria-invalid={r.used && r.source === "missing"} onChange={(e) => setValues({ ...values, [r.code]: e.target.value })} />
+            <span className={cn("mt-1 block text-sm", r.used && r.source === "missing" ? "text-warn" : "text-fg-muted")}>
+              {r.source === "owner" ? `كتبته ${r.at ? dayWords(r.at) : ""}` : r.source === "default" ? "سعر ثابت رسمياً (افتراضي)" : r.used ? "ناقص سعر صرف — فيه مبالغ بهالعملة" : "ما إلو سعر لسا"}
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+        <label><Label>عملة تانية (رمزها)</Label><Input dir="ltr" value={code} maxLength={3} placeholder="AED" onChange={(e) => setCode(e.target.value)} /></label>
+        <label><Label>سعرها لكل دولار</Label><Input dir="ltr" inputMode="decimal" value={extra} onChange={(e) => setExtra(e.target.value)} /></label>
+      </div>
+      <p className="text-sm text-fg-muted">{view.updatedAt ? `آخر تحديث: ${dayWords(view.updatedAt)}` : "ما عدّلت ولا سعر لسا."} السعر الواحد بينطبّق على كل الأيام.</p>
+      <Button disabled={busy || demo || bad || !Object.keys(rates).length} onClick={() => save("/api/currency", { rates }, "الأسعار انحفظت")}>
+        <Check className="size-4" /> احفظ الأسعار
+      </Button>
     </div>
   );
 }

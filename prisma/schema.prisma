@@ -263,6 +263,8 @@ model InsightDaily {
   objectId           String // Meta id
   date               DateTime @db.Date
   spend              Decimal  @db.Decimal(12, 2)
+  /// v6 P11: the currency `spend` is in (the ad account's for Meta and imports, USD for pushes). Null = written before the column (src/core/currency.ts `rowCurrency`)
+  currency           String?
   impressions        Int
   reach              Int
   frequency          Decimal  @db.Decimal(8, 4)
@@ -348,6 +350,10 @@ model TruthDaily {
   profitAfterCosts   Decimal  @db.Decimal(12, 2)
   profitPerDelivered Decimal? @db.Decimal(12, 4)
   trueRoas           Decimal? @db.Decimal(10, 4)
+  /// v6 P11: set when the spend is not known in dollars («fx:EGP»): `spendWithFee` and everything on it is NOT a number (read through src/core/truth-money.ts)
+  spendMissing       String?
+  /// v6 P11: set when the revenue or the costs are not known («fx:EGP», «market»): `netCollected`, the limits, the profit and the ROAS are NOT numbers
+  moneyMissing       String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -379,6 +385,8 @@ model ProductEconomics {
   confirmCost Decimal  @db.Decimal(12, 2)
   stockDays   Int?
   source      String   @default("estimate")
+  /// v6 P11: currencies with no rate that stopped the OMS prices from becoming dollars («EGP»). While set, the money columns are not to be read
+  moneyMissing String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

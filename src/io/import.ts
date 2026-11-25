@@ -28,6 +28,12 @@ const KNOWN: Record<Field, string[]> = {
   thruplays: ["thruplays", "thruplay"],
 };
 
+/** The currency an Ads Manager export writes beside its money column («Amount spent (JOD)»), or null when the header names none. */
+export function headerCurrency(headers: string[], mapping: Partial<Record<Field, number>>): string | null {
+  const h = mapping.spend === undefined ? undefined : headers[mapping.spend];
+  return h?.match(/\(\s*([A-Za-z]{3})\s*\)/)?.[1]?.toUpperCase() ?? null;
+}
+
 const clean = (h: string) => h.replace(/^﻿/, "").replace(/\(.*?\)/g, "").trim().toLowerCase();
 
 export function guessMapping(headers: string[]): Partial<Record<Field, number>> {

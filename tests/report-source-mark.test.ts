@@ -18,6 +18,7 @@ vi.mock("@/server/db", () => ({
     productAlias: { findMany: async () => [{ productCode: "ALB", alias: "حرير" }] },
     ad: { findMany: async () => [] },
     insightDaily: { findMany: async () => [] },
+    adAccount: { findMany: async () => [] },
     attributedOrder: { count: async () => 0 },
     jobRun: { findMany: async () => [] },
   },

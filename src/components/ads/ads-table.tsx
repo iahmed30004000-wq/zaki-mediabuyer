@@ -13,6 +13,8 @@ import { Table } from "@/components/ui/table";
 import { Tap } from "@/components/ui/tap";
 import { EmptyState } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
+import { missingRateText } from "@/core/currency";
+import { MARKETS, MARKET_AR } from "@/core/naming";
 import { COLUMNS, DEFAULT_COLUMNS, filterTree, filtersActive, type ColumnDef, type ColumnKey, type Filters } from "@/core/ads-table";
 import { costTone } from "@/core/numbers";
 import { fmt } from "@/lib/format";
@@ -108,6 +110,7 @@ function NameCell({ row, depth, hasKids, open, onToggle, onOpen }: { row: TableR
         {row.decoded ? <span className="block truncate text-sm text-fg-muted">{row.decoded.join(" · ")}</span> : null}
         {depth === 2 && row.codes ? <span dir="ltr" className="block truncate tabular-nums text-sm text-fg-muted">{row.codes}</span> : null}
         {row.note ? <span className="block truncate text-sm text-warn">{row.note}</span> : null}
+        {row.missingRates?.length ? <span className="block truncate text-sm text-warn">{missingRateText(row.missingRates)}</span> : null}
       </Tap>
     </div>
   );
@@ -297,8 +300,9 @@ export function AdsTable({ data, initialColumns, initialFilters, onOpen }: { dat
         </Select>
         <Select aria-label="السوق" value={filters.market ?? ""} onChange={(e) => setF({ market: e.target.value || null })} className={select}>
           <option value="">كل الأسواق</option>
-          <option value="SY">سوريا</option>
-          <option value="JO">الأردن</option>
+          {MARKETS.map((m) => (
+            <option key={m} value={m}>{MARKET_AR[m]}</option>
+          ))}
         </Select>
         <Select aria-label="الحالة" value={filters.status ?? ""} onChange={(e) => setF({ status: e.target.value || null })} className={select}>
           <option value="">كل الحالات</option>

@@ -44,6 +44,8 @@ const Page = z.object({ items: z.array(OmsOrder), next_cursor: z.string().nullab
 export const OmsProduct = z.object({
   code: z.string(),
   name: z.string(),
+  /** the currency of the prices and the fees (the OMS always sends it; absent = dollars) */
+  currency: z.string().optional(),
   aliases: z.array(z.string()).optional(),
   unit_cost_usd: z.string().nullable().optional(),
   price_options: z.array(z.object({ price: z.string() })).optional(),

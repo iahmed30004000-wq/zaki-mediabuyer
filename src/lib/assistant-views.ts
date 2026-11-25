@@ -84,10 +84,12 @@ export function numbersOutput(d: NumbersLike, o: { q: RangeQuery; product?: { co
   };
 
   if (o.product) {
-    const p = d.products.find((x) => x.code === o.product!.code);
-    if (!p || !p.hasData) {
+    // a product in two markets has a line per market: all of them are given, never the first one alone
+    const lines = d.products.filter((x) => x.code === o.product!.code && x.hasData);
+    if (!lines.length) {
       scopes.push({ scope: o.product.name, code: o.product.code, hasData: false, note: "ما في أي أرقام انبعتت لهالمنتج بهالفترة (صرف · طلبات · شحن) — مش صفر، ناقصة." });
-    } else {
+    }
+    for (const p of lines) {
       add(p.name, p.code, p.current, p.prev, p.avg7, { breakeven: p.breakeven === null ? null : num(p.breakeven, "$"), top_reject_reasons: p.rejectReasons.map((r) => `${r.reason}: ${r.count}`) });
     }
   } else {

@@ -16,7 +16,8 @@ export interface Signal {
 export interface AlertFacts {
   /** local hour (Asia/Amman) */
   hour: number;
-  adsets: { id: string; name: string; dailyBudget: number; impressionsToday: number }[];
+  /** `unit`: the budget's currency when it is not dollars */
+  adsets: { id: string; name: string; dailyBudget: number; impressionsToday: number; unit?: string }[];
   pixelPurchasesToday: number;
   webOrdersToday: number;
   /** account-wide CPM today and on each of the last 7 days (with ≥ 1,000 impressions) */
@@ -48,7 +49,7 @@ export function detect(f: AlertFacts): Signal[] {
   // no delivery: an active ad set with a budget and not one impression by midday (daily rows: hours can't be seen)
   if (f.hour >= 12 && f.hour < 23) {
     for (const s of f.adsets) {
-      if (s.dailyBudget > 0 && s.impressionsToday === 0) out.push({ key: `delivery:${s.id}`, kind: "alert.no_delivery", tone: "warn", text: `ما في تسليم: ${s.name} شغّالة بميزانية ${s.dailyBudget}$ وصفر ظهور لهلأ اليوم`, href: "/ads" });
+      if (s.dailyBudget > 0 && s.impressionsToday === 0) out.push({ key: `delivery:${s.id}`, kind: "alert.no_delivery", tone: "warn", text: `ما في تسليم: ${s.name} شغّالة بميزانية ${s.dailyBudget}${s.unit ? ` ${s.unit}` : "$"} وصفر ظهور لهلأ اليوم`, href: "/ads" });
     }
   }
   // tracking: the pixel and the OMS disagree completely by the afternoon

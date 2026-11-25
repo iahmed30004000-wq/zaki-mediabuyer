@@ -10,7 +10,8 @@ import { getSetting } from "./settings";
 import { propose } from "./changes";
 import { can } from "@/core/roles";
 import { checkPolicy } from "@/core/policy";
-import { datasetProblem, landingProblem, type LandingPage } from "@/core/launch-guard";
+import { missingRateText } from "@/core/currency";
+import { accountProblem, datasetProblem, landingProblem, type LandingPage } from "@/core/launch-guard";
 import { estimateTargets } from "@/core/economics";
 import { nextFreeCampaignName, parseCampaignName, yymmdd, type Market } from "@/core/naming";
 import { launchDailySpend, launchItems, TEMPLATES, type LaunchCreative, type LaunchRequest, type TemplateKey } from "@/core/templates";
@@ -40,7 +41,8 @@ const code = (v: string | null | undefined, re: RegExp, fallback: string) => (v 
 /** T_order and the ceiling from the product's economics (spec 17.2); the defaults until real numbers arrive. */
 export async function productTargets(productCode: string) {
   const e = await db.productEconomics.findUnique({ where: { productCode } });
-  if (!e) return null;
+  // v6 · P11: prices in a currency with no rate give no target
+  if (!e || e.moneyMissing) return null;
   const [C, D, profitMin] = await Promise.all([getSetting("economics.default_C"), getSetting("economics.default_D"), getSetting("economics.profit_min_share")]);
   const t = estimateTargets({ price: e.price.toString(), unitCost: e.unitCost.toString(), shipping: e.deliveryFee.toString(), returnFee: e.returnFee.toString(), codFee: e.codFeePct.toString(), confirmCost: e.confirmCost.toString(), confirmRate: C, deliveryRate: D, profitMinShare: profitMin });
   const tOrder = Number(t.tOrder.toFixed(2));
@@ -56,6 +58,11 @@ export async function prepareLaunch(input: LaunchInput) {
   if (!page?.code) problems.push("الصفحة مش معروفة أو ما إلها رمز (SP · VP · AJ)");
   const account = await db.adAccount.findUnique({ where: { metaId: input.accountMetaId } });
   if (!account) problems.push("الحساب الإعلاني مش معروف");
+  else {
+    // v6 · P11: the account must be one of the product's market (or of none), and a dollar one
+    const wrong = accountProblem(account, input.market);
+    if (wrong) problems.push(wrong);
+  }
   const frozen = await db.freeze.findFirst({ where: { targetId: input.accountMetaId, kind: { in: ["create", "all"] }, liftedAt: null, OR: [{ until: null }, { until: { gt: new Date() } }] } });
   if (frozen) problems.push(`الإنشاء مجمّد على هالحساب: ${frozen.reason}`);
   if (!/^LP\d$/.test(input.lpCode)) problems.push("رمز صفحة الهبوط لازم يكون LP ورقم");
@@ -79,7 +86,10 @@ export async function prepareLaunch(input: LaunchInput) {
   if (policy.flag === "red") problems.push(`نص الإعلان فيه ممنوع: ${policy.hits.filter((h) => h.level === "red").map((h) => `«${h.text}»${h.alternative ? ` ← «${h.alternative}»` : ""}`).join(" · ")}`);
 
   const targets = await productTargets(input.productCode);
-  if (!targets) problems.push("اقتصاديات المنتج ناقصة — كمّلها بالإعدادات أول");
+  if (!targets) {
+    const e = await db.productEconomics.findUnique({ where: { productCode: input.productCode }, select: { moneyMissing: true } });
+    problems.push(e?.moneyMissing ? `${missingRateText(e.moneyMissing.split(","))} — أسعار المنتج ما انحوّلت لدولار` : "اقتصاديات المنتج ناقصة — كمّلها بالإعدادات أول");
+  }
   else if (targets.losing) problems.push("المنتج خسران بأرقامه الحالية — ما في سقف تكلفة يربح");
   if (problems.length) return { ok: false as const, problems };
 

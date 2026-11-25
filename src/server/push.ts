@@ -12,6 +12,8 @@
  */
 import type { Prisma } from "@prisma/client";
 import { parseAdName, parseAdSetName, parseCampaignName, productFromLegacyName, type ProductAlias } from "@/core/naming";
+import { BASE_CURRENCY } from "@/core/currency";
+import { campaignMarket } from "@/core/markets";
 import { PUSH_LEVELS, StockRow, VideoRow, checkRows, insightPatch, normalizeStatus, parseStart, planOrders, productDayPatch, pushedOrderId, type MetricRowT, type ProductDayPatch, type PushLevel, type RowProblem } from "@/core/push-rows";
 import { stockAlertKey, stockAlertText, stockUrgency } from "@/core/stock-alerts";
 import { readRules } from "@/core/rules-v2";
@@ -19,6 +21,7 @@ import { db } from "./db";
 import { directoryKeys } from "./directory";
 import { audit, type Actor } from "./audit";
 import { omsLinked } from "./env";
+import { objectCurrencies } from "./money";
 import { createNotification } from "./notify";
 import { getSetting } from "./settings";
 import { adSetOwnedByMeta, campaignOwnedByMeta, withoutProtected } from "@/core/ownership";
@@ -91,10 +94,12 @@ export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source:
       if (patch) {
         const key = { level: row.level, objectId: row.id, date: new Date(`${row.date}T00:00:00Z`) };
         const zero = { spend: 0, impressions: 0, reach: 0, frequency: 0, linkClicks: 0, outboundClicks: 0, lpv: 0, purchases: 0, conversations: 0, video3s: 0, thruplays: 0, p25: 0, p50: 0, p75: 0, p95: 0, p100: 0 };
+        // a pushed spend is dollars (the push's contract). A push that brings no spend must not turn an older row's money into dollars by changing its source
+        const money = patch.spend !== undefined ? { currency: BASE_CURRENCY } : await keptCurrency(key);
         await db.insightDaily.upsert({
           where: { level_objectId_date: key },
-          create: { ...key, ...zero, ...patch, attributionSetting: String(window), source: opts.source },
-          update: { ...patch, source: opts.source },
+          create: { ...key, ...zero, ...patch, currency: BASE_CURRENCY, attributionSetting: String(window), source: opts.source },
+          update: { ...patch, ...money, source: opts.source },
         });
         report.insights++;
       }
@@ -123,6 +128,14 @@ export async function applyMetrics(raw: unknown[], opts: { actor: Actor; source:
 }
 
 class ParentMissing extends Error {}
+
+/** For a row written before the currency column, brought by Meta or an import: the currency it is really in, so that the push does not relabel it. */
+async function keptCurrency(key: { level: string; objectId: string; date: Date }): Promise<{ currency?: string }> {
+  const old = await db.insightDaily.findUnique({ where: { level_objectId_date: key }, select: { currency: true, source: true } });
+  if (!old || old.currency || old.source === "mcp" || old.source === "manual") return {};
+  const currency = (await objectCurrencies()).get(key.objectId);
+  return currency ? { currency } : {};
+}
 
 /** One team member's day. What the push did not say stays as it was. Employees only: there is no customer column on this table. */
 async function upsertPersonDay(row: MetricRowT, source: string): Promise<void> {
@@ -248,12 +261,13 @@ async function replaceTally(row: MetricRowT, now: Date, econ: Map<string, { pric
       campaignId = ad.adSet.campaign.metaId;
       adName = ad.name;
       productCode = productCode ?? ad.adSet.campaign.productCode;
-      market = ad.adSet.campaign.account.market ?? null;
+      market = campaignMarket(ad.adSet.campaign.parsedMarket, ad.adSet.campaign.account.market);
     } else adId = row.id; // an ad we have no structure for yet: the orders still count against its id
   }
   const code = productCode ?? "UNKNOWN";
   const e = econ.get(code);
-  market = e?.market ?? market ?? "SY";
+  // the campaign's own market first (a product in two markets is never folded into one), else the product's
+  market = market ?? e?.market ?? "SY";
   const value = e ? Number(e.price) : 0;
 
   const prefix = `mcp:${row.level}:${row.id}:${row.date}:`;

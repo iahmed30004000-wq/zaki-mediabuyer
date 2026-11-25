@@ -63,7 +63,8 @@ export interface AlertInput {
   testShare: number | null;
   testLimit: number;
   /** each product's real cost per order over the judged days (null with no orders), and its orders */
-  products: { code: string; name?: string; cost: number | null; orders: number }[];
+  /** `line`: the line's own key when a product is judged market by market (two lines share a code) */
+  products: { code: string; line?: string; name?: string; cost: number | null; orders: number }[];
   /** campaigns that spent past the owner's «no sale» threshold and have no real order */
   zeroOrders: { name: string; spend: number }[];
   /** the newest days of cover per product */
@@ -89,7 +90,7 @@ export function buildAlerts(i: AlertInput): TodayAlert[] {
   for (const p of i.products) {
     const be = breakevenOf(i.rules, p.code);
     if (be !== null && p.cost !== null && p.orders > 0 && p.cost > be) {
-      out.push({ key: `be:${p.code}`, tone: "danger", text: `${p.name ?? p.code}: تكلفة الطلب الحقيقي ${r2(p.cost)}$ فوق نقطة التعادل (${be}$) آخر ${i.rules.judgeDays} أيام`, href: `/ads?product=${encodeURIComponent(p.code)}` });
+      out.push({ key: `be:${p.line ?? p.code}`, tone: "danger", text: `${p.name ?? p.code}: تكلفة الطلب الحقيقي ${r2(p.cost)}$ فوق نقطة التعادل (${be}$) آخر ${i.rules.judgeDays} أيام`, href: `/ads?product=${encodeURIComponent(p.code)}` });
     }
   }
   for (const c of i.zeroOrders) out.push({ key: `zero:${c.name}`, tone: "warn", text: `حملة «${c.name}» صرفت ${r2(c.spend)}$ وما إلها ولا طلب حقيقي`, href: "/ads" });

@@ -7,6 +7,7 @@
  *
  * A screen is real or it is demo — never both. Nothing here edits a video or classifies one for policy (owner rule).
  */
+import { mergeMissing, missingRateText } from "@/core/currency";
 import { addDays, ammanKey, eachDay, parseRange } from "@/core/dates";
 import { daysRunning, earliest, indexFacts, metricsOf, type Counted, type CountsLike, type Node, type Window } from "@/core/ads-table";
 import { parseAdName } from "@/core/naming";
@@ -168,6 +169,7 @@ const asRequest = (r: RequestRowIn): BoardRequest => ({
 function sumCounted(list: Counted[]): Counted {
   const counts: CountsLike = { spend: 0, impressions: 0, clicks: 0, v3s: 0, thru: 0, purchases: 0, orders: 0, mature: 0, confirmed: 0, shipments: 0, delivered: 0, returned: 0 };
   let conversations: number | undefined;
+  const fxMissing = mergeMissing(...list.map((c) => c.counts.fxMissing));
   for (const c of list) {
     const k = c.counts;
     counts.spend += k.spend;
@@ -185,6 +187,7 @@ function sumCounted(list: Counted[]): Counted {
     if (k.conversations !== undefined) conversations = (conversations ?? 0) + k.conversations;
   }
   if (conversations !== undefined) counts.conversations = conversations;
+  if (fxMissing.length) counts.fxMissing = fxMissing;
   return { counts, frequency: null, hasInsights: list.some((c) => c.hasInsights), has: list.some((c) => c.has) };
 }
 
@@ -217,15 +220,20 @@ export function assembleBoard(src: Source, bank: BankVideo[], requests: RequestR
 
   const measure = (v: BankVideo): BoardVideo => {
     const adIds = links.get(v.key) ?? [];
-    const p = products.get(v.product);
+    const own = products.get(v.product);
+    const p = own?.moneyMissing ? undefined : own;
     const margin = p ? targetsOf(p).margin : null;
     const sum = sumCounted(adIds.map((id) => facts.counted("ad", id, W7)));
     const view = viewOf(sum.counts as Counts, p);
     const m = metricsOf(sum, view, margin);
+    const unconverted: string[][] = [sum.counts.fxMissing ?? []];
     const series: DayPoint[] = seriesDays.map((day) => {
       const d = sumCounted(adIds.map((id) => facts.counted("ad", id, { from: day, to: day })));
+      unconverted.push(d.counts.fxMissing ?? []);
       return { day, spend: d.counts.spend, orders: d.counts.orders };
     });
+    // v6 · P11: spend with no rate anywhere in the days: no judgement about tiredness
+    const noRate = mergeMissing(...unconverted);
     const drive = driveId(v.driveFileId);
     const scenario = driveId(v.scenarioFileId);
     const ranBefore = sum.has;
@@ -250,7 +258,7 @@ export function assembleBoard(src: Source, bank: BankVideo[], requests: RequestR
       hold: m.hold,
       ctr: m.ctr,
       tone: costTone(m.costPerOrder, ctx.target, ctx.breakeven(v.product)) ?? null,
-      fatigue: fatigueOf(series, today),
+      fatigue: noRate.length ? { state: "unknown", rise: null, text: missingRateText(noRate) } : fatigueOf(series, today),
       request: openOf.get(v.key) ?? null,
       notes: v.notes,
     };
@@ -263,7 +271,7 @@ export function assembleBoard(src: Source, bank: BankVideo[], requests: RequestR
     const p = products.get(code);
     const mine = bank.filter((v) => v.product === code);
     const measured = mine.map(measure);
-    const min = minSpendOf(ctx.typedMinSpend, p ? targetsOf(p).tOrder : null);
+    const min = minSpendOf(ctx.typedMinSpend, p && !p.moneyMissing ? targetsOf(p).tOrder : null);
     const { ranked, learning, idle } = rank(measured, min.value);
     const rest = idle.filter((v) => v.status !== "dropped").sort((a, b) => REST_ORDER[a.status] - REST_ORDER[b.status] || a.key.localeCompare(b.key));
     out.push({

@@ -6,7 +6,8 @@ import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { getSetting } from "@/server/settings";
-import { FIELDS, guessMapping, parseCsv, readRows, type Field } from "@/io/import";
+import { FIELDS, guessMapping, headerCurrency, parseCsv, readRows, type Field } from "@/io/import";
+import { objectCurrencies } from "@/server/money";
 import { isDemo } from "@/core/readiness";
 
 const Body = z.object({
@@ -76,10 +77,13 @@ export async function POST(req: Request) {
     if (errors.some((e) => !e.includes("مكرر"))) throw new HttpError(422, errors.slice(0, 5).join(" · "));
     if (already) return NextResponse.json({ ok: true, repeated: true, rows: 0, message: `هالملف انستورد قبل (${already.rows} سطر) — ما تغيّر شي` });
     const window = String(await getSetting("attribution.window"));
+    // the export is in the currency its header names, else in the ad's account currency (v6 · P11: converted where it is added up)
+    const named = headerCurrency(headers, mapping);
+    const accountCurrency = named ? null : await objectCurrencies();
     let n = 0;
     for (const r of resolved) {
       if (!r.objectId) continue;
-      const data = { spend: r.spend, impressions: Math.round(r.impressions), reach: Math.round(r.reach), frequency: r.reach ? r.impressions / r.reach : 0, linkClicks: Math.round(r.linkClicks), outboundClicks: Math.round(r.linkClicks), lpv: Math.round(r.lpv), purchases: Math.round(r.purchases), conversations: 0, video3s: Math.round(r.video3s), thruplays: Math.round(r.thruplays), p25: 0, p50: 0, p75: 0, p95: 0, p100: 0, attributionSetting: window, source: "import" };
+      const data = { spend: r.spend, currency: named ?? accountCurrency?.get(r.objectId) ?? null, impressions: Math.round(r.impressions), reach: Math.round(r.reach), frequency: r.reach ? r.impressions / r.reach : 0, linkClicks: Math.round(r.linkClicks), outboundClicks: Math.round(r.linkClicks), lpv: Math.round(r.lpv), purchases: Math.round(r.purchases), conversations: 0, video3s: Math.round(r.video3s), thruplays: Math.round(r.thruplays), p25: 0, p50: 0, p75: 0, p95: 0, p100: 0, attributionSetting: window, source: "import" };
       await db.insightDaily.upsert({ where: { level_objectId_date: { level: "ad", objectId: r.objectId, date: r.day } }, create: { level: "ad", objectId: r.objectId, date: r.day, ...data }, update: data });
       n++;
     }

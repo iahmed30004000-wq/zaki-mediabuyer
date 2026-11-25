@@ -9,6 +9,8 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useMission } from "@/components/mb/mission";
 import { fmt } from "@/components/mb/num";
+import { accountChoices } from "@/core/launch-guard";
+import { marketLabel } from "@/core/markets";
 import { nextFreeCampaignName, yymmdd, type Market } from "@/core/naming";
 import type { LaunchOptions } from "@/lib/launch-view";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,8 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
   const [picked, setPicked] = useState<string[]>([]);
   const [page, setPage] = useState("");
   const [dataset, setDataset] = useState("");
+  /** the account the owner picked («»: none yet) */
+  const [picks, setPicks] = useState("");
   const [url, setUrl] = useState("");
   const [lp, setLp] = useState("LP1");
   const [message, setMessage] = useState("");
@@ -63,13 +67,17 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
 
   const p = options.products.find((x) => x.code === product);
   const tpl = TEMPLATES.find((t) => t.key === template);
-  const account = options.accounts.find((a) => a.market === p?.market) ?? options.accounts[0];
+  // never «the first account»: with two of the product's market (or none) the owner picks (src/core/launch-guard.ts)
+  const choices = p ? accountChoices(options.accounts, p.market) : null;
+  const account = choices?.options.find((a) => a.metaId === (picks || choices.preselected));
   const ready = options.creatives.filter((c) => c.product === product);
   const perSet = p && tpl ? tpl.budget(p.tOrder) : 0;
   const daily = preview?.perDay ?? (tpl?.key === "SCALE" ? perSet : perSet * Math.max(1, picked.length));
   const localName = useMemo(() => (p && tpl ? nextFreeCampaignName({ market: p.market as Market, productCode: p.code, objective: "WEB", stage: tpl.key, date: yymmdd(new Date()) }, []) : ""), [p, tpl]);
 
   useEffect(() => {
+    // another product: whatever was picked for the one before is not its account
+    setPicks("");
     if (!product) return;
     // the settings' landing page first, then what was typed last time for this product
     const lp0 = options.landing.find((l) => l.productCode === product);
@@ -97,7 +105,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, formOk, page, dataset, url, lp, message, title, picked.join(","), template, product]);
+  }, [step, formOk, page, dataset, url, lp, message, title, picked.join(","), template, product, account?.metaId]);
 
   const canNext = [!!product, !!template, picked.length > 0, true][step];
   const reset = () => {
@@ -105,6 +113,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
     setProduct(null);
     setTemplate(null);
     setPicked([]);
+    setPicks("");
     setPreview(null);
   };
 
@@ -155,7 +164,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
   };
 
   const choice = (active: boolean) => cn("w-full rounded-xl border p-3 text-start transition-colors", active ? "border-accent bg-accent/10" : "border-border hover:border-accent/50");
-  const blocked = options.live && (!formOk || !preview?.ok);
+  const blocked = !account || (options.live && (!formOk || !preview?.ok));
 
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset(); }}>
@@ -182,7 +191,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                     <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{x.code}</span>
                     {x.stockDays !== null && x.stockDays < 5 ? <span className="ms-auto text-sm text-warn">المخزون {x.stockDays} أيام</span> : null}
                   </span>
-                  <span className="text-sm text-fg-muted">هدف الطلب {fmt(x.tOrder, "$")} {x.estimated ? "(تقدير)" : ""}</span>
+                  <span className="text-sm text-fg-muted">هدف الطلب {fmt(x.tOrder || null, "$")} {x.estimated ? "(تقدير)" : ""}</span>
                 </Tap>
               ))
             ) : (
@@ -219,6 +228,14 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                 <p dir="ltr" className="text-start tabular-nums text-fg">{preview?.name ?? localName}</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block sm:col-span-2">
+                  <Label>الحساب الإعلاني</Label>
+                  <Select value={account?.metaId ?? ""} onChange={(e) => { setPicks(e.target.value); setPreview(null); }}>
+                    <option value="" disabled>اختار الحساب</option>
+                    {choices?.options.map((x) => <option key={x.metaId} value={x.metaId}>{x.name} · {x.market ? marketLabel(x.market) : "بلا سوق"} · {x.currency}</option>)}
+                  </Select>
+                  {choices?.none ? <span className="mt-1 block text-sm text-warn">{choices.none}</span> : !account ? <span className="mt-1 block text-sm text-warn">في أكتر من خيار — اختار الحساب اللي بدك تصرف منه.</span> : null}
+                </label>
                 <label className="block">
                   <Label>الصفحة</Label>
                   <Select value={page} onChange={(e) => setPage(e.target.value)}>

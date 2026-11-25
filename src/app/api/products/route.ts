@@ -32,7 +32,8 @@ export async function POST(req: Request) {
     if (isDemo(process.env)) return NextResponse.json({ ok: true, demo: true });
     const { productCode, ...data } = parsed.data;
     const before = await db.productEconomics.findUnique({ where: { productCode } });
-    await db.productEconomics.upsert({ where: { productCode }, create: { productCode, ...data }, update: data });
+    // what the owner types here is dollars: it lifts the «no rate» mark of an older pull (the next pull sets it again if it still cannot convert)
+    await db.productEconomics.upsert({ where: { productCode }, create: { productCode, ...data }, update: { ...data, moneyMissing: null } });
     const snap = before && { price: Number(before.price), unitCost: Number(before.unitCost), deliveryFee: Number(before.deliveryFee), returnFee: Number(before.returnFee), codFeePct: Number(before.codFeePct), confirmCost: Number(before.confirmCost), stockDays: before.stockDays };
     await audit({ type: "user", id: caller.id }, before ? "product.update" : "product.create", { type: "product", id: productCode }, { before: snap, after: data });
     return NextResponse.json({ ok: true, created: !before });

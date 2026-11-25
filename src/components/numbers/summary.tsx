@@ -13,6 +13,7 @@ import { splitMarks, type ChartEvent } from "@/core/chart-events";
 import { sourceAfter } from "@/core/freshness";
 import { periodQuery, type FunnelStepCompare, type MetricKey, type ProductCompare, type WasNow as Tile } from "@/core/compare";
 import { addDays, ammanKey, daysBetween } from "@/core/dates";
+import { productHref } from "@/core/markets";
 import { fmt } from "@/lib/format";
 import type { CompareData } from "@/lib/compare-view";
 
@@ -93,9 +94,8 @@ const VERDICT_TONE = { neutral: "neutral", ok: "ok", warn: "warn", danger: "dang
 
 /** «كل منتج: كنا وصرنا»: the cost of a real order before and now with the difference in words, the orders of a day, and the verdict of the owner's own numbers. A missing cost says why. */
 export function ProductsCompareTable({ rows, query }: { rows: readonly ProductCompare[]; query: string }) {
-  const q = query ? `?${query}` : "";
   const cols: Column<ProductCompare>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/numbers/products/${encodeURIComponent(r.code)}${q}`} className="inline-flex min-h-11 items-center hover:underline"><ProductName name={r.name} code={r.code} /></Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={productHref(r, query)} className="inline-flex min-h-11 items-center hover:underline"><ProductName name={r.name} code={r.code} /></Link> },
     { key: "was", header: "التكلفة: كنا", numeric: true, hideOnMobile: true, cell: (r) => (r.cost.was === null ? "—" : fmt(r.cost.was, "$")) },
     {
       key: "now",
@@ -131,7 +131,7 @@ export function ProductsCompareTable({ rows, query }: { rows: readonly ProductCo
     <DataTable
       columns={cols}
       rows={rows}
-      rowKey={(r) => r.code}
+      rowKey={(r) => r.key ?? r.code}
       label="كل منتج: كنا وصرنا"
       empty={<p className="rounded-card border border-dashed border-border p-4 text-base text-fg-muted">ما في منتج إله أرقام بهالفترة. لما توصل أرقام الطلبات والصرف بتطلع هون.</p>}
     />

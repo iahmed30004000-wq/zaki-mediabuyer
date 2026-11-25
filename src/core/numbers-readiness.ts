@@ -5,6 +5,7 @@
  * Nothing here reads a clock or a table: the clock is `facts.now`.
  */
 import { agoWords } from "./bell";
+import { missingRateText } from "./currency";
 
 /** What the numbers stand on — the same object feeds the home, the numbers screens and (for the owner) the health answer. */
 export interface SourceFacts {
@@ -28,13 +29,15 @@ export interface SourceFacts {
   productsWithoutName: number;
   /** a stock reading from the last 24 hours exists */
   stockFresh: boolean;
+  /** v6 · P11: currencies in the window with no exchange rate (absent or empty: nothing is missing) */
+  fxMissing?: string[];
 }
 
 /** The OMS pull is «fresh» for this many hours (the same limit the health rule uses: after it every OMS figure is an estimate). */
 export const OMS_FRESH_H = 3;
 
 export interface ReadinessItem {
-  key: "spend" | "orders" | "breakeven" | "names" | "stock";
+  key: "spend" | "orders" | "breakeven" | "names" | "stock" | "fx";
   ok: boolean;
   /** what is missing, in a sentence; when it is fine, what is fine */
   text: string;
@@ -96,7 +99,10 @@ export function numbersReadiness(f: SourceFacts): ReadinessItem[] {
   // the stock comes from Claude: nothing the owner presses sends it
   const stock: ReadinessItem = f.stockFresh ? { key: "stock", ok: true, text: "المخزون: في قراءة من آخر 24 ساعة", action: null } : { key: "stock", ok: false, text: "ما في مخزون مسجّل — Claude لسا ما بعته", action: null };
 
-  return [spend, orders, breakeven, names, stock];
+  // v6 · P11: said only when a rate really is missing
+  const fx: ReadinessItem[] = f.fxMissing?.length ? [{ key: "fx", ok: false, text: `${missingRateText(f.fxMissing)} — المبالغ بهالعملة ما بتنجمع ولا بينحكم عليها`, action: { label: "اكتب السعر", href: "/settings/rules#currency" } }] : [];
+
+  return [spend, orders, breakeven, names, stock, ...fx];
 }
 
 /** How many of the items are missing. */

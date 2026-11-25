@@ -3,9 +3,12 @@
  * shows: every derived number goes through the real calculator (src/core/economics.ts). Nothing here is demo data: the demo records are in src/lib/mock/data.ts (v6 · P8 moved the model out of
  * it, so a screen never imports an example — `mockInUi` of the ratchet is 0). No customer data of any kind lives here.
  */
+import { mergeMissing } from "./currency";
 import { computeTruth, estimateTargets, round2, pct1, type Truth } from "./economics";
+import { marketName, productMarkets } from "./markets";
+import type { Market } from "./naming";
 
-export type Market = "SY" | "JO";
+export type { Market };
 
 export interface Product {
   code: string;
@@ -20,6 +23,8 @@ export interface Product {
   stockDays: number;
   /** Real shipments so far (< 50 = the targets are an estimate). */
   shipmentsToDate: number;
+  /** v6 · P11: currencies with no rate behind the prices and fees: while set they are not read */
+  moneyMissing?: string;
 }
 
 export function targetsOf(p: Product) {
@@ -67,6 +72,8 @@ export interface Counts {
   shipments: number;
   delivered: number;
   returned: number;
+  /** v6 · P11: currencies with no rate among the spend behind these counts; non-empty = `spend` is not known */
+  fxMissing?: string[];
 }
 
 export type RowStatus = "active" | "paused" | "learning" | "untested" | "rejected";
@@ -98,6 +105,8 @@ export interface CampaignRow {
   adsets: AdSetRow[];
   /** A name the parser could not read. */
   needsNaming?: boolean;
+  /** v6 · P11: the market the campaign runs in (its name, else its account); null when neither says */
+  market?: string | null;
 }
 
 export function sumCounts(list: Counts[]): Counts {
@@ -105,11 +114,12 @@ export function sumCounts(list: Counts[]): Counts {
   let conv: number | undefined;
   for (const x of list) {
     (Object.keys(z) as (keyof Counts)[]).forEach((k) => {
-      if (k !== "conversations") (z[k] as number) += x[k] as number;
+      if (k !== "conversations" && k !== "fxMissing") (z[k] as number) += x[k] as number;
     });
     if (x.conversations !== undefined) conv = (conv ?? 0) + x.conversations;
   }
-  return { ...z, conversations: conv };
+  const fx = mergeMissing(...list.map((x) => x.fxMissing));
+  return { ...z, conversations: conv, ...(fx.length ? { fxMissing: fx } : {}) };
 }
 
 export const adsetCounts = (s: AdSetRow) => sumCounts(s.ads.map((a) => a.counts));
@@ -137,13 +147,15 @@ export function truthOf(k: Counts, p: Product | undefined): Truth {
 }
 
 /** What a screen shows for a row: meta numbers, true numbers, and the gap between them. */
-export function viewOf(k: Counts, p: Product | undefined) {
+export function viewOf(k: Counts, product: Product | undefined) {
+  // v6 · P11: with no economics (an unknown product, another market, prices with no rate) the revenue and the costs are unknown — never worked out from zeros
+  const p = product?.moneyMissing ? undefined : product;
   const t = truthOf(k, p);
   const ratio = (a: number, b: number) => (b > 0 ? (a / b) * 100 : null);
   // messaging campaigns have no pixel Purchase to compare: no gap, not a 100% one
   const gap = k.orders > 0 && k.conversations === undefined ? ((k.purchases - k.orders) / k.orders) * 100 : null;
-  return {
-    spend: round2(t.spendWithFee),
+  const view = {
+    spend: round2(t.spendWithFee) as number | null,
     ctr: ratio(k.clicks, k.impressions),
     hook: ratio(k.v3s, k.impressions),
     hold: ratio(k.thru, k.v3s),
@@ -163,6 +175,10 @@ export function viewOf(k: Counts, p: Product | undefined) {
     gap: gap === null ? null : Math.round(gap),
     enoughData: k.impressions >= 3000 && k.spend >= 2 * (p ? targetsOf(p).tOrder : 1),
   };
+  const known = p ? view : { ...view, ceiling: null, profit: null, profitPerDelivered: null, roas: null };
+  // v6 · P11: spend with no rate: everything money stands on is unknown, and there is not «enough data» to judge
+  if (k.fxMissing?.length) return { ...known, spend: null, cpaPixel: null, costPerConfirmed: null, profit: null, profitPerDelivered: null, roas: null, enoughData: false };
+  return known;
 }
 
 export type RowView = ReturnType<typeof viewOf>;
@@ -174,6 +190,8 @@ export interface Dataset {
   campaigns: CampaignRow[];
   /** true when the numbers are the demo ones */
   demo: boolean;
+  /** v6 · P11: the (product, market) pairs the orders show, beside the campaigns' own */
+  seen?: { code: string; market: string }[];
   /** true when the last real OMS sync is older than 3 h (or never ran): every OMS-based figure is «تقدير» */
   omsStale?: boolean;
 }
@@ -183,6 +201,33 @@ export function productView(code: string, ds: Dataset) {
   const rows = ds.campaigns.filter((x) => x.productCode === code);
   const k = sumCounts(rows.map(campaignCounts));
   return { product: p, counts: k, view: viewOf(k, p), targets: targetsOf(p) };
+}
+
+/**
+ * v6 · P11: every product as one line PER MARKET its campaigns (and its orders) show. The home market keeps the product's economics; another market's line
+ * has its own counts and NO money worked out from the home's prices (`home: false`).
+ */
+export function productMarketViews(ds: Dataset) {
+  const markets = productMarkets(
+    [...ds.campaigns.map((c) => ({ code: c.productCode, market: c.market })), ...(ds.seen ?? [])],
+    new Map(ds.products.map((p) => [p.code, p.market])),
+  );
+  return ds.products.flatMap((p) => {
+    const mine = ds.campaigns.filter((c) => c.productCode === p.code);
+    const keys = [...new Set([...mine.map((c) => markets.keyOf(p.code, c.market)), ...(ds.seen ?? []).filter((s) => s.code === p.code).map((s) => markets.keyOf(p.code, s.market))])];
+    if (!keys.length) keys.push(markets.keyOf(p.code, p.market));
+    return keys.sort().map((key) => {
+      const market = markets.marketOfKey(key);
+      const home = markets.isHome(p.code, market) && !p.moneyMissing;
+      const counts = sumCounts(mine.filter((c) => markets.keyOf(p.code, c.market) === key).map(campaignCounts));
+      const view = viewOf(counts, home ? p : undefined);
+      return {
+        key, home, market, name: marketName(p.name, key, markets), product: p, counts,
+        view: home ? view : { ...view, enoughData: false },
+        targets: home ? targetsOf(p) : null,
+      };
+    });
+  });
 }
 
 /** All the ads, flattened, with their product and view. */

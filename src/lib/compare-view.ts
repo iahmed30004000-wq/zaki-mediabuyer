@@ -38,6 +38,10 @@ export interface CompareData {
   target: number | null;
   /** the one break-even every product with numbers shares, or null when they differ or none is written: the red line of the chart */
   breakeven: number | null;
+  /** v6 · P11: the market the numbers are filtered to (null: all), the currencies with no rate, and the products whose pushed days could not be placed */
+  market?: string | null;
+  missingRates?: string[];
+  unplacedPushed?: string[];
 }
 
 /** The window of the home: seven days ending yesterday. */
@@ -54,14 +58,15 @@ export function commonBreakeven(products: readonly { hasData: boolean; breakeven
   return shown.every((p) => p.breakeven === first) ? first : null;
 }
 
-export async function loadCompare(opts: { now?: Date; period?: { p?: string | null; from?: string | null; to?: string | null }; series?: boolean } = {}): Promise<CompareData> {
+export async function loadCompare(opts: { now?: Date; period?: { p?: string | null; from?: string | null; to?: string | null }; series?: boolean; market?: string | null } = {}): Promise<CompareData> {
   const now = opts.now ?? new Date();
   const { period, ...range } = comparePeriod(opts.period ?? {}, now);
   const [numbers, series] = await Promise.all([
-    loadNumbers({ d: "custom", from: range.from, to: range.to }, now),
-    opts.series === false ? Promise.resolve({}) : loadSeriesMany(HOME_METRICS, { now }).catch(() => ({})),
+    loadNumbers({ d: "custom", from: range.from, to: range.to, ...(opts.market ? { market: opts.market } : {}) }, now),
+    opts.series === false ? Promise.resolve({}) : loadSeriesMany(HOME_METRICS, { now, ...(opts.market ? { market: opts.market } : {}) }).catch(() => ({})),
   ]);
-  const facts = await loadSourceFacts({ now, products: numbers.products });
+  const read = await loadSourceFacts({ now, products: numbers.products });
+  const facts = numbers.missingRates?.length ? { ...read, fxMissing: numbers.missingRates } : read;
   const window = { days: range.days, toDay: range.to };
   const lines = series as Partial<Record<MetricKey, (number | null)[]>>;
   const tiles = homeTiles(numbers.totals.current, numbers.totals.prev, facts, window, lines);
@@ -80,5 +85,8 @@ export async function loadCompare(opts: { now?: Date; period?: { p?: string | nu
     series: lines,
     target: numbers.target,
     breakeven: commonBreakeven(numbers.products),
+    market: numbers.market ?? null,
+    missingRates: numbers.missingRates ?? [],
+    unplacedPushed: numbers.unplacedPushed ?? [],
   };
 }

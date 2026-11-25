@@ -8,6 +8,8 @@ import { ACCOUNTS, CREATIVES, PRODUCTS, targetsOf } from "@/lib/mock/data";
 import { productTargets } from "@/server/launch";
 import { nameOf, productLabels } from "@/core/product-name";
 import { judgeExperiment, KIND_AR, type ExperimentKind, type StopRules } from "@/core/experiments";
+import { missingRateText } from "@/core/currency";
+import { spendConverter } from "@/server/money";
 import { capiHealth } from "@/core/capi";
 import { ACCOUNT_STATUS_AR, type AttributionHealth } from "@/core/account-safety";
 
@@ -16,7 +18,8 @@ export interface LaunchOptions {
   live: boolean;
   products: { code: string; name: string; market: string; tOrder: number; estimated: boolean; stockDays: number | null }[];
   creatives: { code: string; product: string; label: string }[];
-  accounts: { metaId: string; name: string; market: string }[];
+  /** `market` null: the owner set none on the account */
+  accounts: { metaId: string; name: string; market: string | null; currency: string }[];
   pages: { metaId: string; code: string; name: string }[];
   datasets: { metaId: string; name: string }[];
   /** the product's landing pages from the settings (LP1 → its link) */
@@ -29,7 +32,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
       live: false,
       products: PRODUCTS.map((p) => ({ code: p.code, name: p.name, market: p.market, tOrder: targetsOf(p).tOrder, estimated: targetsOf(p).estimated, stockDays: p.stockDays })),
       creatives: CREATIVES.filter((c) => c.stage === "ready" || c.stage === "live").map((c) => ({ code: c.code, product: c.product, label: [c.hook, c.angle, `${c.duration}ث`].filter(Boolean).join(" · ") })),
-      accounts: ACCOUNTS.map((a) => ({ metaId: a.id, name: a.name, market: a.market })),
+      accounts: ACCOUNTS.map((a) => ({ metaId: a.id, name: a.name, market: a.market, currency: "USD" })),
       pages: [{ metaId: "demo-sp", code: "SP", name: "صحة بلس" }],
       datasets: [{ metaId: "demo-px", name: "البكسل" }],
       landing: [{ productCode: "TRF01", lpCode: "LP1", url: "https://crm.zakiai.io/lp/kamaa" }],
@@ -50,7 +53,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
     live: true,
     products,
     creatives: assets.map((a) => ({ code: a.crCode, product: a.productCode ?? "", label: [a.hookType, a.angle, a.conceptId, a.durationS ? `${Number(a.durationS).toFixed(0)}ث` : null].filter(Boolean).join(" · ") })),
-    accounts: accounts.map((a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "SY" })),
+    accounts: accounts.map((a) => ({ metaId: a.metaId, name: a.name, market: a.market, currency: a.currency })),
     pages: pages.map((p) => ({ metaId: p.metaId, code: p.code!, name: p.name })),
     datasets: datasets.map((d) => ({ metaId: d.metaId, name: d.name })),
     landing: (await getSetting("landing.pages")) as LaunchOptions["landing"],
@@ -68,7 +71,9 @@ export interface ExperimentView {
   days: number;
   verdict: string;
   winner: string | null;
-  arms: { key: string; spend: number; orders: number; confirmed: number; cost: number | null }[];
+  /** the market the test runs in */
+  market?: string | null;
+  arms: { key: string; spend: number | null; orders: number; confirmed: number; cost: number | null }[];
 }
 
 /** Every test with its arms read from the truth: spend from Meta's archive, orders from the OMS (mature confirmed only). */
@@ -82,13 +87,20 @@ export async function loadExperiments(): Promise<ExperimentView[]> {
       const rules = e.stopRules as unknown as StopRules;
       const ads = e.campaignMetaId ? await db.ad.findMany({ where: { adSet: { campaign: { metaId: e.campaignMetaId } } }, select: { metaId: true, adSet: { select: { conceptId: true, name: true } } } }) : [];
       const arms = new Map<string, { key: string; spend: number; orders: number; confirmed: number }>();
+      /** v6 · P11: currencies with no rate among the test's spend: then no arm has a cost and there is no verdict */
+      const noRate = new Set<string>();
       if (ads.length) {
-        const spend = await db.insightDaily.groupBy({ by: ["objectId"], where: { level: "ad", objectId: { in: ads.map((a) => a.metaId) } }, _sum: { spend: true } });
+        const money = await spendConverter();
+        const spend = await db.insightDaily.groupBy({ by: ["objectId", "currency", "source"], where: { level: "ad", objectId: { in: ads.map((a) => a.metaId) } }, _sum: { spend: true } });
         const orders = await db.attributedOrder.findMany({ where: { adId: { in: ads.map((a) => a.metaId) }, isFake: false }, select: { adId: true, confirmedAt: true, matureAt: true } });
         for (const a of ads) {
           const key = a.adSet.conceptId ? `CPT${a.adSet.conceptId.replace(/^CPT/, "")}` : a.adSet.name;
           const arm = arms.get(key) ?? { key, spend: 0, orders: 0, confirmed: 0 };
-          arm.spend += Number(spend.find((s) => s.objectId === a.metaId)?._sum.spend ?? 0) * 1.01;
+          for (const s of spend.filter((x) => x.objectId === a.metaId)) {
+            const c = money.usd({ objectId: s.objectId, spend: s._sum.spend, currency: s.currency, source: s.source });
+            if (c.usd === null) noRate.add(c.missing!);
+            else arm.spend += c.usd.toNumber() * 1.01;
+          }
           const mine = orders.filter((o) => o.adId === a.metaId);
           arm.orders += mine.length;
           arm.confirmed += mine.filter((o) => o.confirmedAt && o.matureAt <= now).length;
@@ -96,19 +108,21 @@ export async function loadExperiments(): Promise<ExperimentView[]> {
         }
       }
       const day = e.startedAt ? Math.max(0, Math.floor((now.getTime() - e.startedAt.getTime()) / 86_400_000)) : 0;
-      const v = e.status === "running" || e.status === "done" ? judgeExperiment([...arms.values()], rules, day) : null;
+      const missing = [...noRate].sort();
+      const v = (e.status === "running" || e.status === "done") && !missing.length ? judgeExperiment([...arms.values()], rules, day) : null;
       return {
         id: e.id,
         kind: e.kind,
         title: KIND_AR[e.kind as ExperimentKind] ?? e.kind,
         hypothesis: e.hypothesis,
         status: (v?.status === "done" ? "done" : e.status) as ExperimentView["status"],
+        market: e.market,
         campaign: setup.campaign ?? "",
         day,
         days: rules.maxDays,
-        verdict: v?.sentence ?? (e.status === "planned" ? "بانتظار موافقتك على الإطلاق" : e.verdict ?? ""),
+        verdict: missing.length ? `${missingRateText(missing)} — ما في حكم على الاختبار قبل ما ينكتب السعر` : v?.sentence ?? (e.status === "planned" ? "بانتظار موافقتك على الإطلاق" : e.verdict ?? ""),
         winner: v?.winner ?? null,
-        arms: [...arms.values()].map((a) => ({ ...a, spend: Math.round(a.spend * 100) / 100, cost: v?.costs[a.key] ?? null })),
+        arms: [...arms.values()].map((a) => ({ ...a, spend: missing.length ? null : Math.round(a.spend * 100) / 100, cost: v?.costs[a.key] ?? null })),
       };
     }),
   );

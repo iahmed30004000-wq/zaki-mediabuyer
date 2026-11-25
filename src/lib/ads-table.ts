@@ -8,6 +8,9 @@
  */
 import { addDays, ammanKey, keyMs, parseRange, previousRange, rangeLabel, type Range } from "@/core/dates";
 import { daysRunning, earliest, indexFacts, metricsOf, stageIsTest, testShareOf, type InsightRow, type Level, type Metrics, type Node, type OrderRow, type Share } from "@/core/ads-table";
+import { mergeMissing, toUsd } from "@/core/currency";
+import { currencyGate } from "@/core/rulebook";
+import { campaignMarket, marketName, productMarkets } from "@/core/markets";
 import { MARKET_AR, OBJECTIVE_AR, STAGE_AR, parseAdName, parseAdSetName, parseCampaignName } from "@/core/naming";
 import { nameOf, productLabels } from "@/core/product-name";
 import { breakevenOf, readRules } from "@/core/rules-v2";
@@ -16,6 +19,7 @@ import { statusOf, toProduct } from "@/lib/source";
 import { db } from "@/server/db";
 import { getSetting } from "@/server/settings";
 import { forViewer } from "@/server/redact";
+import { loadProductMarkets, spendConverter } from "@/server/money";
 
 // ───────────────────────────── what a screen row is ─────────────────────────────
 
@@ -53,6 +57,8 @@ export interface TableRow extends TreeRow {
   /** the range's numbers, and the window before's — for «قارن» */
   m: Metrics;
   prev: Metrics;
+  /** v6 · P11: currencies with no rate behind this row's numbers in the range or the window before */
+  missingRates?: string[];
   /** the owner's break-even for the row's product (null until he types it) */
   breakeven: number | null;
   /** for an ad: its creative code (the thumbnail) and the rest of what its name says */
@@ -74,6 +80,8 @@ export interface AdsTableData {
   target: number | null;
   stepPct: number;
   rulesMissing: boolean;
+  /** v6 · P11: every currency with no rate anywhere in the table */
+  missingRates?: string[];
 }
 
 // ───────────────────────────── where the facts come from ─────────────────────────────
@@ -105,6 +113,8 @@ export interface SCampaign {
   budget: number | null;
   start: string | null;
   adsets: SAdSet[];
+  /** v6 · P11: the account bills in another currency: its budgets are shown in dollars here and are not raised from this screen */
+  foreign?: boolean;
 }
 
 export interface Source {
@@ -115,6 +125,8 @@ export interface Source {
   orders: OrderRow[];
   /** the video behind an ad's creative code (CR…): its V name and JOB, when the bank knows which Drive file it is */
   videoOf?: Record<string, { v: string; job: string }>;
+  /** v6 · P11: the markets each product was seen in (all time); absent in the demo — then the campaigns say */
+  markets?: ReturnType<typeof productMarkets>;
 }
 
 export interface Ctx {
@@ -158,12 +170,12 @@ export async function realSource(range: Range, today: string): Promise<Source> {
   const gte = new Date(keyMs(span));
   const lte = new Date(keyMs(last));
 
-  const [econ, campaigns, insights, orders, assets, bank, aliasRows] = await Promise.all([
+  const [econ, campaigns, insights, orders, assets, bank, aliasRows, money, markets] = await Promise.all([
     db.productEconomics.findMany(),
     db.campaign.findMany({ include: { account: true, adsets: { include: { ads: true } } } }),
     db.insightDaily.findMany({
       where: { date: { gte, lte }, level: { in: ["campaign", "adset", "ad"] } },
-      select: { level: true, objectId: true, date: true, spend: true, impressions: true, linkClicks: true, purchases: true, video3s: true, thruplays: true, conversations: true, frequency: true },
+      select: { level: true, objectId: true, date: true, spend: true, currency: true, source: true, impressions: true, linkClicks: true, purchases: true, video3s: true, thruplays: true, conversations: true, frequency: true },
     }),
     db.attributedOrder.findMany({
       where: { createdAtOms: { gte: new Date(keyMs(span) - 3 * 3_600_000), lt: new Date(keyMs(last) + 21 * 3_600_000) }, isFake: false },
@@ -172,39 +184,48 @@ export async function realSource(range: Range, today: string): Promise<Source> {
     db.creativeAsset.findMany({ where: { driveFileId: { not: null } }, select: { crCode: true, driveFileId: true } }),
     db.videoBankItem.findMany({ where: { driveFileId: { not: null } }, select: { driveFileId: true, vName: true, job: true } }),
     db.productAlias.findMany({ select: { productCode: true, alias: true } }),
+    spendConverter(),
+    loadProductMarkets(),
   ]);
   // U-08: a product is written by its Arabic name (the OMS name, else an Arabic alias)
   const labels = productLabels(econ, aliasRows);
+  // v6 · P11: a budget is in the account's currency; the table is dollars (no rate: no budget shown, never a foreign figure with a «$»)
+  const budgetIn = (v: unknown, currency: string): number | null => (v === null || v === undefined ? null : toUsd(String(v), currency, money.rates).usd?.toDecimalPlaces(2).toNumber() ?? null);
 
   return {
     demo: false,
+    markets,
     videoOf: videoMap(assets, bank),
     products: econ.map((e) => toProduct({ ...e, name: nameOf(labels, e.productCode) })),
     campaigns: campaigns.map((c) => ({
       id: c.metaId,
       name: c.name,
       status: statusOf(c.status),
-      market: c.account.market ?? "SY",
+      market: campaignMarket(c.parsedMarket, c.account.market) ?? "",
       productCode: c.productCode,
       stage: c.stage,
       namingOk: c.namingOk,
-      budget: c.dailyBudget === null ? null : Number(c.dailyBudget),
+      foreign: !currencyGate(c.account.currency).ok,
+      budget: budgetIn(c.dailyBudget, c.account.currency),
       start: c.startTime?.toISOString() ?? null,
       adsets: c.adsets.map((s) => ({
         id: s.metaId,
         name: s.name,
         status: statusOf(s.status, s.learningStage),
         pageCode: s.pageCode,
-        budget: s.dailyBudget === null ? null : Number(s.dailyBudget),
+        budget: budgetIn(s.dailyBudget, c.account.currency),
         start: s.startTime?.toISOString() ?? null,
         ads: s.ads.map((a) => ({ id: a.metaId, name: a.name, status: statusOf(a.status), start: a.startTime?.toISOString() ?? null })),
       })),
     })),
-    insights: insights.map((r) => ({
+    insights: insights.map((r) => {
+      const dollars = money.usd(r);
+      return {
       level: r.level as Level,
       id: r.objectId,
       day: dayOf(r.date),
-      spend: Number(r.spend),
+      ...(dollars.usd === null ? { fxMissing: dollars.missing! } : {}),
+      spend: dollars.usd?.toNumber() ?? 0,
       impressions: r.impressions,
       clicks: r.linkClicks,
       purchases: r.purchases,
@@ -212,7 +233,8 @@ export async function realSource(range: Range, today: string): Promise<Source> {
       thru: r.thruplays,
       conversations: r.conversations,
       frequency: Number(r.frequency),
-    })),
+      };
+    }),
     orders: orders.map((o) => ({ adId: o.adId, adSetId: o.adSetId, campaignId: o.campaignId, day: ammanKey(o.createdAtOms), status: o.status, matureAt: o.matureAt.getTime(), messaging: o.channel !== "website" })),
   };
 }
@@ -289,22 +311,28 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
   const roots: Node[] = src.campaigns.map((c) => ({ id: c.id, level: "campaign", children: c.adsets.map((s) => ({ id: s.id, level: "adset", children: s.ads.map((a) => ({ id: a.id, level: "ad", children: [] })) })) }));
   const facts = indexFacts(roots, src.insights, src.orders, now.getTime());
 
+  const markets = src.markets ?? productMarkets(src.campaigns.map((c) => ({ code: c.productCode, market: c.market })), new Map(src.products.map((p) => [p.code, p.market])));
+
   const rows: TableRow[] = src.campaigns.map((c) => {
-    const p = c.productCode ? products.get(c.productCode) : undefined;
+    const own = c.productCode ? products.get(c.productCode) : undefined;
+    // v6 · P11: the product's prices belong to its home market — a campaign of another market is not judged with them
+    const p = own && !own.moneyMissing && markets.isHome(own.code, c.market || null) ? own : undefined;
     const t = p ? targetsOf(p) : null;
     const margin = t?.margin ?? null;
     const parsed = parseCampaignName(c.name);
     const isTest = stageIsTest(c.stage ?? parsed?.stage ?? null);
     const breakeven = ctx.breakeven(c.productCode);
-    const product = p ? { code: p.code, name: p.name } : null;
+    const product = own ? { code: own.code, name: marketName(own.name, markets.keyOf(own.code, c.market || null), markets) } : null;
 
     const measure = (level: Level, id: string) => {
       const cur = facts.counted(level, id, W.cur);
       const view = viewOf(cur.counts, p);
       const before = facts.counted(level, id, W.prev);
       const k = cur.counts;
+      const missingRates = mergeMissing(cur.counts.fxMissing, before.counts.fxMissing);
       return {
         view,
+        missingRates,
         m: metricsOf(cur, view, margin),
         prev: metricsOf(before, viewOf(before.counts, p), margin),
         spendToday: fee(facts.spendOf(level, id, W.today)),
@@ -325,7 +353,7 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
           decoded: pa ? [videoLine(pa.creativeCode, src.videoOf), `خطّاف ${pa.hookCode}`, `زاوية ${pa.angleCode}`, `صفحة هبوط ${pa.lpCode}`] : null,
           counts: x.counts, view: x.view, tOrder: t?.tOrder ?? null,
           pages: page ? [page] : [], isTest, startTime: a.start ?? s.start ?? c.start, days: daysRunning(a.start ?? s.start ?? c.start, today),
-          spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: null, m: x.m, prev: x.prev, breakeven,
+          spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: null, m: x.m, prev: x.prev, breakeven, missingRates: x.missingRates,
           creativeCode: pa?.creativeCode ?? null, codes: pa ? `${pa.hookCode} · ${pa.angleCode} · ${pa.lpCode}` : null, children: [],
         };
       });
@@ -334,10 +362,10 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
       return {
         id: s.id, level: "adset", name: s.name, status: s.status, product, market: c.market,
         decoded: ps ? [ps.audience === "BROAD" ? "جمهور واسع" : ps.audience, `صفحة ${ps.pageCode}`, `مفهوم ${ps.conceptId}`] : null,
-        learning: { events, of: 50 }, budget: s.budget ?? undefined, canScale: s.budget !== null && s.budget > 0,
+        learning: { events, of: 50 }, budget: s.budget ?? undefined, canScale: !c.foreign && s.budget !== null && s.budget > 0,
         counts: x.counts, view: x.view, tOrder: t?.tOrder ?? null,
         pages: page ? [page] : [], isTest, startTime: s.start ?? c.start, days: daysRunning(s.start ?? earliest(s.ads.map((a) => a.start)) ?? c.start, today),
-        spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: s.ads.length, m: x.m, prev: x.prev, breakeven,
+        spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: s.ads.length, m: x.m, prev: x.prev, breakeven, missingRates: x.missingRates,
         creativeCode: null, codes: null, children: ads.sort(byCost),
       };
     });
@@ -347,19 +375,21 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
     const budget = c.budget ?? (sumBudgets > 0 ? sumBudgets : null);
     return {
       id: c.id, level: "campaign", name: c.name, status: c.status, product, market: c.market,
-      decoded: parsed ? [MARKET_AR[parsed.market], p?.name ?? parsed.productCode, OBJECTIVE_AR[parsed.objective], STAGE_AR[parsed.stage]] : null,
-      needsNaming: !c.namingOk, budget: budget ?? undefined, canScale: c.budget !== null && c.budget > 0,
+      decoded: parsed ? [MARKET_AR[parsed.market], own?.name ?? parsed.productCode, OBJECTIVE_AR[parsed.objective], STAGE_AR[parsed.stage]] : null,
+      needsNaming: !c.namingOk, budget: budget ?? undefined, canScale: !c.foreign && c.budget !== null && c.budget > 0,
       counts: x.counts, view: x.view, tOrder: t?.tOrder ?? null,
       pages: [...new Set(c.adsets.map((s) => s.pageCode ?? parseAdSetName(s.name)?.pageCode ?? null).filter((v): v is string => !!v))],
       isTest, startTime: c.start, days: daysRunning(c.start ?? earliest([...c.adsets.map((s) => s.start), ...c.adsets.flatMap((s) => s.ads.map((a) => a.start))]), today),
-      spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: c.adsets.reduce((n, s) => n + s.ads.length, 0), m: x.m, prev: x.prev, breakeven,
+      spendToday: x.spendToday, spendYesterday: x.spendYesterday, adsCount: c.adsets.reduce((n, s) => n + s.ads.length, 0), m: x.m, prev: x.prev, breakeven, missingRates: x.missingRates,
       creativeCode: null, codes: null, children: adsets.sort(byCost),
     };
   });
   rows.sort((a, b) => (b.m.spend ?? -1) - (a.m.spend ?? -1) || a.name.localeCompare(b.name));
 
+  // the product filter is by code: one entry per product, under its plain name
   const seen = new Map<string, string>();
-  for (const r of rows) if (r.product) seen.set(r.product.code, r.product.name);
+  for (const r of rows) if (r.product) seen.set(r.product.code, products.get(r.product.code)!.name);
+  const missingRates = mergeMissing(...rows.map((r) => r.missingRates));
   return {
     demo: src.demo,
     range,
@@ -368,7 +398,9 @@ export function assembleTable(src: Source, range: Range, now: Date, ctx: Ctx): A
     rows,
     products: [...seen].map(([code, name]) => ({ code, name })),
     pages: [...new Set(rows.flatMap((r) => r.pages))].sort(),
-    share: testShareOf(rows.map((r) => ({ isTest: r.isTest, spend: r.m.spend })), ctx.testLimit),
+    // a campaign whose spend is unknown makes the share unknown, not smaller
+    share: missingRates.length ? { ...testShareOf([], ctx.testLimit) } : testShareOf(rows.map((r) => ({ isTest: r.isTest, spend: r.m.spend })), ctx.testLimit),
+    missingRates,
     target: ctx.target,
     stepPct: ctx.stepPct,
     rulesMissing: ctx.rulesMissing,

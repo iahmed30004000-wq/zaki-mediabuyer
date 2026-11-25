@@ -4,7 +4,9 @@
  * a change with spend waiting for approval). The sending (`queueAlerts`) writes a notice for every unsent danger/warning
  * alert, and the one sender (src/jobs/notify-dispatch.ts) takes it from there. Info alerts stay on the site.
  */
+import { BASE_CURRENCY } from "@/core/currency";
 import { db } from "@/server/db";
+import { spendConverter } from "@/server/money";
 import { envProblems, omsLinked } from "@/server/env";
 import { detect, reading, type AlertFacts, type Signal } from "@/core/alerts";
 import { alertNotice } from "@/core/notify-plan";
@@ -18,15 +20,32 @@ function ammanHour(now: Date) {
   return Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Amman", hour: "2-digit", hour12: false }).format(now));
 }
 
+const unitOf = (currency: string | undefined) => (currency && currency !== BASE_CURRENCY ? { unit: currency } : {});
+
 export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);
-  const todayRows = await db.insightDaily.findMany({ where: { level: "ad", date: today }, select: { objectId: true, impressions: true, spend: true, purchases: true } });
+  const todayRows = await db.insightDaily.findMany({ where: { level: "ad", date: today }, select: { objectId: true, impressions: true, spend: true, currency: true, source: true, purchases: true } });
   const imp = new Map(todayRows.map((r) => [r.objectId, r.impressions]));
   const adsets = await db.adSet.findMany({ where: { status: "ACTIVE", dailyBudget: { gt: 0 }, campaign: { status: "ACTIVE" } }, select: { metaId: true, name: true, dailyBudget: true, ads: { where: { status: "ACTIVE" }, select: { metaId: true } } } });
-  const week = await db.insightDaily.groupBy({ by: ["date"], where: { level: "ad", date: { gte: new Date(today.getTime() - 7 * DAY), lt: today } }, _sum: { spend: true, impressions: true } });
+  const weekRows = await db.insightDaily.findMany({ where: { level: "ad", date: { gte: new Date(today.getTime() - 7 * DAY), lt: today } }, select: { objectId: true, date: true, impressions: true, spend: true, currency: true, source: true } });
   const impressionsToday = todayRows.reduce((n, r) => n + r.impressions, 0);
-  const spendToday = todayRows.reduce((n, r) => n + Number(r.spend), 0);
+  // v6 · P11: the CPM is dollars; a row with no rate leaves both its spend and its impressions out of it
+  const money = await spendConverter();
+  const cpmOf = (rows: typeof weekRows) => {
+    let spend = 0;
+    let impressions = 0;
+    for (const r of rows) {
+      const c = money.usd(r);
+      if (c.usd === null) continue;
+      spend += c.usd.toNumber();
+      impressions += r.impressions;
+    }
+    return { impressions, cpm: impressions ? (spend / impressions) * 1000 : null };
+  };
+  const days = new Map<number, typeof weekRows>();
+  for (const r of weekRows) days.set(r.date.getTime(), [...(days.get(r.date.getTime()) ?? []), r]);
+  const cpmToday = cpmOf(todayRows.map((r) => ({ ...r, date: today }))).cpm;
   const metaAt = await lastSuccess("meta.sync");
   const omsAt = await lastSuccess("oms.sync");
   const backupAt = (await lastSuccess("db.backup")) ?? (await db.jobRun.findFirst({ orderBy: { startedAt: "asc" }, select: { startedAt: true } }))?.startedAt ?? null;
@@ -39,12 +58,12 @@ export async function gatherAlertFacts(now = new Date()): Promise<AlertFacts> {
     envProblems: envProblems().map((p) => p.name),
     repliesProblem: repliesStats && repliesStats.ok === false ? repliesStats.sentence ?? null : null,
     hour: ammanHour(now),
-    adsets: adsets.filter((s) => s.ads.length).map((s) => ({ id: s.metaId, name: s.name, dailyBudget: Number(s.dailyBudget), impressionsToday: s.ads.reduce((n, a) => n + (imp.get(a.metaId) ?? 0), 0) })),
+    adsets: adsets.filter((s) => s.ads.length).map((s) => ({ id: s.metaId, name: s.name, dailyBudget: Number(s.dailyBudget), impressionsToday: s.ads.reduce((n, a) => n + (imp.get(a.metaId) ?? 0), 0), ...unitOf(money.objects.get(s.metaId)) })),
     pixelPurchasesToday: todayRows.reduce((n, r) => n + r.purchases, 0),
     webOrdersToday: await db.attributedOrder.count({ where: { channel: "website", isFake: false, createdAtOms: { gte: today } } }),
-    cpmToday: impressionsToday ? (spendToday / impressionsToday) * 1000 : null,
+    cpmToday,
     impressionsToday,
-    cpm7: week.filter((d) => (d._sum.impressions ?? 0) >= 1000).map((d) => (Number(d._sum.spend) / (d._sum.impressions ?? 1)) * 1000),
+    cpm7: [...days.entries()].sort(([a], [b]) => a - b).map(([, rows]) => cpmOf(rows)).filter((d) => d.impressions >= 1000 && d.cpm !== null).map((d) => d.cpm!),
     metaLinked: Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim()),
     omsLinked: omsLinked(),
     metaAgeHours: metaAt ? (now.getTime() - metaAt.getTime()) / 3_600_000 : null,

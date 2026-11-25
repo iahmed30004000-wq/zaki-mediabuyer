@@ -14,6 +14,7 @@ import { DateSwitcher } from "@/components/shell/date-switcher";
 import type { ColumnKey, Filters } from "@/core/ads-table";
 import type { AdsTableData, TreeRow } from "@/lib/ads-table";
 import type { RowView } from "@/core/ads-model";
+import { marketLabel } from "@/core/markets";
 import { cn } from "@/lib/utils";
 import { AdsTable } from "./ads-table";
 import { LaunchWizard } from "./launch-wizard";
@@ -80,12 +81,15 @@ function Experiments({ list }: { list: ExperimentView[] }) {
 export type { TreeRow };
 
 export interface ProductRow {
+  /** the line's own key: the code, or the code with another market */
+  key: string;
   code: string;
   name: string;
-  market: string;
+  market: string | null;
   stockDays: number;
   view: RowView;
-  targets: { tOrder: number; tConfirmed: number; margin: number; losing: boolean; estimated: boolean };
+  /** null for a market the product has no economics for */
+  targets: { tOrder: number; tConfirmed: number; margin: number; losing: boolean; estimated: boolean } | null;
 }
 
 const TABS = [
@@ -155,11 +159,11 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
       {products.map((p) => {
         const winner = p.view.profitPerDelivered !== null && p.view.profitPerDelivered > 0;
         return (
-          <Panel key={p.code} className="space-y-3">
+          <Panel key={p.key} className="space-y-3">
             <div className="flex items-center gap-2">
               <p className="font-semibold text-fg">{p.name}</p>
               <span dir="ltr" className="tabular-nums text-sm text-fg-muted">{p.code}</span>
-              <span className="text-sm text-fg-muted">· {p.market === "SY" ? "سوريا" : "الأردن"}</span>
+              <span className="text-sm text-fg-muted">· {marketLabel(p.market)}</span>
               <span className={cn("ms-auto rounded-md px-1.5 py-0.5 text-sm font-semibold", winner ? "bg-ok/10 text-ok" : p.view.delivered ? "bg-warn/10 text-warn" : "bg-surface-2 text-fg-muted")}>
                 {winner ? "رابح" : p.view.delivered ? "خاسر لهلأ" : "بيانات غير كافية"}
               </span>
@@ -173,7 +177,7 @@ function ProductsTruth({ products }: { products: ProductRow[] }) {
               <div><dt className="text-fg-muted">ربح المُسلَّم</dt><dd><Num value={p.view.profitPerDelivered} unit="$" term="profitDelivered" tone={winner ? "ok" : undefined} /></dd></div>
             </dl>
             <p className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-sm text-fg-muted">
-              هدف الطلب <Num value={p.targets.tOrder} unit="$" term="tOrder" source={p.targets.estimated ? "estimate" : "truth"} />
+              هدف الطلب <Num value={p.targets?.tOrder ?? null} unit="$" term="tOrder" source={p.targets?.estimated === false ? "truth" : "estimate"} />
               <span>· المخزون {p.stockDays} يوم{p.stockDays < 5 ? " (التكبير مجمّد)" : ""}</span>
             </p>
           </Panel>
