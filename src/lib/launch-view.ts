@@ -17,7 +17,8 @@ export interface LaunchOptions {
   /** false = the demo: the wizard shows everything but nothing is proposed */
   live: boolean;
   products: { code: string; name: string; market: string; tOrder: number; estimated: boolean; stockDays: number | null }[];
-  creatives: { code: string; product: string; label: string }[];
+  /** `accountMetaId`: the account the video was uploaded to, null when nobody recorded it; absent in the demo */
+  creatives: { code: string; product: string; label: string; accountMetaId?: string | null }[];
   /** `market` null: the owner set none on the account */
   accounts: { metaId: string; name: string; market: string | null; currency: string }[];
   pages: { metaId: string; code: string; name: string }[];
@@ -52,7 +53,7 @@ export async function loadLaunchOptions(): Promise<LaunchOptions> {
   return {
     live: true,
     products,
-    creatives: assets.map((a) => ({ code: a.crCode, product: a.productCode ?? "", label: [a.hookType, a.angle, a.conceptId, a.durationS ? `${Number(a.durationS).toFixed(0)}ث` : null].filter(Boolean).join(" · ") })),
+    creatives: assets.map((a) => ({ code: a.crCode, product: a.productCode ?? "", accountMetaId: a.metaAccountId, label: [a.hookType, a.angle, a.conceptId, a.durationS ? `${Number(a.durationS).toFixed(0)}ث` : null].filter(Boolean).join(" · ") })),
     accounts: accounts.map((a) => ({ metaId: a.metaId, name: a.name, market: a.market, currency: a.currency })),
     pages: pages.map((p) => ({ metaId: p.metaId, code: p.code!, name: p.name })),
     datasets: datasets.map((d) => ({ metaId: d.metaId, name: d.name })),

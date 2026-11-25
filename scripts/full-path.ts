@@ -60,7 +60,7 @@ const step = (n: number, ok: boolean, label: string) => {
 
   // 3: the upload — dry-run sends nothing; Meta's video id is stood in
   const up = await uploadVideo({ token: "none" }, "dry_run", "act_1029", file, asset.fileName!);
-  await db.creativeAsset.update({ where: { id: asset.id }, data: { metaVideoId: `dry_v_${cr}`, status: "uploaded", conceptId: "CPT0077", hookType: "H07", angle: "HER" } });
+  await db.creativeAsset.update({ where: { id: asset.id }, data: { metaVideoId: `dry_v_${cr}`, metaAccountId: "act_1029", status: "uploaded", conceptId: "CPT0077", hookType: "H07", angle: "HER" } });
   step(3, up.status === "dry_run", `upload → ${up.status} (stand-in video id dry_v_${cr})`);
 
   // 4–7: the launch: one ChangeSet, approval, created PAUSED, verified, switched on

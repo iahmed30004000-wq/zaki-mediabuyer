@@ -67,10 +67,12 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
 
   const p = options.products.find((x) => x.code === product);
   const tpl = TEMPLATES.find((t) => t.key === template);
-  // never «the first account»: with two of the product's market (or none) the owner picks (src/core/launch-guard.ts)
-  const choices = p ? accountChoices(options.accounts, p.market) : null;
-  const account = choices?.options.find((a) => a.metaId === (picks || choices.preselected));
   const ready = options.creatives.filter((c) => c.product === product);
+  // never «the first account»: with two of the product's market (or none) the owner picks, among the accounts that hold the chosen videos (src/core/launch-guard.ts)
+  const videos = options.live ? ready.filter((c) => picked.includes(c.code)).map((c) => c.accountMetaId ?? null) : undefined;
+  const choices = p ? accountChoices(options.accounts, p.market, videos) : null;
+  const account = choices?.options.find((a) => a.metaId === (picks || choices.preselected));
+  const accountName = (metaId: string | null | undefined) => (metaId ? options.accounts.find((a) => a.metaId === metaId)?.name ?? metaId : null);
   const perSet = p && tpl ? tpl.budget(p.tOrder) : 0;
   const daily = preview?.perDay ?? (tpl?.key === "SCALE" ? perSet : perSet * Math.max(1, picked.length));
   const localName = useMemo(() => (p && tpl ? nextFreeCampaignName({ market: p.market as Market, productCode: p.code, objective: "WEB", stage: tpl.key, date: yymmdd(new Date()) }, []) : ""), [p, tpl]);
@@ -214,6 +216,7 @@ export function LaunchWizard({ open, onOpenChange, options }: { open: boolean; o
                       <span className={cn("inline-flex size-5 items-center justify-center rounded border", on ? "border-accent bg-accent text-accent-fg" : "border-border")}>{on ? <Check className="size-3.5" /> : null}</span>
                       <span dir="ltr" className="tabular-nums text-fg">{c.code}</span>
                       <span className="text-sm text-fg-muted">{c.label}</span>
+                      {accountName(c.accountMetaId) ? <span className="ms-auto text-sm text-fg-muted">على {accountName(c.accountMetaId)}</span> : null}
                     </span>
                   </Tap>
                 );

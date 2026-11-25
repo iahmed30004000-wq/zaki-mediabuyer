@@ -60,7 +60,7 @@ export default async function RulesPage() {
   return (
     <div className="space-y-4">
       <RuleCard id="money" title="السقوف وتوزيع الميزانية" summary="ولا دولار فوق السقف، ولا حملة جديدة بلا سقف معروف">
-        {edit ? <CapsEditor accounts={edit.accounts} split={edit.split} /> : <p className="text-sm text-fg-muted">السقوف بتنكتب لما يشتغل الموقع على البيانات الحقيقية.</p>}
+        {edit ? <CapsEditor accounts={edit.accounts} split={edit.split} uploadAccounts={edit.uploadAccounts} /> : <p className="text-sm text-fg-muted">السقوف بتنكتب لما يشتغل الموقع على البيانات الحقيقية.</p>}
       </RuleCard>
 
       <RuleCard

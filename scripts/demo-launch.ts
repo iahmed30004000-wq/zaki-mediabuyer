@@ -32,8 +32,8 @@ const check = (ok: boolean, label: string) => {
   for (const [cr, concept, hook, angle] of [["CR09147", "CPT0012", "H07", "HER"], ["CR09152", "CPT0012", "H03", "ING"], ["CR09160", "CPT0015", "H01", "PRB"]] as const) {
     await db.creativeAsset.upsert({
       where: { crCode: cr },
-      create: { crCode: cr, productCode: "TRF01", source: "manual", status: "uploaded", policyFlag: "green", metaVideoId: `dry_v_${cr}`, conceptId: concept, hookType: hook, angle },
-      update: { status: "uploaded", policyFlag: "green", metaVideoId: `dry_v_${cr}`, conceptId: concept, hookType: hook, angle },
+      create: { crCode: cr, productCode: "TRF01", source: "manual", status: "uploaded", policyFlag: "green", metaVideoId: `dry_v_${cr}`, metaAccountId: "act_1029", conceptId: concept, hookType: hook, angle },
+      update: { status: "uploaded", policyFlag: "green", metaVideoId: `dry_v_${cr}`, metaAccountId: "act_1029", conceptId: concept, hookType: hook, angle },
     });
   }
   const input: LaunchInput = {

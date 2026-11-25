@@ -567,6 +567,8 @@ model CreativeAsset {
   /// md5 duplicate of this CR code (the file went to `excluded`, never deleted)
   dupOf         String?
   metaVideoId   String?
+  /// v6 P11: the ad account `metaVideoId` was uploaded to (Meta's `act_…`). Null: uploaded before the column, or nobody recorded it
+  metaAccountId String?
   thumbnailHash String?
   probe         Json?
   createdAt     DateTime             @default(now())
