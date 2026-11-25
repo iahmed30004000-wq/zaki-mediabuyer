@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z, type ZodType } from "zod";
 import { errorResponse, HttpError, requireCapability } from "@/server/auth";
 import { setSetting, type SettingKey } from "@/server/settings";
+import { MARKETS } from "@/core/naming";
 import { isDemo } from "@/core/readiness";
 
 const money = z.number().finite().min(0).max(100_000);
@@ -18,6 +19,7 @@ const EDITABLE: Partial<Record<SettingKey, ZodType>> = {
     .max(60)
     .refine((list) => new Set(list.map((l) => `${l.productCode}:${l.lpCode}`)).size === list.length, "نفس صفحة الهبوط مكررة لنفس المنتج"),
   "capi.purchase_on": z.enum(["confirmed", "delivered"]),
+  "creative.upload_accounts": z.partialRecord(z.enum(MARKETS), z.string().regex(/^act_[A-Za-z0-9_]{1,60}$/)),
   "agents.daily_caps": z.record(z.string().regex(/^[MH]\d{2}$/), z.number().min(0).max(50)),
   "agents.monthly_cap": z.number().min(0).max(1000),
 };

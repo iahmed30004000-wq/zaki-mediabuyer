@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS = {
   "economics.default_D": 0.75,
   /** v6 · P11 — the owner's exchange rates: how many units of a currency make one dollar, and when he wrote it. The pegged defaults live in src/core/currency.ts */
   "currency.rates": {} as OwnerRates,
+  /** v6 · P11 — market → the ad account (`act_…`) its videos are uploaded to, when the owner has more than one that could take them (src/core/launch-guard.ts) */
+  "creative.upload_accounts": {} as Record<string, string>,
   /** v6 · P11 — product codes the last OMS pull found saying two different things (src/core/markets.ts) */
   "oms.product_conflicts": [] as ProductConflict[],
   "truth.confirm_window_h": 24,

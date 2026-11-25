@@ -3,10 +3,15 @@
  * market, under its registry name, by the resumable API; the asset becomes `uploaded` once Meta says the video is
  * ready. A failure retries on the next run; after 5 attempts the video is marked dead and the owner is alerted.
  * Dry-run (META_WRITE_MODE ≠ live): nothing is sent, the asset stays `ready`.
+ *
+ * v6 · P11: with more than one account that could take a market's videos the owner says which (`creative.upload_accounts`);
+ * until then they wait and he is told once — never «the first account». The account is written beside the video id.
  */
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { uploadAccount } from "@/core/launch-guard";
 import { db } from "@/server/db";
+import { getSetting } from "@/server/settings";
 import { writeMode } from "@/meta/write";
 import { metaWriteGate } from "@/core/readiness";
 import { uploadVideo } from "@/meta/video-upload";
@@ -14,34 +19,49 @@ import { metaToken } from "./meta-sync";
 import { storageDir } from "./creative-intake";
 
 const MAX_ATTEMPTS = 5;
+/** How many waiting videos one run looks through: the ones that wait for the owner's choice must not hold the others back. */
+const LOOK_AT = 200;
+/** The same «choose an account» sentence is not said again for this long. */
+const REMIND_MS = 7 * 86_400_000;
 
-export async function uploadReadyCreatives(limit = 10) {
+export async function uploadReadyCreatives(limit = 10, now = new Date()) {
   // live asked for but not allowed (no META_LIVE_VERIFIED / no token): stop with the sentence, do not pretend it was a dry-run
   const gate = metaWriteGate(process.env, !!(await metaToken()));
   if (gate.error) throw new Error(gate.error);
   const mode = writeMode();
   const token = mode === "live" ? await metaToken() : null;
-  const assets = await db.creativeAsset.findMany({ where: { status: "ready", metaVideoId: null }, take: limit, orderBy: { dateIn: "asc" } });
-  const stats = { candidates: assets.length, uploaded: 0, waiting: 0, failed: 0, dryRun: mode !== "live" || !token };
+  const assets = await db.creativeAsset.findMany({ where: { status: "ready", metaVideoId: null }, take: LOOK_AT, orderBy: { dateIn: "asc" } });
+  const stats = { candidates: assets.length, uploaded: 0, waiting: 0, failed: 0, unplaced: 0, dryRun: mode !== "live" || !token };
   if (stats.dryRun) return stats;
 
+  const accounts = await db.adAccount.findMany({ select: { metaId: true, name: true, market: true, currency: true } });
+  const stored = await getSetting("creative.upload_accounts");
+  const chosen = stored && typeof stored === "object" ? stored : {};
+  const reasons = new Set<string>();
+  let tried = 0;
   for (const a of assets) {
+    if (tried >= limit) break;
     const file = a.fileName ? path.join(storageDir(), a.crCode, a.fileName) : null;
     if (!file || !existsSync(file)) {
       stats.failed++;
       continue;
     }
     const product = a.productCode ? await db.productEconomics.findUnique({ where: { productCode: a.productCode } }) : null;
-    const account = (product && (await db.adAccount.findFirst({ where: { market: product.market } }))) ?? (await db.adAccount.findFirst());
-    if (!account) break;
+    const target = uploadAccount(accounts, product?.market ?? null, chosen);
+    if ("why" in target) {
+      stats.unplaced++;
+      reasons.add(target.why);
+      continue;
+    }
+    tried++;
     const attempts = Number((a.notes ?? "").match(/upload_attempts=(\d+)/)?.[1] ?? 0);
     try {
-      const r = await uploadVideo({ token: token! }, mode, account.metaId, file, a.fileName!);
+      const r = await uploadVideo({ token: token! }, mode, target.metaId, file, a.fileName!);
       if (r.status === "ready") {
-        await db.creativeAsset.update({ where: { id: a.id }, data: { metaVideoId: r.videoId, status: "uploaded" } });
+        await db.creativeAsset.update({ where: { id: a.id }, data: { metaVideoId: r.videoId, metaAccountId: target.metaId, status: "uploaded" } });
         stats.uploaded++;
       } else {
-        await db.creativeAsset.update({ where: { id: a.id }, data: { metaVideoId: r.videoId } });
+        await db.creativeAsset.update({ where: { id: a.id }, data: { metaVideoId: r.videoId, metaAccountId: target.metaId } });
         stats.waiting++;
       }
     } catch (e) {
@@ -51,6 +71,10 @@ export async function uploadReadyCreatives(limit = 10) {
       await db.creativeAsset.update({ where: { id: a.id }, data: { notes, ...(next >= MAX_ATTEMPTS ? { status: "dead" } : {}) } });
       if (next >= MAX_ATTEMPTS) await db.alert.create({ data: { kind: "creative.upload_dead", tone: "warn", text: `${a.crCode} ما انرفع لميتا بعد ${MAX_ATTEMPTS} محاولات: ${String(e).slice(0, 160)}`, href: "/ads/videos" } });
     }
+  }
+  for (const text of reasons) {
+    const said = await db.alert.findFirst({ where: { kind: "creative.upload_account", text, createdAt: { gte: new Date(now.getTime() - REMIND_MS) } }, select: { id: true } });
+    if (!said) await db.alert.create({ data: { kind: "creative.upload_account", tone: "warn", text, href: "/settings/rules#money" } });
   }
   return stats;
 }

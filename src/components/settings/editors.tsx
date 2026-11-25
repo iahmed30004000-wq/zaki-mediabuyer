@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, KeyRound, Plus, ShieldCheck, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input, Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { Panel } from "@/components/mb/section";
@@ -45,7 +46,7 @@ const num = (v: string) => (v.trim() === "" ? NaN : Number(v));
 
 // ───────────────────────────── money: caps and the split ─────────────────────────────
 
-export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "split">) {
+export function CapsEditor({ accounts, split, uploadAccounts }: Pick<EditView, "accounts" | "split" | "uploadAccounts">) {
   const { save, busy } = useSave();
   const [caps, setCaps] = useState(() => Object.fromEntries(accounts.map((a) => [a.metaId, { d: String(a.dailyCap ?? ""), m: String(a.monthlyCap ?? "") }])));
   const [sp, setSp] = useState({ scale: String(Math.round(split.scale * 100)), test: String(Math.round(split.test * 100)), new: String(Math.round(split.new * 100)) });
@@ -62,6 +63,19 @@ export function CapsEditor({ accounts, split }: Pick<EditView, "accounts" | "spl
               {MARKETS.map((m) => <option key={m} value={m}>{MARKET_AR[m]}</option>)}
             </Select>
           </label>
+          {a.market ? (
+            <Checkbox
+              label={`ارفع فيديوهات سوق ${marketLabel(a.market)} على هالحساب`}
+              checked={uploadAccounts[a.market] === a.metaId}
+              disabled={busy}
+              onChange={(e) => {
+                const next = { ...uploadAccounts };
+                if (e.target.checked) next[a.market!] = a.metaId;
+                else delete next[a.market!];
+                void save("/api/settings/creative.upload_accounts", { value: next }, "حساب رفع الفيديوهات انحفظ");
+              }}
+            />
+          ) : null}
           {a.currency !== "USD" ? <p className="text-sm text-warn">هالحساب بعملة {a.currency}: السقوف بعملته، والموقع ما بينشئ فيه ولا بيغيّر ميزانية (الإيقاف والتشغيل شغّالين).</p> : null}
           <div className="grid grid-cols-2 gap-2">
             <label><Label>السقف اليومي {a.currency === "USD" ? "$" : a.currency}</Label><Input dir="ltr" inputMode="decimal" value={caps[a.metaId]!.d} onChange={(e) => setCaps({ ...caps, [a.metaId]: { ...caps[a.metaId]!, d: e.target.value } })} /></label>

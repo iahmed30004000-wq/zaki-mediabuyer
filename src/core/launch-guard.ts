@@ -62,16 +62,53 @@ export function accountProblem(account: Pick<LaunchAccount, "market" | "currency
 }
 
 /**
- * The accounts offered for a product's market. Never «the first one»: one is preselected only when it is the single account of that market, or — when no
- * account carries the market — the single account that could take it at all. Two accounts of one market, or none, and the owner picks.
+ * Whether a video can be used by a launch on this account. Meta's documentation says a video is uploaded INTO one ad account's library and says nothing about
+ * using it from another, so none is assumed: a launch takes the videos of its own account. A video nobody recorded an account for is taken only when there is
+ * a single account it could be in.
  */
-export function accountChoices(accounts: readonly LaunchAccount[], market: string): AccountChoice {
+export function videoProblem(videoAccount: string | null, accountMetaId: string, accounts: number): string | null {
+  if (videoAccount) return videoAccount === accountMetaId ? null : "مرفوع على حساب إعلاني تاني";
+  return accounts === 1 ? null : "ما منعرف على أي حساب انرفع، وعندك أكتر من حساب";
+}
+
+/**
+ * The accounts offered for a product's market (and, when they are given, for the accounts the chosen videos were uploaded to). Never «the first one»: one is
+ * preselected only when it is the single account of that market, or — when no account carries the market — the single account that could take it at all.
+ * Two accounts of one market, or none, and the owner picks.
+ */
+export function accountChoices(accounts: readonly LaunchAccount[], market: string, videos?: readonly (string | null)[]): AccountChoice {
   const fits = accounts.filter((a) => !accountProblem(a, market));
-  const own = fits.filter((a) => a.market === market);
-  const options = [...own, ...fits.filter((a) => a.market !== market)];
+  const holding = videos ? fits.filter((a) => videos.every((v) => !videoProblem(v, a.metaId, accounts.length))) : fits;
+  const own = holding.filter((a) => a.market === market);
+  const options = [...own, ...holding.filter((a) => a.market !== market)];
   const preselected = own.length === 1 ? own[0]!.metaId : own.length === 0 && options.length === 1 ? options[0]!.metaId : null;
-  const none = options.length ? null : accounts.length ? `ما في حساب إعلاني بالدولار لسوق ${marketLabel(market)} — حدّد سوق الحساب بالإعدادات ← القواعد` : "ما في حساب إعلاني مربوط";
+  const none = options.length
+    ? null
+    : !accounts.length
+      ? "ما في حساب إعلاني مربوط"
+      : !fits.length
+        ? `ما في حساب إعلاني بالدولار لسوق ${marketLabel(market)} — حدّد سوق الحساب بالإعدادات ← القواعد`
+        : "الفيديوهات المختارة مش كلها مرفوعة على حساب واحد بينفع لهالإطلاق — اختار فيديوهات من نفس الحساب";
   return { options, preselected, none };
+}
+
+/**
+ * The account a ready video is uploaded to: the one the owner chose for the product's market, else the single one there is to choose (a dollar account first —
+ * only it can launch). More than one and no choice of his: the video waits, with the sentence. Never «the first one».
+ */
+export function uploadAccount(accounts: readonly LaunchAccount[], market: string | null, chosen: Readonly<Record<string, string>>): { metaId: string } | { why: string } {
+  if (!accounts.length) return { why: "ما في حساب إعلاني مربوط — الفيديوهات الجاهزة مستنية" };
+  const allowed = market ? accounts.filter((a) => !a.market || a.market === market) : [...accounts];
+  const picked = market ? allowed.find((a) => a.metaId === chosen[market]) : undefined;
+  if (picked) return { metaId: picked.metaId };
+  const own = market ? allowed.filter((a) => a.market === market) : [];
+  const pool = own.length ? own : allowed;
+  const dollars = pool.filter((a) => currencyGate(a.currency).ok);
+  const last = dollars.length ? dollars : pool;
+  if (last.length === 1) return { metaId: last[0]!.metaId };
+  if (!market) return { why: "في فيديوهات جاهزة بلا منتج معروف، وعندك أكتر من حساب إعلاني — حدّد منتجها لتنرفع" };
+  if (!last.length) return { why: `ما في حساب إعلاني لسوق ${marketLabel(market)} — حدّد سوق الحساب بالإعدادات ← القواعد ← السقوف، لترتفع فيديوهاته` };
+  return { why: `في أكتر من حساب إعلاني لسوق ${marketLabel(market)} — اختار حساب رفع الفيديوهات بالإعدادات ← القواعد ← السقوف` };
 }
 
 export function datasetProblem(datasetId: string, known: string[]): string | null {

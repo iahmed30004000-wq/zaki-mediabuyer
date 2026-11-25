@@ -11,7 +11,7 @@ import { propose } from "./changes";
 import { can } from "@/core/roles";
 import { checkPolicy } from "@/core/policy";
 import { missingRateText } from "@/core/currency";
-import { accountProblem, datasetProblem, landingProblem, type LandingPage } from "@/core/launch-guard";
+import { accountProblem, datasetProblem, landingProblem, videoProblem, type LandingPage } from "@/core/launch-guard";
 import { estimateTargets } from "@/core/economics";
 import { nextFreeCampaignName, parseCampaignName, yymmdd, type Market } from "@/core/naming";
 import { launchDailySpend, launchItems, TEMPLATES, type LaunchCreative, type LaunchRequest, type TemplateKey } from "@/core/templates";
@@ -75,8 +75,12 @@ export async function prepareLaunch(input: LaunchInput) {
   if (dataset) problems.push(dataset);
 
   const assets = await db.creativeAsset.findMany({ where: { crCode: { in: input.crCodes } } });
+  const accounts = await db.adAccount.count();
   for (const cr of input.crCodes) {
     const a = assets.find((x) => x.crCode === cr);
+    // a video belongs to the account it was uploaded to (src/core/launch-guard.ts)
+    const elsewhere = a?.metaVideoId ? videoProblem(a.metaAccountId, input.accountMetaId, accounts) : null;
+    if (elsewhere) problems.push(`${cr}: ${elsewhere}`);
     if (!a) problems.push(`${cr}: مش موجود`);
     else if (!a.metaVideoId) problems.push(`${cr}: لسا ما انرفع لميتا`);
     else if (a.policyFlag === "red" || a.status === "excluded" || a.status === "dead") problems.push(`${cr}: مستبعد (${a.policyNote ?? a.status})`);

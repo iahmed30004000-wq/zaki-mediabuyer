@@ -88,6 +88,8 @@ export interface EditView {
   /** `market` null: not set · the caps are in the account's own `currency` */
   accounts: { metaId: string; name: string; market: string | null; currency: string; dailyCap: number | null; monthlyCap: number | null; payment: string | null; safetyNet: "none" | "pending" | "on" }[];
   split: { scale: number; test: number; new: number };
+  /** market → the account its videos are uploaded to, as the owner chose */
+  uploadAccounts: Record<string, string>;
   purchaseOn: "confirmed" | "delivered";
   products: { code: string; name: string; market: string; price: number; unitCost: number; deliveryFee: number; returnFee: number; codFeePct: number; confirmCost: number; stockDays: number | null; source: string; tOrder: number | null; ceiling: number | null; losing: boolean; dailyCap: number | null; /** currencies with no rate behind the OMS prices */ moneyMissing?: string | null }[];
   pages: { metaId: string; name: string; code: string | null }[];
@@ -186,6 +188,7 @@ export async function loadEditView(): Promise<EditView | null> {
     writeMode: writeMode(),
     accounts: await Promise.all((await db.adAccount.findMany({ orderBy: { name: "asc" } })).map(async (a) => ({ metaId: a.metaId, name: a.name, market: a.market, currency: a.currency, dailyCap: a.dailyCap ? Number(a.dailyCap) : null, monthlyCap: a.monthlyCap ? Number(a.monthlyCap) : null, payment: a.paymentStatus, safetyNet: await safetyNetState(a.metaId) }))),
     split: (await getSetting("budget.split")) as { scale: number; test: number; new: number },
+    uploadAccounts: (await getSetting("creative.upload_accounts")) as Record<string, string>,
     purchaseOn: String(await getSetting("capi.purchase_on")) === "delivered" ? "delivered" : "confirmed",
     products,
     pages: (await db.page.findMany({ orderBy: { name: "asc" } })).map((p) => ({ metaId: p.metaId, name: p.name, code: p.code })),
