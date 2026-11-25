@@ -7,6 +7,7 @@
  * point for a rate) is «متل ما هو» — grey, not green or red.
  */
 import type { TermKey } from "@/lib/glossary";
+import { missingRateText } from "./currency";
 import { addDays, ammanKey, eachDay, isKey, type Range } from "./dates";
 import { sourceAfter } from "./freshness";
 import { DEFAULT_CONFIRM_WINDOW_H } from "./maturity";
@@ -141,7 +142,8 @@ export function digitsOf(key: MetricKey, now: number | null, was: number | null)
 export function missingReason(key: MetricKey, set: Pick<NumbersSet, SetKey>, facts: SourceFacts): string | null {
   const spendMissing = set.spend === null;
   const ordersMissing = set.ordersIn === null;
-  const noSpend = facts.metaLinked ? "ما في صرف مسجّل للفترة" : "ميتا مش مربوطة";
+  // v6 · P11: a spend in a currency with no rate is the first reason a money figure is a dash
+  const noSpend = facts.fxMissing?.length ? missingRateText(facts.fxMissing) : facts.metaLinked ? "ما في صرف مسجّل للفترة" : "ميتا مش مربوطة";
   const noOrders = !facts.omsLinked ? "نظام الطلبات مش مربوط" : !omsFresh(facts) ? (omsPullAgeHours(facts) === null ? "ما سحبنا من نظام الطلبات لسا" : "نظام الطلبات ما انسحب من فترة") : "ما في طلبات بالفترة";
   switch (key) {
     case "spend":
@@ -248,6 +250,9 @@ export function seriesOf(key: MetricKey, toDay: string, days: number, setOf: (da
 
 export interface ProductCompare {
   code: string;
+  /** set only for a product seen in two markets: the line's own key and its market */
+  key?: string;
+  market?: string | null;
   name: string;
   /** the cost of a real order: now, was, the words */
   cost: WasNow;
@@ -261,7 +266,7 @@ export interface ProductCompare {
 
 /** The products, each with the two numbers of its row and its verdict. A product with nothing in the window is left out; the order is the one given (the loader sorts by the spend). */
 export function productCompares(
-  products: readonly { code: string; name: string; current: Pick<NumbersSet, SetKey>; prev: Pick<NumbersSet, SetKey>; breakeven: number | null; hasData: boolean }[],
+  products: readonly { code: string; key?: string; market?: string | null; split?: boolean; name: string; current: Pick<NumbersSet, SetKey>; prev: Pick<NumbersSet, SetKey>; breakeven: number | null; hasData: boolean }[],
   target: number | null,
   facts: SourceFacts,
   window: { days: number; toDay: string },
@@ -270,6 +275,7 @@ export function productCompares(
     .filter((p) => p.hasData)
     .map((p) => ({
       code: p.code,
+      ...(p.split ? { key: p.key, market: p.market } : {}),
       name: p.name,
       cost: wasNow("realCost", p.current, p.prev, [], facts, window),
       orders: wasNow("orders", p.current, p.prev, [], facts, window),
@@ -342,6 +348,8 @@ export function statDelta(def: StatLike, now: number | null | undefined, was: nu
 
 /** Why one of the 31 numbers is missing, by the group it is in: the ads' and the cost's stand on the spend, the others on the orders. */
 export function statMissing(group: string, set: Pick<NumbersSet, SetKey>, facts: SourceFacts): string {
+  // v6 · P11: a money figure that stands on a spend with no rate says so
+  if (group === "money" && facts.fxMissing?.length && set.spend === null) return missingRateText(facts.fxMissing);
   if (group === "ads" || group === "cost") {
     const spend = missingReason("spend", set, facts);
     if (spend) return spend;

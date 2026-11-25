@@ -101,7 +101,7 @@ export interface PerformanceRow {
 }
 
 /**
- * One row per (linked ad, order day) with spend or orders. Spend is Meta's, as Meta reports it (no fx fee): the
+ * One row per (linked ad, order day) with spend or orders. Spend is Meta's in dollars at the owner's rates, without the card fee (src/jobs/studio-performance.ts): the
  * studio only compares scripts with each other. Fake orders never reach here. No customer field exists in a row.
  */
 export function performanceRows(ads: readonly LinkedAd[], spend: readonly SpendDay[], orders: readonly OrderDay[]): PerformanceRow[] {

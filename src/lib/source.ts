@@ -3,8 +3,11 @@
  * database — Meta's archive (InsightDaily) and the OMS orders (AttributedOrder) over the last `days` days — so every
  * screen, the report and the export read real numbers through the very same calculator.
  */
+import { mergeMissing } from "@/core/currency";
+import { campaignMarket } from "@/core/markets";
 import { nameOf, productLabels } from "@/core/product-name";
 import { db } from "@/server/db";
+import { spendConverter } from "@/server/money";
 import { lastOmsSync, omsStale } from "@/jobs/oms-health";
 import { DEMO, type Account, type CampaignRow, type Counts, type Dataset, type Product, type RowStatus } from "@/lib/mock/data";
 import { forViewer } from "@/server/redact";
@@ -20,8 +23,9 @@ export function statusOf(meta: string, learning?: string | null): RowStatus {
 }
 
 /** A product's economics row as the calculator reads it. */
-export function toProduct(p: { productCode: string; name: string; market: string; price: unknown; unitCost: unknown; deliveryFee: unknown; returnFee: unknown; codFeePct: unknown; confirmCost: unknown; stockDays: number | null; source: string }): Product {
+export function toProduct(p: { productCode: string; name: string; market: string; price: unknown; unitCost: unknown; deliveryFee: unknown; returnFee: unknown; codFeePct: unknown; confirmCost: unknown; stockDays: number | null; source: string; moneyMissing?: string | null }): Product {
   return {
+    ...(p.moneyMissing ? { moneyMissing: p.moneyMissing } : {}),
     code: p.productCode, name: p.name, market: p.market as Product["market"], price: Number(p.price), unitCost: Number(p.unitCost), delivery: Number(p.deliveryFee),
     returnFee: Number(p.returnFee), codFee: Number(p.codFeePct), confirmCost: Number(p.confirmCost), stockDays: p.stockDays ?? 0, shipmentsToDate: p.source === "actual" ? 50 : 0,
   };
@@ -34,13 +38,15 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
   // The OMS answers once an hour at most; when its last real answer is over 3 h old, nothing here may say «حقيقي».
   const stale = omsStale(lastOmsSync(await db.jobRun.findMany({ where: { job: "oms.sync" }, orderBy: { startedAt: "desc" }, take: 48 })), now);
 
-  const [econ, accountsDb, campaignsDb, insights, orders, aliasRows] = await Promise.all([
+  const [econ, accountsDb, campaignsDb, insights, orders, aliasRows, money, orderMarkets] = await Promise.all([
     db.productEconomics.findMany(),
     db.adAccount.findMany(),
     db.campaign.findMany({ include: { adsets: { include: { ads: true } }, account: true } }),
-    db.insightDaily.groupBy({ by: ["objectId"], where: { level: "ad", date: { gte: since } }, _sum: { spend: true, impressions: true, linkClicks: true, video3s: true, thruplays: true, purchases: true, conversations: true } }),
+    db.insightDaily.groupBy({ by: ["objectId", "currency", "source"], where: { level: "ad", date: { gte: since } }, _sum: { spend: true, impressions: true, linkClicks: true, video3s: true, thruplays: true, purchases: true, conversations: true } }),
     db.attributedOrder.findMany({ where: { createdAtOms: { gte: since }, isFake: false, adId: { not: null } }, select: { adId: true, status: true, matureAt: true, channel: true } }),
     db.productAlias.findMany({ select: { productCode: true, alias: true } }),
+    spendConverter(),
+    db.attributedOrder.groupBy({ by: ["productCode", "market"], where: { isFake: false }, _count: { _all: true } }),
   ]);
 
   // U-08: a product is written by its Arabic name (the OMS name, else an Arabic alias)
@@ -50,11 +56,22 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
 
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);
-  const spentToday = new Map(
-    (await db.insightDaily.groupBy({ by: ["objectId"], where: { level: "ad", date: today }, _sum: { spend: true } })).map((r) => [r.objectId, Number(r._sum.spend ?? 0)]),
-  );
+  // v6 · P11: every row of spend in dollars (a row with no rate leaves its ad's spend unknown)
+  const spentToday = new Map<string, number>();
+  for (const r of await db.insightDaily.groupBy({ by: ["objectId", "currency", "source"], where: { level: "ad", date: today }, _sum: { spend: true } })) {
+    spentToday.set(r.objectId, (spentToday.get(r.objectId) ?? 0) + (money.usd({ objectId: r.objectId, spend: r._sum.spend, currency: r.currency, source: r.source }).usd?.toNumber() ?? 0));
+  }
 
-  const byAd = new Map(insights.map((i) => [i.objectId, i._sum]));
+  type Sums = { spend: number; impressions: number; linkClicks: number; video3s: number; thruplays: number; purchases: number; conversations: number; fx: string[] };
+  const byAd = new Map<string, Sums>();
+  for (const r of insights) {
+    const s = byAd.get(r.objectId) ?? { spend: 0, impressions: 0, linkClicks: 0, video3s: 0, thruplays: 0, purchases: 0, conversations: 0, fx: [] };
+    const dollars = money.usd({ objectId: r.objectId, spend: r._sum.spend, currency: r.currency, source: r.source });
+    if (dollars.usd === null) s.fx = mergeMissing(s.fx, [dollars.missing!]);
+    else s.spend += dollars.usd.toNumber();
+    for (const k of ["impressions", "linkClicks", "video3s", "thruplays", "purchases", "conversations"] as const) s[k] += r._sum[k] ?? 0;
+    byAd.set(r.objectId, s);
+  }
   const ordersByAd = new Map<string, typeof orders>();
   for (const o of orders) ordersByAd.set(o.adId!, [...(ordersByAd.get(o.adId!) ?? []), o]);
 
@@ -64,7 +81,8 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
     const mature = list.filter((o) => o.matureAt <= now);
     const messaging = list.some((o) => o.channel !== "website");
     return {
-      spend: Number(i?.spend ?? 0), impressions: i?.impressions ?? 0, clicks: i?.linkClicks ?? 0, v3s: i?.video3s ?? 0, thru: i?.thruplays ?? 0, purchases: i?.purchases ?? 0,
+      ...(i?.fx.length ? { fxMissing: i.fx } : {}),
+      spend: i?.spend ?? 0, impressions: i?.impressions ?? 0, clicks: i?.linkClicks ?? 0, v3s: i?.video3s ?? 0, thru: i?.thruplays ?? 0, purchases: i?.purchases ?? 0,
       conversations: messaging || (i?.conversations ?? 0) > 0 ? i?.conversations ?? 0 : undefined,
       orders: list.length, mature: mature.length, confirmed: mature.filter((o) => CONFIRMED.has(o.status)).length,
       shipments: list.filter((o) => SHIPPED.has(o.status)).length, delivered: list.filter((o) => o.status === "delivered").length, returned: list.filter((o) => o.status === "returned").length,
@@ -78,6 +96,7 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
     productCode: c.productCode,
     status: statusOf(c.status),
     needsNaming: !c.namingOk,
+    market: campaignMarket(c.parsedMarket, c.account.market),
     adsets: c.adsets.map((s) => ({
       id: s.metaId,
       name: s.name,
@@ -96,7 +115,8 @@ async function loadDatasetRaw(days = 7, now = new Date()): Promise<Dataset> {
     };
   });
 
-  return { products, accounts, campaigns, demo: false, omsStale: stale };
+  const seen = orderMarkets.map((o) => ({ code: o.productCode, market: o.market }));
+  return { products, accounts, campaigns, demo: false, omsStale: stale, seen };
 }
 
 /** loadDataset for a screen: without `money.view` no profit, margin, product cost or break-even leaves the server (docs/rebuild/05-permissions.md §3). */

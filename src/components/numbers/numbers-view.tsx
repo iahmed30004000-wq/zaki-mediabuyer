@@ -11,6 +11,7 @@ import { SectionTitle } from "@/components/ui/section-title";
 import { useToast } from "@/components/ui/toast";
 import { WasNow } from "@/components/ui/was-now";
 import { statDelta, statMissing } from "@/core/compare";
+import { productHref } from "@/core/markets";
 import { badgeAfter } from "@/core/freshness";
 import { GROUPS, STATS, costTone, type GroupKey, type NumbersSet, type ProductNumbers, type StatDef } from "@/core/numbers";
 import type { SourceFacts } from "@/core/numbers-readiness";
@@ -128,7 +129,7 @@ function ProductCard({ p, facts, target, query }: { p: ProductNumbers; facts: So
       </Tap>
       {open ? (
         <div className="space-y-4 border-t border-border p-4">
-          <Link href={`/numbers/products/${encodeURIComponent(p.code)}${query ? `?${query}` : ""}`} className="inline-flex min-h-11 items-center text-base font-semibold text-info hover:underline">
+          <Link href={productHref(p, query)} className="inline-flex min-h-11 items-center text-base font-semibold text-info hover:underline">
             صفحة المنتج
           </Link>
           <Six p={p} facts={facts} target={target} />
@@ -212,7 +213,7 @@ export function NumbersView({ data, facts, query, pasteDay, linkQuery }: { data:
       <section aria-label="المنتجات" className="space-y-3" data-tour="products">
         <SectionTitle>المنتجات</SectionTitle>
         {shown.map((p) => (
-          <ProductCard key={p.code} p={p} facts={facts} target={data.target} query={linkQuery} />
+          <ProductCard key={p.key ?? p.code} p={p} facts={facts} target={data.target} query={linkQuery} />
         ))}
         {!shown.length ? <p className="rounded-card border border-dashed border-border p-4 text-base text-fg-muted">ما في أرقام للفترة هاي لسا. أول ما توصل أرقام الطلبات والصرف بتطلع هون.</p> : null}
       </section>

@@ -22,7 +22,8 @@ export async function weeklyCreativeRequests(now = new Date()) {
     if (p.stockDays !== null && p.stockDays < 5) continue;
     if (await db.creativeRequest.findFirst({ where: { productCode: p.productCode, kind: "new_script", createdAt: { gte: week } } })) continue;
     const ads = await db.ad.findMany({ where: { adSet: { campaign: { productCode: p.productCode } } }, select: { metaId: true, angleCode: true, hookCode: true } });
-    const truth = await db.truthDaily.findMany({ where: { level: "ad", objectId: { in: ads.map((a) => a.metaId) }, date: { gte: since } }, select: { objectId: true, spendWithFee: true, confirmed: true } });
+    // v6 · P11: a day whose spend is unknown (no exchange rate) takes no part in picking the winning angle and hook
+    const truth = (await db.truthDaily.findMany({ where: { level: "ad", objectId: { in: ads.map((a) => a.metaId) }, date: { gte: since } }, select: { objectId: true, spendWithFee: true, confirmed: true, spendMissing: true } })).filter((t) => !t.spendMissing);
     const by = (k: "angleCode" | "hookCode") => rankBy(truth.map((t) => ({ key: ads.find((a) => a.metaId === t.objectId)?.[k] ?? "", spend: Number(t.spendWithFee), confirmed: t.confirmed })).filter((r) => r.key)).filter((r) => !r.smallSample);
     const angle = by("angleCode")[0];
     const hook = by("hookCode")[0];

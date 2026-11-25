@@ -95,10 +95,11 @@ export interface ProductFacts {
  * Only the keys we truly know (HANDOFF E1.3): a missing key means «unknown» to the studio, an empty list would mean
  * «no offer». So `offer_tiers` and `guarantee` are never sent.
  */
-export function productFacts(e: { market: string; price: { toString(): string }; deliveryFee: { toString(): string } }, country: string | null): ProductFacts | null {
+export function productFacts(e: { market: string; price: { toString(): string }; deliveryFee: { toString(): string }; moneyMissing?: string | null }, country: string | null): ProductFacts | null {
   if (country && e.market && country !== e.market) return null;
-  const price = Number(e.price.toString());
-  const fee = Number(e.deliveryFee.toString());
+  // v6 · P11: prices with no rate are not known: neither the price nor the fee is sent
+  const price = e.moneyMissing ? 0 : Number(e.price.toString());
+  const fee = e.moneyMissing ? -1 : Number(e.deliveryFee.toString());
   return {
     ...(price > 0 ? { price: { amount: price, currency: "USD" as const } } : {}),
     ...(e.market ? { country: e.market } : {}),

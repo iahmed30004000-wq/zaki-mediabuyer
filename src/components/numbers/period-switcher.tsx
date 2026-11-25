@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
@@ -20,7 +20,10 @@ export function PeriodSwitcher({ period, from, to, yesterday }: { period: Period
   const [a, setA] = useState(from);
   const [b, setB] = useState(to);
 
-  const go = (q: Record<string, string>) => router.replace(`${path}?${new URLSearchParams(q).toString()}`, { scroll: false });
+  const params = useSearchParams();
+  // the market chosen stays while the period changes
+  const market = params?.get("market");
+  const go = (q: Record<string, string>) => router.replace(`${path}?${new URLSearchParams({ ...q, ...(market ? { market } : {}) }).toString()}`, { scroll: false });
   const choose = (p: PeriodKey) => {
     if (p === "custom") return setCustom(true);
     setCustom(false);

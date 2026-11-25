@@ -9,7 +9,7 @@
  *   • fake or wrong-number orders on one ad.
  * Every sentence says what is wrong. None says «وقّفت» / «خفّضت»: nothing was done.
  */
-import { fmt } from "@/lib/format";
+import { fmt, fmtExact } from "@/lib/format";
 
 export type RuleKey = "daily_cap" | "spend_spike" | "stale_data" | "fake_orders";
 
@@ -38,6 +38,8 @@ export interface AccountFacts {
   dailyBudgetsSum: number;
   /** hours since the last successful pull of Meta AND of the OMS (the older one) */
   dataAgeHours: number;
+  /** v6 · P11: set when these figures are NOT dollars (an account of another currency with no rate): the unit the sentences write */
+  unit?: string | null;
 }
 
 export const WATCH = { spikeHourX: 3, spikeDayX: 1.75, staleHours: 2, fakeShare: 0.3, fakeMinOrders: 10 };
@@ -51,13 +53,14 @@ export function watchAd(a: AdWatchFacts): Alert[] {
 
 export function watchAccount(a: AccountFacts): Alert[] {
   const out: Alert[] = [];
+  const money = (n: number) => (a.unit ? `${fmtExact(n, "", 2)} ${a.unit}` : fmt(n, "$"));
   if (a.dailyCap !== null && a.spendToday >= a.dailyCap) {
-    out.push({ rule: "daily_cap", level: "account", targetId: a.accountId, tone: "danger", sentence: `صرف اليوم ${fmt(a.spendToday, "$")} وصل سقف الحساب ${fmt(a.dailyCap, "$")}. ما انعمل شي تلقائي: وقّف من الموقع إذا بدك، أو سقف الحساب عند ميتا بيوقفه.` });
+    out.push({ rule: "daily_cap", level: "account", targetId: a.accountId, tone: "danger", sentence: `صرف اليوم ${money(a.spendToday)} وصل سقف الحساب ${money(a.dailyCap)}. ما انعمل شي تلقائي: وقّف من الموقع إذا بدك، أو سقف الحساب عند ميتا بيوقفه.` });
   }
   const hourSpike = a.avgHourSpend7d > 0 && a.hourSpend > WATCH.spikeHourX * a.avgHourSpend7d;
   const daySpike = a.dailyBudgetsSum > 0 && a.spendToday > WATCH.spikeDayX * a.dailyBudgetsSum;
   if (hourSpike || daySpike) {
-    const why = hourSpike ? `ساعة صرفت ${fmt(a.hourSpend, "$")} (المعتاد ${fmt(a.avgHourSpend7d, "$")})` : `صرف اليوم ${fmt(a.spendToday, "$")} فوق ${WATCH.spikeDayX} × مجموع الميزانيات ${fmt(a.dailyBudgetsSum, "$")}`;
+    const why = hourSpike ? `ساعة صرفت ${money(a.hourSpend)} (المعتاد ${money(a.avgHourSpend7d)})` : `صرف اليوم ${money(a.spendToday)} فوق ${WATCH.spikeDayX} × مجموع الميزانيات ${money(a.dailyBudgetsSum)}`;
     out.push({ rule: "spend_spike", level: "account", targetId: a.accountId, tone: "danger", sentence: `قفزة صرف: ${why}. ما انعمل شي تلقائي — شوف الحساب.` });
   }
   if (a.dataAgeHours > WATCH.staleHours) {

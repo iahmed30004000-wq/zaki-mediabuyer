@@ -94,9 +94,25 @@ export function dataGate(dataAgeHours: number, staleHours: number): Gate {
   return dataAgeHours > staleHours ? { ok: false, why: `البيانات متأخرة ${Number.isFinite(dataAgeHours) ? Math.round(dataAgeHours) : "؟"} ساعة — ما بنقرر على أرقام قديمة` } : { ok: true, why: null };
 }
 
-/** An account whose currency is not USD is not judged: the sums would be read as dollars (R-17). */
+/**
+ * An account whose currency is not USD is not judged: the sums would be read as dollars (R-17). v6 · P11 keeps this gate after adding the exchange rates:
+ * the screens and the truth convert, but a decision writes a budget back to Meta in the ACCOUNT's currency, and the owner's thresholds are dollars (D80).
+ */
 export function currencyGate(currency: string | null | undefined): Gate {
   return (currency ?? "").toUpperCase() === "USD" ? { ok: true, why: null } : { ok: false, why: `عملة الحساب ${currency || "مش معروفة"} — الأرقام بالدولار بس، ما بنحكم عليه` };
+}
+
+/** The changes that write an amount into Meta. */
+export const MONEY_OPS: ReadonlySet<string> = new Set(["create", "set_budget", "set_account_cap"]);
+
+/**
+ * v6 · P11 (D80): into an account of another currency the site writes NO amount of its own — no new campaign, no account cap, no budget up OR down (a «cut to 10$»
+ * would be written as 10 of the account's currency). A stop and a switch back on pass. Null when the change may go on (or the currency is not known here: the cap
+ * check fails closed by itself).
+ */
+export function foreignMoneyBlock(currency: string | null | undefined, items: { op: string }[]): string | null {
+  if (!currency || currencyGate(currency).ok) return null;
+  return items.some((i) => MONEY_OPS.has(i.op)) ? `حساب بعملة ${currency}: الموقع بيكتب المبالغ بالدولار بس، فما بينشئ ولا بيغيّر ميزانية ولا بيحط سقف على هالحساب. الإيقاف والتشغيل شغّالين.` : null;
 }
 
 // ───────────────────────────── ad set ─────────────────────────────
@@ -242,7 +258,10 @@ export function plannedDaily(campaigns: { status: string; dailyBudget: number | 
 // ───────────────────────────── product ─────────────────────────────
 
 export interface ProductReturnFacts {
+  /** the product's code — or its line `CODE@MM` when it is seen in two markets */
   productCode: string;
+  /** how the sentence names it (a split product says its market); the code when absent */
+  label?: string;
   shipments: number;
   returned: number;
   /** shipments counted from the product's first one: the stop applies to the first `windowShipments` */
@@ -254,5 +273,5 @@ export function judgeProductReturn(x: ProductReturnFacts, rules: CampaignRules):
   const r = rules.returns;
   if (x.shipmentsToDate > r.windowShipments || x.shipments < r.minShipments || x.shipments === 0) return null;
   if (x.returned / x.shipments <= r.stopShare) return null;
-  return { rule: "high_return", level: "product", targetId: x.productCode, accountMetaId: null, action: "pause", reasonCode: "S03", sentence: `اقتراح توقيف ${x.productCode}: المرتجع ${fmt((x.returned / x.shipments) * 100, "%")} من أول ${x.shipments} شحنة (حدّك ${Math.round(r.stopShare * 100)}%).` };
+  return { rule: "high_return", level: "product", targetId: x.productCode, accountMetaId: null, action: "pause", reasonCode: "S03", sentence: `اقتراح توقيف ${x.label ?? x.productCode}: المرتجع ${fmt((x.returned / x.shipments) * 100, "%")} من أول ${x.shipments} شحنة (حدّك ${Math.round(r.stopShare * 100)}%).` };
 }

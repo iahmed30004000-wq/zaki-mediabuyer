@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
+import { FxNotice } from "@/components/numbers/fx-notice";
+import { MarketSwitcher } from "@/components/numbers/market-switcher";
 import { Groups, Six, StatTile } from "@/components/numbers/numbers-view";
+import { isMarket, marketLabel, withMarket } from "@/core/markets";
 import { PeriodSwitcher } from "@/components/numbers/period-switcher";
 import { RangeLine } from "@/components/numbers/summary";
 import { TrendPanel } from "@/components/numbers/trend-panel";
@@ -29,15 +32,19 @@ const stat = (k: (typeof STATS)[number]["key"]) => STATS.find((s) => s.key === k
  * صفحة المنتج (v6 · P6): one product from end to end — the ads (the cost of a real order against its break-even, with its 30-day line), the operation (six numbers, the 31 behind «كل الأرقام»), the stock and the
  * video bank. Every number is a «كنا ← صرنا» tile from the same loaders as the products screen — nothing is computed here. The standing orders on the product are at the foot.
  */
-export async function ProductScreen({ code, search }: { code: string; search: { p?: string; from?: string; to?: string } }) {
+export async function ProductScreen({ code, search }: { code: string; search: { p?: string; from?: string; to?: string; market?: string } }) {
   const now = new Date();
   const w = comparePeriod(search, now);
-  const [data, board, me, line] = await Promise.all([loadNumbers({ d: "custom", from: w.from, to: w.to }, now), loadBoard().catch(() => null), currentCaller(), loadSeries("realCost", 30, code, now).catch(() => [])]);
-  const p = data.products.find((x) => x.code === code);
+  const market = isMarket(search.market) ? search.market : null;
+  const [data, board, me] = await Promise.all([loadNumbers({ d: "custom", from: w.from, to: w.to, market }, now), loadBoard().catch(() => null), currentCaller()]);
+  // a product seen in two markets has a line per market: this page shows ONE of them and says which — never the two folded together
+  const lines = data.products.filter((x) => x.code === code);
+  const p = lines.find((x) => (x.key ?? x.code) === code) ?? lines[0];
   if (!p) notFound();
-  const [facts, orders] = await Promise.all([loadSourceFacts({ now, products: data.products }), listOrders({ product: code }).catch(() => [])]);
+  const [read, orders, line] = await Promise.all([loadSourceFacts({ now, products: data.products }), listOrders({ product: code }).catch(() => []), loadSeries("realCost", 30, p.key ?? p.code, now, market).catch(() => [])]);
+  const facts = data.missingRates.length ? { ...read, fxMissing: data.missingRates } : read;
   const bp = board?.products.find((x) => x.code === code);
-  const q = periodQuery(w);
+  const q = withMarket(periodQuery(w), market);
   const verdict = productVerdict(p.current.costPerOrder, data.target, p.breakeven);
   const tone = costTone(p.current.costPerOrder, data.target, p.breakeven);
   return (
@@ -51,8 +58,11 @@ export async function ProductScreen({ code, search }: { code: string; search: { 
       </div>
       <div className="space-y-2">
         <PeriodSwitcher period={w.period} from={w.from} to={w.to} yesterday={addDays(ammanKey(now), -1)} />
+        <MarketSwitcher market={market} />
         <RangeLine line={freshness(facts).line} range={w} prev={previousRange(w)} />
       </div>
+      <FxNotice codes={data.missingRates} unplaced={data.unplacedPushed} />
+      {p.split && !market ? <p className="rounded-card border border-warn/45 bg-warn/[0.06] p-3 text-base text-fg">هالمنتج ظاهر بأكتر من سوق. الأرقام تحت لـ {marketLabel(p.market)} بس — اختار السوق من فوق لتشوف غيره.</p> : null}
 
       {p.hasData ? null : <EmptyState title="ما في أرقام لهالمنتج بهالفترة" hint="الأرقام بتيجي من ميتا ونظام الطلبات، أو لما Claude يبعتها. جرّب فترة تانية." />}
 

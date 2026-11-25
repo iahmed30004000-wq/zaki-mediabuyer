@@ -5,6 +5,8 @@
  */
 import { db } from "@/server/db";
 import { productLabels } from "@/core/product-name";
+import { marketLabel, splitKey } from "@/core/markets";
+import { gapText } from "@/core/truth-money";
 import { compareWeeks, decisionAccuracy, lessonsFrom, rankBy, weeklyText, type ProductWeek, type RankRow } from "@/core/weekly";
 
 const DAY = 86_400_000;
@@ -21,8 +23,20 @@ async function productWeeks(from: Date, to: Date): Promise<ProductWeek[]> {
   const labels = productLabels(await db.productEconomics.findMany({ select: { productCode: true, name: true } }), await db.productAlias.findMany({ select: { productCode: true, alias: true } }));
   const names = new Map([...labels].map(([code, l]) => [code, l.name]));
   const by = new Map<string, ProductWeek>();
+  const gaps = new Map<string, (string | null)[]>();
   for (const r of rows) {
-    const p = by.get(r.objectId) ?? { code: r.objectId, name: names.get(r.objectId) ?? r.objectId, spend: 0, orders: 0, matureOrders: 0, confirmed: 0, shipments: 0, delivered: 0, profit: 0 };
+    // a product's other market has a line of its own, named by its market (v6 · P11)
+    const { code, suffix } = splitKey(r.objectId);
+    const base = names.get(code) ?? code;
+    const name = suffix === null ? base : `${base} — ${marketLabel(suffix === "??" ? null : suffix)}`;
+    const p: ProductWeek = by.get(r.objectId) ?? { code: r.objectId, name, spend: 0, orders: 0, matureOrders: 0, confirmed: 0, shipments: 0, delivered: 0, profit: 0 };
+    // one day without its money leaves the period's money unknown, said — never a sum without it
+    if (r.spendMissing) p.spendGap = true;
+    if (r.spendMissing || r.moneyMissing) {
+      p.profitGap = true;
+      gaps.set(r.objectId, [...(gaps.get(r.objectId) ?? []), r.spendMissing, r.moneyMissing]);
+      p.gap = gapText(...gaps.get(r.objectId)!);
+    }
     p.spend += Number(r.spendWithFee);
     p.orders += r.orders;
     p.matureOrders += r.matureOrders;
@@ -36,7 +50,8 @@ async function productWeeks(from: Date, to: Date): Promise<ProductWeek[]> {
 }
 
 async function rankings(from: Date, to: Date): Promise<Record<string, RankRow[]>> {
-  const rows = await db.truthDaily.findMany({ where: { level: "ad", date: { gte: from, lt: to } }, select: { objectId: true, spendWithFee: true, confirmed: true } });
+  // v6 · P11: a day whose spend is unknown takes no part in the rankings (or in the lessons built on them)
+  const rows = (await db.truthDaily.findMany({ where: { level: "ad", date: { gte: from, lt: to } }, select: { objectId: true, spendWithFee: true, confirmed: true, spendMissing: true } })).filter((r) => !r.spendMissing);
   const ads = await db.ad.findMany({ where: { metaId: { in: [...new Set(rows.map((r) => r.objectId))] } }, select: { metaId: true, creativeCode: true, hookCode: true, angleCode: true, lpCode: true, adSet: { select: { conceptId: true, pageCode: true } } } });
   const info = new Map(ads.map((a) => [a.metaId, a]));
   const dims: Record<string, { key: string; spend: number; confirmed: number }[]> = { concept: [], angle: [], hook: [], page: [], lp: [], creative: [] };

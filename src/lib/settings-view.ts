@@ -85,10 +85,11 @@ export async function loadSettingsView(): Promise<{ levels: LevelRow[]; agents: 
 export interface EditView {
   links: SourceHealth[];
   writeMode: "dry_run" | "live";
-  accounts: { metaId: string; name: string; market: string; dailyCap: number | null; monthlyCap: number | null; payment: string | null; safetyNet: "none" | "pending" | "on" }[];
+  /** `market` null: not set · the caps are in the account's own `currency` */
+  accounts: { metaId: string; name: string; market: string | null; currency: string; dailyCap: number | null; monthlyCap: number | null; payment: string | null; safetyNet: "none" | "pending" | "on" }[];
   split: { scale: number; test: number; new: number };
   purchaseOn: "confirmed" | "delivered";
-  products: { code: string; name: string; market: string; price: number; unitCost: number; deliveryFee: number; returnFee: number; codFeePct: number; confirmCost: number; stockDays: number | null; source: string; tOrder: number | null; ceiling: number | null; losing: boolean; dailyCap: number | null }[];
+  products: { code: string; name: string; market: string; price: number; unitCost: number; deliveryFee: number; returnFee: number; codFeePct: number; confirmCost: number; stockDays: number | null; source: string; tOrder: number | null; ceiling: number | null; losing: boolean; dailyCap: number | null; /** currencies with no rate behind the OMS prices */ moneyMissing?: string | null }[];
   pages: { metaId: string; name: string; code: string | null }[];
   landing: { productCode: string; lpCode: string; url: string }[];
   team: { id: string; email: string; name: string; role: RoleKey; roleAr: string; active: boolean; lastLogin: string | null; invitePending: boolean }[];
@@ -176,14 +177,14 @@ export async function loadEditView(): Promise<EditView | null> {
     const t = await productTargets(e.productCode);
     products.push({
       code: e.productCode, name: e.name, market: e.market, price: Number(e.price), unitCost: Number(e.unitCost), deliveryFee: Number(e.deliveryFee), returnFee: Number(e.returnFee),
-      codFeePct: Number(e.codFeePct), confirmCost: Number(e.confirmCost), stockDays: e.stockDays, source: e.source, tOrder: t?.tOrder ?? null, ceiling: t?.ceiling ?? null, losing: t?.losing ?? false, dailyCap: caps[e.productCode] ?? null,
+      codFeePct: Number(e.codFeePct), confirmCost: Number(e.confirmCost), stockDays: e.stockDays, source: e.source, moneyMissing: e.moneyMissing, tOrder: t?.tOrder ?? null, ceiling: t?.ceiling ?? null, losing: t?.losing ?? false, dailyCap: caps[e.productCode] ?? null,
     });
   }
   const users = await db.user.findMany({ orderBy: { createdAt: "asc" } });
   return {
     links,
     writeMode: writeMode(),
-    accounts: await Promise.all((await db.adAccount.findMany({ orderBy: { name: "asc" } })).map(async (a) => ({ metaId: a.metaId, name: a.name, market: a.market ?? "—", dailyCap: a.dailyCap ? Number(a.dailyCap) : null, monthlyCap: a.monthlyCap ? Number(a.monthlyCap) : null, payment: a.paymentStatus, safetyNet: await safetyNetState(a.metaId) }))),
+    accounts: await Promise.all((await db.adAccount.findMany({ orderBy: { name: "asc" } })).map(async (a) => ({ metaId: a.metaId, name: a.name, market: a.market, currency: a.currency, dailyCap: a.dailyCap ? Number(a.dailyCap) : null, monthlyCap: a.monthlyCap ? Number(a.monthlyCap) : null, payment: a.paymentStatus, safetyNet: await safetyNetState(a.metaId) }))),
     split: (await getSetting("budget.split")) as { scale: number; test: number; new: number },
     purchaseOn: String(await getSetting("capi.purchase_on")) === "delivered" ? "delivered" : "confirmed",
     products,
@@ -204,7 +205,7 @@ export interface AuditRow {
 
 const ACTION_AR: Record<string, string> = {
   "change.propose": "اقترح تغيير", "change.approve": "وافق", "change.reject": "رفض", "change.execute": "نفّذ", "change.failed": "فشل التنفيذ", "change.rollback": "رجّع",
-  "account.level": "غيّر المستوى", "account.caps": "غيّر السقوف", "setting.set": "غيّر إعداد", "product.update": "عدّل منتج", "product.create": "ضاف منتج", "page.code": "رمز صفحة",
+  "account.level": "غيّر المستوى", "account.caps": "غيّر السقوف", "account.market": "حدّد سوق الحساب", "setting.set": "غيّر إعداد", "product.update": "عدّل منتج", "product.create": "ضاف منتج", "page.code": "رمز صفحة",
   "team.invite": "دعا عضو", "team.update": "عدّل عضو", "team.reinvite": "رمز جديد لعضو", "team.accept_invite": "دخل بدعوة", "user.login": "دخل", "user.first_owner": "عمل حساب المالك",
   "creative.approve": "وافق على فيديو", "creative.exclude": "استبعد فيديو", "studio.token_create": "توكن للاستديو",
 };

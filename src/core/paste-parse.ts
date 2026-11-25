@@ -6,6 +6,7 @@
  * listed and left out; a missing id is a problem to fix, not something to make up. The rows then go through the same `checkRows` as every
  * push, and the same `applyMetrics` stores them.
  */
+import { foreignCurrencyIn, UNKNOWN_CURRENCY } from "./currency";
 import type { PushLevel } from "./push-rows";
 
 export interface PasteContext {
@@ -159,6 +160,10 @@ add("stock_units", ["stock", "stock units", "المخزون", "القطع الب
 const COUNTS = new Set(["impressions", "reach", "link_clicks", "outbound_clicks", "lpv", "pixel_purchases", "conversations", "video_3s", "thruplays", "real_orders", "confirmed", "shipped", "delivered", "returned", "stock_units"]);
 const AMOUNTS = new Set(["spend", "budget_daily", "frequency", "cpm", "ctr", "collected"]);
 const TEXTS = new Set(["name", "product", "status"]);
+/** The columns that are money: pasted figures are dollars (the push's contract), so another currency is refused, never read as dollars (v6 · P11). */
+const MONEY = new Set(["spend", "budget_daily", "cpm", "collected"]);
+const wrongCurrency = (column: string, code: string) => `${column}: بعملة ${code === UNKNOWN_CURRENCY ? "تانية" : code} — اللصق بالدولار بس. حوّل الأرقام لدولار، أو استورد ملف ميتا من «الاستيراد»`;
+
 /** most specific first */
 const ID_ORDER = ["id:ad", "id:adset", "id:campaign", "id:account", "id:product"];
 const LEVEL_OF: Record<string, PushLevel> = { "id:ad": "ad", "id:adset": "adset", "id:campaign": "campaign", "id:account": "account", "id:product": "product" };
@@ -205,6 +210,11 @@ export function parsePaste(text: string, ctx: PasteContext): PasteResult {
   if (idCol < 0) issues.push({ line: head.n, error: "ما في عمود معرّف (Ad ID · Campaign ID …) — ضيفه بتصدير Ads Manager؛ الموقع ما بيخمّن معرّف" });
 
   const rows: PasteResult["rows"] = [];
+  const foreign = cols.flatMap((c) => {
+    const code = c.field && MONEY.has(c.field) ? foreignCurrencyIn(c.header) : null;
+    return code ? [wrongCurrency(c.header, code)] : [];
+  });
+  if (foreign.length) return { delimiter: d.name, mapped, unmapped, rows, issues: [...issues, { line: head.n, error: foreign.join(" · ") }] };
   for (const { l, n } of lines.slice(1)) {
     const cells = splitLine(l, d.char);
     const row: Record<string, unknown> = { date: ctx.day, level };
@@ -220,6 +230,7 @@ export function parsePaste(text: string, ctx: PasteContext): PasteResult {
         else bad.push(`${c.header}: تاريخ مش مفهوم («${raw.slice(0, 20)}»)`);
       } else if (f === "id" || f === "parent_id" || f === "account_id") row[f] = latin(raw).trim();
       else if (TEXTS.has(f)) row[f] = raw.slice(0, 200);
+      else if (MONEY.has(f) && foreignCurrencyIn(raw)) bad.push(wrongCurrency(c.header, foreignCurrencyIn(raw)!));
       else if (COUNTS.has(f) || AMOUNTS.has(f)) {
         const v = readNumber(raw);
         if (v === null) bad.push(`${c.header}: رقم مش مفهوم («${raw.slice(0, 20)}»)`);

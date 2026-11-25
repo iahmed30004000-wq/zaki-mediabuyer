@@ -15,8 +15,11 @@ export async function runMetricWatch(ctx: RecipeRunCtx, deps: RecipeDeps): Promi
   let productName = "كل المنتجات";
   if (p.params.product === ALL_PRODUCTS) value = n.totals[m.set];
   else {
-    const row = n.products.find((x) => x.code === p.params.product);
+    const rows = n.products.filter((x) => x.code === p.params.product);
+    // a product seen in two markets has a line per market: one limit is not read against one of them quietly
+    const row = rows.length === 1 ? rows[0] : undefined;
     productName = row?.name ?? (await deps.products()).find((x) => x.code === p.params.product)?.name ?? p.params.product;
+    if (rows.length > 1) productName = `${productName} (بأكتر من سوق: ما في رقم واحد إلو)`;
     // a product with no numbers at all in the period has no row: that is «not known», not zero
     value = row ? row.current[m.set] : null;
   }

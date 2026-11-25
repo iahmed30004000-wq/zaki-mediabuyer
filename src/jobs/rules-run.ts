@@ -7,6 +7,8 @@ import { db } from "@/server/db";
 import { watchAccount, watchAd, type Alert, type RuleKey } from "@/core/rules";
 import { plannedDaily } from "@/core/rulebook";
 import { addDays, ammanKey, keyMs } from "@/core/dates";
+import { BASE_CURRENCY, rowCurrency, sumUsd, toUsd } from "@/core/currency";
+import { loadRates } from "@/server/money";
 import { getSetting } from "@/server/settings";
 import { lastSuccess } from "./runner";
 
@@ -32,14 +34,28 @@ export async function gatherAlerts(now = new Date()): Promise<Alert[]> {
   }
   for (const [adId, x] of byAd) out.push(...watchAd({ adId, orders: x.orders, fakeOrders: x.fake }));
 
+  const rates = await loadRates();
   const metaAt = await lastSuccess("meta.sync");
   const omsAt = await lastSuccess("oms.sync");
   const oldest = Math.min(metaAt?.getTime() ?? 0, omsAt?.getTime() ?? 0);
   for (const acc of await db.adAccount.findMany({ include: { campaigns: { include: { adsets: { include: { ads: true } } } } } })) {
     const adIds = acc.campaigns.flatMap((c) => c.adsets.flatMap((s) => s.ads.map((x) => x.metaId)));
-    const t = await db.insightDaily.aggregate({ _sum: { spend: true }, where: { level: "ad", objectId: { in: adIds }, date: today } });
     const budgets = plannedDaily(acc.campaigns.map((c) => ({ status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : null, adsets: c.adsets.map((s) => ({ status: s.status, dailyBudget: s.dailyBudget ? Number(s.dailyBudget) : null })) })));
-    out.push(...watchAccount({ accountId: acc.metaId, spendToday: Number(t._sum.spend ?? 0) * (1 + fee), dailyCap: acc.dailyCap ? Number(acc.dailyCap) : null, hourSpend: 0, avgHourSpend7d: 0, dailyBudgetsSum: budgets, dataAgeHours: oldest ? (now.getTime() - oldest) / HOUR : Infinity }));
+    const cap = acc.dailyCap ? Number(acc.dailyCap) : null;
+    // v6 · P11: the cap and the budgets are in the account's currency. A dollar account reads as before; another one is watched in dollars when it has a
+    // rate, and in its own figures (said by name) when it has none — never its figures written with a «$»
+    let money = { spend: 0, cap, budgets, unit: null as string | null };
+    if (!acc.currency || acc.currency === BASE_CURRENCY) {
+      const t = await db.insightDaily.aggregate({ _sum: { spend: true }, where: { level: "ad", objectId: { in: adIds }, date: today } });
+      money.spend = Number(t._sum.spend ?? 0);
+    } else {
+      const rows = (await db.insightDaily.findMany({ where: { level: "ad", objectId: { in: adIds }, date: today }, select: { spend: true, currency: true, source: true } })).map((r) => ({ amount: String(r.spend), currency: rowCurrency(r, acc.currency) }));
+      const spend = sumUsd(rows, rates);
+      const inDollars = (n: number | null) => (n === null ? null : toUsd(n, acc.currency, rates).usd?.toDecimalPlaces(2).toNumber() ?? null);
+      if (spend.usd !== null && rates.has(acc.currency)) money = { spend: spend.usd.toNumber(), cap: inDollars(cap), budgets: inDollars(budgets) ?? 0, unit: null };
+      else money = { spend: rows.filter((r) => r.currency === acc.currency).reduce((n, r) => n + Number(r.amount), 0), cap, budgets, unit: acc.currency };
+    }
+    out.push(...watchAccount({ accountId: acc.metaId, spendToday: money.spend * (1 + fee), dailyCap: money.cap, hourSpend: 0, avgHourSpend7d: 0, dailyBudgetsSum: money.budgets, unit: money.unit, dataAgeHours: oldest ? (now.getTime() - oldest) / HOUR : Infinity }));
   }
   return out;
 }

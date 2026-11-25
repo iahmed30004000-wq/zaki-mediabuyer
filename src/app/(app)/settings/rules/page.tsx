@@ -3,14 +3,16 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { LevelStars } from "@/components/mb/level-stars";
 import { Panel } from "@/components/mb/section";
-import { CapsEditor } from "@/components/settings/editors";
+import { CapsEditor, CurrencyEditor } from "@/components/settings/editors";
 import { LevelPicker } from "@/components/settings/level-picker";
 import { RulesEditor } from "@/components/settings/rules-editor";
 import { OrdersSection } from "@/components/work/orders-section";
 import { Pill } from "@/components/ui/pill";
+import { missingRateText } from "@/core/currency";
 import { DOMAIN_AR, EFFECT_AR, untilWords, type OrderDomain } from "@/core/orders";
 import { isDemo } from "@/core/readiness";
 import { can } from "@/core/roles";
+import { loadCurrencyView } from "@/lib/currency-view";
 import { loadEditView, loadSettingsView } from "@/lib/settings-view";
 import { currentCaller, requirePage } from "@/server/auth";
 import { db } from "@/server/db";
@@ -42,7 +44,7 @@ function RuleCard({ id, title, summary, children }: { id: string; title: string;
  */
 export default async function RulesPage() {
   await requirePage("settings.view");
-  const [real, edit, me, rulesView, productRows, archive, active] = await Promise.all([
+  const [real, edit, me, rulesView, productRows, archive, active, currency] = await Promise.all([
     loadSettingsView(),
     loadEditView(),
     currentCaller(),
@@ -50,6 +52,7 @@ export default async function RulesPage() {
     db.productEconomics.findMany({ select: { productCode: true }, orderBy: { productCode: "asc" } }),
     listOrders({ archive: true, limit: 200 }),
     listOrders({}),
+    loadCurrencyView(),
   ]);
   const demo = isDemo(process.env);
   const owner = !!me && !me.demo && can(me.role, "owner_only");
@@ -58,6 +61,14 @@ export default async function RulesPage() {
     <div className="space-y-4">
       <RuleCard id="money" title="السقوف وتوزيع الميزانية" summary="ولا دولار فوق السقف، ولا حملة جديدة بلا سقف معروف">
         {edit ? <CapsEditor accounts={edit.accounts} split={edit.split} /> : <p className="text-sm text-fg-muted">السقوف بتنكتب لما يشتغل الموقع على البيانات الحقيقية.</p>}
+      </RuleCard>
+
+      <RuleCard
+        id="currency"
+        title="أسعار الصرف"
+        summary={currency.missing.length ? missingRateText(currency.missing) : currency.updatedAt ? `آخر تحديث ${new Intl.DateTimeFormat("ar-SY-u-nu-latn", { timeZone: "Asia/Amman", day: "numeric", month: "numeric", year: "numeric" }).format(new Date(currency.updatedAt))}` : "كل مبلغ بيتحوّل لدولار قبل ما ينجمع"}
+      >
+        <CurrencyEditor view={currency} demo={demo || !owner} />
       </RuleCard>
 
       <RuleCard id="rules" title="مستوى كل حساب" summary={real ? `${real.levels.length} حساب · البداية ★ لكل الحسابات` : "★ لكل الحسابات"}>

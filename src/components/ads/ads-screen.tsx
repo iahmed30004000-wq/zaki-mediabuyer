@@ -1,8 +1,11 @@
 import { AdsView } from "@/components/ads/ads-view";
+import { FxNotice } from "@/components/numbers/fx-notice";
+import { MarketSwitcher } from "@/components/numbers/market-switcher";
+import { isMarket } from "@/core/markets";
 import type { Filters } from "@/core/ads-table";
 import { loadAdsTable } from "@/lib/ads-table";
 import { loadExperiments, loadLaunchOptions } from "@/lib/launch-view";
-import { productView } from "@/core/ads-model";
+import { productMarketViews } from "@/core/ads-model";
 import { loadDataset } from "@/lib/source";
 import { loadColumns } from "@/server/ads-prefs";
 import { currentCaller } from "@/server/auth";
@@ -33,10 +36,11 @@ export async function AdsScreen({ tab, searchParams }: { tab: "products" | "camp
     loadColumns(caller && !caller.demo ? caller.id : null),
   ]);
 
-  const products = ds.products.map((p) => {
-    const v = productView(p.code, ds);
-    return { code: p.code, name: p.name, market: p.market, stockDays: p.stockDays, view: v.view, targets: v.targets };
-  });
+  const market = isMarket(searchParams.market) ? searchParams.market : null;
+  // v6 · P11: «حسب المنتج» is a line per product AND market — a product in two markets is never folded into one
+  const products = productMarketViews(ds)
+    .filter((v) => !market || v.market === market)
+    .map((v) => ({ key: v.key, code: v.product.code, name: v.name, market: v.market, stockDays: v.product.stockDays, view: v.view, targets: v.targets }));
 
   // the filters live in the address: Back, a refresh and a shared link keep them
   const filters: Filters = {
@@ -44,8 +48,14 @@ export async function AdsScreen({ tab, searchParams }: { tab: "products" | "camp
     page: searchParams.page || null,
     kind: searchParams.kind === "test" || searchParams.kind === "scale" ? searchParams.kind : "all",
     status: searchParams.status || null,
-    market: searchParams.market === "SY" || searchParams.market === "JO" ? searchParams.market : null,
+    market,
   };
 
-  return <AdsView table={table} columns={columns} filters={filters} products={products} initialTab={tab} openId={searchParams.open} launchOptions={launchOptions} experiments={experiments} />;
+  return (
+    <div className="space-y-4">
+      <FxNotice codes={table.missingRates ?? []} />
+      {tab === "tests" ? <MarketSwitcher market={market} /> : null}
+      <AdsView table={table} columns={columns} filters={filters} products={products} initialTab={tab} openId={searchParams.open} launchOptions={launchOptions} experiments={experiments.filter((e) => !market || e.market === market)} />
+    </div>
+  );
 }

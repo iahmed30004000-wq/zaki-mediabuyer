@@ -41,7 +41,7 @@ const DAYS = ["2026-11-20", "2026-11-21", "2026-11-22"];
 const typed = (over: Partial<CampaignRules> = {}): CampaignRules => ({ ...DEFAULT_RULES, breakeven: { TRF01: 5 }, scale: { ...DEFAULT_RULES.scale, maxCost: 6.5, stepPct: 0.25, maxWeekPct: 0.6, everyHours: 48, days: 3, minConfirmed: 5 }, ...over });
 const adset = (over: Record<string, unknown> = {}) => ({
   metaId: "AS1", name: "BROAD_1", status: "ACTIVE", dailyBudget: 40, lastSignificantEditAt: null, startTime: new Date("2026-10-01T00:00:00Z"), createdAt: new Date("2026-10-01T00:00:00Z"),
-  ads: [{ metaId: "AD1" }], campaign: { status: "ACTIVE", stage: "SCALE", productCode: "TRF01", account: { metaId: "act_1" } }, ...over,
+  ads: [{ metaId: "AD1" }], campaign: { status: "ACTIVE", stage: "SCALE", productCode: "TRF01", account: { metaId: "act_1", currency: "USD" } }, ...over,
 });
 /** 5 confirmed orders a day at 00:30 Amman, mature long ago */
 const orders = () => DAYS.flatMap((d) => Array.from({ length: 5 }, () => ({ createdAtOms: new Date(`${d}T00:30:00+03:00`), status: "confirmed", matureAt: new Date("2026-11-01T00:00:00Z") })));

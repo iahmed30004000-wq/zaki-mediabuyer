@@ -7,6 +7,7 @@
  * ad level), else the sum of its children's. A day nobody has numbers for is a dash — never a zero that looks like a result.
  * Orders are the OMS rows tied to the object by their ad / ad set / campaign id (so no roll-up is needed for them).
  */
+import { mergeMissing } from "./currency";
 import { ammanKey, daysBetween } from "./dates";
 import { isTestStage } from "./today";
 
@@ -90,6 +91,8 @@ export interface InsightRow {
   thru: number;
   conversations: number;
   frequency: number;
+  /** v6 · P11: set when this row's spend is in a currency with no rate — `spend` is then 0 and means nothing */
+  fxMissing?: string;
 }
 
 export interface OrderRow {
@@ -118,6 +121,8 @@ export interface CountsLike {
   shipments: number;
   delivered: number;
   returned: number;
+  /** v6 · P11: currencies with no rate among the spend behind these counts; non-empty = `spend` is not known */
+  fxMissing?: string[];
 }
 
 export interface Window {
@@ -142,11 +147,14 @@ interface Acc {
   /** Σ impressions × frequency, and Σ impressions of the rows that carry a frequency — the weighted mean is their ratio */
   freqSum: number;
   freqImpr: number;
+  /** currencies with no rate among the rows added */
+  fx: string[];
 }
 
-const zero = (): Acc => ({ spend: 0, impressions: 0, clicks: 0, purchases: 0, v3s: 0, thru: 0, conversations: 0, freqSum: 0, freqImpr: 0 });
+const zero = (): Acc => ({ spend: 0, impressions: 0, clicks: 0, purchases: 0, v3s: 0, thru: 0, conversations: 0, freqSum: 0, freqImpr: 0, fx: [] });
 const addInto = (t: Acc, a: Acc) => {
-  for (const k of Object.keys(t) as (keyof Acc)[]) t[k] += a[k];
+  for (const k of Object.keys(t) as (keyof Acc)[]) if (k !== "fx") t[k] += a[k];
+  t.fx = mergeMissing(t.fx, a.fx);
 };
 
 const CONFIRMED = new Set(["confirmed", "shipped", "delivered", "returned"]);
@@ -199,7 +207,8 @@ export function indexFacts(roots: Node[], insights: InsightRow[], orders: OrderR
     if (rows.length) {
       const t = zero();
       for (const r of rows) {
-        t.spend += r.spend;
+        if (r.fxMissing) t.fx = mergeMissing(t.fx, [r.fxMissing]);
+        else t.spend += r.spend;
         t.impressions += r.impressions;
         t.clicks += r.clicks;
         t.purchases += r.purchases;
@@ -243,11 +252,19 @@ export function indexFacts(roots: Node[], insights: InsightRow[], orders: OrderR
       shipments: list.filter((o) => SHIPPED.has(o.status)).length,
       delivered: list.filter((o) => o.status === "delivered").length,
       returned: list.filter((o) => o.status === "returned").length,
+      ...(a?.fx.length ? { fxMissing: a.fx } : {}),
     };
     return { counts, frequency: a && a.freqImpr > 0 ? Math.round((a.freqSum / a.freqImpr) * 100) / 100 : null, hasInsights: a !== null, has: a !== null || list.length > 0 };
   }
 
-  return { counted, spendOf: (level: Level, id: string, w: Window): number | null => acc(level, id, w)?.spend ?? null };
+  // a spend with a hole in it is not a spend: null, never the rows that happened to convert
+  return {
+    counted,
+    spendOf: (level: Level, id: string, w: Window): number | null => {
+      const a = acc(level, id, w);
+      return a && !a.fx.length ? a.spend : null;
+    },
+  };
 }
 
 // ───────────────────────────── a row's metrics ─────────────────────────────
@@ -280,19 +297,21 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export function metricsOf(c: Counted, v: ViewLike, margin: number | null): Metrics {
   const k = c.counts;
   const ins = c.hasInsights;
-  const spend = ins ? v.spend : null;
+  // v6 · P11: with spend in a currency that has no rate, nothing that is money (or divides money) is a number
+  const money = ins && !k.fxMissing?.length;
+  const spend = money ? v.spend : null;
   return {
     spend,
     pixel: ins ? k.purchases : null,
     orders: ins || k.orders > 0 ? k.orders : null,
     costPerOrder: spend !== null && k.orders > 0 ? r2(spend / k.orders) : null,
     confirmRate: k.orders > 0 ? v.confirmRate : null,
-    profit: ins && margin !== null && spend !== null ? r2(k.orders * margin - spend) : null,
-    cpm: ins && k.impressions > 0 ? r2((k.spend * 1000) / k.impressions) : null,
+    profit: money && margin !== null && spend !== null ? r2(k.orders * margin - spend) : null,
+    cpm: money && k.impressions > 0 ? r2((k.spend * 1000) / k.impressions) : null,
     ctr: ins && k.impressions > 0 ? r2((k.clicks * 100) / k.impressions) : null,
     frequency: c.frequency,
-    costPerConfirmed: ins ? v.costPerConfirmed : null,
-    cpaPixel: ins ? v.cpaPixel : null,
+    costPerConfirmed: money ? v.costPerConfirmed : null,
+    cpaPixel: money ? v.cpaPixel : null,
     hook: ins && v.hook !== null ? r2(v.hook) : null,
     hold: ins && v.hold !== null ? r2(v.hold) : null,
     gap: k.orders > 0 ? v.gap : null,
@@ -322,7 +341,7 @@ export interface Filters {
   kind?: "all" | "test" | "scale" | null;
   /** a row status, or «naming» for the campaigns whose name the parser could not read */
   status?: string | null;
-  /** SY · JO */
+  /** one of the markets (SY · JO · EG · SA · LY · MR) */
   market?: string | null;
 }
 

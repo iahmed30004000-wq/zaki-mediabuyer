@@ -65,6 +65,8 @@ export interface ScaleFacts {
   runningDailyPlanned: number;
   /** the ad set belongs to a test campaign: its budget is not counted in the running cap */
   isTest: boolean;
+  /** v6 · P11: why the money of this ad set cannot be read (another currency, a rate missing, a code that means two products): nothing is raised */
+  moneyBlock?: string | null;
 }
 
 export interface ScaleDecision {
@@ -81,6 +83,8 @@ const usd = (n: number) => `${n.toFixed(2)}$`;
 const ago = (h: number) => (h < 1 ? "أقل من ساعة" : `${Math.round(h)} ساعة`);
 
 export function evaluateScale(f: ScaleFacts, p: ScaleParams = SCALE_DEFAULTS): ScaleDecision {
+  // the other checks would be read off figures that are not dollars: only this reason is said
+  if (f.moneyBlock) return { raise: false, newBudget: null, blockers: [f.moneyBlock], horizontal: false, sentence: `ما كبّرت ${f.adSetId}: ${f.moneyBlock}` };
   const blockers: string[] = [];
   const days = f.dailyCostPerConfirmed.slice(-p.proofDays);
   if (days.length < p.proofDays || days.some((c) => c === null || c >= f.ceiling)) {

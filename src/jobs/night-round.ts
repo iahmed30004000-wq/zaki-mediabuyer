@@ -4,6 +4,7 @@
  * set through the change service (src/server/changes.ts: simulate · level · approve · execute · verify). Then the scale ladder runs, on the same rules.
  *
  *   • it refuses to decide on stale data, and on an account whose currency is not USD (it says so, once);
+ *   • spend that has no exchange rate is never read as dollars: what stands on it is held (v6 · P11), and the return stop is judged market by market;
  *   • «no orders» is a verdict only when the OMS names the ads (R-01); otherwise the pixel's purchases × his factor are the signal, and with no signal at all nothing is judged;
  *   • days are Amman days (R-14), the age of an object comes from its start time (R-13), the cost of the window is the window's, never the lifetime's (R-09);
  *   • every number he has not typed keeps its rule silent — a missing number is never a zero (R-10);
@@ -18,6 +19,9 @@ import { addDays, ammanClock, ammanInstant, ammanKey, eachDay, keyMs } from "@/c
 import { breakevenOf, type CampaignRules } from "@/core/rules-v2";
 import { currencyGate, dataGate, judgeAd, judgeAdSet, judgeProductReturn, nightDue, type DayFact, type Held, type NightDecision } from "@/core/rulebook";
 import { WATCH } from "@/core/rules";
+import { mergeMissing, missingRateText, rowCurrency, toUsd } from "@/core/currency";
+import { campaignMarket, marketLabel, productMarkets, splitKey, type ProductConflict } from "@/core/markets";
+import { loadRates } from "@/server/money";
 import type { ChangeItemDraft } from "@/core/changeset";
 import { runScale } from "./scale-run";
 import { lastSuccess } from "./runner";
@@ -61,7 +65,11 @@ export async function planNight(now = new Date(), rulesIn?: CampaignRules): Prom
 
   const accounts = await db.adAccount.findMany({ include: { campaigns: { include: { adsets: { include: { ads: true } } } } } });
   const adIds = accounts.flatMap((a) => a.campaigns.flatMap((c) => c.adsets.flatMap((s) => s.ads.map((x) => x.metaId))));
-  const insights = await db.insightDaily.findMany({ where: { level: "ad", objectId: { in: adIds }, date: { gte: new Date(keyMs(fromKey)), lte: new Date(keyMs(yesterday)) } }, select: { objectId: true, date: true, spend: true, purchases: true } });
+  const insights = await db.insightDaily.findMany({ where: { level: "ad", objectId: { in: adIds }, date: { gte: new Date(keyMs(fromKey)), lte: new Date(keyMs(yesterday)) } }, select: { objectId: true, date: true, spend: true, purchases: true, currency: true, source: true } });
+  const rates = await loadRates();
+  const currencyOfAd = new Map(accounts.flatMap((a) => a.campaigns.flatMap((c) => c.adsets.flatMap((s) => s.ads.map((x) => [x.metaId, a.currency] as const)))));
+  /** ad → currencies of its spend with no rate */
+  const noRate = new Map<string, string[]>();
   const orders = await db.attributedOrder.findMany({ where: { adId: { in: adIds }, isFake: false, method: { in: AD_METHODS }, createdAtOms: { gte: fromAt, lt: toAt } }, select: { adId: true, createdAtOms: true } });
 
   const days = new Map<string, Map<string, DayFact>>();
@@ -74,7 +82,9 @@ export async function planNight(now = new Date(), rulesIn?: CampaignRules): Prom
   };
   for (const i of insights) {
     const f = dayFact(i.objectId, dayOf(i.date));
-    f.spend += Number(i.spend);
+    const dollars = toUsd(String(i.spend), rowCurrency(i, currencyOfAd.get(i.objectId)), rates);
+    if (dollars.usd === null) noRate.set(i.objectId, mergeMissing(noRate.get(i.objectId), [dollars.missing!]));
+    f.spend += dollars.usd?.toNumber() ?? 0;
     f.purchases += Number(i.purchases);
   }
   for (const o of orders) if (o.adId) dayFact(o.adId, ammanKey(o.createdAtOms)).orders++;
@@ -106,6 +116,12 @@ export async function planNight(now = new Date(), rulesIn?: CampaignRules): Prom
       for (const s of c.adsets) {
         if (!isLive(s.status)) continue;
         const start = s.startTime ?? c.startTime ?? s.createdAt;
+        // spend that cannot be read in dollars: the ad set and its ads are held, with the currency named
+        const missing = mergeMissing(...s.ads.map((x) => noRate.get(x.metaId)));
+        if (missing.length) {
+          held.push({ targetId: s.metaId, level: "adset", why: missingRateText(missing) });
+          continue;
+        }
         const setDays = factsOf(s.ads.map((x) => x.metaId));
         const mine = history.filter((h) => h.objectId === s.metaId);
         const raise = [...mine].reverse().find((h) => h.changeSet.kind === "raise_step");
@@ -138,18 +154,28 @@ export async function planNight(now = new Date(), rulesIn?: CampaignRules): Prom
     }
   }
 
-  // the product's return stop (the owner's share of the first N shipments)
-  const counts = await db.attributedOrder.groupBy({ by: ["productCode", "status"], where: { isFake: false }, _count: { _all: true } });
-  const byProduct = new Map<string, { shipments: number; returned: number }>();
+  // the product's return stop (the owner's share of the first N shipments), market by market for a product seen in two (v6 · P11)
+  const counts = await db.attributedOrder.groupBy({ by: ["productCode", "market", "status"], where: { isFake: false }, _count: { _all: true } });
+  const markets = productMarkets([...counts.map((c) => ({ code: c.productCode, market: c.market })), ...accounts.flatMap((a) => a.campaigns.map((c) => ({ code: c.productCode, market: campaignMarket(c.parsedMarket, a.market) })))], new Map());
+  const byProduct = new Map<string, { code: string; market: string | null; shipments: number; returned: number }>();
   for (const c of counts) {
-    const x = byProduct.get(c.productCode) ?? { shipments: 0, returned: 0 };
+    const split = markets.isSplit(c.productCode);
+    const key = split ? `${c.productCode}@${c.market}` : c.productCode;
+    const x = byProduct.get(key) ?? { code: c.productCode, market: split ? c.market : null, shipments: 0, returned: 0 };
     if (SHIPPED.has(c.status)) x.shipments += c._count._all;
     if (c.status === "returned") x.returned += c._count._all;
-    byProduct.set(c.productCode, x);
+    byProduct.set(key, x);
   }
-  for (const [productCode, x] of byProduct) {
-    const d = judgeProductReturn({ productCode, shipments: x.shipments, returned: x.returned, shipmentsToDate: x.shipments }, rules);
-    if (d) decisions.push(d);
+  const stored = await getSetting("oms.product_conflicts");
+  const clashing = new Set((Array.isArray(stored) ? (stored as ProductConflict[]) : []).filter((c) => c.kind === "catalogue").map((c) => c.code));
+  for (const [key, x] of byProduct) {
+    // a campaign whose market nobody knows is stopped with this market's (a stop only lowers spend), and the sentence says so
+    const unplaced = x.market && accounts.some((a) => a.campaigns.some((c) => c.productCode === x.code && isLive(c.status) && !campaignMarket(c.parsedMarket, a.market)));
+    const label = x.market ? `${x.code} (${marketLabel(x.market)}${unplaced ? " ومعه حملاته اللي سوقها مش معروف" : ""})` : x.code;
+    const d = judgeProductReturn({ productCode: key, label, shipments: x.shipments, returned: x.returned, shipmentsToDate: x.shipments }, rules);
+    if (!d) continue;
+    if (clashing.has(x.code)) held.push({ targetId: x.code, level: "product", why: `رمز المنتج ${x.code} متضارب بنظام الطلبات (متجرين بنفس الرمز) — المرتجع ممكن يكون لمنتجين` });
+    else decisions.push(d);
   }
   return { decisions, held, gate: null };
 }
@@ -167,7 +193,10 @@ export async function itemsFor(d: NightDecision): Promise<ChangeItemDraft[]> {
     if (d.action === "reduce") return b && d.newBudget !== undefined ? [{ op: "set_budget", objectType: "adset", objectId: d.targetId, before: { dailyBudget: b }, after: { dailyBudget: d.newBudget } }] : [];
     return [{ op: "pause", objectType: "adset", objectId: d.targetId, before: { status: s.status, dailyBudget: b }, after: { status: "PAUSED" } }];
   }
-  const campaigns = await db.campaign.findMany({ where: { status: { not: "PAUSED" }, productCode: d.targetId } });
+  // a line of one market (`CODE@JO`) stops that market's campaigns and the ones with no market — never one known to be another market's
+  const { code, suffix } = splitKey(d.targetId);
+  const all = await db.campaign.findMany({ where: { status: { not: "PAUSED" }, productCode: code }, include: { account: true } });
+  const campaigns = suffix ? all.filter((c) => (campaignMarket(c.parsedMarket, c.account?.market) ?? suffix) === suffix) : all;
   return campaigns.filter((c) => isLive(c.status)).map((c) => ({ op: "pause" as const, objectType: "campaign" as const, objectId: c.metaId, before: { status: c.status, dailyBudget: c.dailyBudget ? Number(c.dailyBudget) : undefined }, after: { status: "PAUSED" } }));
 }
 

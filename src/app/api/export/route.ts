@@ -6,6 +6,8 @@ import { demoExport } from "@/lib/export-demo";
 import { isDemo } from "@/core/readiness";
 import { stampOf } from "@/core/freshness";
 import { nameOf, productLabels } from "@/core/product-name";
+import { marketLabel, splitKey } from "@/core/markets";
+import { truthMoney } from "@/core/truth-money";
 import { loadSourceFacts } from "@/lib/source-facts";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,17 @@ export async function GET() {
       // U-08: a product is written by its Arabic name
       const labels = productLabels(await db.productEconomics.findMany(), await db.productAlias.findMany({ select: { productCode: true, alias: true } }));
       const names = new Map([...(await db.productEconomics.findMany()).map((p) => [p.productCode, nameOf(labels, p.productCode)] as const), ...(await db.ad.findMany({ select: { metaId: true, name: true } })).map((a) => [a.metaId, a.name] as const)]);
-      rows = truth.map((t) => ({ level: t.level === "product" ? "منتج" : "إعلان", name: names.get(t.objectId) ?? t.objectId, spend: n(t.spendWithFee), orders: t.orders, confirmed: t.confirmed, delivered: t.delivered, costPerConfirmed: n(t.costPerConfirmed), ceiling: n(t.scalingCeiling), confirmRate: n(t.confirmRate), deliveryRate: n(t.deliveryRate), profit: n(t.profitAfterCosts), roas: n(t.trueRoas) }));
+      // v6 · P11: a figure that could not be worked out is an empty cell, and the line says why; a product's other market says its market
+      const nameFor = (key: string) => {
+        const { code, suffix } = splitKey(key);
+        const base = names.get(code) ?? code;
+        return suffix === null ? base : `${base} — ${marketLabel(suffix === "??" ? null : suffix)}`;
+      };
+      rows = truth.map((t) => {
+        const m = truthMoney(t);
+        const name = t.level === "product" ? nameFor(t.objectId) : names.get(t.objectId) ?? t.objectId;
+        return { level: t.level === "product" ? "منتج" : "إعلان", name: m.gap ? `${name} (${m.gap})` : name, spend: m.spend, orders: t.orders, confirmed: t.confirmed, delivered: t.delivered, costPerConfirmed: m.costPerConfirmed, ceiling: m.ceiling, confirmRate: n(t.confirmRate), deliveryRate: n(t.deliveryRate), profit: m.profit, roas: m.roas };
+      });
       // R-23: the file says whether its figures are «حقيقي» or «تقدير» (the OMS silent for three hours turns them into an estimate)
       title = `الحقيقة — ${latest.date.toISOString().slice(0, 10)} — ${stampOf(await loadSourceFacts())}`;
     } else {

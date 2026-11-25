@@ -10,6 +10,7 @@
  * Rates are percentages (0–100). Money is USD. A number that cannot be computed (a zero denominator, a missing input)
  * is `null` and prints «—» — never 0, never a guess.
  */
+import { mergeMissing } from "./currency";
 import { stockUrgency, type StockThresholds } from "./stock-alerts";
 import type { Urgency } from "./mode";
 
@@ -48,6 +49,10 @@ export interface Raw {
   aovOrders: number | null;
   rejectReasons: Reason[];
   offers: Offer[];
+  /** v6 · P11: currencies of spend in the window that have no exchange rate. Non-empty = the spend is NOT known (never a partial sum) */
+  fxMissing?: string[];
+  /** v6 · P11: money moved here in a market the product has no economics for: a total that holds it has no whole profit */
+  noEconomics?: boolean;
   // states: the latest reading in the window
   waiting: number | null;
   outForDelivery: number | null;
@@ -87,6 +92,12 @@ export function sumRaw(list: Raw[]): Raw {
   for (const r of list) {
     for (const k of [...FLOW_KEYS, ...STATE_KEYS]) out[k] = add(out[k], r[k]);
   }
+  const fx = mergeMissing(...list.map((r) => r.fxMissing));
+  if (fx.length) {
+    out.fxMissing = fx;
+    out.metaSpend = null;
+  }
+  if (list.some((r) => r.noEconomics)) out.noEconomics = true;
   out.rejectReasons = mergeReasons(list.flatMap((r) => r.rejectReasons));
   out.offers = mergeOffers(list.flatMap((r) => r.offers));
   return out;
@@ -134,8 +145,11 @@ const div = (a: number | null, b: number | null): number | null => (a === null |
 const rnd = (n: number | null, f: (x: number) => number): number | null => (n === null ? null : f(n));
 
 export function computeSet(raw: Raw, ctx: Ctx): NumbersSet {
+  // v6 · P11: spend in a currency with no rate is not known — the spend and everything on it is «—»
+  const unconverted = !!raw.fxMissing?.length;
+  const metaSpend = unconverted ? null : raw.metaSpend;
   // what it really cost: Meta's spend and the card's fee
-  const eff = raw.metaSpend === null ? null : raw.metaSpend * (1 + ctx.fx);
+  const eff = metaSpend === null ? null : metaSpend * (1 + ctx.fx);
   const rate = ctx.deliveryRate;
 
   const known = raw.offers.filter((o) => o.pieces !== undefined);
@@ -149,14 +163,14 @@ export function computeSet(raw: Raw, ctx: Ctx): NumbersSet {
   const expectedRevenue = raw.revenueShipped !== null && rate !== null ? raw.revenueShipped * rate : raw.expectedRevenuePushed;
   const expectedShipping = raw.shippedOrders !== null && ctx.econ ? raw.shippedOrders * ctx.econ.deliveryFee + raw.shippedOrders * (1 - (rate ?? 1)) * ctx.econ.returnFee : null;
   const goods = raw.shippedPieces !== null && ctx.econ ? raw.shippedPieces * (rate ?? 1) * ctx.econ.unitCost : null;
-  const expectedProfit = expectedRevenue !== null && expectedShipping !== null && goods !== null ? expectedRevenue - goods - expectedShipping - (eff ?? 0) : null;
+  const expectedProfit = !unconverted && expectedRevenue !== null && expectedShipping !== null && goods !== null ? expectedRevenue - goods - expectedShipping - (eff ?? 0) : null;
 
   return {
     spend: rnd(eff, r2),
     pixelPurchases: raw.pixelPurchases,
     costPerPixel: rnd(div(eff, raw.pixelPurchases), r2),
     // CPM and CTR are Meta's own delivery measures: Meta's spend, no card fee
-    cpm: rnd(div(raw.metaSpend === null ? null : raw.metaSpend * 1000, raw.impressions), r2),
+    cpm: rnd(div(metaSpend === null ? null : metaSpend * 1000, raw.impressions), r2),
     ctr: rnd(div(raw.linkClicks === null ? null : raw.linkClicks * 100, raw.impressions), r2),
     ordersIn: raw.ordersIn,
     uniqueCustomers: raw.uniqueCustomers,
@@ -195,11 +209,13 @@ export function totalSet(parts: { raw: Raw; set: NumbersSet; piecesPerDay: numbe
   const all = computeSet(sumRaw(parts.map((p) => p.raw)), { fx, deliveryRate: null, econ: null, piecesPerDay: null });
   const sum = (k: SetKey) => parts.reduce<number | null>((s, p) => add(s, p.set[k]), null);
   const pieces = parts.reduce<number | null>((s, p) => add(s, p.piecesPerDay), null);
+  // a part whose money is not known (no rate, or a market with no economics that spent or shipped) leaves the total's profit unknown — never a sum without it
+  const holed = parts.some((p) => p.raw.fxMissing?.length || (p.raw.noEconomics && ((p.raw.metaSpend ?? 0) > 0 || (p.raw.shippedOrders ?? 0) > 0)));
   return {
     ...all,
     expectedRevenue: rnd(sum("expectedRevenue"), r2),
-    expectedShipping: rnd(sum("expectedShipping"), r2),
-    expectedProfit: rnd(sum("expectedProfit"), r2),
+    expectedShipping: holed ? null : rnd(sum("expectedShipping"), r2),
+    expectedProfit: holed ? null : rnd(sum("expectedProfit"), r2),
     deliveryRate30: null,
     // the days of cover of everything together: all the units over all the pieces shipped a day
     stockCover: pieces && pieces > 0 && all.stockUnits !== null ? r1(all.stockUnits / pieces) : null,
@@ -284,6 +300,12 @@ export const STATS: StatDef[] = [
 /** The products' cards and the totals. `prev` and `avg7` are the same numbers for the window before and for the 7 days before (scaled to the window's length). */
 export interface ProductNumbers {
   code: string;
+  /** v6 · P11: the line's own key — the code, or `CODE@MM` for another market of a product seen in two (src/core/markets.ts) */
+  key?: string;
+  /** the market of this line; null when nobody placed it */
+  market?: string | null;
+  /** the product is seen in more than one market: its links carry the market */
+  split?: boolean;
   name: string;
   current: NumbersSet;
   prev: NumbersSet;

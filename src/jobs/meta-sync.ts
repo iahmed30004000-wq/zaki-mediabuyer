@@ -98,7 +98,9 @@ export async function syncInsights(client: MetaClient, since: string, until: str
     for (const raw of await readInsights(client, account.metaId, since, until, window)) {
       if (!raw.ad_id) continue;
       const r = toInsightRow(raw, window);
-      const { level, objectId, date, ...values } = r;
+      const { level, objectId, date, ...numbers } = r;
+      // Meta answers in the account's own currency: it is written on the row, and converted where it is added up (v6 · P11)
+      const values = { ...numbers, currency: account.currency };
       const key = { level, objectId, date: new Date(`${date}T00:00:00Z`) };
       await db.insightDaily.upsert({ where: { level_objectId_date: key }, create: { ...key, ...values }, update: values });
       rows++;

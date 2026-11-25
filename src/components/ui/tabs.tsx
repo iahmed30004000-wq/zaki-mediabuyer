@@ -42,9 +42,22 @@ interface TabsProps {
   label?: string;
   exactFirst?: boolean;
   className?: string;
+  /** query names carried from the page we are on to every tab (the numbers keep the chosen market) */
+  keep?: readonly string[];
 }
 
-function TabsBar({ items, label = "التبويبات", exactFirst = true, className }: TabsProps) {
+/** A tab's address with the kept names of the current query on it. */
+export function keepQuery(href: string, query: { get(name: string): string | null }, keep: readonly string[]): string {
+  const [path, qs] = href.split("?");
+  const next = new URLSearchParams(qs);
+  for (const name of keep) {
+    const v = query.get(name);
+    if (v) next.set(name, v);
+  }
+  return next.size ? `${path}?${next.toString()}` : path!;
+}
+
+function TabsBar({ items, label = "التبويبات", exactFirst = true, className, keep = [] }: TabsProps) {
   const pathname = usePathname();
   const query = useSearchParams();
   return (
@@ -55,7 +68,7 @@ function TabsBar({ items, label = "التبويبات", exactFirst = true, class
           return (
             <li key={it.href}>
               <Link
-                href={it.href}
+                href={keepQuery(it.href, query, keep)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "-mb-px inline-flex h-12 items-center gap-1.5 border-b-[3px] px-4 text-base font-bold transition-colors",

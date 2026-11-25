@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   db: {
     productDay: { findMany: vi.fn() },
     insightDaily: { groupBy: vi.fn() },
-    attributedOrder: { findMany: vi.fn() },
+    attributedOrder: { findMany: vi.fn(), groupBy: vi.fn(async () => []) },
     productEconomics: { findMany: vi.fn() },
     campaign: { findMany: vi.fn() },
     adSet: { findMany: vi.fn() },

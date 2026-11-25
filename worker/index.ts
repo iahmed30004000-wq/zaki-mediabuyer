@@ -40,7 +40,7 @@ import { JOB_RETRIES } from "../src/core/job-slot";
 import { WORKER_TICK_KEY } from "../src/core/health";
 import { startOverlay } from "../src/server/connections";
 import { metaToken, syncMeta } from "../src/jobs/meta-sync";
-import { computeTruthDays, omsOptions, syncOms } from "../src/jobs/truth";
+import { computeTruthDays, omsOptions, rebuildTruth, syncOms } from "../src/jobs/truth";
 import { buildMorningReport } from "../src/jobs/morning-report";
 import { lastOmsSync, linkSlot, omsBackoff, omsPullSince } from "../src/jobs/oms-health";
 import { runRules } from "../src/jobs/rules-run";
@@ -57,6 +57,7 @@ import { storePlan } from "../src/agents/planner";
 import { dailyBackup } from "../src/ops/backup";
 import { runFatigue } from "../src/jobs/fatigue";
 import { proposeSafetyNet } from "../src/server/safety-net";
+import { currencyGate } from "../src/core/rulebook";
 import { storeAnalysis } from "../src/agents/analyst";
 import { weeklyCreativeRequests } from "../src/agents/strategist";
 import { readAlerts, queueAlerts } from "../src/jobs/alerts";
@@ -131,6 +132,8 @@ export async function tick(now = new Date()) {
       });
     }
   }
+  // once, ever (v6 · P11): the stored days that added another currency as dollars are worked out again
+  await runOnce("truth.currency", "v1", () => rebuildTruth(now), { retries: 3 });
   if (t.minute >= 10) await runOnce("truth.compute", `${t.date}T${t.hour}`, () => computeTruthDays(utcDay(yesterday), utcDay(t.date), now));
   if (t.minute >= 15) await runOnce("rules", `${t.date}T${t.hour}`, () => runRules(now));
   const quarter = `${t.date}T${String(t.hour).padStart(2, "0")}:${String(Math.floor(t.minute / 15) * 15).padStart(2, "0")}`;
@@ -187,6 +190,11 @@ export async function tick(now = new Date()) {
     await runOnce("safety.month", t.date, async () => {
       const done: string[] = [];
       for (const a of await db.adAccount.findMany({ where: { monthlyCap: { gt: 0 } } })) {
+        if (!currencyGate(a.currency).ok) {
+          // v6 · P11: the site writes no cap into another currency — the owner is told to reset it on Meta
+          await db.alert.create({ data: { kind: "safety.month", tone: "warn", text: `شهر جديد: حساب ${a.name} بعملة ${a.currency} — صفّر سقف صرفه من ميتا بإيدك`, href: "/settings/rules#money" } });
+          continue;
+        }
         const cs = await proposeSafetyNet(a.metaId, { type: "rule", id: "safety_net" }, { reset: true, source: "rule" }).catch(() => null);
         if (cs) {
           done.push(a.metaId);

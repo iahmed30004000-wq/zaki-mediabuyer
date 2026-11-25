@@ -9,7 +9,8 @@ import { jobRow } from "./helpers/fake-db";
 const h = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof import("./helpers/fake-db").makeFakeDb> }));
 vi.mock("@/server/db", async () => {
   const { makeFakeDb } = await import("./helpers/fake-db");
-  h.db = makeFakeDb();
+  // the rows are stamped from the real clock: «what was decided in the last 48 hours» is measured against it
+  h.db = makeFakeDb(new Date());
   return { db: h.db };
 });
 vi.mock("@/server/audit", async (orig) => ({ ...(await orig<typeof import("@/server/audit")>()), audit: async () => undefined }));

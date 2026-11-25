@@ -62,7 +62,7 @@ vi.mock("@/server/db", () => {
       experiment: { updateMany: async () => ({ count: 0 }), findFirst: async () => null },
       killSwitchEvent: { create: async () => ({}) },
       campaign: { findMany: async () => s.mirror, ...rec("campaign") },
-      adSet: rec("adSet"),
+      adSet: { ...rec("adSet"), findUnique: async () => null },
       ad: rec("ad"),
     },
   };

@@ -7,6 +7,7 @@ import { Pill } from "@/components/ui/pill";
 import { ProductName } from "@/components/ui/product-name";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Stat } from "@/components/ui/stat";
+import { productHref } from "@/core/markets";
 import { funnel, type PersonFlag } from "@/core/ops";
 import { can } from "@/core/roles";
 import { fmt } from "@/lib/format";
@@ -17,13 +18,15 @@ import { currentCaller } from "@/server/auth";
 import { lastStockAlert, latestMetric, loadOpsRules, loadTeam, metricSeries, type TeamData, type TeamRow } from "@/server/ops";
 import { listOrders } from "@/server/orders";
 import { OpsRulesForm } from "./ops-rules-form";
+import { MarketSwitcher } from "@/components/numbers/market-switcher";
 
 const pctText = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 const num = (v: number | null) => (v === null ? "—" : String(Math.round(v)));
 
 /** The funnel: دخل ← مؤكد ← نزل على الشحن ← انشحن ← تسلّم, each with its share of the step before. The «landed» step shows only when the shipments check said it. */
-export async function FunnelSection() {
-  const [data, landed] = await Promise.all([loadNumbers({ d: "7d" }), latestMetric("shipments-check", "landed")]);
+export async function FunnelSection({ market = null }: { market?: string | null } = {}) {
+  // the shipments check's «landed» carries no market: it is not shown beside one market's numbers
+  const [data, landed] = await Promise.all([loadNumbers({ d: "7d", market }), market ? Promise.resolve(null) : latestMetric("shipments-check", "landed")]);
   const c = data.totals.current;
   const steps = funnel({ ordersIn: c.ordersIn, confirmed: c.confirmed, landed: landed?.value ?? null, shippedOrders: c.shippedOrders, delivered: c.delivered });
   return (
@@ -90,6 +93,8 @@ const wholeTeam = (t: TeamData): TeamRow[] =>
 
 
 interface StockRow {
+  /** the line's key (a product in two markets has one per market) */
+  key?: string;
   code: string;
   name: string;
   units: number | null;
@@ -98,11 +103,11 @@ interface StockRow {
   urgency: "red" | "orange" | "yellow" | null;
 }
 
-async function stockRows(): Promise<StockRow[]> {
-  const data = await loadNumbers({ d: "7d" });
+async function stockRows(market: string | null): Promise<StockRow[]> {
+  const data = await loadNumbers({ d: "7d", market });
   return data.products
     .filter((p) => p.current.stockUnits !== null || p.current.stockCover !== null)
-    .map((p) => ({ code: p.code, name: p.name, units: p.current.stockUnits, daily: p.current.shippedPieces === null ? null : p.current.shippedPieces / 7, cover: p.current.stockCover, urgency: p.stockUrgency }));
+    .map((p) => ({ key: p.key ?? p.code, code: p.code, name: p.name, units: p.current.stockUnits, daily: p.current.shippedPieces === null ? null : p.current.shippedPieces / 7, cover: p.current.stockCover, urgency: p.stockUrgency }));
 }
 
 const URG: Record<string, { label: string; tone: "danger" | "warn" | "info" }> = { red: { label: "أقل من أسبوع", tone: "danger" }, orange: { label: "قريب", tone: "warn" }, yellow: { label: "انتبه", tone: "info" } };
@@ -115,14 +120,15 @@ export function StockTable({ rows }: { rows: StockRow[] }) {
     { key: "cover", header: "بيكفي (يوم)", numeric: true, cell: (r) => (r.cover === null ? "—" : fmt(r.cover, "", 1)) },
     { key: "u", header: "الحالة", cell: (r) => (r.urgency ? <Pill tone={URG[r.urgency]!.tone}>{URG[r.urgency]!.label}</Pill> : <span className="text-fg-muted">—</span>) },
   ];
-  return <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="المخزون" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في مخزون مسجّل. Claude لسا ما بعته، ولما يبعته بيظهر هون.</p>} />;
+  return <DataTable columns={cols} rows={rows} rowKey={(r) => r.key ?? r.code} label="المخزون" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في مخزون مسجّل. Claude لسا ما بعته، ولما يبعته بيظهر هون.</p>} />;
 }
 
 
-export async function StockPage() {
-  const [rows, alert, facts] = await Promise.all([stockRows(), lastStockAlert(), loadSourceFacts()]);
+export async function StockPage({ market = null }: { market?: string | null } = {}) {
+  const [rows, alert, facts] = await Promise.all([stockRows(market), lastStockAlert(), loadSourceFacts()]);
   return (
     <div className="space-y-4">
+      <MarketSwitcher market={market} />
       {rows.length && !facts.stockFresh ? <p className="rounded-card border border-warn/45 bg-warn/[0.06] p-3 text-base text-fg">قراءة المخزون أقدم من 24 ساعة: الأيام اللي بتكفي تقدير لحد ما Claude يبعت قراءة جديدة.</p> : null}
       <StockTable rows={rows.sort((a, b) => (a.cover ?? 9e9) - (b.cover ?? 9e9))} />
       {alert ? <p className="text-sm text-fg-muted">آخر تنبيه مخزون: <span className="font-semibold text-fg">{alert.title}</span></p> : null}
@@ -210,11 +216,13 @@ async function latestComment(): Promise<{ text: string; at: string } | null> {
 }
 
 /** The shipping page: what the shipments check said last (not landed · ready · postponed) and each product's stuck and returned. */
-export async function ShippingPage() {
-  const [data, notLanded, ready, postponed] = await Promise.all([loadNumbers({ d: "7d" }), latestMetric("shipments-check", "not_landed"), latestMetric("shipments-check", "ready"), latestMetric("shipments-check", "postponed")]);
+export async function ShippingPage({ market = null }: { market?: string | null } = {}) {
+  // the shipments check carries no market: its three figures are shown only for every market together
+  const check = (key: string) => (market ? Promise.resolve(null) : latestMetric("shipments-check", key));
+  const [data, notLanded, ready, postponed] = await Promise.all([loadNumbers({ d: "7d", market }), check("not_landed"), check("ready"), check("postponed")]);
   const rows = data.products.filter((p) => p.hasData);
   const cols: Column<(typeof rows)[number]>[] = [
-    { key: "name", header: "المنتج", cell: (r) => <Link href={`/numbers/products/${encodeURIComponent(r.code)}`} className="inline-flex min-h-11 items-center hover:underline"><ProductName name={r.name} code={r.code} /></Link> },
+    { key: "name", header: "المنتج", cell: (r) => <Link href={productHref(r, "")} className="inline-flex min-h-11 items-center hover:underline"><ProductName name={r.name} code={r.code} /></Link> },
     { key: "shipped", header: "انشحن", numeric: true, cell: (r) => num(r.current.shippedOrders) },
     { key: "out", header: "عند المندوب", numeric: true, cell: (r) => num(r.current.outForDelivery) },
     { key: "stuck", header: "عالق +7 أيام", numeric: true, cell: (r) => num(r.current.stuck) },
@@ -234,7 +242,7 @@ export async function ShippingPage() {
       ) : null}
       <section className="space-y-3">
         <SectionTitle hint="آخر 7 أيام">العالق والمرتجع</SectionTitle>
-        <DataTable columns={cols} rows={rows} rowKey={(r) => r.code} label="الشحن" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في أرقام شحن لسا — بتيجي من نظام الطلبات أو لما Claude يبعتها.</p>} />
+        <DataTable columns={cols} rows={rows} rowKey={(r) => r.key ?? r.code} label="الشحن" empty={<p className="rounded-card border border-dashed border-border p-4 text-sm text-fg-muted">ما في أرقام شحن لسا — بتيجي من نظام الطلبات أو لما Claude يبعتها.</p>} />
       </section>
     </div>
   );

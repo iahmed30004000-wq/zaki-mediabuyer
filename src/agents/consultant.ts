@@ -5,6 +5,9 @@
  * are the answer.
  */
 import { db } from "@/server/db";
+import { marketLabel, splitKey } from "@/core/markets";
+import { currencyGate } from "@/core/rulebook";
+import { gapText, truthMoney } from "@/core/truth-money";
 import { ask, AgentUnavailable, PrivacyRefusal } from "@/gateway";
 import { LEVEL_AR } from "@/lib/mock/data";
 
@@ -15,17 +18,28 @@ export async function consultFacts(now = new Date()): Promise<string[]> {
   const since = new Date(now.getTime() - 7 * 86_400_000);
   const lines: string[] = [];
   for (const a of await db.adAccount.findMany()) {
-    lines.push(`حساب ${a.name}: المستوى ${a.autonomyLevel} (${LEVEL_AR[a.autonomyLevel as 0 | 1 | 2 | 3] ?? "—"}) · السقف اليومي ${usd(a.dailyCap ? Number(a.dailyCap) : null)}`);
+    // v6 · P11: a cap is in its account's currency: another currency is named, never written with a «$»
+    const cap = a.dailyCap ? Number(a.dailyCap) : null;
+    const capText = cap === null || currencyGate(a.currency).ok ? usd(cap) : `${cap} ${a.currency}`;
+    lines.push(`حساب ${a.name}: المستوى ${a.autonomyLevel} (${LEVEL_AR[a.autonomyLevel as 0 | 1 | 2 | 3] ?? "—"}) · السقف اليومي ${capText}`);
   }
   for (const e of await db.productEconomics.findMany()) {
-    const rows = await db.truthDaily.findMany({ where: { level: "product", objectId: e.productCode, date: { gte: since } } });
-    if (!rows.length) continue;
-    const spend = rows.reduce((n, r) => n + Number(r.spendWithFee), 0);
+    const all = await db.truthDaily.findMany({ where: { level: "product", OR: [{ objectId: e.productCode }, { objectId: { startsWith: `${e.productCode}@` } }], date: { gte: since } } });
+    // a product in two markets is said market by market (v6 · P11)
+    for (const key of [...new Set(all.map((r) => r.objectId ?? e.productCode))].sort()) {
+    const rows = all.filter((r) => (r.objectId ?? e.productCode) === key);
+    const { suffix } = splitKey(key);
+    const name = suffix === null ? e.name : `${e.name} — ${marketLabel(suffix === "??" ? null : suffix)}`;
+    // v6 · P11: a day whose money is unknown (no exchange rate) leaves the whole figure unknown, said — never a sum without it
+    const noSpend = rows.some((r) => r.spendMissing);
+    const gap = gapText(...rows.map((r) => r.spendMissing), ...rows.map((r) => r.moneyMissing));
+    const spend = noSpend ? null : rows.reduce((n, r) => n + Number(r.spendWithFee), 0);
     const confirmed = rows.reduce((n, r) => n + r.confirmed, 0);
     const delivered = rows.reduce((n, r) => n + r.delivered, 0);
-    const profit = rows.reduce((n, r) => n + Number(r.profitAfterCosts), 0);
-    const ceiling = rows.map((r) => r.scalingCeiling).filter(Boolean).pop();
-    lines.push(`${e.name} (${e.productCode}) آخر 7 أيام [حقيقي]: صرف ${usd(spend)} · مؤكد ${confirmed} · تكلفة المؤكد ${usd(confirmed ? spend / confirmed : null)} · السقف ${usd(ceiling ? Number(ceiling) : null)} · مُسلَّم ${delivered} · ربح بعد التكاليف ${usd(profit)}${e.source === "actual" ? "" : " · أرقام المنتج [تقدير]"} · المخزون ${e.stockDays ?? "—"} يوم`);
+    const profit = rows.some((r) => r.spendMissing || r.moneyMissing) ? null : rows.reduce((n, r) => n + Number(r.profitAfterCosts), 0);
+    const ceiling = rows.map((r) => truthMoney(r).ceiling).filter((c) => c !== null).pop();
+    lines.push(`${name} (${e.productCode}) آخر 7 أيام [حقيقي]: صرف ${usd(spend)} · مؤكد ${confirmed} · تكلفة المؤكد ${usd(confirmed && spend !== null ? spend / confirmed : null)} · السقف ${usd(ceiling ? Number(ceiling) : null)} · مُسلَّم ${delivered} · ربح بعد التكاليف ${usd(profit)}${e.source === "actual" ? "" : " · أرقام المنتج [تقدير]"} · المخزون ${e.stockDays ?? "—"} يوم${gap ? ` · ${gap}` : ""}`);
+    }
   }
   const pending = await db.changeSet.findMany({ where: { state: { in: ["pending_approval", "simulated"] } }, select: { sentence: true, spendDeltaDaily: true }, take: 10 });
   if (pending.length) lines.push(`بانتظار المالك: ${pending.length} تغيير (${pending.map((p) => `${p.sentence.slice(0, 80)} [${Number(p.spendDeltaDaily) >= 0 ? "+" : ""}${Number(p.spendDeltaDaily)}$/يوم]`).join(" | ")})`);

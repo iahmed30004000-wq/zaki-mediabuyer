@@ -8,6 +8,7 @@ import { propose } from "./changes";
 import { productTargets } from "./launch";
 import { HttpError } from "./auth";
 import { safetyNetItems } from "@/core/safety-net";
+import { currencyGate } from "@/core/rulebook";
 import type { Actor } from "./audit";
 
 export type SafetyNetState = "none" | "pending" | "on";
@@ -21,6 +22,8 @@ export async function safetyNetState(accountMetaId: string): Promise<SafetyNetSt
 export async function proposeSafetyNet(accountMetaId: string, actor: Actor, o: { reset: boolean; source: "user" | "rule" }) {
   const account = await db.adAccount.findUnique({ where: { metaId: accountMetaId } });
   if (!account) throw new HttpError(404, "الحساب مش موجود");
+  // v6 · P11: the cap and the rule's threshold are dollars; Meta would read them in the account's currency
+  if (!currencyGate(account.currency).ok) throw new HttpError(409, `حساب بعملة ${account.currency}: شبكة الأمان بتنكتب بالدولار بس — حط سقف الصرف من ميتا بإيدك`);
   const open = await db.changeSet.findFirst({ where: { kind: "safety_net", accountMetaId, state: { in: ["pending_approval", "simulated"] } } });
   if (open) throw new HttpError(409, "في شبكة أمان لهالحساب لسا بانتظار موافقتك بـ «القرارات»");
   // one rule covers every product of the account: the strictest (smallest) order target

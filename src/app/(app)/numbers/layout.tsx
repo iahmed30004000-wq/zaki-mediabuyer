@@ -13,7 +13,7 @@ export default async function NumbersLayout({ children }: { children: React.Reac
   const items = place.tabs.filter((t) => (!me || canOpenPath(me.role, t.href))).map((t) => ({ href: t.href, label: t.label }));
   return (
     <>
-      {items.length > 1 ? <Tabs items={items} label={place.title} className="mb-4" /> : null}
+      {items.length > 1 ? <Tabs items={items} label={place.title} className="mb-4" keep={["market"]} /> : null}
       {children}
     </>
   );

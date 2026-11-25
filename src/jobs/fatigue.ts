@@ -5,6 +5,9 @@
  */
 import { db } from "@/server/db";
 import { judgeFatigue, type FatigueWindow } from "@/core/fatigue";
+import { rowCurrency, toUsd } from "@/core/currency";
+import { campaignMarket } from "@/core/markets";
+import { loadRates } from "@/server/money";
 import { RULES } from "@/core/policy";
 
 const DAY = 86_400_000;
@@ -14,9 +17,14 @@ export async function runFatigue(now = new Date()) {
   today.setUTCHours(0, 0, 0, 0);
   const ads = await db.ad.findMany({ where: { status: { notIn: ["PAUSED", "ARCHIVED", "DELETED"] }, creativeCode: { not: null } }, include: { adSet: { include: { campaign: { include: { account: true } } } } } });
   const stats = { ads: ads.length, measured: 0, watch: 0, tired: 0, requests: 0 };
+  const rates = await loadRates();
   for (const ad of ads) {
-    const rows = await db.insightDaily.findMany({ where: { level: "ad", objectId: ad.metaId, date: { lt: today } }, orderBy: { date: "asc" } });
-    if (rows.length < 7) continue;
+    const read = await db.insightDaily.findMany({ where: { level: "ad", objectId: ad.metaId, date: { lt: today } }, orderBy: { date: "asc" } });
+    if (read.length < 7) continue;
+    // v6 · P11: in dollars; an ad with spend that has no rate is not judged
+    const converted = read.map((r) => ({ r, c: toUsd(String(r.spend), rowCurrency(r, ad.adSet.campaign.account.currency), rates) }));
+    if (converted.some((x) => x.c.usd === null)) continue;
+    const rows = converted.map((x) => ({ ...x.r, spend: x.c.usd!.toNumber() }));
     stats.measured++;
     const orders = await db.attributedOrder.findMany({ where: { adId: ad.metaId, isFake: false }, select: { createdAtOms: true } });
     const win = (list: typeof rows): FatigueWindow => {
@@ -31,7 +39,7 @@ export async function runFatigue(now = new Date()) {
         orders: orders.filter((o) => o.createdAtOms.getTime() >= from && o.createdAtOms.getTime() < to).length,
       };
     };
-    const v = judgeFatigue(win(rows.slice(0, 3)), win(rows.slice(-3)), win(rows.slice(-7)), ad.adSet.campaign.account.market ?? "SY");
+    const v = judgeFatigue(win(rows.slice(0, 3)), win(rows.slice(-3)), win(rows.slice(-7)), campaignMarket(ad.adSet.campaign.parsedMarket, ad.adSet.campaign.account.market) ?? "SY");
     if (v.state === "watch") stats.watch++;
     if (v.state !== "tired") continue;
     stats.tired++;

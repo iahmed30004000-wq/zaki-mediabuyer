@@ -14,6 +14,11 @@ export interface ProductWeek {
   shipments: number;
   delivered: number;
   profit: number;
+  /** v6 · P11: a day's spend could not be told in dollars: `spend` is not a number · a day's profit could not be worked out: `profit` is not */
+  spendGap?: boolean;
+  profitGap?: boolean;
+  /** the sentence why («ناقص سعر صرف: EGP») */
+  gap?: string | null;
 }
 
 export interface ProductCompare extends ProductWeek {
@@ -21,7 +26,7 @@ export interface ProductCompare extends ProductWeek {
   D: number | null;
   profitPerDelivered: number | null;
   costPerConfirmed: number | null;
-  last: { spend: number; confirmed: number; delivered: number; profitPerDelivered: number | null; costPerConfirmed: number | null } | null;
+  last: { spend: number | null; confirmed: number; delivered: number; profitPerDelivered: number | null; costPerConfirmed: number | null } | null;
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -35,9 +40,9 @@ export function compareWeeks(thisWeek: ProductWeek[], lastWeek: ProductWeek[]): 
         ...p,
         C: div(p.confirmed, p.matureOrders),
         D: div(p.delivered, p.shipments),
-        profitPerDelivered: p.delivered ? r2(p.profit / p.delivered) : null,
-        costPerConfirmed: p.confirmed ? r2(p.spend / p.confirmed) : null,
-        last: l ? { spend: l.spend, confirmed: l.confirmed, delivered: l.delivered, profitPerDelivered: l.delivered ? r2(l.profit / l.delivered) : null, costPerConfirmed: l.confirmed ? r2(l.spend / l.confirmed) : null } : null,
+        profitPerDelivered: p.delivered && !p.profitGap ? r2(p.profit / p.delivered) : null,
+        costPerConfirmed: p.confirmed && !p.spendGap ? r2(p.spend / p.confirmed) : null,
+        last: l ? { spend: l.spendGap ? null : l.spend, confirmed: l.confirmed, delivered: l.delivered, profitPerDelivered: l.delivered && !l.profitGap ? r2(l.profit / l.delivered) : null, costPerConfirmed: l.confirmed && !l.spendGap ? r2(l.spend / l.confirmed) : null } : null,
       };
     })
     .sort((a, b) => b.spend - a.spend);
@@ -140,7 +145,7 @@ export function weeklyText(w: WeeklyInput): string {
     "",
     "1) لكل منتج:",
     ...(w.products.length
-      ? w.products.map((p) => `   ${p.name}: صرف ${usd(r2(p.spend))}${arrow(p.spend, p.last?.spend ?? null)} · مؤكد ${p.confirmed}${arrow(p.confirmed, p.last?.confirmed ?? null)} · تكلفة المؤكد ${usd(p.costPerConfirmed)}${arrow(p.costPerConfirmed, p.last?.costPerConfirmed ?? null, true)} · C ${pct(p.C)} · D ${pct(p.D)} · ربح المُسلَّم ${usd(p.profitPerDelivered)}${arrow(p.profitPerDelivered, p.last?.profitPerDelivered ?? null)}`)
+      ? w.products.map((p) => `   ${p.name}: صرف ${usd(p.spendGap ? null : r2(p.spend))}${arrow(p.spendGap ? null : p.spend, p.last?.spend ?? null)} · مؤكد ${p.confirmed}${arrow(p.confirmed, p.last?.confirmed ?? null)} · تكلفة المؤكد ${usd(p.costPerConfirmed)}${arrow(p.costPerConfirmed, p.last?.costPerConfirmed ?? null, true)} · C ${pct(p.C)} · D ${pct(p.D)} · ربح المُسلَّم ${usd(p.profitPerDelivered)}${arrow(p.profitPerDelivered, p.last?.profitPerDelivered ?? null)}${p.gap ? ` — ${p.gap}` : ""}`)
       : ["   ما في صرف هالأسبوع"]),
     "2) الترتيب على تكلفة المؤكد:",
     `   المفهوم: ${top("concept")}`,

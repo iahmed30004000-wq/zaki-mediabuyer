@@ -12,7 +12,7 @@ export interface SettingsPage {
 export const SETTINGS_PAGES: readonly SettingsPage[] = [
   { href: "/settings/connections", title: "الربط", line: "جاهزية الربط، ربط Claude والاستوديو، الكتابة على ميتا" },
   { href: "/settings/team", title: "الفريق والصلاحيات", line: "الناس وأدوارهم، دليل الفريق، توكنات الوكلاء، مين بيقدر شو" },
-  { href: "/settings/rules", title: "القواعد", line: "السقوف، مستوى كل حساب، أحكام الحملات، الأوامر السارية" },
+  { href: "/settings/rules", title: "القواعد", line: "السقوف، أسعار الصرف، مستوى كل حساب، أحكام الحملات، الأوامر السارية" },
   { href: "/settings/products", title: "المنتجات", line: "الأسعار والتكاليف ونقطة التعادل، الصفحات، صفحات الهبوط" },
   { href: "/settings/notifications", title: "الإشعارات", line: "شو بيرنّ على جوالك وشو بالجرس، أجهزتك، وصاحي ونايم" },
   { href: "/settings/look", title: "المظهر", line: "فاتح أو داكن" },
